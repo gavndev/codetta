@@ -138,6 +138,7 @@ const state = {
   editor: null,           // { paths, changes: Map, extraKeys: [], errors: [] }
   rows: new Map(),        // track path -> { row, checkbox }
   tagFilters: [],         // [{ key, value }] — value "" means "has no value"
+  selectMode: false,      // phones: selection circles only show after tapping "Select"
   clipboard: loadClipboard(), // copied tags: { tags: {key: [values]}, from }
   loadToken: 0,
 };
@@ -369,6 +370,7 @@ function showFolder(data, scrollTop) {
     state.filter = "";
     els.filter.value = "";
     state.tagFilters = [];
+    state.selectMode = false;
     closeEditor(true);
   } else {
     // Keep only selections that still exist.
@@ -457,8 +459,39 @@ function renderFolderHead() {
         }, icon(v === "list" ? "rows" : "grid")))) : null,
       f.tracks.length || f.folders.length ? h("button", {
         class: "btn", type: "button", onclick: () => openApply("folder"),
-      }, "Apply loadout…") : null),
+      }, "Apply loadout…") : null,
+      // Phones: selecting is a mode, like the Photos app.
+      f.tracks.length && state.selectMode ? h("button", {
+        class: "btn phone-only", type: "button", onclick: toggleSelectAllVisible,
+      }, allVisibleSelected() ? "Deselect all" : "Select all") : null,
+      f.tracks.length ? h("button", {
+        class: `btn phone-only${state.selectMode ? " primary" : ""}`, type: "button",
+        "aria-pressed": String(state.selectMode), onclick: () => setSelectMode(!state.selectMode),
+      }, state.selectMode ? "Done" : "Select") : null),
   );
+  els.tracks.classList.toggle("selecting", state.selectMode);
+}
+
+const isPhone = () => window.matchMedia("(max-width: 760px)").matches;
+
+function setSelectMode(on) {
+  state.selectMode = on;
+  if (!on) {
+    state.selected.clear();
+    state.lastClicked = null;
+    updateRowStates();
+    renderSelectionBar();
+  }
+  renderFolderHead();
+}
+
+function allVisibleSelected() {
+  const vis = visibleTracks();
+  return vis.length > 0 && vis.every((t) => state.selected.has(t.path));
+}
+
+function toggleSelectAllVisible() {
+  selectAll(!allVisibleSelected());
 }
 
 // Folders show as a list by default (clean with hundreds of artists), or as a grid.
@@ -547,7 +580,11 @@ function renderTracks() {
       tabindex: "0",
       role: "row",
       dataset: { path: t.path },
-      onclick: (e) => { if (!e.target.closest(".check-cell")) openTrack(t); },
+      onclick: (e) => {
+        if (e.target.closest(".check-cell")) return;
+        if (state.selectMode && isPhone()) toggleSelect(t.path, !state.selected.has(t.path), false);
+        else openTrack(t);
+      },
       onkeydown: (e) => {
         if (e.key === "Enter") openTrack(t);
         if (e.key === " " && e.target === row) { e.preventDefault(); checkbox.click(); }
@@ -693,6 +730,7 @@ function renderSelectionBar() {
     els.selBar.hidden = false;
   }
   els.selCount.textContent = `${n} selected`;
+  if (state.selectMode) renderFolderHead();
 }
 
 // ---- Editor -----------------------------------------------------------------------------------------

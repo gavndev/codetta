@@ -411,6 +411,8 @@ dialog.sheet.small { width: min(420px, calc(100vw - 32px)); }
 .folders.as-list .folder > svg:last-child { color: var(--faint); width: 15px; height: 15px; }
 
 .folder-actions { align-items: center; }
+.phone-only { display: none; }
+@media (max-width: 760px) { .phone-only { display: inline-flex; } }
 .view-toggle { display: flex; gap: 2px; padding: 2px; border-radius: 9px; background: var(--hover); }
 .view-toggle .icon-btn { width: 30px; height: 28px; border-radius: 7px; }
 .view-toggle .icon-btn[aria-pressed="true"] { background: var(--surface-raised); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); }
@@ -1289,6 +1291,13 @@ dialog.sheet.closing::backdrop { animation: fade-out 150ms ease forwards; }
   .track-row .col-dur { padding-right: 14px; }
   .check-cell { height: 58px; }
   .check-cell input { width: 22px; height: 22px; }
+
+  /* Selection circles only appear after tapping "Select". */
+  .tracks:not(.selecting) .track-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .tracks:not(.selecting) .check-cell { display: none; }
+  .tracks:not(.selecting) .track-row .col-title { padding-left: 16px; }
+  .tracks.selecting .check-cell { animation: pop-in var(--dur) var(--ease-out); }
+  .folder-actions { flex-wrap: wrap; justify-content: flex-end; }
 
   /* The editor becomes a full-screen sheet. */
   .editor {

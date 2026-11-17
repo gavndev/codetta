@@ -41,6 +41,7 @@
 
 ## Phase 5: Rebirth (bugs and features from the review)
 - [x] **Task 5.1:** Profile pictures: round photo replaces the person icon in the top bar; profile section in the account menu (change / remove; initial shown when empty). The browser crops to a square, scales to 256 px and uploads WebP (JPEG on older Safari); HEIC works wherever the browser can decode it (Safari, any iOS browser) with a clear message elsewhere. Stored per user in `config/avatars/`.
+- [x] **Task 5.2:** Phones: selection circles are hidden until you tap **Select** (then tapping a track selects it; **Select all** / **Done**), like the Photos app. Desktop keeps always-visible checkboxes.
 
 ## Later (ideas, not scheduled)
 - Library-wide tag search/filter, backed by a cached tag index. Folder-level filtering covers current needs.
