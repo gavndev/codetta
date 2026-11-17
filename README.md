@@ -200,7 +200,7 @@ All optional. Set them under `environment:` in your
 | Folder in the container | What's in it |
 |---|---|
 | `/music` | Your library. Codetta needs read-write access to edit it. |
-| `/config` | Your account, sign-in sessions, loadouts, the activity log (`activity.jsonl`) and previous album art kept for undo (`undo-art/`). Include it in your backups. |
+| `/config` | Your account, sign-in sessions, profile picture (`avatars/`), loadouts, the activity log (`activity.jsonl`) and previous album art kept for undo (`undo-art/`). Include it in your backups. |
 
 The provided compose file also runs the container with a read-only system
 filesystem and without the ability to gain extra privileges.

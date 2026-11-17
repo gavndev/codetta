@@ -33,6 +33,7 @@ from pydantic import BaseModel, Field
 
 from codetta.core.activity import ActivityLog
 from codetta.core.artwork import MAX_ART_BYTES
+from codetta.core.avatar import MAX_AVATAR_BYTES, AvatarError, AvatarStore
 from codetta.core.auth import (
     SESSION_DAYS,
     AccountStore,
@@ -206,6 +207,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     engine = MetadataEngine()
     activity = ActivityLog(settings.config_dir / "activity.jsonl")
     art_store = ArtStore(settings.config_dir / "undo-art")
+    avatars = AvatarStore(settings.config_dir / "avatars")
     accounts = AccountStore(settings.config_dir / "auth.json", settings.username, settings.password)
     sessions = SessionStore(settings.config_dir / "sessions.json")
     limiter = LoginRateLimiter()
@@ -293,6 +295,8 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             "signed_in": (not settings.auth) or user is not None,
             "username": user,
             "managed_by_env": accounts.managed_by_env,
+            # Changes when the profile picture does; None if there isn't one.
+            "avatar": avatars.version(user) if user else None,
         }
 
     @app.post("/api/auth/setup")
@@ -350,6 +354,43 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         sessions.revoke_all(keep=token)
         log.info("Password changed for %r", user)
         return {"ok": True}
+
+    # --- Profile picture ------------------------------------------------------------------
+
+    def current_user(request: Request) -> str:
+        user = sessions.lookup(request.cookies.get(SESSION_COOKIE)) if settings.auth else "codetta"
+        if user is None:
+            raise HTTPException(401, "Sign in required")
+        return user
+
+    @app.get("/api/account/avatar", responses={200: {"content": {"image/webp": {}, "image/jpeg": {}, "image/png": {}}}})
+    def get_avatar(request: Request):
+        found = avatars.get(current_user(request))
+        if found is None:
+            raise HTTPException(404, "No profile picture")
+        data, mime = found
+        # The UI adds ?v=<version> to the URL, so a new picture gets a new URL.
+        return Response(data, media_type=mime, headers={"Cache-Control": "private, max-age=31536000, immutable"})
+
+    @app.put("/api/account/avatar")
+    async def set_avatar(request: Request) -> dict:
+        """Body: a square JPEG, PNG or WebP image (the browser crops and resizes it)."""
+        user = current_user(request)
+        if int(request.headers.get("content-length") or 0) > MAX_AVATAR_BYTES:
+            raise HTTPException(413, "That image is too large")
+        data = await request.body()
+        try:
+            await run_in_threadpool(avatars.save, user, data)
+        except AvatarError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        except OSError as exc:
+            raise HTTPException(500, f"Could not save the picture: {exc}") from exc
+        return {"avatar": avatars.version(user)}
+
+    @app.delete("/api/account/avatar")
+    def delete_avatar(request: Request) -> dict:
+        avatars.delete(current_user(request))
+        return {"avatar": None}
 
     def require_library() -> None:
         if not library.exists():

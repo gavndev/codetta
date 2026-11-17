@@ -17,5 +17,6 @@ First release.
 - Activity log of every change, with old and new values, and undo/redo straight from the log (files edited again since are left alone).
 - Safe writes: temporary copy, verify, atomic swap; symlinks, hard links, permissions and cover art preserved.
 - Sign-in with hashed passwords, 30-day sessions, lockout and password reset from the server.
+- Profile pictures: a round photo of your choice in the top bar and account menu (JPEG, PNG, WebP, GIF, AVIF, and HEIC on iPhone/Safari).
 - Version shown on the sign-in screen and account menu, with a check for new releases.
 - Docker image that runs as your user, with a health check and read-only filesystem.

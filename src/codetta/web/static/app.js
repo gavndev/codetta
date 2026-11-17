@@ -84,6 +84,7 @@ const ICONS = {
   chevron: '<svg viewBox="0 0 20 20"><path d="m8 5 5 5-5 5"/></svg>',
   rows: '<svg viewBox="0 0 20 20"><path d="M4 5.5h12M4 10h12M4 14.5h12"/></svg>',
   grid: '<svg viewBox="0 0 20 20"><rect x="3.5" y="3.5" width="5" height="5" rx="1"/><rect x="11.5" y="3.5" width="5" height="5" rx="1"/><rect x="3.5" y="11.5" width="5" height="5" rx="1"/><rect x="11.5" y="11.5" width="5" height="5" rx="1"/></svg>',
+  user: '<svg viewBox="0 0 20 20"><circle cx="10" cy="7" r="3.2"/><path d="M3.8 16.5a6.2 6.2 0 0 1 12.4 0"/></svg>',
   undo: '<svg viewBox="0 0 20 20"><path d="M7.5 5 4 8.5 7.5 12"/><path d="M4.5 8.5h7a4.5 4.5 0 0 1 0 9H9"/></svg>',
   spark: '<svg viewBox="0 0 20 20"><path d="M10 3.5 11.4 8.6 16.5 10l-5.1 1.4L10 16.5l-1.4-5.1L3.5 10l5.1-1.4z"/></svg>',
   paste: '<svg viewBox="0 0 20 20"><rect x="4.5" y="4" width="11" height="13" rx="2"/><path d="M8 4V3h4v1"/><path d="M7.5 9h5M7.5 12h3"/></svg>',
@@ -1899,6 +1900,7 @@ async function submitAuth(e) {
   try {
     const res = await api("POST", authMode === "setup" ? "/api/auth/setup" : "/api/auth/login", { username: user, password: pass });
     state.auth = { ...(state.auth || {}), signed_in: true, username: res.username, setup_required: false };
+    try { state.auth = await api("GET", "/api/auth/status"); } catch { /* keep what we have */ }
     $("#auth-pass").value = "";
     $("#auth-confirm").value = "";
     $("#auth").hidden = true;
@@ -1912,7 +1914,94 @@ async function submitAuth(e) {
   }
 }
 
+// ---- Profile picture ------------------------------------------------------------------------------------
+
+const AVATAR_SIZE = 256;
+
+function avatarUrl() {
+  const v = state.auth?.avatar;
+  return v ? `/api/account/avatar?v=${v}` : null;
+}
+
+function renderAvatar() {
+  const url = avatarUrl();
+  const btn = $("#account-btn");
+  btn.classList.toggle("has-avatar", !!url);
+  setKids(btn, url ? h("img", { class: "avatar-img", src: url, alt: "" }) : icon("user"));
+  const name = state.auth?.username || "";
+  setKids($("#profile-avatar"), url
+    ? h("img", { src: url, alt: "" })
+    : h("span", { class: "avatar-initial", "aria-hidden": "true" }, (Array.from(name)[0] || "?").toUpperCase()));
+  $("#avatar-remove").hidden = !url;
+}
+
+/** Decode any image the browser can read (HEIC works in Safari / on iPhone). */
+async function decodeImage(file) {
+  if (window.createImageBitmap) {
+    try { return await createImageBitmap(file, { imageOrientation: "from-image" }); } catch { /* try <img> */ }
+  }
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    return img;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+function canvasToBlob(canvas, type, quality) {
+  return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
+}
+
+/** Crop to a centred square, scale to 256px and upload as WebP (or JPEG). */
+async function uploadAvatar(file) {
+  const looksHeic = /image\/hei[cf]/i.test(file.type) || /\.(heic|heif)$/i.test(file.name);
+  if (file.size > 60 * 1024 * 1024) { toast("That image is too large", "error"); return; }
+  let image;
+  try {
+    image = await decodeImage(file);
+  } catch {
+    toast(looksHeic
+      ? "This browser can't open HEIC photos. Save it as JPEG first, or use Safari (or any browser on an iPhone)."
+      : "That file isn't an image Codetta can open. Try JPEG, PNG or WebP.", "error");
+    return;
+  }
+  const w = image.width || image.naturalWidth, h0 = image.height || image.naturalHeight;
+  const side = Math.min(w, h0);
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = AVATAR_SIZE;
+  const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(image, (w - side) / 2, (h0 - side) / 2, side, side, 0, 0, AVATAR_SIZE, AVATAR_SIZE);
+  let blob = await canvasToBlob(canvas, "image/webp", 0.9);
+  if (!blob || blob.type !== "image/webp") blob = await canvasToBlob(canvas, "image/jpeg", 0.9); // older Safari
+  try {
+    const res = await fetch("/api/account/avatar", { method: "PUT", body: blob, headers: { "Content-Type": blob.type } });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error((data && data.detail) || `Upload failed (${res.status})`);
+    state.auth.avatar = data.avatar;
+    renderAvatar();
+    toast("Profile picture updated", "success");
+  } catch (err) {
+    toast(err.message, "error");
+  }
+}
+
+async function removeAvatar() {
+  try {
+    await api("DELETE", "/api/account/avatar");
+    state.auth.avatar = null;
+    renderAvatar();
+    toast("Profile picture removed", "success");
+  } catch (err) {
+    toast(err.message, "error");
+  }
+}
+
 function openAccount() {
+  renderAvatar();
   renderAbout();
   if (!state.update) refreshUpdate();
   const a = state.auth || {};
@@ -1955,6 +2044,15 @@ async function boot() {
   $("#password-form").addEventListener("submit", changePassword);
   $("#sign-out").addEventListener("click", signOut);
   $("#check-updates").addEventListener("click", () => refreshUpdate(true));
+  const pickAvatar = () => $("#avatar-file").click();
+  $("#profile-avatar").addEventListener("click", pickAvatar);
+  $("#avatar-change").addEventListener("click", pickAvatar);
+  $("#avatar-remove").addEventListener("click", removeAvatar);
+  $("#avatar-file").addEventListener("change", (e) => {
+    const f = e.target.files[0];
+    e.target.value = "";
+    if (f) uploadAvatar(f);
+  });
   const accountDialog = $("#account-dialog");
   accountDialog.addEventListener("click", (e) => {
     if (e.target.closest("[data-close]") || e.target === accountDialog) closeDialog(accountDialog);
@@ -2055,6 +2153,7 @@ async function startApp() {
   appStarted = true;
   $("#app").hidden = false;
   $("#account-btn").hidden = !state.auth?.auth_enabled;
+  renderAvatar();
   try {
     const [status, fields] = await Promise.all([api("GET", "/api/status"), api("GET", "/api/fields")]);
     state.fields = fields.fields;

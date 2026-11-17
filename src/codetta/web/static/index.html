@@ -12,7 +12,7 @@
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
   <link rel="preload" href="/static/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/static/app.css?v=20">
+  <link rel="stylesheet" href="/static/app.css?v=21">
   <script>
     // Apply the saved theme before first paint, so there's no flash.
     try {
@@ -202,6 +202,18 @@
       </button>
     </div>
     <div class="sheet-body">
+      <section class="profile" aria-label="Profile">
+        <button class="avatar-lg" type="button" id="profile-avatar" aria-label="Change profile picture" title="Change profile picture"></button>
+        <div class="profile-info">
+          <div class="profile-sub">Signed in as</div>
+          <div class="profile-name" id="account-name"></div>
+          <div class="profile-actions">
+            <button class="btn small" type="button" id="avatar-change">Change photo</button>
+            <button class="btn small danger" type="button" id="avatar-remove" hidden>Remove</button>
+          </div>
+        </div>
+        <input type="file" id="avatar-file" accept="image/*,.heic,.heif" hidden>
+      </section>
       <section class="about" aria-labelledby="about-title">
         <div class="about-head">
           <h3 id="about-title" class="field-label">Codetta</h3>
@@ -211,7 +223,6 @@
         <p class="about-status" id="update-status" aria-live="polite"></p>
         <div class="update-box" id="update-box" hidden></div>
       </section>
-      <p class="account-who">Signed in as <b id="account-name"></b></p>
       <form id="password-form" class="password-form">
         <input type="text" name="username" id="pw-username" autocomplete="username" hidden>
         <h3 class="field-label">Change password</h3>
@@ -249,6 +260,6 @@
   <datalist id="tag-keys"></datalist>
   <div class="toasts" id="toasts" aria-live="polite"></div>
 
-  <script src="/static/app.js?v=19" type="module"></script>
+  <script src="/static/app.js?v=20" type="module"></script>
 </body>
 </html>
