@@ -6,6 +6,8 @@ build-backend = "setuptools.build_meta"
 name = "codetta"
 version = "0.1.0"
 description = "Self-hosted music metadata editor for homelab audio libraries"
+license = "AGPL-3.0-or-later"
+license-files = ["LICENSE"]
 requires-python = ">=3.14"
 dependencies = [
     "mutagen>=1.48",

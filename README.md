@@ -315,7 +315,10 @@ Use a **copy** of some music while developing. Contributor notes are in
 
 ## License
 
-To be decided before the first public release.
+Codetta is free software under the [GNU Affero General Public License v3.0](LICENSE)
+(AGPL-3.0-or-later). You can use, study, change and share it. If you run a
+modified version for other people, including as a hosted service, you must
+make your changes available to them under the same license.
 
 ## Credits
 

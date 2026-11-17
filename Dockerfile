@@ -28,7 +28,8 @@ RUN pip install --no-deps .
 FROM python:3.14-slim
 
 LABEL org.opencontainers.image.title="Codetta" \
-      org.opencontainers.image.description="Self-hosted music metadata editor for FLAC, MP3, M4A, OGG and Opus libraries"
+      org.opencontainers.image.description="Self-hosted music metadata editor for FLAC, MP3, M4A, OGG and Opus libraries" \
+      org.opencontainers.image.licenses="AGPL-3.0-or-later"
 
 ENV PATH=/opt/venv/bin:$PATH \
     PYTHONUNBUFFERED=1 \
