@@ -21,6 +21,6 @@ Coda is a self-hosted music metadata editor built in Python (FastAPI + Mutagen) 
 
 ## Coding Rules for Claude
 1. **Keep it modular:** Core metadata logic lives in `src/coda/core/`. FastAPI routes live in `src/coda/web/`.
-2. **Safety first:** When writing metadata changes to audio files, handle exceptions gracefully so files don't get corrupted.
+2. **Safety first:** When writing metadata changes to audio files, handle exceptions gracefully so files don't get corrupted. All writes must go through `MetadataEngine.update_tags()` (temp copy → verify → atomic swap); never write to a library file in place. Any new edge case gets a test in `tests/test_safety.py`.
 3. **No over-engineering:** Use standard library features or lightweight libraries (`mutagen`, `fastapi`, `uvicorn`).
 4. **Update the Plan:** As tasks are completed, check them off in `PLAN.md`.

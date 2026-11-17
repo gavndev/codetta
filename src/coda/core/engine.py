@@ -41,7 +41,8 @@ __all__ = [
 SUPPORTED_EXTENSIONS: frozenset[str] = frozenset({".flac", ".mp3", ".m4a", ".ogg", ".opus"})
 
 # The mutagen class detected from the file's contents -> Coda's format name.
-# Detection is by content, so a mislabelled file is still identified correctly.
+# Detection is by content (see _sniff_format), so a mislabelled file is still
+# identified correctly.
 _FORMAT_NAMES: dict[type, str] = {
     FLAC: "flac",
     EasyMP3: "mp3",
@@ -49,6 +50,11 @@ _FORMAT_NAMES: dict[type, str] = {
     OggVorbis: "ogg",
     OggOpus: "opus",
 }
+
+# OGG/Opus (and some old files) store cover art inside a text field as a big
+# base64 blob. It isn't a text tag, so it's hidden from ``tags`` and can't be
+# overwritten as text. (Other formats keep pictures outside the tag list.)
+COVER_ART_KEYS = frozenset({"metadata_block_picture", "coverart", "coverartmime"})
 
 
 # A tag value as callers may pass it: one string, several strings, or None.
@@ -98,18 +104,13 @@ class MetadataEngine:
         if path.suffix.lower() not in SUPPORTED_EXTENSIONS:
             raise UnsupportedFormatError(f"Unsupported file type '{path.suffix}': {path}")
 
-        try:
-            audio = mutagen.File(path, easy=True)
-        except mutagen.MutagenError as exc:
-            raise MetadataError(f"Could not read {path}: {exc}") from exc
-
-        format_name = _FORMAT_NAMES.get(type(audio)) if audio is not None else None
-        if format_name is None:
-            raise UnsupportedFormatError(f"Not a recognised audio file: {path}")
+        audio = _open_audio(path)
+        format_name = _FORMAT_NAMES[type(audio)]
 
         tags = {
             key.lower(): [str(value) for value in values]
             for key, values in (audio.tags or {}).items()
+            if key.lower() not in COVER_ART_KEYS
         }
         for old_name in HIDDEN_ALIASES.get(format_name, {}):
             tags.pop(old_name, None)
@@ -153,30 +154,38 @@ class MetadataEngine:
         path = Path(path)
         original = self.load_metadata(path)  # validates path and format
         normalized = {key.lower(): _normalize_value(value) for key, value in changes.items()}
+        _check_changes(normalized)
         if not normalized:
             return original
-        if not os.access(path, os.W_OK):
+
+        # If ``path`` is a symlink, edit the file it points to. Otherwise the
+        # swap below would replace the link itself with a regular file.
+        target = Path(os.path.realpath(path))
+        if not os.access(target, os.W_OK):
             raise MetadataError(f"File is read-only: {path}")
 
         temp_path = None
         try:
             try:
                 fd, temp_name = tempfile.mkstemp(
-                    prefix=".coda-", suffix=path.suffix, dir=path.parent
+                    prefix=".coda-", suffix=target.suffix, dir=target.parent
                 )
             except OSError as exc:
-                raise MetadataError(f"Cannot write to folder {path.parent}: {exc}") from exc
+                raise MetadataError(f"Cannot write to folder {target.parent}: {exc}") from exc
             os.close(fd)
             temp_path = Path(temp_name)
-            shutil.copy2(path, temp_path)  # also copies permissions
-            _copy_ownership(path, temp_path)
+            shutil.copy2(target, temp_path)  # also copies permissions
+            _copy_ownership(target, temp_path)
 
             self._write_tags(temp_path, original.format, normalized)
             self._verify_tags(temp_path, normalized)
 
             with open(temp_path, "rb") as f:
                 os.fsync(f.fileno())  # make sure it's on disk before the swap
-            os.replace(temp_path, path)  # atomic: original is never half-written
+            # Atomic: the original is never half-written. This also gives the
+            # file a new identity, so any hard-linked copy (e.g. a torrent
+            # client still seeding it) keeps the original bytes.
+            os.replace(temp_path, target)
             temp_path = None
         except OSError as exc:
             raise MetadataError(f"Could not write tags to {path}: {exc}") from exc
@@ -189,7 +198,7 @@ class MetadataEngine:
 
     def _write_tags(self, path: Path, format_name: str, changes: dict[str, list[str]]) -> None:
         try:
-            audio = mutagen.File(path, easy=True)
+            audio = _open_audio(path)
             if audio.tags is None:
                 audio.add_tags()
             for key, values in changes.items():
@@ -213,6 +222,58 @@ class MetadataEngine:
                     f"Tag '{key}' did not save correctly "
                     f"(wanted {values!r}, file has {written.get(key, [])!r})"
                 )
+
+
+def _open_audio(path: Path):
+    """Open ``path`` with mutagen, choosing the format from the file's bytes.
+
+    mutagen on its own trusts the extension over the contents, so an MP3
+    renamed to ``.flac`` would fail to open. Sniffing the header first avoids
+    that, and also guarantees only Coda's five formats are ever tried.
+    """
+    try:
+        kind = _sniff_format(path)
+        options = [kind] if kind else list(_FORMAT_NAMES)
+        audio = mutagen.File(path, options=options)
+    except (mutagen.MutagenError, OSError) as exc:
+        raise MetadataError(f"Could not read {path}: {exc}") from exc
+    if audio is None or type(audio) not in _FORMAT_NAMES:
+        raise UnsupportedFormatError(f"Not a recognised audio file: {path}")
+    return audio
+
+
+def _sniff_format(path: Path) -> type | None:
+    """Identify the audio format from the first bytes of the file, or None."""
+    with open(path, "rb") as f:
+        head = f.read(64)
+        if head.startswith(b"ID3") and len(head) >= 10:
+            # Skip an ID3 tag (normally MP3, occasionally stuck on a FLAC).
+            size = (head[6] << 21) | (head[7] << 14) | (head[8] << 7) | head[9]
+            f.seek(10 + size)
+            after = f.read(4)
+            return FLAC if after == b"fLaC" else EasyMP3
+    if head.startswith(b"fLaC"):
+        return FLAC
+    if head.startswith(b"OggS"):
+        if b"OpusHead" in head:
+            return OggOpus
+        if b"\x01vorbis" in head:
+            return OggVorbis
+        return None
+    if head[4:8] == b"ftyp":
+        return EasyMP4
+    if len(head) >= 2 and head[0] == 0xFF and head[1] & 0xE0 == 0xE0:
+        return EasyMP3  # MPEG audio frame with no ID3 tag
+    return None
+
+
+def _check_changes(changes: dict[str, list[str]]) -> None:
+    """Reject changes that can't be stored safely, before touching the file."""
+    for key, values in changes.items():
+        if key in COVER_ART_KEYS:
+            raise MetadataError(f"'{key}' holds cover art and can't be edited as text")
+        if any("\x00" in v for v in values):
+            raise MetadataError(f"Tag '{key}' contains a null character, which can't be stored")
 
 
 def _normalize_value(value: TagValue) -> list[str]:

@@ -5,7 +5,7 @@
 - [x] **Task 1.2:** Build `src/coda/core/engine.py` with `MetadataEngine.load_metadata()` to safely read tags from FLAC, MP3, M4A/AAC, OGG Vorbis, and Opus. Generate tiny sample audio files in `tests/fixtures/` (via `ffmpeg`) and write read tests in `tests/test_engine.py`.
 - [x] **Task 1.3:** Build `MetadataEngine.update_tags()` to write modified tags back to audio files without corrupting them (write to a temp copy, then swap it in). Add write/round-trip tests for every format.
 - [x] **Task 1.4:** Build `src/coda/core/presets.py` to handle JSON-based Tag Loadouts (pre-saved batch tag templates), stored in `config/`. Add tests in `tests/test_presets.py`.
-- [ ] **Task 1.5:** Add failure-case tests (corrupt files, read-only files, unsupported formats, unicode tags) proving that files are never damaged when something goes wrong.
+- [x] **Task 1.5:** Add failure-case tests in `tests/test_safety.py` (corrupt/truncated/empty/mislabelled files, read-only files and folders, unsupported formats, unicode tags and filenames, cover art preservation, symlinks and hard links, disk-full and interrupted writes) proving that files are never damaged when something goes wrong.
 
 ## Phase 2: FastAPI Backend & Homelab Dockerization
 - [ ] **Task 2.1:** Create FastAPI application entry point in `src/coda/web/app.py`.
