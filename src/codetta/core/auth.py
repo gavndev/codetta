@@ -23,6 +23,7 @@ import secrets
 import tempfile
 import threading
 import time
+from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -41,7 +42,35 @@ class AuthError(Exception):
 # --- Password hashing ----------------------------------------------------------------
 
 
+# At most this many password hashes run at once (each needs ~32 MB of RAM), so a
+# burst of parallel sign-in attempts can't exhaust memory on a small server.
+MAX_CONCURRENT_HASHES = 2
+_hash_slots = threading.BoundedSemaphore(MAX_CONCURRENT_HASHES)
+HASH_WAIT_SECONDS = 10.0
+
+
+class BusyError(AuthError):
+    """Too many sign-in attempts are being checked right now."""
+
+
+def _with_hash_slot(fn, *args):
+    if not _hash_slots.acquire(timeout=HASH_WAIT_SECONDS):
+        raise BusyError("The server is busy checking other sign-ins. Try again in a moment.")
+    try:
+        return fn(*args)
+    finally:
+        _hash_slots.release()
+
+
 def hash_password(password: str) -> str:
+    return _with_hash_slot(_hash_password, password)
+
+
+def verify_password(password: str, stored: str) -> bool:
+    return _with_hash_slot(_verify_password, password, stored)
+
+
+def _hash_password(password: str) -> str:
     """Return a self-describing hash string: ``scrypt$n$r$p$salt$hash``."""
     salt = os.urandom(16)
     digest = hashlib.scrypt(password.encode(), salt=salt, n=_SCRYPT_N, r=_SCRYPT_R, p=_SCRYPT_P, dklen=32,
@@ -54,12 +83,12 @@ def needs_rehash(stored: str) -> bool:
     """True if ``stored`` was made with weaker settings than today's."""
     try:
         scheme, n, r, p, *_ = stored.split("$")
-        return scheme != "scrypt" or (int(n), int(r), int(p)) < (_SCRYPT_N, _SCRYPT_R, _SCRYPT_P)
+        return scheme != "scrypt" or int(n) < _SCRYPT_N or int(r) < _SCRYPT_R or int(p) < _SCRYPT_P
     except ValueError:
         return True
 
 
-def verify_password(password: str, stored: str) -> bool:
+def _verify_password(password: str, stored: str) -> bool:
     try:
         scheme, n, r, p, salt_b64, digest_b64 = stored.split("$")
         if scheme != "scrypt":
@@ -282,35 +311,51 @@ class SessionStore:
 
 class LoginRateLimiter:
     """Slow down password guessing: after ``free`` failures in ``window`` seconds
-    from one address, lock it out for 30 s, doubling per extra failure (max 15 min)."""
+    from one address, lock it out for 30 s, doubling per extra failure (max 15 min).
+
+    Memory is bounded: at most ``MAX_TRACKED`` addresses are remembered; the
+    least recently failing one is forgotten first (O(1)).
+    """
+
+    MAX_TRACKED = 10_000
 
     def __init__(self, free: int = 5, window: float = 15 * 60, base_lock: float = 30, max_lock: float = 15 * 60) -> None:
         self.free, self.window, self.base_lock, self.max_lock = free, window, base_lock, max_lock
-        self._failures: dict[str, list[float]] = {}
+        self._failures: OrderedDict[str, list[float]] = OrderedDict()
         self._lock = threading.Lock()
+
+    def _recent(self, key: str, now: float) -> list[float]:
+        """Failures still inside the window (expired ones are dropped). Never adds keys."""
+        fails = self._failures.get(key)
+        if fails is None:
+            return []
+        fails = [t for t in fails if now - t < self.window]
+        if fails:
+            self._failures[key] = fails
+        else:
+            del self._failures[key]
+        return fails
 
     def retry_after(self, key: str) -> int:
         """Seconds until ``key`` may try again (0 = allowed now)."""
         now = time.time()
         with self._lock:
-            fails = [t for t in self._failures.get(key, []) if now - t < self.window]
-            self._failures[key] = fails
+            fails = self._recent(key, now)
             if len(fails) < self.free:
                 return 0
             lock = min(self.base_lock * 2 ** (len(fails) - self.free), self.max_lock)
-            return max(0, int(fails[-1] + lock - now) + 1) if fails[-1] + lock > now else 0
-
-    MAX_TRACKED = 10_000  # addresses; bounded so a flood can't grow memory forever
+            remaining = fails[-1] + lock - now
+            return int(remaining) + 1 if remaining > 0 else 0
 
     def failed(self, key: str) -> None:
         now = time.time()
         with self._lock:
-            if len(self._failures) >= self.MAX_TRACKED and key not in self._failures:
-                # Drop addresses whose failures have all expired; if still full, the oldest.
-                self._failures = {k: v for k, v in self._failures.items() if v and now - v[-1] < self.window}
-                while len(self._failures) >= self.MAX_TRACKED:
-                    self._failures.pop(min(self._failures, key=lambda k: self._failures[k][-1]))
-            self._failures.setdefault(key, []).append(now)
+            fails = self._recent(key, now)
+            fails.append(now)
+            self._failures[key] = fails
+            self._failures.move_to_end(key)  # most recently failing goes last
+            while len(self._failures) > self.MAX_TRACKED:
+                self._failures.popitem(last=False)  # forget the least recently failing
 
     def succeeded(self, key: str) -> None:
         with self._lock:

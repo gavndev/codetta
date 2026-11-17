@@ -17,13 +17,17 @@ from __future__ import annotations
 import json
 from urllib.parse import urlsplit
 
+from codetta.core.artwork import MAX_ART_BYTES
+from codetta.core.avatar import MAX_AVATAR_BYTES
+
 KB = 1024
 MB = 1024 * KB
 
-# Largest request body accepted, by path. Everything else gets DEFAULT_LIMIT.
+# Largest request body accepted, by path (the image limits come from the core
+# modules, so there's one source of truth). Everything else gets DEFAULT_LIMIT.
 BODY_LIMITS = {
-    "/api/art": 25 * MB,  # album art (images up to 20 MB)
-    "/api/account/avatar": 3 * MB,  # profile pictures are resized in the browser
+    "/api/art": MAX_ART_BYTES,
+    "/api/account/avatar": MAX_AVATAR_BYTES,
 }
 DEFAULT_LIMIT = 1 * MB  # JSON: tag edits, loadouts, sign-in...
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
@@ -51,6 +55,11 @@ SECURITY_HEADERS = [
 NO_CSP_PATHS = ("/docs", "/openapi.json")
 
 
+def _first(value: str) -> str:
+    """X-Forwarded-Host can be a list ("a.example, b.internal"); the first is the client's."""
+    return value.split(",")[0].strip()
+
+
 def _host_only(host: str) -> str:
     """ "Example.com:8111" -> "example.com", "[::1]:8111" -> "::1"."""
     host = host.strip().lower()
@@ -73,9 +82,12 @@ class GuardMiddleware:
         headers = {k.decode("latin-1").lower(): v.decode("latin-1") for k, v in scope["headers"]}
         method = scope["method"].upper()
         path = scope["path"]
-        host = headers.get("x-forwarded-host") or headers.get("host", "")
+        # The names this request was addressed to: Host, and behind a reverse
+        # proxy the original one it forwards. (A web page can't set
+        # X-Forwarded-Host on a cross-site request, so trusting it is safe.)
+        hosts = [h for h in (headers.get("host", ""), _first(headers.get("x-forwarded-host", ""))) if h]
 
-        if self.allowed_hosts and _host_only(headers.get("host", "")) not in self.allowed_hosts:
+        if self.allowed_hosts and not any(_host_only(h) in self.allowed_hosts for h in hosts):
             return await _reject(send, 421, "This server doesn't answer to that host name.")
 
         if method not in SAFE_METHODS:
@@ -85,8 +97,11 @@ class GuardMiddleware:
                     return await _reject(send, 403, "Cross-site request blocked.")
             else:
                 origin = headers.get("origin")
-                if origin and origin != "null" and urlsplit(origin).netloc.lower() != host.lower():
-                    return await _reject(send, 403, "Cross-site request blocked.")
+                if origin is not None:
+                    # "null" comes from sandboxed frames and cross-site redirects: never ours.
+                    netloc = urlsplit(origin).netloc.lower() if origin != "null" else None
+                    if netloc not in {h.lower() for h in hosts}:
+                        return await _reject(send, 403, "Cross-site request blocked.")
 
             limit = BODY_LIMITS.get(path, DEFAULT_LIMIT)
             length = headers.get("content-length")

@@ -42,6 +42,23 @@ class Artwork:
     height: int | None = None
 
 
+def sniff_image_type(data: bytes) -> str | None:
+    """The image type from the file's actual bytes (never what it claims to be).
+
+    Only formats every browser displays safely as an <img>; SVG (which can
+    carry scripts) is deliberately not included.
+    """
+    if data.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    if data[:6] in (b"GIF87a", b"GIF89a"):
+        return "image/gif"
+    return None
+
+
 def parse_image(data: bytes) -> Artwork:
     """Check that ``data`` is a JPEG or PNG and read its size."""
     if not data:

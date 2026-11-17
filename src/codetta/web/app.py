@@ -34,12 +34,13 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from codetta.core.activity import ActivityLog
-from codetta.core.artwork import MAX_ART_BYTES
-from codetta.core.avatar import MAX_AVATAR_BYTES, AvatarError, AvatarStore
+from codetta.core.artwork import sniff_image_type
+from codetta.core.avatar import AvatarError, AvatarStore
 from codetta.core.auth import (
     SESSION_DAYS,
     AccountStore,
     AuthError,
+    BusyError,
     LoginRateLimiter,
     SessionStore,
     needs_rehash,
@@ -244,8 +245,6 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     app = FastAPI(
         title="Codetta", version=VERSION, docs_url="/docs", redoc_url=None, lifespan=lifespan
     )
-    # Size limits, cross-site protection and security headers (see web/security.py).
-    app.add_middleware(GuardMiddleware, allowed_hosts=set(settings.allowed_hosts))
 
     # Map Codetta's errors to HTTP status codes, with a readable message.
     def _error(status: int):
@@ -336,7 +335,10 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         if not settings.auth:
             return {"username": None}
         check_rate_limit(request)
-        account = accounts.check(body.username, body.password)
+        try:
+            account = accounts.check(body.username, body.password)
+        except BusyError as exc:
+            raise HTTPException(503, str(exc), headers={"Retry-After": "5"}) from exc
         if account is None:
             limiter.failed(client_key(request))
             log.warning("Failed sign-in for %r from %s", body.username, client_key(request))
@@ -396,9 +398,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     async def set_avatar(request: Request) -> dict:
         """Body: a square JPEG, PNG or WebP image (the browser crops and resizes it)."""
         user = current_user(request)
-        if int(request.headers.get("content-length") or 0) > MAX_AVATAR_BYTES:
-            raise HTTPException(413, "That image is too large")
-        data = await request.body()
+        data = await request.body()  # size already capped by GuardMiddleware
         try:
             await run_in_threadpool(avatars.save, user, data)
         except AvatarError as exc:
@@ -563,11 +563,13 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         art = engine.read_artwork(library.resolve(path))
         if art is None:
             raise HTTPException(404, "This track has no album art")
-        # Only genuine JPEG/PNG covers are shown as images. Anything else a file
-        # claims to be (e.g. "text/html") is sent as a download, so a booby-trapped
-        # file can never run a script inside Codetta.
-        if art.mime in ("image/jpeg", "image/png"):
-            return Response(art.data, media_type=art.mime, headers={"Cache-Control": "private, max-age=31536000, immutable"})
+        # The type is decided from the image's actual bytes, never from what the
+        # file claims ("image/jpeg" holding HTML, "text/html", SVG...). Anything
+        # that isn't a real JPEG/PNG/WebP/GIF is sent as a download, so a
+        # booby-trapped file can never run a script inside Codetta.
+        mime = sniff_image_type(art.data)
+        if mime:
+            return Response(art.data, media_type=mime, headers={"Cache-Control": "private, max-age=31536000, immutable"})
         return Response(art.data, media_type="application/octet-stream", headers={
             "Content-Disposition": 'attachment; filename="cover.bin"', "Cache-Control": "no-store"})
 
@@ -575,10 +577,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     async def set_art(request: Request, path: list[str] = Query(..., description="One or more files")):
         """Embed the request body (a JPEG or PNG image) as album art in each file."""
         require_library()
-        length = int(request.headers.get("content-length") or 0)
-        if length > MAX_ART_BYTES:
-            raise HTTPException(413, f"The image is too large (max {MAX_ART_BYTES // (1024 * 1024)} MB)")
-        image = await request.body()
+        image = await request.body()  # size already capped by GuardMiddleware
         return await run_in_threadpool(_change_art, path, image)
 
     @app.delete("/api/art", response_model=list[UpdateResult])
@@ -723,6 +722,9 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         return FileResponse(STATIC_DIR / "index.html", headers={"Cache-Control": "no-cache"})
 
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+    # Size limits, cross-site protection and security headers (see web/security.py).
+    # Added last so it wraps everything, including the sign-in check's 401s.
+    app.add_middleware(GuardMiddleware, allowed_hosts=set(settings.allowed_hosts))
     return app
 
 

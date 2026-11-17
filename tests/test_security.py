@@ -205,3 +205,103 @@ def test_allowed_hosts(music, tmp_path):
 def test_allowed_hosts_from_env(monkeypatch):
     monkeypatch.setenv("CODETTA_ALLOWED_HOSTS", "music-server, 192.168.1.50")
     assert Settings.from_env().allowed_hosts == ("music-server", "192.168.1.50")
+
+
+# --- Regression tests for the code-review findings ------------------------------------------
+
+
+def test_limiter_cap_holds_when_checked_before_failing():
+    # The login route calls retry_after() first; that used to create entries and skip the cap.
+    limiter = LoginRateLimiter()
+    limiter.MAX_TRACKED = 100
+    for i in range(1000):
+        key = f"10.1.{i // 256}.{i % 256}"
+        limiter.retry_after(key)
+        limiter.failed(key)
+    assert len(limiter._failures) <= 100
+
+
+def test_limiter_checks_and_successes_leave_no_entries():
+    limiter = LoginRateLimiter()
+    for i in range(50):
+        limiter.retry_after(f"1.1.1.{i}")
+        limiter.succeeded(f"1.1.1.{i}")
+    assert len(limiter._failures) == 0
+
+
+def test_null_origin_is_treated_as_cross_site(client):
+    assert client.post("/api/auth/logout", headers={"Origin": "null"}).status_code == 403
+
+
+def test_sign_in_required_responses_carry_security_headers(music, tmp_path):
+    with make_client(music, tmp_path) as c:
+        res = c.get("/api/browse")
+        assert res.status_code == 401
+        assert res.headers["x-content-type-options"] == "nosniff"
+        assert "content-security-policy" in res.headers
+
+
+def test_cover_lying_about_being_jpeg_is_still_downloaded(client, music):
+    from mutagen.id3 import APIC, ID3
+    shutil.copy2(FIXTURES_DIR / "sample.mp3", music / "liar.mp3")
+    tags = ID3(music / "liar.mp3")
+    tags.add(APIC(encoding=3, mime="image/jpeg", type=3, desc="", data=b"<svg onload=alert(1)>"))
+    tags.save()
+    res = client.get("/api/art", params={"path": "liar.mp3"})
+    assert res.headers["content-type"] == "application/octet-stream"
+
+
+@pytest.mark.parametrize(("data", "mime"), [
+    (b"RIFF\x24\x00\x00\x00WEBPVP8 " + b"\x00" * 24, "image/webp"),
+    (b"GIF89a" + b"\x00" * 32, "image/gif"),
+])
+def test_real_webp_and_gif_covers_display(client, music, data, mime):
+    f = FLAC(music / "song.flac")
+    pic = Picture()
+    pic.type, pic.mime, pic.data = 3, mime, data
+    f.clear_pictures()
+    f.add_picture(pic)
+    f.save()
+    assert client.get("/api/art", params={"path": "song.flac"}).headers["content-type"] == mime
+
+
+def test_parallel_sign_ins_are_capped(monkeypatch):
+    import codetta.core.auth as auth
+    monkeypatch.setattr(auth, "HASH_WAIT_SECONDS", 0.05)
+    held = [auth._hash_slots.acquire() for _ in range(auth.MAX_CONCURRENT_HASHES)]
+    try:
+        with pytest.raises(auth.BusyError):
+            auth.hash_password("x" * 12)
+    finally:
+        for _ in held:
+            auth._hash_slots.release()
+
+
+def test_busy_sign_in_answers_503(client, monkeypatch):
+    import codetta.core.auth as auth
+    monkeypatch.setattr(auth, "HASH_WAIT_SECONDS", 0.05)
+    client.cookies.clear()
+    held = [auth._hash_slots.acquire() for _ in range(auth.MAX_CONCURRENT_HASHES)]
+    try:
+        res = client.post("/api/auth/login", json={"username": "gavin", "password": "correct horse 1"})
+        assert res.status_code == 503 and res.headers["retry-after"]
+    finally:
+        for _ in held:
+            auth._hash_slots.release()
+
+
+def test_allowed_hosts_behind_a_reverse_proxy(music, tmp_path):
+    with make_client(music, tmp_path, allowed_hosts=("music.example.com",)) as c:
+        res = c.get("/api/health", headers={"Host": "codetta:8111", "X-Forwarded-Host": "music.example.com"})
+        assert res.status_code == 200
+
+
+def test_multi_hop_forwarded_host(client):
+    res = client.post("/api/auth/logout", headers={
+        "Origin": "https://a.example", "X-Forwarded-Host": "a.example, b.internal"})
+    assert res.status_code == 200
+
+
+@pytest.mark.parametrize("stored", ["scrypt$65536$1$1$AAAA$AAAA", "scrypt$32768$8$0$AAAA$AAAA", "scrypt$16384$8$1$AAAA$AAAA"])
+def test_any_weaker_parameter_triggers_rehash(stored):
+    assert needs_rehash(stored)
