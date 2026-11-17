@@ -56,6 +56,12 @@ from coda.core.tagmap import FIELDS
 STATIC_DIR = Path(__file__).parent / "static"
 SESSION_COOKIE = "coda_session"
 log = logging.getLogger("coda")
+if not log.handlers:  # show Coda's own messages (sign-ins etc.) next to uvicorn's
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter("%(levelname)s:     coda: %(message)s"))
+    log.addHandler(_handler)
+    log.setLevel(logging.INFO)
+    log.propagate = False
 
 try:
     VERSION = version("coda")

@@ -14,7 +14,7 @@ Coda is a self-hosted music metadata editor built in Python (FastAPI + Mutagen) 
 - **Backend Framework:** FastAPI with Uvicorn.
 - **Frontend:** Single-page web UI in `src/coda/web/static/` (plain HTML/CSS/JS, no framework, no build step, no CDNs, so it works on servers without internet). Inter font is bundled. Light/dark/system theme via CSS variables. Must work on iPhone (all iOS browsers are WebKit) as well as desktop Chromium/Firefox/Safari: 16px inputs on mobile, safe-area insets, 44px touch targets.
 - **Library access:** `src/coda/core/library.py`. The API only takes paths relative to the music folder and rejects anything that escapes it. Browsing is one folder at a time so huge libraries stay fast.
-- **Deployment:** Docker & Docker Compose with a mounted music volume (`/music`).
+- **Deployment:** `Dockerfile` + `docker-compose.yml`; container runs as `PUID:PGID` via `docker/entrypoint.sh` (never root), volumes `/music` and `/config`. Admin commands inside the container go through `coda-admin` so files stay owned by `PUID`.
 
 ## Common Development Commands
 - **Run Virtual Environment:** `source .venv/bin/activate`

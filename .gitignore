@@ -32,3 +32,4 @@ music/
 # Local Coda data: account, sessions, activity log, loadouts. Never commit these.
 config/*
 !config/.gitkeep
+coda-config/
