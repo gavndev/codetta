@@ -1113,7 +1113,7 @@ dialog::backdrop { background: var(--backdrop); }
   font: 12px/1.6 ui-monospace, "SF Mono", Menlo, Consolas, monospace; white-space: pre; overflow-x: auto;
 }
 .auth-version { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 11px; margin-top: 10px; }
-.auth-version-name { color: var(--text); font-weight: 600; }
+.auth-version-name { color: var(--text); font-weight: 600; display: inline-flex; align-items: center; height: 20px; line-height: 1; }
 .auth-version:empty { display: none; }
 #account-btn { position: relative; }
 #account-btn.has-update::after {
