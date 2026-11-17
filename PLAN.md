@@ -30,6 +30,14 @@
 - [x] **Task 3.2:** `docker-compose.yml` with `/music` and `/config` volumes, port `8111` (8000 is taken by another service on the host), read-only container filesystem. Running on music-server at port 8111 with `/media/music` (server settings in `docker-compose.override.yml`).
 - [x] **Task 3.3:** `README.md`: what Codetta is, screenshots, Docker setup, sign-in and password recovery, and HTTPS options (e.g. `tailscale serve` or a reverse proxy).
 
+## Phase 4: Toward v0.1.0
+- [x] **Task 4.1:** Folder list view by default (with counts of what's inside), grid as an option; content width capped on very wide screens.
+- [x] **Task 4.2:** Version number on the sign-in screen and in the account menu; twice-daily check for new GitHub releases (`CODETTA_UPDATE_CHECK`), update dot on the account icon, release notes and copyable update commands. `CHANGELOG.md`.
+- [ ] **Task 4.3:** Undo from the activity log.
+- [ ] **Task 4.4:** Security review and code review.
+- [ ] **Task 4.5:** Decide license; hide personal email in git history if wanted.
+- [ ] **Task 4.6:** Publish: GitHub repo, CI (tests + image build), ready-made image, `v0.1.0` release.
+
 ## Later (ideas, not scheduled)
 - Library-wide tag search/filter, backed by a cached tag index. Folder-level filtering covers current needs.
 - MusicBrainz plugin: match a file or folder to a MusicBrainz release/recording and offer its "official" metadata (titles, artists, dates, label, catalog number, MBIDs, cover art) to append to the matched tracks, previewed before writing, like loadouts. Also feeds smart suggestions.

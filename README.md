@@ -162,6 +162,12 @@ rest of your library.
 
 ## Updating
 
+Your version number is shown on the sign-in screen and in the account menu
+(the person icon). When a new release is out, a dot appears on that icon and
+the account menu shows what's new and the commands to run. Codetta never
+updates itself: that would require giving it control over Docker, and with
+it, the rest of your server.
+
 ```sh
 cd codetta
 git pull
@@ -182,6 +188,7 @@ All optional. Set them under `environment:` in your
 | `CODETTA_PORT` | `8111` | The port inside the container. To use a different port on your server, change the `ports:` mapping instead. |
 | `CODETTA_USERNAME` + `CODETTA_PASSWORD` | – | Create the account from here instead of the setup screen. The password can then only be changed here. |
 | `CODETTA_AUTH` | `on` | Set to `off` to disable sign-in. **Only** do this if a reverse proxy in front of Codetta already requires a login. |
+| `CODETTA_UPDATE_CHECK` | `on` | Twice a day, Codetta asks GitHub whether a newer release exists, and shows a dot on the account icon if so. Only the request itself is sent (no information about you or your library). Set to `off` to disable. |
 | `FORWARDED_ALLOW_IPS` | `127.0.0.1` | If you use a reverse proxy, set this to its IP so login lockouts see each visitor's real address. |
 
 | Folder in the container | What's in it |

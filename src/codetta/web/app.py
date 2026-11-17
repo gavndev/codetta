@@ -11,6 +11,8 @@ Settings (environment variables):
     CODETTA_PASSWORD      (both must be set; the password can't then be changed in the UI)
     CODETTA_AUTH        "off" disables sign-in entirely, e.g. behind a reverse proxy
                      that already handles it (default: on)
+    CODETTA_UPDATE_CHECK  "off" stops the twice-daily check for new releases on GitHub
+    CODETTA_UPDATE_REPO   where to look for releases (default: gavndev/codetta)
 """
 
 from __future__ import annotations
@@ -52,6 +54,7 @@ from codetta.core.presets import (
     slugify,
 )
 from codetta.core.tagmap import FIELDS
+from codetta.core.updates import DEFAULT_REPO, Fetcher, UpdateChecker, fetch_latest_release
 
 STATIC_DIR = Path(__file__).parent / "static"
 SESSION_COOKIE = "codetta_session"
@@ -81,6 +84,8 @@ class Settings:
     auth: bool = True
     username: str | None = None  # from CODETTA_USERNAME (with password: overrides setup)
     password: str | None = None
+    update_check: bool = False  # on by default via from_env; off for tests/embedding
+    update_repo: str = DEFAULT_REPO
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -90,6 +95,8 @@ class Settings:
             auth=env("AUTH", "on").strip().lower() not in ("off", "false", "0", "no"),
             username=env("USERNAME"),
             password=env("PASSWORD"),
+            update_check=env("UPDATE_CHECK", "on").strip().lower() not in ("off", "false", "0", "no"),
+            update_repo=env("UPDATE_REPO", DEFAULT_REPO),
         )
 
 
@@ -189,8 +196,9 @@ class ApplyResultOut(BaseModel):
 # --- App ----------------------------------------------------------------------------
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_latest_release) -> FastAPI:
     settings = settings or Settings.from_env()
+    updates = UpdateChecker(VERSION, settings.update_repo, settings.update_check, fetch_release)
     library = Library(settings.music_dir)
     store = LoadoutStore(settings.config_dir / "loadouts")
     engine = MetadataEngine()
@@ -271,6 +279,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def auth_status(request: Request) -> dict:
         user = sessions.lookup(request.cookies.get(SESSION_COOKIE)) if settings.auth else None
         return {
+            "version": VERSION,
             "auth_enabled": settings.auth,
             "setup_required": settings.auth and accounts.setup_required,
             "signed_in": (not settings.auth) or user is not None,
@@ -373,6 +382,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
 
     # --- Status & vocabulary ----------------------------------------------------------
+
+    @app.get("/api/update")
+    def update_status(force: bool = Query(False, description="Check GitHub now instead of using the cached answer")) -> dict:
+        """Installed version and, if enabled, the latest release on GitHub."""
+        return updates.status(force=force)
 
     @app.get("/api/status")
     def status() -> dict:

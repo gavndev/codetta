@@ -156,7 +156,9 @@ def client(make_client):
 
 
 def test_first_run_requires_setup(client):
-    assert client.get("/api/auth/status").json() == {
+    status = client.get("/api/auth/status").json()
+    assert status.pop("version")  # shown on the sign-in screen
+    assert status == {
         "auth_enabled": True, "setup_required": True, "signed_in": False,
         "username": None, "managed_by_env": False,
     }
@@ -164,7 +166,7 @@ def test_first_run_requires_setup(client):
 
 
 @pytest.mark.parametrize("path", [
-    "/api/browse", "/api/track?path=x.flac", "/api/fields", "/api/status", "/api/loadouts",
+    "/api/browse", "/api/track?path=x.flac", "/api/fields", "/api/status", "/api/loadouts", "/api/update",
     "/api/activity", "/api/art?path=x.flac", "/docs", "/openapi.json",
 ])
 def test_everything_private_is_locked(client, path):

@@ -12,7 +12,7 @@
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
   <link rel="preload" href="/static/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/static/app.css?v=11">
+  <link rel="stylesheet" href="/static/app.css?v=13">
   <script>
     // Apply the saved theme before first paint, so there's no flash.
     try {
@@ -49,6 +49,7 @@
       </label>
       <button class="btn primary auth-submit" id="auth-submit" type="submit">Sign in</button>
       <p class="auth-foot" id="auth-foot"></p>
+      <p class="auth-version" id="auth-version"></p>
     </form>
   </div>
 
@@ -201,6 +202,15 @@
       </button>
     </div>
     <div class="sheet-body">
+      <section class="about" aria-labelledby="about-title">
+        <div class="about-head">
+          <h3 id="about-title" class="field-label">Codetta</h3>
+          <span class="badge" id="about-version"></span>
+          <button class="btn small" type="button" id="check-updates">Check for updates</button>
+        </div>
+        <p class="about-status" id="update-status" aria-live="polite"></p>
+        <div class="update-box" id="update-box" hidden></div>
+      </section>
       <p class="account-who">Signed in as <b id="account-name"></b></p>
       <form id="password-form" class="password-form">
         <input type="text" name="username" id="pw-username" autocomplete="username" hidden>
@@ -239,6 +249,6 @@
   <datalist id="tag-keys"></datalist>
   <div class="toasts" id="toasts" aria-live="polite"></div>
 
-  <script src="/static/app.js?v=11" type="module"></script>
+  <script src="/static/app.js?v=13" type="module"></script>
 </body>
 </html>

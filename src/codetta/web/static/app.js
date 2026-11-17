@@ -1859,6 +1859,8 @@ async function submitAuth(e) {
 }
 
 function openAccount() {
+  renderAbout();
+  if (!state.update) refreshUpdate();
   const a = state.auth || {};
   $("#account-name").textContent = a.username || "";
   $("#pw-username").value = a.username || "";
@@ -1898,6 +1900,7 @@ async function boot() {
   $("#account-btn").addEventListener("click", openAccount);
   $("#password-form").addEventListener("submit", changePassword);
   $("#sign-out").addEventListener("click", signOut);
+  $("#check-updates").addEventListener("click", () => refreshUpdate(true));
   const accountDialog = $("#account-dialog");
   accountDialog.addEventListener("click", (e) => {
     if (e.target.closest("[data-close]") || e.target === accountDialog) closeDialog(accountDialog);
@@ -1910,11 +1913,86 @@ async function boot() {
     toast(`Can't reach the Codetta server: ${err.message}`, "error");
     return;
   }
+  showVersion(state.auth.version);
   if (state.auth.auth_enabled && !state.auth.signed_in) {
     showAuth(state.auth.setup_required ? "setup" : "login");
     return;
   }
   await startApp();
+}
+
+// ---- Version & updates -------------------------------------------------------------------------------
+
+function showVersion(version) {
+  if (!version) return;
+  $("#auth-version").textContent = `Codetta v${version}`;
+  $(".brand").title = `Codetta v${version}`;
+  $("#about-version").textContent = `v${version}`;
+}
+
+async function refreshUpdate(force = false) {
+  const btn = $("#check-updates");
+  if (force) { btn.disabled = true; btn.textContent = "Checking…"; }
+  try {
+    state.update = await api("GET", `/api/update${force ? "?force=true" : ""}`);
+  } catch {
+    /* offline or signed out: try again later */
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Check for updates";
+  }
+  const available = !!state.update?.update_available;
+  $("#account-btn").classList.toggle("has-update", available);
+  $("#account-btn").title = available ? `Account · Codetta ${state.update.latest} is available` : "Account";
+  renderAbout();
+}
+
+const UPDATE_STEPS = "cd /path/to/codetta\ngit pull\ndocker compose up -d --build";
+
+function renderAbout() {
+  const u = state.update;
+  const status = $("#update-status");
+  const box = $("#update-box");
+  box.hidden = true;
+  const checked = u?.checked_at ? ` (checked ${new Date(u.checked_at * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })})` : "";
+  if (!u) {
+    status.textContent = "";
+  } else if (!u.enabled) {
+    status.textContent = "Update checks are turned off (CODETTA_UPDATE_CHECK=off).";
+  } else if (u.error) {
+    status.textContent = `Couldn't check for updates: ${u.error}.`;
+  } else if (u.update_available) {
+    setKids(status, h("b", {}, `Version ${u.latest} is available.`), " ",
+      u.release_url ? h("a", { href: u.release_url, target: "_blank", rel: "noopener" }, "What's new") : null);
+    const notes = (u.notes || "").trim();
+    setKids(box,
+      notes ? h("div", { class: "release-notes" }, notes) : null,
+      h("p", { class: "hint", style: "margin:0 0 6px" }, "To update, run this on your server (use your Codetta folder's path):"),
+      h("pre", { class: "update-steps" }, UPDATE_STEPS),
+      h("button", { class: "btn small", type: "button", onclick: () => copyText(UPDATE_STEPS) }, icon("copy"), "Copy commands"),
+      h("p", { class: "hint", style: "margin:8px 0 0" }, "Your account, loadouts and activity log are kept."));
+    box.hidden = false;
+  } else {
+    status.textContent = `You're up to date${checked}.`;
+  }
+}
+
+/** Copy text; works over plain http too (navigator.clipboard needs https). */
+async function copyText(text) {
+  try {
+    if (window.isSecureContext && navigator.clipboard) await navigator.clipboard.writeText(text);
+    else {
+      const area = h("textarea", { style: "position:fixed;opacity:0", readonly: true });
+      area.value = text;
+      document.body.append(area);
+      area.select();
+      document.execCommand("copy");
+      area.remove();
+    }
+    toast("Copied", "success");
+  } catch {
+    toast("Couldn't copy. Select the text and copy it instead.", "error");
+  }
 }
 
 async function startApp() {
@@ -1934,6 +2012,9 @@ async function startApp() {
   await loadFolder(pathFromHash());
   refreshActivity();
   startActivityPolling();
+  // Check for a new release in the background (and twice a day if left open).
+  setTimeout(() => refreshUpdate(), 1500);
+  setInterval(() => refreshUpdate(), 12 * 3600 * 1000);
 }
 
 boot();
