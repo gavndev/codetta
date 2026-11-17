@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "coda"
+version = "0.1.0"
+description = "Self-hosted music metadata editor for homelab audio libraries"
+requires-python = ">=3.14"
+dependencies = [
+    "mutagen>=1.48",
+    "fastapi>=0.163",
+    "uvicorn>=0.54",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.2",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
