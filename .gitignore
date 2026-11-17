@@ -29,5 +29,6 @@ dist/
 # Local test audio / scratch music (never commit real libraries)
 music/
 
-# Local Coda settings (loadouts you create while developing)
-config/loadouts/
+# Local Coda data: account, sessions, activity log, loadouts. Never commit these.
+config/*
+!config/.gitkeep

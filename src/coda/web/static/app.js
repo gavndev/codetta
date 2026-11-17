@@ -51,7 +51,7 @@ function playOut(el, cls, done) {
 
 /** Restart an entrance animation class on an element. */
 function replay(el, cls) {
-  el.classList.remove("nav-forward", "nav-back", "nav-fade");
+  el.classList.remove("nav-forward", "nav-back", "nav-fade", cls);
   void el.offsetWidth; // force reflow so the animation starts again
   el.classList.add(cls);
 }
@@ -101,6 +101,10 @@ async function api(method, url, body) {
     headers: body ? { "Content-Type": "application/json" } : {},
     body: body ? JSON.stringify(body) : undefined,
   });
+  if (res.status === 401 && !url.startsWith("/api/auth/")) {
+    showAuth("login", "Your session ended. Sign in again to carry on where you left off.");
+    throw new Error("Sign in required");
+  }
   if (res.status === 204) return null;
   let data = null;
   try { data = await res.json(); } catch { /* not JSON */ }
@@ -176,6 +180,8 @@ function relativeToFolder(path) {
 // ---- Toasts --------------------------------------------------------------------------------
 
 function toast(message, kind = "") {
+  // While the sign-in screen is up it already explains what's wrong.
+  if (kind === "error" && !$("#auth").hidden) return;
   const el = h("div", { class: `toast ${kind}`, role: kind === "error" ? "alert" : "status" }, message);
   els.toasts.append(el);
   setTimeout(() => playOut(el, "leaving", () => el.remove()), kind === "error" ? 7000 : 3500);
@@ -1413,7 +1419,7 @@ function startActivityPolling() {
   clearInterval(activity.timer);
   // Picks up changes made from other devices too. Paused while the tab is hidden.
   activity.timer = setInterval(() => {
-    if (document.visibilityState === "visible" && state.editor) refreshActivity();
+    if (document.visibilityState === "visible" && state.editor && $("#auth").hidden) refreshActivity();
   }, 4000);
 }
 
@@ -1764,9 +1770,122 @@ function bindEvents() {
   });
 }
 
+// ---- Sign in ----------------------------------------------------------------------------------------
+
+let authMode = "login";
+let appStarted = false;
+
+function showAuth(mode, message = "") {
+  authMode = mode;
+  const setup = mode === "setup";
+  $("#auth-title").textContent = setup ? "Welcome to Coda" : "Sign in to Coda";
+  $("#auth-sub").textContent = setup ? "Create the account that protects your music library." : message;
+  $("#auth-confirm-wrap").hidden = !setup;
+  $("#auth-confirm").required = setup;
+  $("#auth-pass").autocomplete = setup ? "new-password" : "current-password";
+  $("#auth-pass").minLength = setup ? 8 : 0;
+  $("#auth-submit").textContent = setup ? "Create account" : "Sign in";
+  $("#auth-foot").textContent = setup
+    ? "Use at least 8 characters. You can change it later from the account menu."
+    : "Forgot it? Run “python -m coda.cli set-password” on the server.";
+  $("#auth-error").hidden = true;
+  const wasHidden = $("#auth").hidden;
+  $("#auth").hidden = false;
+  if (wasHidden) setTimeout(() => ($("#auth-user").value ? $("#auth-pass") : $("#auth-user")).focus(), 50);
+}
+
+async function submitAuth(e) {
+  e.preventDefault();
+  const user = $("#auth-user").value;
+  const pass = $("#auth-pass").value;
+  const err = $("#auth-error");
+  const fail = (msg) => {
+    err.textContent = msg;
+    err.hidden = false;
+    replay($("#auth"), "shake");
+  };
+  if (authMode === "setup" && pass !== $("#auth-confirm").value) { fail("The passwords don't match."); return; }
+  const btn = $("#auth-submit");
+  btn.disabled = true;
+  try {
+    const res = await api("POST", authMode === "setup" ? "/api/auth/setup" : "/api/auth/login", { username: user, password: pass });
+    state.auth = { ...(state.auth || {}), signed_in: true, username: res.username, setup_required: false };
+    $("#auth-pass").value = "";
+    $("#auth-confirm").value = "";
+    $("#auth").hidden = true;
+    if (!appStarted) await startApp();
+    else { loadFolder(state.path, { keepScroll: true }); refreshActivity(); }
+    if (authMode === "setup") toast(`Welcome, ${res.username}! Your library is now protected.`, "success");
+  } catch (error) {
+    fail(error.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function openAccount() {
+  const a = state.auth || {};
+  $("#account-name").textContent = a.username || "";
+  $("#pw-username").value = a.username || "";
+  $("#password-form").hidden = !!a.managed_by_env;
+  $("#pw-env-note").hidden = !a.managed_by_env;
+  $("#pw-error").hidden = true;
+  openDialog($("#account-dialog"));
+}
+
+async function changePassword(e) {
+  e.preventDefault();
+  const err = $("#pw-error");
+  const next = $("#pw-new").value;
+  if (next !== $("#pw-confirm").value) { err.textContent = "The new passwords don't match."; err.hidden = false; return; }
+  try {
+    await api("POST", "/api/auth/password", { current_password: $("#pw-current").value, new_password: next });
+    for (const id of ["#pw-current", "#pw-new", "#pw-confirm"]) $(id).value = "";
+    closeDialog($("#account-dialog"));
+    toast("Password changed. Your other devices were signed out.", "success");
+  } catch (error) {
+    err.textContent = error.message;
+    err.hidden = false;
+  }
+}
+
+async function signOut() {
+  if (isDirty() && !window.confirm("Sign out and discard your unsaved tag changes?")) return;
+  try { await api("POST", "/api/auth/logout"); } catch { /* signing out anyway */ }
+  state.editor = null; // already confirmed; don't ask again on unload
+  location.reload(); // fresh start: the page comes back on the sign-in screen
+}
+
 async function boot() {
   applyTheme(getTheme());
   bindEvents();
+  $("#auth-form").addEventListener("submit", submitAuth);
+  $("#account-btn").addEventListener("click", openAccount);
+  $("#password-form").addEventListener("submit", changePassword);
+  $("#sign-out").addEventListener("click", signOut);
+  const accountDialog = $("#account-dialog");
+  accountDialog.addEventListener("click", (e) => {
+    if (e.target.closest("[data-close]") || e.target === accountDialog) closeDialog(accountDialog);
+  });
+  accountDialog.addEventListener("cancel", (e) => { e.preventDefault(); closeDialog(accountDialog); });
+
+  try {
+    state.auth = await api("GET", "/api/auth/status");
+  } catch (err) {
+    toast(`Can't reach the Coda server: ${err.message}`, "error");
+    return;
+  }
+  if (state.auth.auth_enabled && !state.auth.signed_in) {
+    showAuth(state.auth.setup_required ? "setup" : "login");
+    return;
+  }
+  await startApp();
+}
+
+async function startApp() {
+  appStarted = true;
+  $("#app").hidden = false;
+  $("#account-btn").hidden = !state.auth?.auth_enabled;
   try {
     const [status, fields] = await Promise.all([api("GET", "/api/status"), api("GET", "/api/fields")]);
     state.fields = fields.fields;

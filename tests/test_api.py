@@ -15,6 +15,19 @@ def sha256(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+USER, PASSWORD = "tester", "correct horse battery"
+
+
+def signed_in(client):
+    """Create the account on first use (or sign in), as the UI does."""
+    if client.get("/api/auth/status").json()["setup_required"]:
+        res = client.post("/api/auth/setup", json={"username": USER, "password": PASSWORD})
+    else:
+        res = client.post("/api/auth/login", json={"username": USER, "password": PASSWORD})
+    assert res.status_code == 200, res.text
+    return client
+
+
 @pytest.fixture
 def music(tmp_path):
     """A small library:
@@ -51,7 +64,7 @@ def music(tmp_path):
 def client(music, tmp_path):
     app = create_app(Settings(music_dir=music, config_dir=tmp_path / "config"))
     with TestClient(app) as c:  # "with" runs startup (installs default loadouts)
-        yield c
+        yield signed_in(c)
 
 
 # --- Status, fields, UI ----------------------------------------------------------------
@@ -132,6 +145,7 @@ def test_browse_missing_folder(client):
 def test_missing_music_folder_explains_itself(tmp_path):
     app = create_app(Settings(music_dir=tmp_path / "nowhere", config_dir=tmp_path / "config"))
     with TestClient(app) as c:
+        signed_in(c)
         assert c.get("/api/status").json()["music_dir_found"] is False
         res = c.get("/api/browse")
         assert res.status_code == 503
@@ -369,6 +383,8 @@ def test_activity_persists_in_config_dir(music, tmp_path):
     config = tmp_path / "config"
     settings = Settings(music_dir=music, config_dir=config)
     with TestClient(create_app(settings)) as c:
+        signed_in(c)
         c.patch("/api/tracks", json={"paths": ["Loose Track.mp3"], "changes": {"genre": "Jazz"}})
     with TestClient(create_app(settings)) as c:
+        signed_in(c)
         assert c.get("/api/activity").json()[0]["message"] == "Edited genre on Loose Track.mp3"

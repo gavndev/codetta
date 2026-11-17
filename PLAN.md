@@ -25,9 +25,10 @@
 - [x] **Task 2.16:** Fluid transitions: direction-aware folder navigation, editor slide-in (full-height sheet on phones), dialogs scale in/out with a fading backdrop, suggestion and changes popovers, rising selection bar and toasts, album art fade-in, theme crossfade. All quick (120–340 ms) and switched off with the system's Reduce Motion setting.
 
 ## Phase 3: Docker & Sharing
+- [x] **Task 3.0:** Sign-in: first-run account setup (or `CODA_USERNAME`/`CODA_PASSWORD`), scrypt-hashed password, 30-day HttpOnly session cookies stored as hashes, lockout after repeated wrong passwords, account menu (change password signs out other devices, sign out), `python -m coda.cli set-password` / `sign-out-all` for recovery, `CODA_AUTH=off` for reverse-proxy setups. Every API route except sign-in and `/api/health` requires a session.
 - [ ] **Task 3.1:** Multi-stage `Dockerfile` on `python:3.14-slim`, running as a non-root user with configurable `PUID`/`PGID` so edited files keep the right owner.
 - [ ] **Task 3.2:** `docker-compose.yml` with `/music` and `/config` volumes, port `8111` (8000 is taken by another service on the host), and a healthcheck.
-- [ ] **Task 3.3:** `README.md`: what Coda is, screenshots, Docker setup, and a note on access (no login yet, so keep it on your LAN or behind a reverse proxy).
+- [ ] **Task 3.3:** `README.md`: what Coda is, screenshots, Docker setup, sign-in and password recovery, and HTTPS options (e.g. `tailscale serve` or a reverse proxy).
 
 ## Later (ideas, not scheduled)
 - Library-wide tag search/filter, backed by a cached tag index. Folder-level filtering covers current needs.

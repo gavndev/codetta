@@ -5,11 +5,17 @@ Run locally:
 
 Settings (environment variables):
     CODA_MUSIC_DIR   the music library to edit (default: /music)
-    CODA_CONFIG_DIR  where loadouts are stored (default: ./config)
+    CODA_CONFIG_DIR  where loadouts, the activity log and the account are
+                     stored (default: ./config)
+    CODA_USERNAME    optional: set the account here instead of the setup screen
+    CODA_PASSWORD      (both must be set; the password can't then be changed in the UI)
+    CODA_AUTH        "off" disables sign-in entirely, e.g. behind a reverse proxy
+                     that already handles it (default: on)
 """
 
 from __future__ import annotations
 
+import logging
 import os
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -25,6 +31,13 @@ from pydantic import BaseModel, Field
 
 from coda.core.activity import ActivityLog
 from coda.core.artwork import MAX_ART_BYTES
+from coda.core.auth import (
+    SESSION_DAYS,
+    AccountStore,
+    AuthError,
+    LoginRateLimiter,
+    SessionStore,
+)
 from coda.core.engine import MetadataEngine, MetadataError, TrackMetadata
 from coda.core.library import Library, LibraryPathError
 from coda.core.presets import (
@@ -41,6 +54,8 @@ from coda.core.presets import (
 from coda.core.tagmap import FIELDS
 
 STATIC_DIR = Path(__file__).parent / "static"
+SESSION_COOKIE = "coda_session"
+log = logging.getLogger("coda")
 
 try:
     VERSION = version("coda")
@@ -52,16 +67,32 @@ except PackageNotFoundError:  # running from a source checkout without install
 class Settings:
     music_dir: Path
     config_dir: Path
+    auth: bool = True
+    username: str | None = None  # from CODA_USERNAME (with password: overrides setup)
+    password: str | None = None
 
     @classmethod
     def from_env(cls) -> Settings:
         return cls(
             music_dir=Path(os.environ.get("CODA_MUSIC_DIR", "/music")).expanduser(),
             config_dir=Path(os.environ.get("CODA_CONFIG_DIR", "config")).expanduser(),
+            auth=os.environ.get("CODA_AUTH", "on").strip().lower() not in ("off", "false", "0", "no"),
+            username=os.environ.get("CODA_USERNAME") or None,
+            password=os.environ.get("CODA_PASSWORD") or None,
         )
 
 
 # --- API models -------------------------------------------------------------------
+
+
+class Credentials(BaseModel):
+    username: str = Field(max_length=200)
+    password: str = Field(max_length=2000)
+
+
+class PasswordChange(BaseModel):
+    current_password: str = Field(max_length=2000)
+    new_password: str = Field(max_length=2000)
 
 TagValueIn = str | list[str] | None
 
@@ -146,6 +177,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     store = LoadoutStore(settings.config_dir / "loadouts")
     engine = MetadataEngine()
     activity = ActivityLog(settings.config_dir / "activity.jsonl")
+    accounts = AccountStore(settings.config_dir / "auth.json", settings.username, settings.password)
+    sessions = SessionStore(settings.config_dir / "sessions.json")
+    limiter = LoginRateLimiter()
+    if not settings.auth:
+        log.warning("Sign-in is turned OFF (CODA_AUTH=off). Anyone who can reach Coda can edit your music.")
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -172,6 +208,113 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_exception_handler(MetadataError, _error(422))
     app.add_exception_handler(LoadoutNotFoundError, _error(404))
     app.add_exception_handler(LoadoutError, _error(422))
+
+    # --- Sign-in --------------------------------------------------------------------------
+
+    # Everything needs a signed-in session except the page shell, its static
+    # files, the sign-in endpoints themselves, and the health check.
+    PUBLIC_PATHS = {"/", "/api/health"}
+    PUBLIC_PREFIXES = ("/static/", "/api/auth/")
+
+    @app.middleware("http")
+    async def require_sign_in(request: Request, call_next):
+        path = request.url.path
+        if settings.auth and not (path in PUBLIC_PATHS or path.startswith(PUBLIC_PREFIXES)):
+            if sessions.lookup(request.cookies.get(SESSION_COOKIE)) is None:
+                return JSONResponse(status_code=401, content={"detail": "Sign in required"})
+        return await call_next(request)
+
+    def client_key(request: Request) -> str:
+        return request.client.host if request.client else "unknown"
+
+    def start_session(request: Request, response: Response, username: str) -> None:
+        token = sessions.create(username)
+        response.set_cookie(
+            SESSION_COOKIE, token,
+            max_age=SESSION_DAYS * 86400,
+            httponly=True,  # not readable by JavaScript
+            samesite="lax",  # not sent with other sites' form posts
+            secure=request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https",
+            path="/",
+        )
+
+    def check_rate_limit(request: Request) -> None:
+        wait = limiter.retry_after(client_key(request))
+        if wait:
+            raise HTTPException(
+                429, f"Too many attempts. Try again in {wait} seconds.", headers={"Retry-After": str(wait)}
+            )
+
+    @app.get("/api/health", include_in_schema=False)
+    def health() -> dict:
+        return {"ok": True}
+
+    @app.get("/api/auth/status")
+    def auth_status(request: Request) -> dict:
+        user = sessions.lookup(request.cookies.get(SESSION_COOKIE)) if settings.auth else None
+        return {
+            "auth_enabled": settings.auth,
+            "setup_required": settings.auth and accounts.setup_required,
+            "signed_in": (not settings.auth) or user is not None,
+            "username": user,
+            "managed_by_env": accounts.managed_by_env,
+        }
+
+    @app.post("/api/auth/setup")
+    def auth_setup(body: Credentials, request: Request, response: Response) -> dict:
+        """First run only: create the account and sign in."""
+        if not settings.auth:
+            raise HTTPException(400, "Sign-in is turned off")
+        if not accounts.setup_required:
+            raise HTTPException(409, "Coda is already set up. Sign in instead.")
+        try:
+            account = accounts.create(body.username, body.password)
+        except AuthError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        except OSError as exc:
+            raise HTTPException(500, f"Could not save the account to the config folder: {exc}") from exc
+        log.info("Account %r created", account.username)
+        start_session(request, response, account.username)
+        return {"username": account.username}
+
+    @app.post("/api/auth/login")
+    def auth_login(body: Credentials, request: Request, response: Response) -> dict:
+        if not settings.auth:
+            return {"username": None}
+        check_rate_limit(request)
+        account = accounts.check(body.username, body.password)
+        if account is None:
+            limiter.failed(client_key(request))
+            log.warning("Failed sign-in for %r from %s", body.username, client_key(request))
+            raise HTTPException(401, "Wrong username or password")
+        limiter.succeeded(client_key(request))
+        start_session(request, response, account.username)
+        return {"username": account.username}
+
+    @app.post("/api/auth/logout")
+    def auth_logout(request: Request, response: Response) -> dict:
+        sessions.revoke(request.cookies.get(SESSION_COOKIE))
+        response.delete_cookie(SESSION_COOKIE, path="/")
+        return {"ok": True}
+
+    @app.post("/api/auth/password")
+    def auth_change_password(body: PasswordChange, request: Request) -> dict:
+        """Change the password; every other signed-in device is signed out."""
+        token = request.cookies.get(SESSION_COOKIE)
+        user = sessions.lookup(token)
+        if not settings.auth or user is None:
+            raise HTTPException(401, "Sign in required")
+        check_rate_limit(request)
+        if accounts.check(user, body.current_password) is None:
+            limiter.failed(client_key(request))
+            raise HTTPException(401, "Your current password is wrong")
+        try:
+            accounts.set_password(user, body.new_password)
+        except AuthError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        sessions.revoke_all(keep=token)
+        log.info("Password changed for %r", user)
+        return {"ok": True}
 
     def require_library() -> None:
         if not library.exists():

@@ -703,7 +703,7 @@ dialog.sheet.small { width: min(420px, calc(100vw - 32px)); }
 
 .input-wrap { position: relative; display: flex; }
 
-input[type="text"], input:not([type]), select, textarea {
+input[type="text"], input[type="password"], input:not([type]), select, textarea {
   width: 100%;
   min-width: 0;
   height: 34px;
@@ -1023,6 +1023,46 @@ dialog::backdrop { background: var(--backdrop); }
 .loadout-card .tags { color: var(--faint); font-size: 12px; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .tag-rows { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+
+/* ---- Sign in ------------------------------------------------------------------------------------ */
+
+.auth {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: max(24px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+  background: var(--bg);
+  overflow-y: auto;
+  animation: fade-in var(--dur) ease;
+}
+.auth-card {
+  width: min(380px, 100%);
+  padding: 32px 28px 24px;
+  border-radius: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  animation: dialog-in var(--dur-slow) var(--ease-out);
+}
+.auth-logo { align-self: center; border-radius: 13px; margin-bottom: 14px; box-shadow: var(--shadow); }
+.auth-card h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; text-align: center; }
+.auth-sub { color: var(--muted); text-align: center; margin: 6px 0 18px; }
+.auth-sub:empty { margin-bottom: 12px; }
+.auth-card .field { margin-bottom: 12px; }
+.auth-card input { height: 40px; }
+.auth-submit { height: 40px; margin-top: 6px; }
+.auth-foot { color: var(--faint); font-size: 12px; text-align: center; margin-top: 14px; }
+.auth-foot:empty { display: none; }
+.auth-card .error-box { margin: 0 0 12px; }
+.auth.shake .auth-card { animation: shake 0.35s ease; }
+@keyframes shake { 20%, 60% { translate: -6px 0; } 40%, 80% { translate: 6px 0; } }
+
+.account-who { margin-bottom: 16px; }
+.password-form h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
 
 /* ---- Toasts -------------------------------------------------------------------------------- */
 

@@ -12,7 +12,7 @@
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/static/icon.svg">
   <link rel="preload" href="/static/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/static/app.css?v=6">
+  <link rel="stylesheet" href="/static/app.css?v=7">
   <script>
     // Apply the saved theme before first paint, so there's no flash.
     try {
@@ -22,7 +22,31 @@
   </script>
 </head>
 <body>
-  <div class="app" id="app">
+  <!-- Sign in / first-run setup. Shown over the app; the app keeps its state underneath. -->
+  <div class="auth" id="auth" hidden>
+    <form class="auth-card" id="auth-form" method="post" action="#">
+      <img class="auth-logo" src="/static/icon.svg" width="56" height="56" alt="">
+      <h1 id="auth-title">Sign in to Coda</h1>
+      <p class="auth-sub" id="auth-sub"></p>
+      <div class="error-box" id="auth-error" role="alert" hidden></div>
+      <label class="field">
+        <span class="field-label">Username</span>
+        <input id="auth-user" name="username" type="text" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" required>
+      </label>
+      <label class="field">
+        <span class="field-label">Password</span>
+        <input id="auth-pass" name="password" type="password" autocomplete="current-password" required>
+      </label>
+      <label class="field" id="auth-confirm-wrap" hidden>
+        <span class="field-label">Repeat password</span>
+        <input id="auth-confirm" name="confirm" type="password" autocomplete="new-password">
+      </label>
+      <button class="btn primary auth-submit" id="auth-submit" type="submit">Sign in</button>
+      <p class="auth-foot" id="auth-foot"></p>
+    </form>
+  </div>
+
+  <div class="app" id="app" hidden>
     <header class="topbar">
       <a class="brand" href="#/" aria-label="Coda — library home">
         <img src="/static/icon.svg" alt="" width="26" height="26">
@@ -41,6 +65,9 @@
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12M4 10h12M4 14h12"/><circle cx="7" cy="6" r="1.6"/><circle cx="13" cy="10" r="1.6"/><circle cx="9" cy="14" r="1.6"/></svg>
         </button>
         <button class="icon-btn" id="theme-btn" type="button" aria-label="Theme"></button>
+        <button class="icon-btn" id="account-btn" type="button" aria-label="Account" title="Account" hidden>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="7" r="3.2"/><path d="M3.8 16.5a6.2 6.2 0 0 1 12.4 0"/></svg>
+        </button>
       </div>
     </header>
 
@@ -159,6 +186,38 @@
     </div>
   </dialog>
 
+  <!-- Account -->
+  <dialog class="sheet small" id="account-dialog" aria-labelledby="account-title">
+    <div class="sheet-head">
+      <h2 id="account-title">Account</h2>
+      <button class="icon-btn" type="button" data-close aria-label="Close">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body">
+      <p class="account-who">Signed in as <b id="account-name"></b></p>
+      <form id="password-form" class="password-form">
+        <input type="text" name="username" id="pw-username" autocomplete="username" hidden>
+        <h3 class="field-label">Change password</h3>
+        <div class="error-box" id="pw-error" role="alert" hidden></div>
+        <label class="field"><span class="field-label">Current password</span>
+          <input id="pw-current" type="password" autocomplete="current-password" required></label>
+        <label class="field"><span class="field-label">New password</span>
+          <input id="pw-new" type="password" autocomplete="new-password" minlength="8" required></label>
+        <label class="field"><span class="field-label">Repeat new password</span>
+          <input id="pw-confirm" type="password" autocomplete="new-password" minlength="8" required></label>
+        <p class="hint">Changing it signs out your other devices.</p>
+        <button class="btn" type="submit" id="pw-save">Change password</button>
+      </form>
+      <p class="hint" id="pw-env-note" hidden>The password is set by the <code>CODA_PASSWORD</code> environment variable, so it can only be changed there.</p>
+    </div>
+    <div class="sheet-foot">
+      <button class="btn danger" type="button" id="sign-out">Sign out</button>
+      <span class="spacer"></span>
+      <button class="btn primary" type="button" data-close>Done</button>
+    </div>
+  </dialog>
+
   <!-- Manage loadouts -->
   <dialog class="sheet" id="manage-dialog" aria-labelledby="manage-title">
     <div class="sheet-head">
@@ -174,6 +233,6 @@
   <datalist id="tag-keys"></datalist>
   <div class="toasts" id="toasts" aria-live="polite"></div>
 
-  <script src="/static/app.js?v=6" type="module"></script>
+  <script src="/static/app.js?v=7" type="module"></script>
 </body>
 </html>

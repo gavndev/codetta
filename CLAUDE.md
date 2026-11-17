@@ -9,6 +9,7 @@ Coda is a self-hosted music metadata editor built in Python (FastAPI + Mutagen) 
 - **Tag vocabulary:** `src/coda/core/tagmap.py` gives every format the same lowercase tag names (Navidrome/OpenSubsonic set, stored the way MusicBrainz Picard does). Add new tag names there.
 - **Tag Loadouts:** JSON files in `config/loadouts/`, handled by `src/coda/core/presets.py`.
 - **Album art:** `src/coda/core/artwork.py` (per-format picture handling); writes go through `MetadataEngine.update_artwork()`.
+- **Sign-in:** `src/coda/core/auth.py` (account, sessions, rate limiting) + middleware in `src/coda/web/app.py`. Every new API route is private by default; only `/`, `/static/*`, `/api/auth/*` and `/api/health` are public. Account files (`auth.json`, `sessions.json`) live in the config folder and must never be committed.
 - **Activity log:** `src/coda/core/activity.py`, stored as `activity.jsonl` in the config folder. Every API action that changes files must log an entry.
 - **Backend Framework:** FastAPI with Uvicorn.
 - **Frontend:** Single-page web UI in `src/coda/web/static/` (plain HTML/CSS/JS, no framework, no build step, no CDNs, so it works on servers without internet). Inter font is bundled. Light/dark/system theme via CSS variables. Must work on iPhone (all iOS browsers are WebKit) as well as desktop Chromium/Firefox/Safari: 16px inputs on mobile, safe-area insets, 44px touch targets.
