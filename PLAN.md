@@ -35,7 +35,8 @@
 - [x] **Task 4.2:** Version number on the sign-in screen and in the account menu; twice-daily check for new GitHub releases (`CODETTA_UPDATE_CHECK`), update dot on the account icon, release notes and copyable update commands. `CHANGELOG.md`.
 - [x] **Task 4.3:** Undo (and redo) from the activity log for tag edits, album art and loadouts. Exact per-file before/after values are recorded; previous album art is kept in `config/undo-art/` (deduplicated, pruned when no longer referenced). Files changed since are skipped, never overwritten.
 - [x] **Task 4.7:** Worldwide text: every script and emoji round-trips on every format (tested: Japanese, Hindi, Korean, Thai, Cantonese, Arabic, Tagalog, emoji incl. ZWJ/flags/skin tones, decomposed accents); accent- and case-insensitive search and sorting; right-to-left display; system font fallbacks for CJK, Devanagari, Thai and colour emoji; non-UTF-8 file names skipped with a note; emoji-only loadout names; no comma warnings at all. Accessibility pass to follow later.
-- [ ] **Task 4.4:** Security review and code review.
+- [x] **Task 4.4a:** Security review. Fixed: album art served with a file-chosen content type (stored XSS via a crafted audio file), no security headers/CSP, unbounded request bodies (incl. before sign-in), cross-site writes from other ports on the same host, unvalidated release link, scrypt N=2^14 (now 2^15 with rehash on sign-in), unbounded rate-limiter memory; added optional `CODETTA_ALLOWED_HOSTS` against DNS rebinding. 28 security tests in `tests/test_security.py`.
+- [ ] **Task 4.4b:** Code review (correctness).
 - [ ] **Task 4.5:** Decide license; hide personal email in git history if wanted.
 - [ ] **Task 4.6:** Publish: GitHub repo, CI (tests + image build), ready-made image, `v0.1.0` release.
 

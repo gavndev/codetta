@@ -1,0 +1,122 @@
+"""A protective layer in front of every request.
+
+* **Size limits.** Request bodies are capped per endpoint *before* they're
+  read, so nobody (signed in or not) can exhaust the server's memory.
+* **Cross-site protection.** Requests that change something must come from
+  Codetta's own page. Browsers label requests with ``Sec-Fetch-Site``; for
+  older ones we compare ``Origin`` with the host. This also blocks other apps
+  on the same server (other ports count as the "same site" for cookies).
+* **Allowed hosts** (optional). With ``CODETTA_ALLOWED_HOSTS`` set, requests
+  for any other host name are refused, which stops DNS-rebinding attacks.
+* **Security headers** on every response: a strict Content Security Policy
+  (scripts only from Codetta itself), no framing, no MIME sniffing.
+"""
+
+from __future__ import annotations
+
+import json
+from urllib.parse import urlsplit
+
+KB = 1024
+MB = 1024 * KB
+
+# Largest request body accepted, by path. Everything else gets DEFAULT_LIMIT.
+BODY_LIMITS = {
+    "/api/art": 25 * MB,  # album art (images up to 20 MB)
+    "/api/account/avatar": 3 * MB,  # profile pictures are resized in the browser
+}
+DEFAULT_LIMIT = 1 * MB  # JSON: tag edits, loadouts, sign-in...
+SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+
+CSP = "; ".join([
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",  # style="" attributes on a few elements
+    "img-src 'self' blob: data:",  # blob: previews of pending art / avatars
+    "font-src 'self'",
+    "connect-src 'self'",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+])
+SECURITY_HEADERS = [
+    (b"x-content-type-options", b"nosniff"),
+    (b"x-frame-options", b"DENY"),
+    (b"referrer-policy", b"same-origin"),
+    (b"cross-origin-opener-policy", b"same-origin"),
+    (b"permissions-policy", b"camera=(), microphone=(), geolocation=(), payment=()"),
+]
+# The interactive API docs load Swagger UI from a CDN, so they get no CSP.
+NO_CSP_PATHS = ("/docs", "/openapi.json")
+
+
+def _host_only(host: str) -> str:
+    """ "Example.com:8111" -> "example.com", "[::1]:8111" -> "::1"."""
+    host = host.strip().lower()
+    if host.startswith("["):
+        return host[1:].split("]", 1)[0]
+    return host.rsplit(":", 1)[0] if host.count(":") == 1 else host
+
+
+class GuardMiddleware:
+    """Pure ASGI middleware (runs before FastAPI reads anything)."""
+
+    def __init__(self, app, allowed_hosts: set[str] | None = None) -> None:
+        self.app = app
+        self.allowed_hosts = {h.strip().lower() for h in allowed_hosts or set() if h.strip()}
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+
+        headers = {k.decode("latin-1").lower(): v.decode("latin-1") for k, v in scope["headers"]}
+        method = scope["method"].upper()
+        path = scope["path"]
+        host = headers.get("x-forwarded-host") or headers.get("host", "")
+
+        if self.allowed_hosts and _host_only(headers.get("host", "")) not in self.allowed_hosts:
+            return await _reject(send, 421, "This server doesn't answer to that host name.")
+
+        if method not in SAFE_METHODS:
+            site = headers.get("sec-fetch-site")
+            if site is not None:
+                if site not in ("same-origin", "none"):
+                    return await _reject(send, 403, "Cross-site request blocked.")
+            else:
+                origin = headers.get("origin")
+                if origin and origin != "null" and urlsplit(origin).netloc.lower() != host.lower():
+                    return await _reject(send, 403, "Cross-site request blocked.")
+
+            limit = BODY_LIMITS.get(path, DEFAULT_LIMIT)
+            length = headers.get("content-length")
+            if length is None:
+                if "chunked" in headers.get("transfer-encoding", "").lower():
+                    return await _reject(send, 411, "Send a Content-Length header.")
+            else:
+                try:
+                    if int(length) > limit:
+                        return await _reject(send, 413, f"Request too large (max {limit // MB or 1} MB).")
+                except ValueError:
+                    return await _reject(send, 400, "Invalid Content-Length.")
+
+        async def send_with_headers(message):
+            if message["type"] == "http.response.start":
+                extra = list(SECURITY_HEADERS)
+                if not path.startswith(NO_CSP_PATHS):
+                    extra.append((b"content-security-policy", CSP.encode()))
+                existing = {k.lower() for k, _ in message.get("headers", [])}
+                message = {**message, "headers": [*message.get("headers", []),
+                                                  *[(k, v) for k, v in extra if k not in existing]]}
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)
+
+
+async def _reject(send, status: int, detail: str) -> None:
+    body = json.dumps({"detail": detail}).encode()
+    await send({"type": "http.response.start", "status": status, "headers": [
+        (b"content-type", b"application/json"), (b"content-length", str(len(body)).encode()),
+        *SECURITY_HEADERS,
+    ]})
+    await send({"type": "http.response.body", "body": body})

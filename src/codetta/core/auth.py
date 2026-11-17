@@ -29,8 +29,9 @@ from pathlib import Path
 SESSION_DAYS = 30
 MIN_PASSWORD_LENGTH = 8
 
-# scrypt cost parameters (~50 ms per hash on a typical home server).
-_SCRYPT_N, _SCRYPT_R, _SCRYPT_P = 2**14, 8, 1
+# scrypt cost parameters (~100 ms and 32 MB per hash on a typical home server).
+# Older hashes with a lower N are upgraded automatically at the next sign-in.
+_SCRYPT_N, _SCRYPT_R, _SCRYPT_P = 2**15, 8, 1
 
 
 class AuthError(Exception):
@@ -43,9 +44,19 @@ class AuthError(Exception):
 def hash_password(password: str) -> str:
     """Return a self-describing hash string: ``scrypt$n$r$p$salt$hash``."""
     salt = os.urandom(16)
-    digest = hashlib.scrypt(password.encode(), salt=salt, n=_SCRYPT_N, r=_SCRYPT_R, p=_SCRYPT_P, dklen=32)
+    digest = hashlib.scrypt(password.encode(), salt=salt, n=_SCRYPT_N, r=_SCRYPT_R, p=_SCRYPT_P, dklen=32,
+                            maxmem=128 * 1024 * 1024)
     b64 = lambda b: base64.b64encode(b).decode("ascii")  # noqa: E731
     return f"scrypt${_SCRYPT_N}${_SCRYPT_R}${_SCRYPT_P}${b64(salt)}${b64(digest)}"
+
+
+def needs_rehash(stored: str) -> bool:
+    """True if ``stored`` was made with weaker settings than today's."""
+    try:
+        scheme, n, r, p, *_ = stored.split("$")
+        return scheme != "scrypt" or (int(n), int(r), int(p)) < (_SCRYPT_N, _SCRYPT_R, _SCRYPT_P)
+    except ValueError:
+        return True
 
 
 def verify_password(password: str, stored: str) -> bool:
@@ -289,9 +300,17 @@ class LoginRateLimiter:
             lock = min(self.base_lock * 2 ** (len(fails) - self.free), self.max_lock)
             return max(0, int(fails[-1] + lock - now) + 1) if fails[-1] + lock > now else 0
 
+    MAX_TRACKED = 10_000  # addresses; bounded so a flood can't grow memory forever
+
     def failed(self, key: str) -> None:
+        now = time.time()
         with self._lock:
-            self._failures.setdefault(key, []).append(time.time())
+            if len(self._failures) >= self.MAX_TRACKED and key not in self._failures:
+                # Drop addresses whose failures have all expired; if still full, the oldest.
+                self._failures = {k: v for k, v in self._failures.items() if v and now - v[-1] < self.window}
+                while len(self._failures) >= self.MAX_TRACKED:
+                    self._failures.pop(min(self._failures, key=lambda k: self._failures[k][-1]))
+            self._failures.setdefault(key, []).append(now)
 
     def succeeded(self, key: str) -> None:
         with self._lock:

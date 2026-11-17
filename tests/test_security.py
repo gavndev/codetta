@@ -1,0 +1,207 @@
+"""Security tests: each one guards against a specific attack."""
+
+import shutil
+
+import pytest
+from fastapi.testclient import TestClient
+from mutagen.flac import FLAC, Picture
+
+from codetta.core.auth import AccountStore, LoginRateLimiter, hash_password, needs_rehash
+from codetta.core.updates import UpdateChecker
+from codetta.web.app import Settings, create_app
+from tests.conftest import FIXTURES_DIR
+
+
+@pytest.fixture
+def music(tmp_path):
+    root = tmp_path / "music"
+    root.mkdir()
+    shutil.copy2(FIXTURES_DIR / "sample.flac", root / "song.flac")
+    return root
+
+
+def make_client(music, tmp_path, **kw):
+    return TestClient(create_app(Settings(music_dir=music, config_dir=tmp_path / "config", **kw)))
+
+
+@pytest.fixture
+def client(music, tmp_path):
+    with make_client(music, tmp_path) as c:
+        c.post("/api/auth/setup", json={"username": "gavin", "password": "correct horse 1"})
+        yield c
+
+
+# --- 1. A booby-trapped "cover" can't run scripts ----------------------------------------
+
+
+def test_cover_claiming_to_be_html_is_downloaded_not_rendered(client, music):
+    f = FLAC(music / "song.flac")
+    pic = Picture()
+    pic.type, pic.mime, pic.data = 3, "text/html", b"<script>fetch('/api/tracks',{method:'PATCH'})</script>"
+    f.add_picture(pic)
+    f.save()
+
+    res = client.get("/api/art", params={"path": "song.flac"})
+
+    assert res.headers["content-type"] == "application/octet-stream"
+    assert res.headers["content-disposition"].startswith("attachment")
+    assert res.headers["x-content-type-options"] == "nosniff"
+
+
+def test_real_covers_still_display(client):
+    jpeg = (FIXTURES_DIR / "cover.jpg").read_bytes()
+    client.put("/api/art", params={"path": "song.flac"}, content=jpeg, headers={"Content-Type": "image/jpeg"})
+    assert client.get("/api/art", params={"path": "song.flac"}).headers["content-type"] == "image/jpeg"
+
+
+# --- 2. Security headers ---------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("path", ["/", "/api/health", "/static/app.js", "/api/auth/status"])
+def test_security_headers_everywhere(client, path):
+    h = client.get(path).headers
+    assert h["x-content-type-options"] == "nosniff"
+    assert h["x-frame-options"] == "DENY"
+    assert h["referrer-policy"] == "same-origin"
+    csp = h["content-security-policy"]
+    assert "script-src 'self'" in csp and "frame-ancestors 'none'" in csp and "object-src 'none'" in csp
+    assert "unsafe-inline" not in csp.split("script-src")[1].split(";")[0]  # no inline scripts allowed
+
+
+def test_page_has_no_inline_scripts(client):
+    html = client.get("/").text
+    assert "<script>" not in html  # every script is a file, so the CSP can forbid inline ones
+
+
+def test_api_docs_still_work(client):
+    res = client.get("/docs")
+    assert res.status_code == 200 and "content-security-policy" not in res.headers
+
+
+# --- 3. Request size limits --------------------------------------------------------------------
+
+
+def test_huge_sign_in_body_is_refused_before_reading(music, tmp_path):
+    with make_client(music, tmp_path) as c:
+        res = c.post("/api/auth/login", content=b"x" * (2 * 1024 * 1024), headers={"Content-Type": "application/json"})
+        assert res.status_code == 413
+
+
+def test_chunked_body_without_length_is_refused(client):
+    def gen():
+        yield b'{"username": "a", '
+        yield b'"password": "b"}'
+    res = client.post("/api/auth/login", content=gen(), headers={"Content-Type": "application/json"})
+    assert res.status_code == 411
+
+
+def test_album_art_limit_is_larger_than_json_limit(client):
+    big_jpeg = b"\xff\xd8\xff" + b"\x00" * (5 * 1024 * 1024)  # 5 MB: fine for art, too big for JSON
+    res = client.put("/api/art", params={"path": "song.flac"}, content=big_jpeg, headers={"Content-Type": "image/jpeg"})
+    assert res.status_code == 200  # reaches the app (it then rejects the fake image itself)
+    too_big = client.put("/api/art", params={"path": "song.flac"}, content=b"\x00" * (26 * 1024 * 1024))
+    assert too_big.status_code == 413
+
+
+def test_avatar_limit(client):
+    res = client.put("/api/account/avatar", content=b"\x00" * (4 * 1024 * 1024), headers={"Content-Type": "image/webp"})
+    assert res.status_code == 413
+
+
+# --- 4. Cross-site requests -----------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("site", ["cross-site", "same-site"])
+def test_cross_site_writes_are_blocked(client, site):
+    # "same-site" covers other apps on the same server (different port).
+    res = client.patch("/api/tracks", json={"paths": ["song.flac"], "changes": {"title": "pwned"}},
+                       headers={"Sec-Fetch-Site": site})
+    assert res.status_code == 403
+    assert client.get("/api/track", params={"path": "song.flac"}).json()["tags"]["title"] == ["Test Track"]
+
+
+def test_same_origin_writes_work(client):
+    res = client.patch("/api/tracks", json={"paths": ["song.flac"], "changes": {"title": "ok"}},
+                       headers={"Sec-Fetch-Site": "same-origin", "Origin": "http://testserver"})
+    assert res.status_code == 200
+
+
+def test_mismatched_origin_blocked_for_older_browsers(client):
+    res = client.post("/api/auth/logout", headers={"Origin": "http://evil.example"})
+    assert res.status_code == 403
+
+
+def test_reverse_proxy_host_is_respected(client):
+    res = client.post("/api/auth/logout", headers={"Origin": "https://codetta.example.com",
+                                                   "X-Forwarded-Host": "codetta.example.com"})
+    assert res.status_code == 200
+
+
+def test_reads_are_not_blocked(client):
+    assert client.get("/api/status", headers={"Sec-Fetch-Site": "cross-site"}).status_code == 200
+
+
+# --- 5. Release links -------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("url", ["javascript:alert(1)", "https://evil.example/x", "http://github.com/x", None])
+def test_only_github_release_links_reach_the_page(url):
+    status = UpdateChecker("0.1.0", fetch=lambda repo: {"tag_name": "v9.0.0", "html_url": url}).status()
+    assert status["release_url"] is None
+
+
+def test_github_release_link_kept():
+    url = "https://github.com/gavndev/codetta/releases/tag/v9.0.0"
+    assert UpdateChecker("0.1.0", fetch=lambda repo: {"tag_name": "v9.0.0", "html_url": url}).status()["release_url"] == url
+
+
+# --- 6. Password hashing strength ---------------------------------------------------------------------
+
+
+def test_new_hashes_are_current_strength():
+    assert not needs_rehash(hash_password("correct horse 1"))
+
+
+def test_old_weak_hash_upgrades_on_sign_in(music, tmp_path):
+    import base64, hashlib, os
+    salt = os.urandom(16)
+    weak = hashlib.scrypt(b"correct horse 1", salt=salt, n=2**14, r=8, p=1, dklen=32)
+    old_hash = f"scrypt${2**14}$8$1${base64.b64encode(salt).decode()}${base64.b64encode(weak).decode()}"
+    assert needs_rehash(old_hash)
+    store = AccountStore(tmp_path / "config" / "auth.json")
+    (tmp_path / "config").mkdir()
+    store._save(type("A", (), {"username": "gavin", "password_hash": old_hash})())
+
+    with make_client(music, tmp_path) as c:
+        assert c.post("/api/auth/login", json={"username": "gavin", "password": "correct horse 1"}).status_code == 200
+    upgraded = AccountStore(tmp_path / "config" / "auth.json").get().password_hash
+    assert upgraded != old_hash and not needs_rehash(upgraded)
+
+
+# --- 7. Brute-force tracker stays bounded --------------------------------------------------------------
+
+
+def test_rate_limiter_memory_is_bounded():
+    limiter = LoginRateLimiter()
+    limiter.MAX_TRACKED = 100
+    for i in range(1000):
+        limiter.failed(f"10.0.{i // 256}.{i % 256}")
+    assert len(limiter._failures) <= 100
+
+
+# --- 8. Optional allowed hosts (DNS rebinding) ------------------------------------------------------------
+
+
+def test_allowed_hosts(music, tmp_path):
+    with make_client(music, tmp_path, allowed_hosts=("music-server", "192.168.1.50")) as c:
+        assert c.get("/api/health", headers={"Host": "music-server:8111"}).status_code == 200
+        assert c.get("/api/health", headers={"Host": "192.168.1.50:8111"}).status_code == 200
+        assert c.get("/api/health", headers={"Host": "attacker.example"}).status_code == 421
+        # The setup screen can't be reached through a rebinding domain.
+        res = c.post("/api/auth/setup", json={"username": "x", "password": "yyyyyyyy"}, headers={"Host": "attacker.example"})
+        assert res.status_code == 421
+
+
+def test_allowed_hosts_from_env(monkeypatch):
+    monkeypatch.setenv("CODETTA_ALLOWED_HOSTS", "music-server, 192.168.1.50")
+    assert Settings.from_env().allowed_hosts == ("music-server", "192.168.1.50")

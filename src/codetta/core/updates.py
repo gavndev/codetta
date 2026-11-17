@@ -53,6 +53,11 @@ def fetch_latest_release(repo: str) -> dict:
         return json.loads(res.read().decode("utf-8"))
 
 
+def _github_url(url: object) -> str | None:
+    """Only real GitHub links are passed to the page (never javascript: etc.)."""
+    return url if isinstance(url, str) and url.startswith("https://github.com/") else None
+
+
 class UpdateChecker:
     def __init__(
         self,
@@ -108,7 +113,7 @@ class UpdateChecker:
         return {
             "latest": latest,
             "update_available": is_newer(tag, self.current),
-            "release_url": release.get("html_url"),
+            "release_url": _github_url(release.get("html_url")),
             "notes": (release.get("body") or "")[:4000] or None,
             "published_at": release.get("published_at"),
         }

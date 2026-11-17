@@ -13,6 +13,8 @@ Settings (environment variables):
                      that already handles it (default: on)
     CODETTA_UPDATE_CHECK  "off" stops the twice-daily check for new releases on GitHub
     CODETTA_UPDATE_REPO   where to look for releases (default: gavndev/codetta)
+    CODETTA_ALLOWED_HOSTS optional comma-separated host names Codetta answers to
+                          (e.g. "music-server,192.168.1.50"); blocks DNS rebinding
 """
 
 from __future__ import annotations
@@ -40,6 +42,7 @@ from codetta.core.auth import (
     AuthError,
     LoginRateLimiter,
     SessionStore,
+    needs_rehash,
 )
 from codetta.core.engine import MetadataEngine, MetadataError, TrackMetadata
 from codetta.core.library import Library, LibraryPathError, count_contents
@@ -57,6 +60,7 @@ from codetta.core.presets import (
 from codetta.core.tagmap import FIELDS
 from codetta.core.undo import ArtStore, art_hashes, sha256, undo_change
 from codetta.core.updates import DEFAULT_REPO, Fetcher, UpdateChecker, fetch_latest_release
+from codetta.web.security import GuardMiddleware
 
 STATIC_DIR = Path(__file__).parent / "static"
 SESSION_COOKIE = "codetta_session"
@@ -88,6 +92,7 @@ class Settings:
     password: str | None = None
     update_check: bool = False  # on by default via from_env; off for tests/embedding
     update_repo: str = DEFAULT_REPO
+    allowed_hosts: tuple[str, ...] = ()  # empty = answer to any host name
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -99,6 +104,7 @@ class Settings:
             password=env("PASSWORD"),
             update_check=env("UPDATE_CHECK", "on").strip().lower() not in ("off", "false", "0", "no"),
             update_repo=env("UPDATE_REPO", DEFAULT_REPO),
+            allowed_hosts=tuple(h.strip() for h in (env("ALLOWED_HOSTS") or "").split(",") if h.strip()),
         )
 
 
@@ -238,6 +244,8 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     app = FastAPI(
         title="Codetta", version=VERSION, docs_url="/docs", redoc_url=None, lifespan=lifespan
     )
+    # Size limits, cross-site protection and security headers (see web/security.py).
+    app.add_middleware(GuardMiddleware, allowed_hosts=set(settings.allowed_hosts))
 
     # Map Codetta's errors to HTTP status codes, with a readable message.
     def _error(status: int):
@@ -334,6 +342,11 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             log.warning("Failed sign-in for %r from %s", body.username, client_key(request))
             raise HTTPException(401, "Wrong username or password")
         limiter.succeeded(client_key(request))
+        if needs_rehash(account.password_hash) and not accounts.managed_by_env:
+            try:  # upgrade older, weaker password hashes now that we have the password
+                accounts.set_password(account.username, body.password)
+            except (AuthError, OSError):
+                pass
         start_session(request, response, account.username)
         return {"username": account.username}
 
@@ -550,8 +563,13 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         art = engine.read_artwork(library.resolve(path))
         if art is None:
             raise HTTPException(404, "This track has no album art")
-        # The UI adds ?v=<mtime> to the URL, so a changed file gets a new URL.
-        return Response(art.data, media_type=art.mime, headers={"Cache-Control": "private, max-age=31536000, immutable"})
+        # Only genuine JPEG/PNG covers are shown as images. Anything else a file
+        # claims to be (e.g. "text/html") is sent as a download, so a booby-trapped
+        # file can never run a script inside Codetta.
+        if art.mime in ("image/jpeg", "image/png"):
+            return Response(art.data, media_type=art.mime, headers={"Cache-Control": "private, max-age=31536000, immutable"})
+        return Response(art.data, media_type="application/octet-stream", headers={
+            "Content-Disposition": 'attachment; filename="cover.bin"', "Cache-Control": "no-store"})
 
     @app.put("/api/art", response_model=list[UpdateResult])
     async def set_art(request: Request, path: list[str] = Query(..., description="One or more files")):

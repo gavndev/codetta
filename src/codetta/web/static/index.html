@@ -13,19 +13,7 @@
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
   <link rel="preload" href="/static/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/app.css?v=25">
-  <script>
-    // Apply the saved theme before first paint, so there's no flash.
-    try {
-      // Carry over settings saved under Codetta's old name ("coda-…").
-      for (const k of ["theme", "clipboard", "activity-open"]) {
-        const old = localStorage.getItem("coda-" + k);
-        if (old !== null && localStorage.getItem("codetta-" + k) === null) localStorage.setItem("codetta-" + k, old);
-        localStorage.removeItem("coda-" + k);
-      }
-      const t = localStorage.getItem("codetta-theme");
-      if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
-    } catch {}
-  </script>
+  <script src="/static/theme.js?v=1"></script>
 </head>
 <body>
   <!-- Sign in / first-run setup. Shown over the app; the app keeps its state underneath. -->
@@ -271,6 +259,6 @@
   <datalist id="tag-keys"></datalist>
   <div class="toasts" id="toasts" aria-live="polite"></div>
 
-  <script src="/static/app.js?v=24" type="module"></script>
+  <script src="/static/app.js?v=25" type="module"></script>
 </body>
 </html>

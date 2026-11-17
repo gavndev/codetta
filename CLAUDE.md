@@ -9,6 +9,7 @@ Codetta is a self-hosted music metadata editor built in Python (FastAPI + Mutage
 - **Tag vocabulary:** `src/codetta/core/tagmap.py` gives every format the same lowercase tag names (Navidrome/OpenSubsonic set, stored the way MusicBrainz Picard does). Add new tag names there.
 - **Tag Loadouts:** JSON files in `config/loadouts/`, handled by `src/codetta/core/presets.py`.
 - **Album art:** `src/codetta/core/artwork.py` (per-format picture handling); writes go through `MetadataEngine.update_artwork()`.
+- **Security layer:** `src/codetta/web/security.py` (size limits, cross-site protection, CSP/security headers). The page must not use inline scripts or event-handler attributes (the CSP forbids them); new upload endpoints need an entry in `BODY_LIMITS`. Any security fix gets a test in `tests/test_security.py`.
 - **Sign-in:** `src/codetta/core/auth.py` (account, sessions, rate limiting) + middleware in `src/codetta/web/app.py`. Every new API route is private by default; only `/`, `/static/*`, `/api/auth/*` and `/api/health` are public. Account files (`auth.json`, `sessions.json`) live in the config folder and must never be committed.
 - **Activity log:** `src/codetta/core/activity.py`, stored as `activity.jsonl` in the config folder. Every API action that changes files must log an entry, with an `undo` record (see `src/codetta/core/undo.py`) so it can be reversed.
 - **Backend Framework:** FastAPI with Uvicorn.

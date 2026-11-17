@@ -19,4 +19,5 @@ First release.
 - Sign-in with hashed passwords, 30-day sessions, lockout and password reset from the server.
 - Profile pictures: a round photo of your choice in the top bar and account menu (JPEG, PNG, WebP, GIF, AVIF, and HEIC on iPhone/Safari).
 - Version shown on the sign-in screen and account menu, with a check for new releases.
+- Security hardening: strict Content Security Policy and security headers, cross-site request protection, request size limits, album art only ever served as an image, stronger password hashing (upgraded automatically at sign-in), optional `CODETTA_ALLOWED_HOSTS`.
 - Docker image that runs as your user, with a health check and read-only filesystem.
