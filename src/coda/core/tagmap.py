@@ -14,6 +14,8 @@ works the same on every format.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from mutagen._vorbis import is_valid_key as _is_valid_vorbis_key
 from mutagen.easyid3 import EasyID3
 from mutagen.easymp4 import EasyMP4Tags
@@ -34,6 +36,57 @@ HIDDEN_ALIASES: dict[str, dict[str, str]] = {
         "musicbrainz_albumstatus": "releasestatus",
     },
 }
+
+
+@dataclass(frozen=True)
+class Field:
+    """A well-known tag, as shown in the editor."""
+
+    key: str
+    label: str
+    group: str
+    multi: bool = False  # commonly holds several values (e.g. two artists)
+
+
+# The editor's fields, in display order. Any other tag a file has still shows
+# up (under "Custom"); this list just gives the common ones a home and a label.
+FIELDS: tuple[Field, ...] = (
+    Field("title", "Title", "Basics"),
+    Field("artist", "Artist", "Basics", multi=True),
+    Field("album", "Album", "Basics"),
+    Field("albumartist", "Album artist", "Basics"),
+    Field("tracknumber", "Track", "Basics"),
+    Field("discnumber", "Disc", "Basics"),
+    Field("date", "Date", "Basics"),
+    Field("genre", "Genre", "Basics", multi=True),
+    Field("artists", "Artists (all)", "Credits", multi=True),
+    Field("albumartists", "Album artists (all)", "Credits", multi=True),
+    Field("composer", "Composer", "Credits", multi=True),
+    Field("lyricist", "Lyricist", "Credits", multi=True),
+    Field("producer", "Producer", "Credits", multi=True),
+    Field("engineer", "Engineer", "Credits", multi=True),
+    Field("mixer", "Mixer", "Credits", multi=True),
+    Field("djmixer", "DJ mixer", "Credits", multi=True),
+    Field("arranger", "Arranger", "Credits", multi=True),
+    Field("conductor", "Conductor", "Credits", multi=True),
+    Field("releasetype", "Release type", "Release"),
+    Field("releasestatus", "Release status", "Release"),
+    Field("label", "Label", "Release", multi=True),
+    Field("catalognumber", "Catalog number", "Release"),
+    Field("barcode", "Barcode", "Release"),
+    Field("media", "Media", "Release"),
+    Field("originaldate", "Original date", "Release"),
+    Field("releasecountry", "Release country", "Release"),
+    Field("discsubtitle", "Disc subtitle", "Release"),
+    Field("compilation", "Compilation (1 = yes)", "Release"),
+    Field("mood", "Mood", "More", multi=True),
+    Field("bpm", "BPM", "More"),
+    Field("isrc", "ISRC", "More"),
+    Field("language", "Language", "More"),
+    Field("copyright", "Copyright", "More"),
+    Field("grouping", "Grouping", "More"),
+    Field("comment", "Comment", "More"),
+)
 
 
 def is_tag_supported(format_name: str, key: str) -> bool:

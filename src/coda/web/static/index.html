@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#111113" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Coda">
+  <title>Coda</title>
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/static/icon.svg">
+  <link rel="preload" href="/static/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/app.css?v=1">
+  <script>
+    // Apply the saved theme before first paint, so there's no flash.
+    try {
+      const t = localStorage.getItem("coda-theme");
+      if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+    } catch {}
+  </script>
+</head>
+<body>
+  <div class="app" id="app">
+    <header class="topbar">
+      <a class="brand" href="#/" aria-label="Coda — library home">
+        <img src="/static/icon.svg" alt="" width="26" height="26">
+        <span>Coda</span>
+      </a>
+      <nav class="crumbs" id="crumbs" aria-label="Folder path"></nav>
+      <div class="topbar-actions">
+        <label class="search">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg>
+          <input id="filter" type="search" placeholder="Filter this folder" autocomplete="off" spellcheck="false" aria-label="Filter tracks in this folder">
+        </label>
+        <button class="icon-btn" id="manage-btn" type="button" aria-label="Manage loadouts" title="Manage loadouts">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12M4 10h12M4 14h12"/><circle cx="7" cy="6" r="1.6"/><circle cx="13" cy="10" r="1.6"/><circle cx="9" cy="14" r="1.6"/></svg>
+        </button>
+        <button class="icon-btn" id="theme-btn" type="button" aria-label="Theme"></button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <main class="browser" id="browser" tabindex="-1">
+        <div class="banner" id="banner" hidden></div>
+        <section class="folder-head" id="folder-head"></section>
+        <section id="folders" class="folders" aria-label="Folders"></section>
+        <section id="tracks" class="tracks" aria-label="Tracks"></section>
+      </main>
+
+      <aside class="editor" id="editor" aria-label="Tag editor" hidden>
+        <div class="editor-head">
+          <button class="icon-btn editor-close" id="editor-close" type="button" aria-label="Close editor">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg>
+          </button>
+          <div class="editor-title">
+            <h2 id="editor-title">Edit tags</h2>
+            <p id="editor-sub"></p>
+          </div>
+          <button class="btn primary" id="editor-save" type="button" disabled>Save</button>
+        </div>
+        <form class="editor-body" id="editor-form" autocomplete="off"></form>
+      </aside>
+    </div>
+
+    <div class="selection-bar" id="selection-bar" hidden>
+      <span id="selection-count"></span>
+      <div class="selection-actions">
+        <button class="btn" id="sel-clear" type="button">Clear</button>
+        <button class="btn" id="sel-loadout" type="button">Loadout…</button>
+        <button class="btn primary" id="sel-edit" type="button">Edit</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Apply a loadout -->
+  <dialog class="sheet" id="apply-dialog" aria-labelledby="apply-title">
+    <div class="sheet-head">
+      <h2 id="apply-title">Apply loadout</h2>
+      <button class="icon-btn" type="button" data-close aria-label="Close">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body">
+      <label class="field">
+        <span class="field-label">Loadout</span>
+        <select id="apply-loadout"></select>
+      </label>
+      <p class="hint" id="apply-desc"></p>
+
+      <fieldset class="field">
+        <legend class="field-label">Apply to</legend>
+        <div class="segmented" id="apply-target">
+          <label><input type="radio" name="target" value="selection"><span id="apply-target-sel">Selected tracks</span></label>
+          <label><input type="radio" name="target" value="folder"><span>This folder</span></label>
+        </div>
+        <label class="check" id="apply-recursive-wrap"><input type="checkbox" id="apply-recursive"> Include subfolders (each numbered separately)</label>
+      </fieldset>
+
+      <fieldset class="field">
+        <legend class="field-label">Mode</legend>
+        <div class="segmented" id="apply-mode">
+          <label><input type="radio" name="mode" value="fill" checked><span>Fill empty tags</span></label>
+          <label><input type="radio" name="mode" value="overwrite"><span>Overwrite</span></label>
+        </div>
+      </fieldset>
+
+      <div class="preview" id="apply-preview" aria-live="polite"></div>
+    </div>
+    <div class="sheet-foot">
+      <button class="btn" type="button" data-close>Cancel</button>
+      <button class="btn primary" type="button" id="apply-go" disabled>Apply</button>
+    </div>
+  </dialog>
+
+  <!-- Manage loadouts -->
+  <dialog class="sheet" id="manage-dialog" aria-labelledby="manage-title">
+    <div class="sheet-head">
+      <h2 id="manage-title">Loadouts</h2>
+      <button class="icon-btn" type="button" data-close aria-label="Close">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body" id="manage-body"></div>
+    <div class="sheet-foot" id="manage-foot"></div>
+  </dialog>
+
+  <datalist id="tag-keys"></datalist>
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+
+  <script src="/static/app.js?v=1" type="module"></script>
+</body>
+</html>

@@ -62,6 +62,10 @@ class LoadoutError(Exception):
     """A loadout is invalid, missing, or could not be saved."""
 
 
+class LoadoutNotFoundError(LoadoutError):
+    """No loadout with that name exists."""
+
+
 class ApplyMode(StrEnum):
     FILL = "fill"  # only set tags the file doesn't already have
     OVERWRITE = "overwrite"  # replace existing values
@@ -148,7 +152,7 @@ class LoadoutStore:
     def get(self, name: str) -> Loadout:
         path = self._path_for(name)
         if not path.is_file():
-            raise LoadoutError(f"No loadout named '{name}'")
+            raise LoadoutNotFoundError(f"No loadout named '{name}'")
         return self._read(path)
 
     def save(self, loadout: Loadout) -> Path:
@@ -169,7 +173,7 @@ class LoadoutStore:
     def delete(self, name: str) -> None:
         path = self._path_for(name)
         if not path.is_file():
-            raise LoadoutError(f"No loadout named '{name}'")
+            raise LoadoutNotFoundError(f"No loadout named '{name}'")
         path.unlink()
 
     def install_defaults(self) -> list[Loadout]:

@@ -16,10 +16,14 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=9.2",
+    "httpx2>=2.16",  # used by FastAPI's TestClient
 ]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+coda = ["web/static/*", "web/static/fonts/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

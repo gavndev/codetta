@@ -7,17 +7,17 @@
 - [x] **Task 1.4:** Build `src/coda/core/presets.py` to handle JSON-based Tag Loadouts (pre-saved batch tag templates), stored in `config/`. Add tests in `tests/test_presets.py`.
 - [x] **Task 1.5:** Add failure-case tests in `tests/test_safety.py` (corrupt/truncated/empty/mislabelled files, read-only files and folders, unsupported formats, unicode tags and filenames, cover art preservation, symlinks and hard links, disk-full and interrupted writes) proving that files are never damaged when something goes wrong.
 
-## Phase 2: FastAPI Backend & Homelab Dockerization
-- [ ] **Task 2.1:** Create FastAPI application entry point in `src/coda/web/app.py`.
-- [ ] **Task 2.2:** Build API endpoint `/api/scan` that recursively scans the mounted `/music` directory (skipping hidden `.coda-*` temp files left by an interrupted write).
-- [ ] **Task 2.3:** Build API endpoint `/api/metadata` (GET to fetch tags, POST to update them). Try it out by hand at `http://localhost:8111/docs`.
-- [ ] **Task 2.4:** Build `/api/loadouts` endpoints: list/create/edit/delete loadouts, and apply one to selected files or a folder (with a dry-run preview of what will change).
-- [ ] **Task 2.5:** Create a multi-stage `Dockerfile` optimized for `python:3.14-slim`.
-- [ ] **Task 2.6:** Create `docker-compose.yml` configured with a local music volume mapping and port `8111` (8000 is taken by another service on the host).
+## Phase 2: Web App & GUI
+- [x] **Task 2.1:** FastAPI entry point `src/coda/web/app.py`: settings from env (`CODA_MUSIC_DIR`, `CODA_CONFIG_DIR`), path safety (no access outside the music folder), serves the UI at `/`.
+- [x] **Task 2.2:** Library API: `GET /api/browse` (one folder at a time, so huge libraries stay fast; skips hidden `.coda-*` temp files), `GET /api/track`, `PATCH /api/tracks` (same changes to one or many files), `GET /api/fields` (tag vocabulary for the editor).
+- [x] **Task 2.3:** Loadouts API: list/create/edit/delete, and apply to selected files or a folder with a dry-run preview.
+- [ ] **Task 2.4:** UI shell: self-hosted Inter font, light/dark/system theme, mobile-first responsive layout (iPhone safe areas, no zoom-on-focus), works the same in Safari/WebKit, Chromium, and Firefox. Plain HTML/CSS/JS, no build step, no CDNs.
+- [ ] **Task 2.5:** Library browser: breadcrumb navigation, folder list, track list with multi-select and filter.
+- [ ] **Task 2.6:** Tag editor panel: single and batch edits, Navidrome fields grouped (Basics, Credits, Release, More), multi-value tags, custom tags, shows "multiple values" for mixed selections.
+- [ ] **Task 2.7:** Loadouts UI: apply to selection or folder with a preview (fill vs. overwrite) before writing; create/edit/delete loadouts.
+- [ ] **Task 2.8:** API tests in `tests/test_api.py`; manual check on desktop and iPhone.
 
-## Phase 3: Web UI Frontend & Batch Tools
-- [ ] **Task 3.1:** Create a clean single-page Tailwind CSS layout served at root (`/`) by FastAPI.
-- [ ] **Task 3.2:** Build the file browser table component to list scanned audio tracks.
-- [ ] **Task 3.3:** Build the side-by-side metadata editor panel for single-file and batch edits.
-- [ ] **Task 3.4:** Implement the "Apply Tag Loadout" button for selected tracks or a whole folder, showing a preview (fill vs. overwrite) before writing.
-- [ ] **Task 3.5:** Build a loadout editor to create, edit, and delete loadouts from the UI.
+## Phase 3: Docker & Sharing
+- [ ] **Task 3.1:** Multi-stage `Dockerfile` on `python:3.14-slim`, running as a non-root user with configurable `PUID`/`PGID` so edited files keep the right owner.
+- [ ] **Task 3.2:** `docker-compose.yml` with `/music` and `/config` volumes, port `8111` (8000 is taken by another service on the host), and a healthcheck.
+- [ ] **Task 3.3:** `README.md`: what Coda is, screenshots, Docker setup, and a note on access (no login yet, so keep it on your LAN or behind a reverse proxy).

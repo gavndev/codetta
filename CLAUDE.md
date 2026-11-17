@@ -9,12 +9,13 @@ Coda is a self-hosted music metadata editor built in Python (FastAPI + Mutagen) 
 - **Tag vocabulary:** `src/coda/core/tagmap.py` gives every format the same lowercase tag names (Navidrome/OpenSubsonic set, stored the way MusicBrainz Picard does). Add new tag names there.
 - **Tag Loadouts:** JSON files in `config/loadouts/`, handled by `src/coda/core/presets.py`.
 - **Backend Framework:** FastAPI with Uvicorn.
-- **Frontend:** Single-page web UI served directly by FastAPI (HTML + Tailwind CSS via CDN).
+- **Frontend:** Single-page web UI in `src/coda/web/static/` (plain HTML/CSS/JS, no framework, no build step, no CDNs, so it works on servers without internet). Inter font is bundled. Light/dark/system theme via CSS variables. Must work on iPhone (all iOS browsers are WebKit) as well as desktop Chromium/Firefox/Safari: 16px inputs on mobile, safe-area insets, 44px touch targets.
+- **Library access:** `src/coda/core/library.py`. The API only takes paths relative to the music folder and rejects anything that escapes it. Browsing is one folder at a time so huge libraries stay fast.
 - **Deployment:** Docker & Docker Compose with a mounted music volume (`/music`).
 
 ## Common Development Commands
 - **Run Virtual Environment:** `source .venv/bin/activate`
-- **Run FastAPI Locally:** `uvicorn coda.web.app:app --reload --port 8111`
+- **Run FastAPI Locally:** `CODA_MUSIC_DIR=/path/to/music uvicorn coda.web.app:app --reload --port 8111` (add `--host 0.0.0.0` to open it from a phone on the same Wi-Fi). Loadouts go in `CODA_CONFIG_DIR` (default `./config`).
 - **Run Tests:** `pytest`
 - **Build Docker Image:** `docker compose build`
 - **Run Docker Container:** `docker compose up -d`
