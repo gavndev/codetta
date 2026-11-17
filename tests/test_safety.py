@@ -406,3 +406,29 @@ def test_sorting_ignores_case_and_accents_and_odd_digits():
         # Arabic-Indic digits are real numbers (٢ = 2, ١٠ = 10); ties sort by the rest of the name.
         "٢ arabic digits", "2 b", "١٠ arabic digits", "10 b", "²", "Ångström", "apple", "Eagle", "éclair", "Zeta",
     ]
+
+
+def test_simultaneous_saves_to_one_file_both_land(engine, fixture_copy):
+    """Two devices saving different fields at the same moment: neither edit is lost."""
+    import threading
+
+    path = fixture_copy("sample.flac")
+    barrier = threading.Barrier(8)
+    errors = []
+
+    def save(i):
+        barrier.wait()
+        try:
+            engine.update_tags(path, {f"custom{i}": f"value {i}"})
+        except Exception as exc:  # noqa: BLE001
+            errors.append(exc)
+
+    threads = [threading.Thread(target=save, args=(i,)) for i in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert not errors
+    tags = engine.load_metadata(path).tags
+    assert all(tags.get(f"custom{i}") == [f"value {i}"] for i in range(8)), tags

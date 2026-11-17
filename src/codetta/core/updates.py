@@ -76,6 +76,8 @@ class UpdateChecker:
         self._result: dict | None = None
         self._checked_at = 0.0
 
+    MIN_FORCE_INTERVAL = 60  # seconds; "Check for updates" can't hammer GitHub
+
     def status(self, force: bool = False) -> dict:
         """Current version, and the latest release if the check is on."""
         base = {
@@ -93,8 +95,9 @@ class UpdateChecker:
         if not self.enabled:
             return base
         with self._lock:
-            fresh = self._result is not None and time.time() - self._checked_at < self.ttl
-            if force or not fresh:
+            age = time.time() - self._checked_at
+            fresh = self._result is not None and age < self.ttl
+            if (force and age >= self.MIN_FORCE_INTERVAL) or not fresh:
                 self._result = self._check()
                 self._checked_at = time.time()
             return {**base, **self._result, "checked_at": int(self._checked_at)}

@@ -322,6 +322,8 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             raise HTTPException(409, "Codetta is already set up. Sign in instead.")
         try:
             account = accounts.create(body.username, body.password)
+        except BusyError as exc:
+            raise HTTPException(503, str(exc), headers={"Retry-After": "5"}) from exc
         except AuthError as exc:
             raise HTTPException(422, str(exc)) from exc
         except OSError as exc:
@@ -366,11 +368,17 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         if not settings.auth or user is None:
             raise HTTPException(401, "Sign in required")
         check_rate_limit(request)
-        if accounts.check(user, body.current_password) is None:
+        try:
+            current_ok = accounts.check(user, body.current_password) is not None
+        except BusyError as exc:
+            raise HTTPException(503, str(exc), headers={"Retry-After": "5"}) from exc
+        if not current_ok:
             limiter.failed(client_key(request))
             raise HTTPException(401, "Your current password is wrong")
         try:
             accounts.set_password(user, body.new_password)
+        except BusyError as exc:
+            raise HTTPException(503, str(exc), headers={"Retry-After": "5"}) from exc
         except AuthError as exc:
             raise HTTPException(422, str(exc)) from exc
         sessions.revoke_all(keep=token)

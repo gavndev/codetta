@@ -478,6 +478,9 @@ dialog.sheet.small { width: min(420px, calc(100vw - 32px)); }
 .track-row .col-title, .track-row .col-artist, .track-row .col-album, .folder-name, .act-msg { text-align: left; }
 .skipped-note { color: var(--warning); cursor: help; }
 .track-row:not(.head) { cursor: pointer; }
+/* Rows off-screen are skipped for layout and painting until scrolled to:
+   keeps folders with thousands of tracks fast to draw and filter. */
+.track-row:not(.head), .folders.as-list .folder { content-visibility: auto; contain-intrinsic-size: auto 44px; }
 .track-row.has-error .col-title { color: var(--danger); }
 
 .badge {
@@ -1313,6 +1316,7 @@ dialog.sheet.closing::backdrop { animation: fade-out 150ms ease forwards; }
   .folder:last-child { border-bottom: 0; }
 
   .track-row { grid-template-columns: 48px 52px minmax(0, 1fr) auto; min-height: 62px; }
+  .track-row:not(.head) { contain-intrinsic-size: auto 62px; }
   .track-row.head { display: none; }
   .track-row .col-num, .track-row .col-artist, .track-row .col-album, .track-row .col-fmt { display: none; }
   .track-row .col-title { white-space: normal; padding-top: 8px; padding-bottom: 8px; }

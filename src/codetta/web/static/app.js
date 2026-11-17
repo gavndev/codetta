@@ -414,8 +414,30 @@ function showFolder(data, scrollTop) {
   els.browser.scrollTop = scrollTop;
 }
 
+// Lookups by path / cover, built once per folder instead of scanning every time
+// (matters for folders with thousands of tracks).
+const index = { folder: null, count: -1, byPath: new Map(), firstWithArt: new Map() };
+
+function folderIndex() {
+  const f = state.folder;
+  if (index.folder !== f || index.count !== (f?.tracks.length ?? -1)) {
+    index.folder = f;
+    index.count = f?.tracks.length ?? -1;
+    index.byPath = new Map();
+    for (const [i, t] of (f?.tracks || []).entries()) index.byPath.set(t.path, i);
+  }
+  return index;
+}
+
 function trackByPath(path) {
-  return state.folder?.tracks.find((t) => t.path === path);
+  const i = folderIndex().byPath.get(path);
+  return i === undefined ? undefined : state.folder.tracks[i];
+}
+
+/** Replace a track's data after a save (keeps the index valid). */
+function replaceTrack(track) {
+  const i = folderIndex().byPath.get(track.path);
+  if (i !== undefined) state.folder.tracks[i] = track;
 }
 
 /** Case- and accent-insensitive form for searching: "Beyoncé" -> "beyonce". */
@@ -434,8 +456,10 @@ function matchesFilter(track) {
   if (!matchesTagFilters(track)) return false;
   if (!state.filter) return true;
   const q = fold(state.filter);
-  return [track.name, first(track, "title"), ...(track.tags.artist || []), first(track, "album"), first(track, "albumartist")]
-    .some((s) => fold(s).includes(q));
+  // Folded once per track version, not on every keystroke.
+  track._search ??= fold([track.name, first(track, "title"), ...(track.tags.artist || []),
+    first(track, "album"), first(track, "albumartist")].join("\n"));
+  return track._search.includes(q);
 }
 
 function visibleTracks() {
@@ -1381,8 +1405,7 @@ async function saveEditor(targetPaths = null) {
   const apply = (results) => {
     for (const r of results) {
       if (!r.ok) { failures.push(`${baseName(r.path)}: ${r.error}`); continue; }
-      const i = state.folder.tracks.findIndex((t) => t.path === r.path);
-      if (i >= 0) state.folder.tracks[i] = r.track;
+      replaceTrack(r.track);
     }
     saved = Math.max(saved, results.length);
     return results.every((r) => r.ok);
@@ -1424,8 +1447,15 @@ const ART_MAX_SIDE = 3000;
 /** One URL per distinct cover, so a whole album's art downloads once. */
 function artUrlFor(t) {
   if (!t?.art) return null;
-  const first = (state.folder?.tracks || []).find((x) => x.art?.hash === t.art.hash) || t;
-  return `/api/art?path=${encodeURIComponent(first.path)}&v=${t.art.hash}`;
+  const firsts = index.firstWithArt;
+  let path = firsts.get(t.art.hash);
+  if (path === undefined || !trackByPath(path) || trackByPath(path).art?.hash !== t.art.hash) {
+    // (Re)build the cover -> first track map in one pass.
+    firsts.clear();
+    for (const x of state.folder?.tracks || []) if (x.art && !firsts.has(x.art.hash)) firsts.set(x.art.hash, x.path);
+    path = firsts.get(t.art.hash) || t.path;
+  }
+  return `/api/art?path=${encodeURIComponent(path)}&v=${t.art.hash}`;
 }
 
 function pendingCount(ed) {
@@ -1555,9 +1585,24 @@ function revertArt() {
   renderEditor();
 }
 
-/** Write pending art to ``paths``; returns the per-file results. */
+/** Write pending art to ``paths`` (in batches); returns the per-file results. */
 async function sendArt(paths, art) {
-  const query = paths.map((p) => `path=${encodeURIComponent(p)}`).join("&");
+  const MAX_QUERY = 6000; // characters; well under common proxy limits (nginx: 8 KB)
+  const batches = [];
+  let batch = [], size = 0;
+  for (const p of paths) {
+    const part = `path=${encodeURIComponent(p)}`;
+    if (batch.length && size + part.length + 1 > MAX_QUERY) { batches.push(batch); batch = []; size = 0; }
+    batch.push(part);
+    size += part.length + 1;
+  }
+  if (batch.length) batches.push(batch);
+  const results = [];
+  for (const b of batches) results.push(...(await sendArtBatch(b.join("&"), art)));
+  return results;
+}
+
+async function sendArtBatch(query, art) {
   const setting = art.action === "set";
   const res = await fetch(`/api/art?${query}`, {
     method: setting ? "PUT" : "DELETE",
@@ -1983,10 +2028,14 @@ function bindEvents() {
     toast(THEME_LABEL[next]);
   });
 
+  let filterTimer = null;
   els.filter.addEventListener("input", () => {
-    state.filter = els.filter.value.trim();
-    renderFolders();
-    renderTracks();
+    clearTimeout(filterTimer); // redraw once typing pauses, not on every keystroke
+    filterTimer = setTimeout(() => {
+      state.filter = els.filter.value.trim();
+      renderFolders();
+      renderTracks();
+    }, 120);
   });
 
   $("#editor-close").addEventListener("click", () => closeEditor());

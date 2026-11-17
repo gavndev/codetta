@@ -75,6 +75,9 @@ def test_results_are_cached_until_forced():
     checker.status(); checker.status()
     assert len(calls) == 1
     checker.status(force=True)
+    assert len(calls) == 1  # a forced re-check right away is throttled
+    checker._checked_at -= checker.MIN_FORCE_INTERVAL
+    checker.status(force=True)
     assert len(calls) == 2
 
 

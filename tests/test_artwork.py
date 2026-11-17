@@ -181,3 +181,12 @@ def test_activity_log_without_file():
     log = ActivityLog(None)
     log.add("edit", "in memory only")
     assert log.recent()[0]["message"] == "in memory only"
+
+
+def test_activity_file_is_trimmed_while_running(tmp_path):
+    file = tmp_path / "activity.jsonl"
+    log = ActivityLog(file, keep=5)
+    for i in range(40):
+        log.add("edit", f"e{i}")
+    assert len(file.read_text().splitlines()) <= 10  # never more than 2 x keep on disk
+    assert [e["message"] for e in ActivityLog(file, keep=5).recent()] == [f"e{i}" for i in range(39, 34, -1)]

@@ -24,6 +24,7 @@ class ActivityLog:
         self._entries: deque[dict[str, Any]] = deque(maxlen=keep)
         self._lock = threading.Lock()
         self._next_id = 1
+        self._lines_in_file = 0
         self._load()
 
     def add(
@@ -130,6 +131,7 @@ class ActivityLog:
                 self._entries.append(entry)
         if self._entries:
             self._next_id = max(e["id"] for e in self._entries) + 1
+        self._lines_in_file = len(lines)
         if len(lines) > self.keep * 2:
             self._rewrite()  # keep the file from growing forever
 
@@ -140,6 +142,9 @@ class ActivityLog:
             self.file.parent.mkdir(parents=True, exist_ok=True)
             with open(self.file, "a", encoding="utf-8") as f:
                 f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+            self._lines_in_file += 1
+            if self._lines_in_file > self.keep * 2:
+                self._rewrite()  # trim while running, not only at the next restart
         except OSError:
             pass  # logging must never break an edit
 
@@ -151,5 +156,6 @@ class ActivityLog:
                 encoding="utf-8",
             )
             tmp.replace(self.file)
+            self._lines_in_file = len(self._entries)
         except OSError:
             pass

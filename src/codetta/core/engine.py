@@ -12,6 +12,7 @@ import contextlib
 import os
 import shutil
 import tempfile
+import threading
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -63,6 +64,25 @@ COVER_ART_KEYS = frozenset({"metadata_block_picture", "coverart", "coverartmime"
 # A tag value as callers may pass it: one string, several strings, or None.
 # None, "" and [] all mean "remove this tag".
 TagValue = str | Iterable[str] | None
+
+
+# One lock per file (by real path): two saves to the same file at the same
+# moment (two devices, a double-tap) take turns, and the second one starts from
+# the first one's result instead of overwriting it.
+_file_locks: dict[str, threading.Lock] = {}
+_file_locks_guard = threading.Lock()
+
+
+def _lock_for(path: Path) -> threading.Lock:
+    key = os.path.realpath(path)
+    with _file_locks_guard:
+        lock = _file_locks.get(key)
+        if lock is None:
+            if len(_file_locks) > 5000:  # forget idle locks so this can't grow forever
+                for k in [k for k, v in _file_locks.items() if not v.locked()]:
+                    del _file_locks[k]
+            lock = _file_locks[key] = threading.Lock()
+        return lock
 
 
 class MetadataError(Exception):
@@ -216,6 +236,10 @@ class MetadataEngine:
         The original is never edited in place. If anything fails, it is left
         untouched and the copy is deleted.
         """
+        with _lock_for(path):
+            self._safe_write_locked(path, write_and_verify)
+
+    def _safe_write_locked(self, path: Path, write_and_verify: Callable[[Path], None]) -> None:
         # If ``path`` is a symlink, edit the file it points to. Otherwise the
         # swap below would replace the link itself with a regular file.
         target = Path(os.path.realpath(path))
