@@ -386,7 +386,7 @@ function trackByPath(path) {
 
 function matchesTagFilters(track) {
   return state.tagFilters.every(({ key, value }) => {
-    const values = (track.tags[key] || []).map((v) => v.toLowerCase());
+    const values = listParts(key, track.tags[key] || []).map((v) => v.toLowerCase());
     return value === "" ? values.length === 0 : values.includes(value.toLowerCase());
   });
 }
@@ -593,7 +593,7 @@ function folderTagValues() {
   for (const t of state.folder?.tracks || []) {
     for (const [key, values] of Object.entries(t.tags)) {
       if (!out.has(key)) out.set(key, new Map());
-      for (const v of values) out.get(key).set(v, (out.get(key).get(v) || 0) + 1);
+      for (const v of new Set(listParts(key, values))) out.get(key).set(v, (out.get(key).get(v) || 0) + 1);
     }
   }
   return out;
@@ -1009,6 +1009,17 @@ function attachSuggestions(input, key, box) {
 
 // ---- Editor hints: dates and comma-separated lists ------------------------------------------------
 
+// Fields where many libraries (and Navidrome's default settings) treat a comma
+// as a separator: "Hip-Hop, Trap, Rap". Codetta saves them exactly as typed and
+// treats each comma-separated part as its own value when filtering.
+const COMMA_LIST_KEYS = new Set(["genre", "mood"]);
+
+/** "Hip-Hop, Trap; Rap" -> ["Hip-Hop", "Trap", "Rap"] for comma-list fields. */
+function listParts(key, values) {
+  if (!COMMA_LIST_KEYS.has(key)) return values;
+  return values.flatMap((v) => v.split(/[,;]/)).map((v) => v.trim()).filter(Boolean);
+}
+
 const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 const DATE_OK = /^\d{4}(-\d{2}(-\d{2})?)?$/;
 
@@ -1050,7 +1061,7 @@ function fieldHint(field, value) {
     const fix = suggestDate(v);
     return { text: "Players expect dates like 2026-10-23 (or just 2026).", fix, fixLabel: fix && `Use ${fix}` };
   }
-  if (field.multi && v.includes(",") && !v.includes(";")) {
+  if (field.multi && !COMMA_LIST_KEYS.has(field.key) && v.includes(",") && !v.includes(";")) {
     const parts = v.split(",").map((x) => x.trim()).filter(Boolean);
     if (parts.length < 2) return null;
     return {
@@ -1080,6 +1091,7 @@ function fieldEl(field, model) {
   input.value = change ? change.value : m.value;
 
   const basePlaceholder = m.mixed ? "Multiple values — leave to keep"
+    : COMMA_LIST_KEYS.has(key) ? "Separate with , or ;"
     : (field.multi || m.multiValued) ? "Use ; for several" : "";
 
   const refresh = () => {
