@@ -606,13 +606,24 @@ dialog.sheet.small { width: min(420px, calc(100vw - 32px)); }
   pointer-events: none;
 }
 .changes-pop:empty { display: none; }
-.toolbar-right:has(.btn:not(:disabled):hover) .changes-pop,
-.toolbar-right:has(.btn:not(:disabled):focus-visible) .changes-pop {
-  opacity: 1;
-  visibility: visible;
-  transform: none;
+/* Only with a real mouse (a tap would leave it stuck open) or keyboard focus. */
+@media (hover: hover) {
+  .toolbar-right:has(.btn:not(:disabled):hover) .changes-pop { opacity: 1; visibility: visible; transform: none; }
 }
-.changes-pop ul { list-style: none; margin: 6px 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow: hidden; }
+.toolbar-right:has(.btn:not(:disabled):focus-visible) .changes-pop { opacity: 1; visibility: visible; transform: none; }
+
+/* Confirmation sheet */
+dialog.confirm .sheet-head { padding-bottom: 4px; }
+.confirm-msg { color: var(--muted); }
+dialog.confirm .change-list {
+  list-style: none; margin: 10px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--hover);
+  display: flex; flex-direction: column; gap: 6px; font-size: 13px; max-height: 40vh; overflow-y: auto;
+}
+dialog.confirm .change-list li { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 8px; }
+.confirm-warning { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: var(--warning-soft); color: var(--text); font-size: 13px; }
+.btn.danger-fill { background: var(--danger); border-color: transparent; color: #fff; }
+.btn.danger-fill:hover { filter: brightness(1.08); }
+.changes-pop ul, .change-list { list-style: none; margin: 6px 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow: hidden; }
 .changes-pop li { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 8px; }
 .pop-head { font-weight: 600; }
 .pop-key { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1324,6 +1335,7 @@ dialog.sheet.closing::backdrop { animation: fade-out 150ms ease forwards; }
     border-radius: 16px 16px 0 0;
     border-bottom: 0;
   }
+  dialog.sheet.small { width: 100vw; }
   dialog.sheet[open] { animation: sheet-up 340ms var(--ease-out); }
   dialog.sheet.closing { animation: sheet-down 240ms var(--ease-in) forwards; }
   .row-2 { gap: 8px; }

@@ -56,6 +56,36 @@ function replay(el, cls) {
   el.classList.add(cls);
 }
 
+/**
+ * Codetta's own confirmation sheet. Resolves true (confirmed) or false.
+ * ask({ title, message, details, confirmLabel, cancelLabel, danger })
+ */
+function ask({ title, message = "", details = null, confirmLabel = "OK", cancelLabel = "Cancel", danger = false }) {
+  return new Promise((resolve) => {
+    const d = $("#confirm-dialog");
+    const ok = $("#confirm-ok");
+    const cancel = $("#confirm-cancel");
+    $("#confirm-title").textContent = title;
+    setKids($("#confirm-body"), message ? h("p", { class: "confirm-msg" }, message) : null, details);
+    ok.textContent = confirmLabel;
+    ok.className = `btn ${danger ? "danger-fill" : "primary"}`;
+    cancel.textContent = cancelLabel;
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      closeDialog(d);
+      resolve(value);
+    };
+    ok.onclick = () => finish(true);
+    cancel.onclick = () => finish(false);
+    d.oncancel = (e) => { e.preventDefault(); finish(false); }; // Escape
+    d.onclick = (e) => { if (e.target === d) finish(false); }; // backdrop
+    openDialog(d);
+    setTimeout(() => (danger ? cancel : ok).focus(), 60); // safe default for destructive actions
+  });
+}
+
 function closeDialog(dialog) {
   if (!dialog.open || dialog.classList.contains("closing")) return;
   dialog.cancelClose = false;
@@ -247,19 +277,19 @@ function hashFor(path) {
 // treat every folder tap as a page load (loading bar, reload icon).
 let navTarget = null; // the folder we're currently heading to
 
-function navigate(path) {
+async function navigate(path) {
   if (path === (navTarget ?? state.path) && state.folder) return;
-  if (!confirmDiscard()) return;
+  if (!(await confirmDiscard())) return;
   navTarget = path;
   history.pushState({ path }, "", hashFor(path));
   loadFolder(path);
 }
 
 /** Back/forward buttons, or a hand-edited URL. */
-function onHistoryChange() {
+async function onHistoryChange() {
   const path = pathFromHash();
   if (path === (navTarget ?? state.path) && state.folder) return;
-  if (!confirmDiscard()) {
+  if (!(await confirmDiscard())) {
     history.pushState({ path: state.path }, "", hashFor(state.path)); // stay put
     return;
   }
@@ -743,12 +773,17 @@ function isDirty() {
   return !!state.editor && state.editor.changes.size > 0;
 }
 
-function confirmDiscard() {
-  return !isDirty() || window.confirm("Discard your unsaved tag changes?");
+async function confirmDiscard() {
+  if (!isDirty()) return true;
+  return ask({
+    title: "Discard unsaved changes?",
+    message: "Your edits haven't been saved yet.",
+    confirmLabel: "Discard", cancelLabel: "Keep editing", danger: true,
+  });
 }
 
-function openEditor(paths) {
-  if (state.editor && !confirmDiscard()) return;
+async function openEditor(paths) {
+  if (state.editor && !(await confirmDiscard())) return;
   const tracks = paths.map(trackByPath).filter((t) => t && !t.error);
   if (!tracks.length) { toast("None of these files can be read", "error"); return; }
   const skipped = paths.length - tracks.length;
@@ -765,7 +800,10 @@ function openEditor(paths) {
 
 function closeEditor(force = false) {
   if (!state.editor) return;
-  if (!force && !confirmDiscard()) return;
+  if (!force && isDirty()) {
+    confirmDiscard().then((ok) => { if (ok) closeEditor(true); });
+    return;
+  }
   state.editor = null;
   playOut(els.editor, "closing", () => { if (!state.editor) els.editor.hidden = true; });
   document.body.style.overflow = "";
@@ -1256,12 +1294,10 @@ function updateSaveButton() {
   renderChangesPopover(folderPaths.length);
 }
 
-/** Hovering either Save button shows exactly what will change. */
-function renderChangesPopover(folderCount) {
-  const pop = $("#changes-pop");
+/** The pending edits as "Field  old → new" rows. */
+function changeList() {
   const ed = state.editor;
-  if (!ed || !ed.changes.size) { pop.replaceChildren(); return; }
-  const rows = [...ed.changes.entries()].map(([key, c]) => {
+  return h("ul", { class: "change-list" }, [...ed.changes.entries()].map(([key, c]) => {
     const m = ed.model.get(key);
     const old = m?.mixed ? "various" : m?.value || "";
     return h("li", {},
@@ -1269,11 +1305,18 @@ function renderChangesPopover(folderCount) {
       h("span", { class: "pop-val" },
         old ? [h("s", {}, old), " → "] : null,
         c.remove ? h("span", { class: "pop-removed" }, "removed") : h("span", {}, c.value)));
-  });
+  }));
+}
+
+/** Hovering either Save button (with a mouse) shows exactly what will change. */
+function renderChangesPopover(folderCount) {
+  const pop = $("#changes-pop");
+  const ed = state.editor;
+  if (!ed || !ed.changes.size) { pop.replaceChildren(); return; }
   const n = ed.paths.length;
   setKids(pop,
     h("div", { class: "pop-head" }, `${plural(ed.changes.size, "change")}`),
-    h("ul", {}, rows),
+    changeList(),
     h("div", { class: "pop-foot" },
       `Save → ${n === 1 ? "this track" : `${n} selected tracks`}`,
       els.editorSaveFolder.hidden ? null : ` · Save to folder → all ${folderCount} tracks`));
@@ -1282,17 +1325,25 @@ function renderChangesPopover(folderCount) {
 // Tags that are normally different on every track of an album.
 const PER_TRACK_KEYS = new Set(["title", "tracknumber", "isrc", "comment", "bpm"]);
 
-function saveToFolder() {
+async function saveToFolder() {
   const ed = state.editor;
   if (!ed || !ed.changes.size) return;
   const paths = folderTrackPaths();
   const keys = [...ed.changes.keys()];
   const risky = keys.filter((k) => PER_TRACK_KEYS.has(k)).map(fieldLabel);
   const folderName = state.folder.path ? state.folder.name : "Library";
-  let msg = `Save ${keys.map(fieldLabel).join(", ")} to all ${paths.length} tracks in “${folderName}”?`;
-  if (risky.length) msg += `\n\nHeads up: ${risky.join(", ")} ${risky.length === 1 ? "is" : "are"} usually different on every track, so all ${paths.length} would get the same value.`;
-  if (!window.confirm(msg)) return;
-  saveEditor(paths);
+  const ok = await ask({
+    title: `Save to all ${paths.length} tracks?`,
+    message: keys.length === 1 ? `In “${folderName}”, only this field changes:` : `In “${folderName}”, only these ${keys.length} fields change:`,
+    details: [
+      changeList(),
+      risky.length ? h("div", { class: "confirm-warning" },
+        `${risky.join(", ")} ${risky.length === 1 ? "is" : "are"} usually different on every track, so all ${paths.length} would get the same value.`) : null,
+      h("p", { class: "hint", style: "margin:10px 0 0" }, "You can undo this from the activity log."),
+    ],
+    confirmLabel: `Save to ${paths.length} tracks`,
+  });
+  if (ok) saveEditor(paths);
 }
 
 async function saveEditor(targetPaths = null) {
@@ -1436,10 +1487,14 @@ function uploadArt(file) {
   changeArt("PUT", file, file.type);
 }
 
-function removeArt() {
+async function removeArt() {
   const n = state.editor?.paths.length || 0;
-  if (!window.confirm(n > 1 ? `Remove album art from ${n} tracks?` : "Remove the album art from this track?")) return;
-  changeArt("DELETE");
+  const ok = await ask({
+    title: n > 1 ? `Remove album art from ${n} tracks?` : "Remove the album art?",
+    message: "You can undo this from the activity log.",
+    confirmLabel: "Remove", danger: true,
+  });
+  if (ok) changeArt("DELETE");
 }
 
 // ---- Activity log ---------------------------------------------------------------------------------------
@@ -1523,8 +1578,16 @@ async function reloadActivity() {
 
 async function undoEntry(e) {
   const verb = e.kind === "undo" && !e.redo ? "Redo" : "Undo";
-  if (e.file_count > 1 && !window.confirm(`${verb} “${e.message}” on ${e.file_count} files?\n\nFiles that were changed again since are left as they are.`)) return;
-  if (isDirty() && !window.confirm("You have unsaved changes in the editor. Continue? They'll be kept, but the fields will refresh.")) return;
+  if (e.file_count > 1 && !(await ask({
+    title: `${verb} this change?`,
+    message: `“${e.message}” touched ${e.file_count} files. Files that were changed again since are left as they are.`,
+    confirmLabel: `${verb} ${e.file_count} files`,
+  }))) return;
+  if (isDirty() && !(await ask({
+    title: "Refresh the editor?",
+    message: "This updates files you're editing, so their fields will reload. Your unsaved edits are kept.",
+    confirmLabel: "Continue",
+  }))) return;
   try {
     const res = await api("POST", `/api/activity/${e.id}/undo`);
     if (!res.undone) {
@@ -1573,7 +1636,7 @@ function applyOptions() {
 }
 
 async function openApply(target) {
-  if (!confirmDiscard()) return;
+  if (!(await confirmDiscard())) return;
   try { await refreshLoadouts(); } catch (err) { toast(err.message, "error"); return; }
   if (!state.loadouts.length) {
     toast("You don't have any loadouts yet. Create one first.");
@@ -1787,7 +1850,8 @@ function renderManageForm(loadout) {
   };
 
   const del = async () => {
-    if (!window.confirm(`Delete the loadout “${loadout.name}”? This can't be undone.`)) return;
+    if (!(await ask({ title: `Delete “${loadout.name}”?`, message: "This loadout will be deleted. This can't be undone.",
+      confirmLabel: "Delete", danger: true }))) return;
     try {
       await api("DELETE", `/api/loadouts/${encodeURIComponent(loadout.name)}`);
       toast(`Deleted “${loadout.name}”`, "success");
@@ -2068,7 +2132,8 @@ async function changePassword(e) {
 }
 
 async function signOut() {
-  if (isDirty() && !window.confirm("Sign out and discard your unsaved tag changes?")) return;
+  if (isDirty() && !(await ask({ title: "Sign out?", message: "Your unsaved tag changes will be lost.",
+    confirmLabel: "Sign out", danger: true }))) return;
   try { await api("POST", "/api/auth/logout"); } catch { /* signing out anyway */ }
   state.editor = null; // already confirmed; don't ask again on unload
   location.reload(); // fresh start: the page comes back on the sign-in screen
