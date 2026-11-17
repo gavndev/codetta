@@ -19,6 +19,9 @@
 - [x] **Task 2.9:** Album art: rounded square at the top of the editor (preview, or "+ Add album art"); upload/replace/remove for one or many tracks, JPEG/PNG, drag-and-drop on desktop, photo picker on iPhone. Same safe temp-copy write as tags (`src/coda/core/artwork.py`).
 - [x] **Task 2.10:** Activity log pinned to the bottom of the editor: every change (edits, art, loadouts) with old → new values and errors, saved to `activity.jsonl` in the config folder, live-updating across devices.
 - [x] **Task 2.11:** Remember visited folders so navigating back is instant (refreshed quietly in the background), and restore scroll position.
+- [x] **Task 2.12:** Editor toolbar: "Save" (this track/selection) and "Save to folder" (the changed fields to every track in the folder, with a warning for per-track fields like Title); copy checked tags and paste them onto other tracks or a whole folder; wider panel.
+- [x] **Task 2.13:** Filter the current folder by tag value (e.g. Label = Independent), shown as removable chips. Hints for non-standard dates ("Use 2026-10-23") and comma-separated multi-value fields ("Split into 3").
+- [ ] **Task 2.14:** Library-wide tag search/filter (e.g. every release with Label = Independent), backed by a small tag index cached in the config folder so big libraries stay fast; refreshed when files change.
 
 ## Phase 3: Docker & Sharing
 - [ ] **Task 3.1:** Multi-stage `Dockerfile` on `python:3.14-slim`, running as a non-root user with configurable `PUID`/`PGID` so edited files keep the right owner.

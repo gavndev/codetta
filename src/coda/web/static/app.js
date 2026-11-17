@@ -25,6 +25,11 @@ function h(tag, attrs = {}, ...children) {
   return el;
 }
 
+/** Like el.replaceChildren(...), but skips null/false (which would render as "null"). */
+function setKids(el, ...kids) {
+  el.replaceChildren(...kids.flat(Infinity).filter((k) => k != null && k !== false));
+}
+
 const ICONS = {
   folder: '<svg viewBox="0 0 20 20"><path d="M2.5 5.5a1.5 1.5 0 0 1 1.5-1.5h3.6l1.8 2H16a1.5 1.5 0 0 1 1.5 1.5v7A1.5 1.5 0 0 1 16 16H4a1.5 1.5 0 0 1-1.5-1.5z"/></svg>',
   close: '<svg viewBox="0 0 20 20"><path d="m5 5 10 10M15 5 5 15"/></svg>',
@@ -33,6 +38,8 @@ const ICONS = {
   moon: '<svg viewBox="0 0 20 20"><path d="M16 12.5A6.5 6.5 0 0 1 7.5 4a6.5 6.5 0 1 0 8.5 8.5z"/></svg>',
   auto: '<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 3a7 7 0 0 1 0 14z" fill="currentColor" stroke="none"/></svg>',
   plus: '<svg viewBox="0 0 20 20"><path d="M10 4v12M4 10h12"/></svg>',
+  copy: '<svg viewBox="0 0 20 20"><rect x="7" y="7" width="9.5" height="9.5" rx="2"/><path d="M13 7V5a1.5 1.5 0 0 0-1.5-1.5h-6A1.5 1.5 0 0 0 4 5v6A1.5 1.5 0 0 0 5.5 12.5H7"/></svg>',
+  paste: '<svg viewBox="0 0 20 20"><rect x="4.5" y="4" width="11" height="13" rx="2"/><path d="M8 4V3h4v1"/><path d="M7.5 9h5M7.5 12h3"/></svg>',
 };
 
 function icon(name) {
@@ -78,6 +85,8 @@ const state = {
   filter: "",
   editor: null,           // { paths, changes: Map, extraKeys: [], errors: [] }
   rows: new Map(),        // track path -> { row, checkbox }
+  tagFilters: [],         // [{ key, value }] — value "" means "has no value"
+  clipboard: loadClipboard(), // copied tags: { tags: {key: [values]}, from }
   loadToken: 0,
 };
 
@@ -94,6 +103,10 @@ const els = {
   editorTitle: $("#editor-title"),
   editorSub: $("#editor-sub"),
   editorSave: $("#editor-save"),
+  editorSaveFolder: $("#editor-save-folder"),
+  toolbarLeft: $("#toolbar-left"),
+  filterChips: $("#filter-chips"),
+  filterDialog: $("#filter-dialog"),
   selBar: $("#selection-bar"),
   selCount: $("#selection-count"),
   toasts: $("#toasts"),
@@ -252,6 +265,7 @@ function showFolder(data, scrollTop) {
     state.lastClicked = null;
     state.filter = "";
     els.filter.value = "";
+    state.tagFilters = [];
     closeEditor(true);
   } else {
     // Keep only selections that still exist.
@@ -268,7 +282,15 @@ function trackByPath(path) {
   return state.folder?.tracks.find((t) => t.path === path);
 }
 
+function matchesTagFilters(track) {
+  return state.tagFilters.every(({ key, value }) => {
+    const values = (track.tags[key] || []).map((v) => v.toLowerCase());
+    return value === "" ? values.length === 0 : values.includes(value.toLowerCase());
+  });
+}
+
 function matchesFilter(track) {
+  if (!matchesTagFilters(track)) return false;
   if (!state.filter) return true;
   const q = state.filter.toLowerCase();
   return [track.name, first(track, "title"), first(track, "artist"), first(track, "album")]
@@ -282,6 +304,7 @@ function visibleTracks() {
 function renderBrowser() {
   renderCrumbs();
   renderFolderHead();
+  renderFilterChips();
   renderFolders();
   renderTracks();
   renderSelectionBar();
@@ -342,7 +365,9 @@ function renderTracks() {
     return;
   }
   if (!tracks.length) {
-    els.tracks.replaceChildren(h("div", { class: "empty" }, h("strong", {}, "No matches"), `Nothing here matches “${state.filter}”.`));
+    els.tracks.replaceChildren(h("div", { class: "empty" }, h("strong", {}, "No matches"),
+      state.filter ? `Nothing here matches “${state.filter}”` : "No tracks in this folder match the tag filter.",
+      state.tagFilters.length && state.filter ? " with the tag filter." : state.filter ? "." : ""));
     return;
   }
 
@@ -405,6 +430,74 @@ function renderTracks() {
 function openTrack(track) {
   if (track.error) { toast(`Can't read this file: ${track.error}`, "error"); return; }
   openEditor([track.path]);
+}
+
+// ---- Tag filter ---------------------------------------------------------------------------------------
+
+function renderFilterChips() {
+  const chips = state.tagFilters.map((f, i) => h("span", { class: "filter-chip" },
+    h("span", {}, h("b", {}, fieldLabel(f.key)), ": ", f.value === "" ? h("i", {}, "empty") : f.value),
+    h("button", {
+      type: "button", class: "chip-x", "aria-label": `Remove filter ${fieldLabel(f.key)}`,
+      onclick: () => { state.tagFilters.splice(i, 1); renderBrowser(); },
+    }, icon("close"))));
+  if (chips.length > 1) {
+    chips.push(h("button", { type: "button", class: "link-btn", onclick: () => { state.tagFilters = []; renderBrowser(); } }, "Clear all"));
+  }
+  if (chips.length) {
+    const shown = visibleTracks().length;
+    chips.unshift(h("span", { class: "filter-count" }, `${shown} of ${state.folder?.tracks.length || 0}`));
+  }
+  setKids(els.filterChips, chips);
+  els.filterChips.hidden = !chips.length;
+  $("#tagfilter-btn").classList.toggle("active", state.tagFilters.length > 0);
+}
+
+/** tag key -> Map(value -> count) for tracks in this folder. */
+function folderTagValues() {
+  const out = new Map();
+  for (const t of state.folder?.tracks || []) {
+    for (const [key, values] of Object.entries(t.tags)) {
+      if (!out.has(key)) out.set(key, new Map());
+      for (const v of values) out.get(key).set(v, (out.get(key).get(v) || 0) + 1);
+    }
+  }
+  return out;
+}
+
+function openTagFilter() {
+  if (!state.folder?.tracks.length) { toast("There are no tracks in this folder to filter"); return; }
+  const values = folderTagValues();
+  const order = state.fields.map((f) => f.key);
+  const keys = [...values.keys()].sort((a, b) => {
+    const ia = order.indexOf(a), ib = order.indexOf(b);
+    return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib) || a.localeCompare(b);
+  });
+  if (!keys.length) { toast("None of these tracks have tags yet"); return; }
+  const keySel = $("#filter-key");
+  setKids(keySel, keys.map((k) => h("option", { value: k }, fieldLabel(k))));
+  const fillValues = () => {
+    const counts = values.get(keySel.value) || new Map();
+    const total = state.folder.tracks.length;
+    const withTag = state.folder.tracks.filter((t) => (t.tags[keySel.value] || []).length).length;
+    const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    setKids($("#filter-value"),
+      sorted.map(([v, n]) => h("option", { value: v }, `${v} (${n})`)),
+      withTag < total ? h("option", { value: "" }, `— No value — (${total - withTag})`) : null);
+  };
+  keySel.onchange = fillValues;
+  fillValues();
+  els.filterDialog.showModal();
+}
+
+function addTagFilter() {
+  const key = $("#filter-key").value;
+  const value = $("#filter-value").value;
+  if (!key) return;
+  state.tagFilters = state.tagFilters.filter((f) => f.key !== key); // one value per tag
+  state.tagFilters.push({ key, value });
+  els.filterDialog.close();
+  renderBrowser();
 }
 
 // ---- Selection -----------------------------------------------------------------------------------
@@ -584,8 +677,167 @@ function renderEditor() {
   }
 
   parts.push(addTagEl(model));
-  els.editorForm.replaceChildren(...parts);
+  setKids(els.editorForm, parts);
+  renderToolbar();
   updateSaveButton();
+}
+
+// ---- Editor toolbar: copy & paste tags ---------------------------------------------------------
+
+function loadClipboard() {
+  try { return JSON.parse(localStorage.getItem("coda-clipboard")) || null; } catch { return null; }
+}
+
+function saveClipboard(clip) {
+  state.clipboard = clip;
+  try {
+    if (clip) localStorage.setItem("coda-clipboard", JSON.stringify(clip));
+    else localStorage.removeItem("coda-clipboard");
+  } catch { /* private mode: clipboard just won't survive a reload */ }
+}
+
+function fieldLabel(key) {
+  return state.fieldMap.get(key)?.label || key;
+}
+
+/** The value a field currently shows (pending edit, or what's saved), as a list. */
+function currentValues(key) {
+  const ed = state.editor;
+  const m = ed.model.get(key);
+  const c = ed.changes.get(key);
+  if (c) return c.remove ? [] : splitValue(key, c.value);
+  if (!m || m.mixed || !m.present) return [];
+  return splitValue(key, m.value);
+}
+
+function splitValue(key, text) {
+  const value = text.trim();
+  if (!value) return [];
+  const split = state.fieldMap.get(key)?.multi || state.editor?.model.get(key)?.multiValued;
+  return split ? value.split(";").map((v) => v.trim()).filter(Boolean) : [value];
+}
+
+function renderToolbar() {
+  const ed = state.editor;
+  const clip = state.clipboard;
+  const clipKeys = clip ? Object.keys(clip.tags) : [];
+  if (ed.copyMode) {
+    const n = ed.copyKeys.size;
+    setKids(els.toolbarLeft,
+      h("button", { class: "btn small primary", type: "button", disabled: n === 0, onclick: finishCopy }, n ? `Copy ${n}` : "Copy"),
+      h("button", { class: "btn small", type: "button", onclick: selectAllCopy }, "All"),
+      h("button", { class: "btn small", type: "button", onclick: () => { ed.copyMode = false; renderEditor(); } }, "Cancel"));
+  } else {
+    setKids(els.toolbarLeft,
+      h("button", { class: "btn small", type: "button", title: "Pick tags to copy, then paste them onto other tracks", onclick: startCopy }, icon("copy"), "Copy"),
+      clipKeys.length ? h("span", { class: "paste-group" },
+        h("button", {
+          class: "btn small", type: "button", onclick: pasteTags,
+          title: `Paste ${clipKeys.map(fieldLabel).join(", ")}${clip.from ? ` (from ${clip.from})` : ""}`,
+        }, icon("paste"), `Paste ${clipKeys.length}`),
+        h("button", { class: "icon-btn small", type: "button", "aria-label": "Clear copied tags", title: "Clear copied tags",
+          onclick: () => { saveClipboard(null); renderToolbar(); } }, icon("close"))) : null);
+  }
+}
+
+function startCopy() {
+  const ed = state.editor;
+  ed.copyMode = true;
+  ed.copyKeys = new Set();
+  renderEditor();
+}
+
+function selectAllCopy() {
+  const ed = state.editor;
+  for (const key of ed.model.keys()) if (currentValues(key).length) ed.copyKeys.add(key);
+  renderEditor();
+}
+
+function finishCopy() {
+  const ed = state.editor;
+  const tags = {};
+  for (const key of ed.copyKeys) {
+    const values = currentValues(key);
+    if (values.length) tags[key] = values;
+  }
+  const tracks = editorTracks();
+  const from = tracks.length === 1 ? (first(tracks[0], "title") || tracks[0].name) : `${tracks.length} tracks`;
+  saveClipboard({ tags, from });
+  ed.copyMode = false;
+  renderEditor();
+  const keys = Object.keys(tags);
+  toast(`Copied ${keys.map(fieldLabel).join(", ")}`, "success");
+}
+
+function pasteTags() {
+  const ed = state.editor;
+  const clip = state.clipboard;
+  if (!ed || !clip) return;
+  let n = 0;
+  for (const [key, values] of Object.entries(clip.tags)) {
+    if (!ed.model.has(key) && !ed.extraKeys.includes(key)) ed.extraKeys.push(key);
+    const m = ed.model.get(key);
+    const text = values.join("; ");
+    if (m && !m.mixed && m.value === text) { ed.changes.delete(key); continue; } // already the same
+    ed.changes.set(key, { value: text, remove: false });
+    n++;
+  }
+  renderEditor();
+  toast(n ? `Pasted ${plural(n, "tag")}. Review, then Save or Save to folder.` : "These tracks already have those values.");
+}
+
+// ---- Editor hints: dates and comma-separated lists ------------------------------------------------
+
+const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+const DATE_OK = /^\d{4}(-\d{2}(-\d{2})?)?$/;
+
+/** Turn "October 23, 2026" or "2026/10/23" into "2026-10-23", if unambiguous. */
+function suggestDate(text) {
+  const v = text.trim();
+  if (!v || DATE_OK.test(v)) return null;
+  const pad = (n) => String(n).padStart(2, "0");
+  const valid = (y, mo, d) => y >= 1000 && y <= 9999 && mo >= 1 && mo <= 12 && (!d || (d >= 1 && d <= 31));
+  let m = v.match(/^(\d{4}-\d{2}-\d{2})[T ]/); // ISO with a time
+  if (m) return m[1];
+  m = v.match(/^(\d{4})[/.\-](\d{1,2})[/.\-](\d{1,2})$/);
+  if (m && valid(+m[1], +m[2], +m[3])) return `${m[1]}-${pad(m[2])}-${pad(m[3])}`;
+  const month = (v.toLowerCase().match(/[a-z]{3,}/g) || []).map((w) => MONTHS.indexOf(w.slice(0, 3))).find((i) => i >= 0);
+  const nums = v.match(/\d+/g) || [];
+  if (month !== undefined) {
+    const year = nums.find((n) => n.length === 4);
+    const day = nums.find((n) => n.length <= 2);
+    if (year && day && valid(+year, month + 1, +day)) return `${year}-${pad(month + 1)}-${pad(day)}`;
+    if (year) return `${year}-${pad(month + 1)}`;
+    return null;
+  }
+  m = v.match(/^(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{4})$/); // only when day/month order is clear
+  if (m) {
+    const [a, b, y] = [+m[1], +m[2], m[3]];
+    if (a > 12 && valid(+y, b, a)) return `${y}-${pad(b)}-${pad(a)}`;
+    if (b > 12 && valid(+y, a, b)) return `${y}-${pad(a)}-${pad(b)}`;
+  }
+  m = v.match(/\b(\d{4})\b/);
+  return m && valid(+m[1], 1) && nums.length === 1 ? m[1] : null;
+}
+
+/** A small tip under a field, with an optional one-tap fix. */
+function fieldHint(field, value) {
+  const v = value.trim();
+  if (!v) return null;
+  if (field.key === "date" || field.key === "originaldate") {
+    if (DATE_OK.test(v)) return null;
+    const fix = suggestDate(v);
+    return { text: "Players expect dates like 2026-10-23 (or just 2026).", fix, fixLabel: fix && `Use ${fix}` };
+  }
+  if (field.multi && v.includes(",") && !v.includes(";")) {
+    const parts = v.split(",").map((x) => x.trim()).filter(Boolean);
+    if (parts.length < 2) return null;
+    return {
+      text: `This saves as one ${field.label.toLowerCase()}. Use ; to separate.`,
+      fix: parts.join("; "), fixLabel: `Split into ${parts.length}`,
+    };
+  }
+  return null;
 }
 
 function fieldEl(field, model) {
@@ -597,6 +849,7 @@ function fieldEl(field, model) {
   const isLong = key === "comment";
 
   const flag = h("span", { class: "flag" });
+  const hintEl = h("div", { class: "field-hint", hidden: true });
   const wrap = h("div", { class: "field", dataset: { key } });
   const input = isLong
     ? h("textarea", { id, rows: "3", spellcheck: "true" })
@@ -615,6 +868,14 @@ function fieldEl(field, model) {
     flag.textContent = c ? (c.remove ? (tracksCount() > 1 ? "Remove from all" : "Will be removed") : "Changed") : "";
     input.placeholder = c && c.remove ? "Will be removed" : basePlaceholder;
     clearBtn.hidden = c ? c.remove : !m.present;
+    const hint = fieldHint(field, input.value);
+    hintEl.hidden = !hint;
+    if (hint) {
+      setKids(hintEl, h("span", {}, hint.text), hint.fix ? h("button", {
+        class: "link-btn", type: "button",
+        onclick: () => { input.value = hint.fix; input.dispatchEvent(new Event("input")); input.focus(); },
+      }, hint.fixLabel) : null);
+    }
     updateSaveButton();
   };
 
@@ -642,9 +903,21 @@ function fieldEl(field, model) {
     },
   }, icon("clear"));
 
+  let copyBox = null;
+  if (ed.copyMode) {
+    const copyable = currentValues(key).length > 0;
+    copyBox = h("input", {
+      type: "checkbox", class: "copy-box", "aria-label": `Copy ${field.label}`,
+      checked: ed.copyKeys.has(key), disabled: !copyable,
+      title: copyable ? `Copy ${field.label}` : (m.mixed ? "Values differ between tracks" : "Nothing to copy"),
+      onchange: (e) => { e.target.checked ? ed.copyKeys.add(key) : ed.copyKeys.delete(key); renderToolbar(); },
+    });
+    wrap.classList.add("copyable");
+  }
   wrap.append(
-    h("label", { class: "field-label", for: id, title: `Tag name: ${key}` }, field.label, flag),
+    h("label", { class: "field-label", for: copyBox ? null : id, title: `Tag name: ${key}` }, copyBox, field.label, flag),
     isLong ? input : h("div", { class: "input-wrap" }, input, clearBtn),
+    hintEl,
   );
   refresh();
   return wrap;
@@ -681,15 +954,43 @@ function addTagEl(model) {
     h("div", { class: "add-tag" }, keyInput, valueInput, h("button", { class: "btn", type: "button", onclick: add }, "Add")));
 }
 
-function updateSaveButton() {
-  const n = state.editor?.changes.size || 0;
-  els.editorSave.disabled = n === 0;
-  els.editorSave.textContent = n ? `Save ${n > 1 ? `(${n})` : ""}`.trim() : "Save";
+function folderTrackPaths() {
+  return (state.folder?.tracks || []).filter((t) => !t.error).map((t) => t.path);
 }
 
-async function saveEditor() {
+function updateSaveButton() {
+  const ed = state.editor;
+  const n = ed?.changes.size || 0;
+  els.editorSave.disabled = n === 0;
+  els.editorSave.textContent = n ? `Save ${n > 1 ? `(${n})` : ""}`.trim() : "Save";
+  // "Save to folder" only makes sense if it reaches more tracks than "Save" does.
+  const folderPaths = folderTrackPaths();
+  const covers = ed && folderPaths.every((p) => ed.paths.includes(p));
+  els.editorSaveFolder.hidden = !ed || covers;
+  els.editorSaveFolder.disabled = n === 0;
+  els.editorSaveFolder.textContent = `Save to folder (${folderPaths.length})`;
+}
+
+// Tags that are normally different on every track of an album.
+const PER_TRACK_KEYS = new Set(["title", "tracknumber", "isrc", "comment", "bpm"]);
+
+function saveToFolder() {
   const ed = state.editor;
   if (!ed || !ed.changes.size) return;
+  const paths = folderTrackPaths();
+  const keys = [...ed.changes.keys()];
+  const risky = keys.filter((k) => PER_TRACK_KEYS.has(k)).map(fieldLabel);
+  const folderName = state.folder.path ? state.folder.name : "Library";
+  let msg = `Save ${keys.map(fieldLabel).join(", ")} to all ${paths.length} tracks in “${folderName}”?`;
+  if (risky.length) msg += `\n\nHeads up: ${risky.join(", ")} ${risky.length === 1 ? "is" : "are"} usually different on every track, so all ${paths.length} would get the same value.`;
+  if (!window.confirm(msg)) return;
+  saveEditor(paths);
+}
+
+async function saveEditor(targetPaths = null) {
+  const ed = state.editor;
+  if (!ed || !ed.changes.size) return;
+  const paths = targetPaths || ed.paths;
   const changes = {};
   for (const [key, c] of ed.changes) {
     const value = c.value.trim();
@@ -699,9 +1000,10 @@ async function saveEditor() {
   }
 
   els.editorSave.disabled = true;
-  els.editorSave.textContent = "Saving…";
+  els.editorSaveFolder.disabled = true;
+  (targetPaths ? els.editorSaveFolder : els.editorSave).textContent = "Saving…";
   try {
-    const results = await api("PATCH", "/api/tracks", { paths: ed.paths, changes });
+    const results = await api("PATCH", "/api/tracks", { paths, changes });
     const failed = results.filter((r) => !r.ok);
     for (const r of results) {
       if (!r.ok) continue;
@@ -710,9 +1012,10 @@ async function saveEditor() {
     }
     if (state.editor !== ed) return; // closed meanwhile
     ed.errors = failed.map((r) => `${baseName(r.path)}: ${r.error}`);
+    ed.copyMode = false;
     if (!failed.length) {
       ed.changes.clear();
-      toast(results.length === 1 ? "Saved" : `Saved ${results.length} tracks`, "success");
+      toast(results.length === 1 ? "Saved" : targetPaths ? `Saved to all ${results.length} tracks in this folder` : `Saved ${results.length} tracks`, "success");
     } else {
       // Keep the changes so the user can fix and retry.
       const ok = results.length - failed.length;
@@ -1006,7 +1309,7 @@ function renderPreview(results) {
           [i ? ", " : "", h("b", {}, k), ` → ${v.join("; ")}`])),
       notes.map((n) => h("div", { class: "note" }, n)));
   });
-  $("#apply-preview").replaceChildren(
+  setKids($("#apply-preview"),
     h("p", { class: "preview-summary" }, summary.join(" ")),
     items.length ? h("div", { class: "preview-list" }, items) : null,
     shown.length < changing.length + errors.length ? h("p", { class: "hint" }, `…and ${changing.length + errors.length - shown.length} more`) : null,
@@ -1047,7 +1350,7 @@ function renderManageList() {
   if (!state.loadouts.length) {
     body.replaceChildren(h("div", { class: "empty" }, h("strong", {}, "No loadouts yet"), "A loadout is a saved set of tags you can apply to many tracks at once."));
   } else {
-    body.replaceChildren(
+    setKids(body,
       h("p", { class: "hint" }, "Saved sets of tags you can apply to tracks or whole folders. Blank values are skipped when applying."),
       h("div", { class: "loadout-list" }, state.loadouts.map((lo) =>
         h("div", { class: "loadout-card" },
@@ -1057,7 +1360,7 @@ function renderManageList() {
             h("div", { class: "tags" }, Object.keys(lo.tags).join(", ") || "No tags")),
           h("button", { class: "btn small", type: "button", onclick: () => renderManageForm(lo) }, "Edit")))));
   }
-  $("#manage-foot").replaceChildren(
+  setKids($("#manage-foot"),
     h("button", { class: "btn", type: "button", onclick: () => renderManageForm(null) }, icon("plus"), "New loadout"),
     h("span", { class: "spacer" }),
     h("button", { class: "btn primary", type: "button", onclick: () => els.manageDialog.close() }, "Done"));
@@ -1096,7 +1399,7 @@ function renderManageForm(loadout) {
 
   const errorBox = h("div", { class: "error-box", hidden: true });
 
-  $("#manage-body").replaceChildren(
+  setKids($("#manage-body"),
     errorBox,
     h("label", { class: "field" }, h("span", { class: "field-label" }, "Name"), nameInput),
     h("label", { class: "field" }, h("span", { class: "field-label" }, "Description"), descInput),
@@ -1150,7 +1453,7 @@ function renderManageForm(loadout) {
     } catch (err) { toast(err.message, "error"); }
   };
 
-  $("#manage-foot").replaceChildren(
+  setKids($("#manage-foot"),
     loadout && h("button", { class: "btn danger", type: "button", onclick: del }, "Delete"),
     h("span", { class: "spacer" }),
     h("button", { class: "btn", type: "button", onclick: renderManageList }, "Cancel"),
@@ -1199,8 +1502,15 @@ function bindEvents() {
     try { localStorage.setItem("coda-activity-open", activity.open ? "1" : "0"); } catch { /* ignore */ }
     renderActivity();
   });
-  els.editorSave.addEventListener("click", saveEditor);
+  els.editorSave.addEventListener("click", () => saveEditor());
+  els.editorSaveFolder.addEventListener("click", saveToFolder);
+  $("#tagfilter-btn").addEventListener("click", openTagFilter);
+  $("#filter-add").addEventListener("click", addTagFilter);
   els.editorForm.addEventListener("submit", (e) => { e.preventDefault(); saveEditor(); });
+  // Keep "Copy tags" / "Paste" in sync when tags are copied in another tab.
+  window.addEventListener("storage", (e) => {
+    if (e.key === "coda-clipboard") { state.clipboard = loadClipboard(); if (state.editor) renderToolbar(); }
+  });
 
   $("#sel-clear").addEventListener("click", () => { state.selected.clear(); updateRowStates(); renderSelectionBar(); });
   $("#sel-edit").addEventListener("click", () => openEditor([...state.selected]));
@@ -1213,7 +1523,7 @@ function bindEvents() {
   $("#apply-go").addEventListener("click", doApply);
 
   // All dialogs: close buttons and backdrop clicks.
-  for (const dialog of [els.applyDialog, els.manageDialog]) {
+  for (const dialog of [els.applyDialog, els.manageDialog, els.filterDialog]) {
     dialog.addEventListener("click", (e) => {
       if (e.target.closest("[data-close]") || e.target === dialog) dialog.close();
     });
