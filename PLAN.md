@@ -26,7 +26,7 @@
 
 ## Phase 3: Docker & Sharing
 - [x] **Task 3.0:** Sign-in: first-run account setup (or `CODA_USERNAME`/`CODA_PASSWORD`), scrypt-hashed password, 30-day HttpOnly session cookies stored as hashes, lockout after repeated wrong passwords, account menu (change password signs out other devices, sign out), `python -m coda.cli set-password` / `sign-out-all` for recovery, `CODA_AUTH=off` for reverse-proxy setups. Every API route except sign-in and `/api/health` requires a session.
-- [ ] **Task 3.1:** Multi-stage `Dockerfile` on `python:3.14-slim`, running as a non-root user with configurable `PUID`/`PGID` so edited files keep the right owner; `coda-admin` for password resets; healthcheck. *(Written and rehearsed without Docker; needs a real `docker build` + run to check off.)*
+- [x] **Task 3.1:** Multi-stage `Dockerfile` on `python:3.14-slim`, running as a non-root user with configurable `PUID`/`PGID` so edited files keep the right owner; `coda-admin` for password resets; healthcheck. Built and smoke-tested on the home server (runs as 1000:1000 with no capabilities, healthy, read-only filesystem).
 - [ ] **Task 3.2:** `docker-compose.yml` with `/music` and `/config` volumes, port `8111` (8000 is taken by another service on the host), read-only container filesystem. *(Written; needs a real run to check off.)*
 - [x] **Task 3.3:** `README.md`: what Coda is, screenshots, Docker setup, sign-in and password recovery, and HTTPS options (e.g. `tailscale serve` or a reverse proxy).
 
