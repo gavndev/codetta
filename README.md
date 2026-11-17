@@ -1,92 +1,285 @@
-# Coda
+<p align="center">
+  <img src="src/coda/web/static/icon.svg" width="64" height="64" alt="Coda logo">
+</p>
 
-A clean, self-hosted music metadata editor for your homelab. Point it at your
-music folder, open it in a browser (desktop or phone), and fix tags on FLAC,
-MP3, M4A, OGG and Opus files, one track or a whole album at a time.
+<h1 align="center">Coda</h1>
 
-Built for libraries served by Navidrome and other OpenSubsonic servers: Coda
-writes the tags those apps read (credits, mood, label, release type, multiple
-artists…), in the same places MusicBrainz Picard does.
+<p align="center">
+  A clean, self-hosted metadata editor for your music library.<br>
+  Fix tags on FLAC, MP3, M4A, OGG and Opus files from any browser, including your phone.
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/editor-dark.png" alt="Coda editing an album in dark mode" width="900">
+</p>
+
+---
+
+## Why Coda?
+
+If you run your own music server, you know the drill: a SoundCloud download
+with no tags, an album where one track says "OCTOBER EP" and the other says
+"OCTOBER EP - 1PSYCH3", a folder of loose files that shows up in Navidrome as
+*Unknown Album*. Fixing that usually means a desktop tagger and a trip to the
+computer that has your library on it.
+
+Coda runs next to your music on your server. Open it on your laptop or your
+phone, pick a track or a whole album, fix what's wrong, and save. Your files
+are updated in place, safely, and your streaming apps pick up the changes on
+their next scan.
+
+It's built with [Navidrome](https://www.navidrome.org/) and other
+OpenSubsonic servers in mind: Coda writes the tags those apps actually show
+(credits, mood, label, release type, multiple artists), in the same places
+[MusicBrainz Picard](https://picard.musicbrainz.org/) does.
 
 ## Features
 
-- **Edit tags** on one track or many at once. Mixed values show as "Multiple values" and stay untouched unless you change them.
-- **Save to folder**: apply the fields you changed to every track in the album.
-- **Smart suggestions**: album-level fields offer values other tracks in the folder already use; Track suggests the file's position.
+- **Edit one track or a whole album.** Select several tracks and change only
+  the fields you need. Fields that differ between tracks show as
+  *Multiple values* and are left alone unless you change them.
+- **Save to folder.** Changed a genre on one track? Apply just that change to
+  every track in the album.
+- **Smart suggestions.** Album-level fields suggest values that other tracks
+  in the same folder already use, and Track suggests the file's position
+  (`2/6`). One tap fills the field; nothing saves until you say so.
 - **Copy & paste tags** between tracks and folders.
-- **Album art**: add, replace or remove embedded covers (JPEG/PNG), including from your phone's photo library.
-- **Tag Loadouts**: saved sets of tags with placeholders (`{filename_title}`, `{folder}`, `{track}/{tracktotal}`) to turn loose downloads into properly tagged singles or albums, with a preview before anything is written.
-- **Filter a folder by tag** (e.g. Label = Independent).
-- **Activity log** of every change, with old → new values, kept across restarts.
-- **Safe writes**: every change is written to a temporary copy, verified, then swapped in atomically. A failed write never damages the original. Symlinks, hard links, permissions and cover art are preserved.
-- **Sign-in** with a hashed password, long-lived sessions and brute-force lockout.
-- Light and dark themes, works great on iPhone, no internet needed (fonts are bundled).
+- **Album art.** Add, replace or remove embedded covers (JPEG or PNG),
+  straight from your phone's photo library if you like.
+- **Tag Loadouts.** Saved sets of tags with placeholders such as
+  `{filename_title}`, `{folder}` and `{track}/{tracktotal}` that turn loose
+  downloads into properly tagged singles or albums. You always see a preview
+  before anything is written.
+- **Filter a folder by tag**, e.g. *Label: Independent*.
+- **Activity log.** Every change is recorded with its old and new values,
+  and the log survives restarts.
+- **Sign-in** with a hashed password, 30-day sessions and lockout after
+  repeated wrong guesses.
+- **Light and dark themes** that follow your device, smooth animations,
+  and a layout made for phones. Works offline: fonts are bundled.
 
-## Quick start (Docker Compose)
+<p align="center">
+  <img src="docs/screenshots/phone-album.png" alt="Album view on an iPhone" width="260">
+  &nbsp;
+  <img src="docs/screenshots/phone-editor.png" alt="Editing a track on an iPhone" width="260">
+</p>
 
-1. Get the code onto your server and open `docker-compose.yml`.
-2. Change `/path/to/your/music` to your music folder.
-3. Set `PUID` / `PGID` to the user and group that own your music (run `id` on the server to see them).
-4. Start it:
+<p align="center">
+  <img src="docs/screenshots/loadout-preview.png" alt="Previewing a Tag Loadout on a folder of loose downloads" width="900">
+</p>
 
-   ```sh
-   docker compose up -d
-   ```
+## How Coda keeps your files safe
 
-5. Open `http://<your-server>:8111` and create your account.
+Your music library matters, so Coda is careful with it:
 
-Coda runs as `PUID:PGID`, never as root, so files it edits keep their owner and
-stay readable by Navidrome and friends.
+- **Changes never touch the original until they're verified.** Coda writes
+  each change to a temporary copy, reads it back to check that every tag
+  saved correctly, and only then swaps it in, in a single atomic step. If
+  anything goes wrong (a full disk, a crash, a power cut), the original file
+  is left exactly as it was.
+- **Nothing else changes.** Tags you didn't edit, embedded album art, file
+  permissions and ownership are preserved. Symlinks are followed, not
+  replaced, and hard-linked copies (for example, a torrent that's still
+  seeding) keep their original bytes.
+- **Coda only writes when you ask it to.** Browsing never modifies a file.
+  Saving, *Save to folder*, applying a loadout and changing album art are the
+  only actions that write, and the bulk ones ask you to confirm first.
+- **It's tested.** Around 400 automated tests cover every format, including
+  corrupt, truncated and mislabelled files, unicode, read-only folders and
+  interrupted writes.
+
+That said, it's still your library: **keep a backup**, as you would with any
+tool that edits files.
+
+## Installing with Docker
+
+You'll need a server with [Docker](https://docs.docker.com/engine/install/)
+and Docker Compose, and your music in a folder on that server.
+
+### 1. Back up your library
+
+If you don't already have a backup of your music folder, make one now. Coda
+is careful, but a backup protects you from the one thing no software can:
+editing the wrong album.
+
+### 2. Find the user that owns your music
+
+Coda runs as a normal user (never root), so the files it edits keep their
+owner and your other apps can still read them. On the server, run:
+
+```sh
+ls -ln /path/to/your/music | head -3   # the 3rd and 4th columns are the user and group IDs
+```
+
+On most single-user servers this is `1000` and `1000`.
+
+### 3. Get Coda
+
+```sh
+git clone https://github.com/gavndev/coda.git
+cd coda
+```
+
+### 4. Point it at your music
+
+Create a file called `docker-compose.override.yml` next to
+`docker-compose.yml`, with your own path and IDs:
+
+```yaml
+services:
+  coda:
+    environment:
+      PUID: "1000"   # from step 2
+      PGID: "1000"
+    volumes:
+      - /path/to/your/music:/music
+```
+
+Keeping your settings in this separate file means updating Coda later never
+overwrites them.
+
+### 5. Start it
+
+```sh
+docker compose up -d
+```
+
+Docker builds the image the first time, which takes a minute or two.
+
+### 6. Create your account straight away
+
+Open `http://<your-server>:8111`. The first visit shows **Welcome to Coda**,
+where you choose a username and a password (at least 8 characters).
+
+Do this as soon as Coda is running: until an account exists, anyone who can
+reach the page could create one.
+
+### 7. Try it on one album first
+
+Pick an album you know well, make a small change, and check it in your music
+player after its next library scan. Once you're happy, it's ready for the
+rest of your library.
+
+## Updating
+
+```sh
+cd coda
+git pull
+docker compose up -d --build
+```
+
+Your account, loadouts and activity log live in `./coda-config` and are kept
+across updates.
 
 ## Settings
 
-All optional, set under `environment:` in `docker-compose.yml`:
+All optional. Set them under `environment:` in your
+`docker-compose.override.yml`.
 
 | Variable | Default | What it does |
 |---|---|---|
-| `PUID` / `PGID` | `1000` | User and group Coda runs as. Match your music files' owner. |
-| `CODA_PORT` | `8111` | Port inside the container. |
-| `CODA_USERNAME` + `CODA_PASSWORD` | – | Set the account here instead of on the setup screen. The password can then only be changed here. |
-| `CODA_AUTH` | `on` | `off` disables sign-in. **Only** use this behind a reverse proxy that already requires a login. |
-| `FORWARDED_ALLOW_IPS` | `127.0.0.1` | Behind a reverse proxy, the proxy's IP, so sign-in lockouts see real client addresses. |
+| `PUID` / `PGID` | `1000` | The user and group Coda runs as. Match your music files' owner. |
+| `CODA_PORT` | `8111` | The port inside the container. To use a different port on your server, change the `ports:` mapping instead. |
+| `CODA_USERNAME` + `CODA_PASSWORD` | – | Create the account from here instead of the setup screen. The password can then only be changed here. |
+| `CODA_AUTH` | `on` | Set to `off` to disable sign-in. **Only** do this if a reverse proxy in front of Coda already requires a login. |
+| `FORWARDED_ALLOW_IPS` | `127.0.0.1` | If you use a reverse proxy, set this to its IP so login lockouts see each visitor's real address. |
 
-Folders inside the container:
-
-| Path | Contents |
+| Folder in the container | What's in it |
 |---|---|
-| `/music` | Your library (read-write). |
-| `/config` | Your account, sessions, loadouts and `activity.jsonl`. Back this up. |
+| `/music` | Your library. Coda needs read-write access to edit it. |
+| `/config` | Your account, sign-in sessions, loadouts and the activity log (`activity.jsonl`). Include it in your backups. |
+
+The provided compose file also runs the container with a read-only system
+filesystem and without the ability to gain extra privileges.
 
 ## Signing in
 
-- The first visit shows **Welcome to Coda**: choose a username and a password (8+ characters).
-- Each browser stays signed in for 30 days. Change your password or sign out from the person icon in the top bar. Changing the password signs out your other devices.
-- After 5 wrong passwords, that device must wait (30 s, doubling up to 15 min).
+- Each browser stays signed in for 30 days.
+- The person icon in the top bar lets you change your password or sign out.
+  Changing the password signs out your other devices.
+- After 5 wrong passwords, that device has to wait before trying again
+  (30 seconds, doubling each time, up to 15 minutes).
 
-**Forgot your password?** Reset it from the server:
+### Resetting your password
+
+From the server:
 
 ```sh
 docker exec -it coda coda-admin set-password
 ```
 
-`docker exec -it coda coda-admin sign-out-all` signs out every device.
+You'll be asked for a new password, and every device is signed out. To sign
+out every device without changing the password:
 
-## HTTPS
+```sh
+docker exec -it coda coda-admin sign-out-all
+```
 
-Coda serves plain HTTP. On your LAN or over Tailscale (which already encrypts
-traffic between your devices) that's fine. For a real `https://` address:
+## Remote access and HTTPS
 
-- **Tailscale:** `tailscale serve --bg 8111` on the server gives you `https://<server>.<tailnet>.ts.net`.
-- **Reverse proxy** (Caddy, Traefik, nginx…): point it at port 8111. Coda marks its session cookie `Secure` when the proxy sends `X-Forwarded-Proto: https`.
+Coda serves plain HTTP on port 8111. On your home network, or over
+[Tailscale](https://tailscale.com/) (which already encrypts traffic between
+your devices), that's fine.
 
-Don't expose Coda directly to the internet without HTTPS.
+**Don't expose Coda directly to the internet.** If you want an `https://`
+address:
+
+- **Tailscale:** run `tailscale serve --bg 8111` on the server to get
+  `https://<server>.<tailnet>.ts.net`, reachable only by your devices.
+- **A reverse proxy** (Caddy, Traefik, nginx…): point it at port 8111. Coda
+  marks its session cookie `Secure` when the proxy sends
+  `X-Forwarded-Proto: https`. A minimal Caddy example:
+
+  ```
+  coda.example.com {
+      reverse_proxy localhost:8111
+  }
+  ```
 
 ## Supported formats
 
-FLAC, MP3, M4A (AAC/ALAC), OGG Vorbis and Opus. FLAC, OGG and Opus accept any
-tag name; MP3 and M4A accept the standard set Coda lists in the editor.
+| Format | Extensions | Notes |
+|---|---|---|
+| FLAC | `.flac` | Any tag name is allowed. |
+| MP3 | `.mp3` | Saved as ID3v2.4, which Navidrome and modern players read. Some older software prefers ID3v2.3. |
+| AAC / ALAC | `.m4a` | |
+| Ogg Vorbis | `.ogg` | Any tag name is allowed. |
+| Opus | `.opus` | Any tag name is allowed. |
+
+Coda detects the real format from each file's contents, so a mislabelled
+file still opens correctly.
+
+## Known limitations
+
+- One account per Coda instance (no separate users yet).
+- WAV, AIFF, WMA and raw `.aac` files aren't supported.
+- Filtering by tag works within a folder, not across the whole library.
+- There's no undo button yet. The activity log records every old value, so
+  changes can be reverted by hand.
+
+## Roadmap
+
+- **MusicBrainz:** match a track or folder to a MusicBrainz release and
+  apply its official metadata, with a preview first.
+- **Undo** straight from the activity log.
+- Library-wide tag search.
+
+## Removing Coda
+
+```sh
+cd coda
+docker compose down
+docker image rm coda:local
+```
+
+Your music is never deleted. Remove the `coda-config` folder too if you
+don't want to keep your account, loadouts and activity log.
 
 ## Development
+
+Coda is a [FastAPI](https://fastapi.tiangolo.com/) app using
+[mutagen](https://mutagen.readthedocs.io/) for tags, with a plain
+HTML/CSS/JavaScript front end (no build step).
 
 ```sh
 python3 -m venv .venv && source .venv/bin/activate
@@ -95,5 +288,16 @@ pytest
 CODA_MUSIC_DIR=~/some-test-music uvicorn coda.web.app:app --reload --port 8111
 ```
 
-Use a **copy** of some music while developing. Project notes for contributors
-are in `CLAUDE.md` and the roadmap is in `PLAN.md`.
+Use a **copy** of some music while developing. Contributor notes are in
+[`CLAUDE.md`](CLAUDE.md) and the roadmap in [`PLAN.md`](PLAN.md).
+
+## License
+
+To be decided before the first public release.
+
+## Credits
+
+- [mutagen](https://github.com/quodlibet/mutagen) for reading and writing tags.
+- [FastAPI](https://fastapi.tiangolo.com/) and [Uvicorn](https://www.uvicorn.org/).
+- [Inter](https://rsms.me/inter/) by Rasmus Andersson, under the SIL Open Font License.
+- Tag mappings follow [MusicBrainz Picard](https://picard.musicbrainz.org/docs/mappings/)'s conventions.

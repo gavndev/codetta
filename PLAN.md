@@ -32,4 +32,5 @@
 
 ## Later (ideas, not scheduled)
 - Library-wide tag search/filter, backed by a cached tag index. Folder-level filtering covers current needs.
-- MusicBrainz lookup as a second source of smart suggestions.
+- MusicBrainz plugin: match a file or folder to a MusicBrainz release/recording and offer its "official" metadata (titles, artists, dates, label, catalog number, MBIDs, cover art) to append to the matched tracks, previewed before writing, like loadouts. Also feeds smart suggestions.
+- Undo/revert from the activity log (old values are already recorded).

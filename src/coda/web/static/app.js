@@ -1787,7 +1787,7 @@ function showAuth(mode, message = "") {
   $("#auth-submit").textContent = setup ? "Create account" : "Sign in";
   $("#auth-foot").textContent = setup
     ? "Use at least 8 characters. You can change it later from the account menu."
-    : "Forgot it? Run “python -m coda.cli set-password” on the server.";
+    : "Forgot your password? It can be reset on the server (see “Resetting your password” in the README).";
   $("#auth-error").hidden = true;
   const wasHidden = $("#auth").hidden;
   $("#auth").hidden = false;
