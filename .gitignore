@@ -33,3 +33,6 @@ music/
 config/*
 !config/.gitkeep
 coda-config/
+
+# Per-server Docker settings (e.g. your music path)
+docker-compose.override.yml
