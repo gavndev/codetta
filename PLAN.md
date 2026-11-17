@@ -21,6 +21,7 @@
 - [x] **Task 2.11:** Remember visited folders so navigating back is instant (refreshed quietly in the background), and restore scroll position.
 - [x] **Task 2.12:** Editor toolbar: "Save" (this track/selection) and "Save to folder" (the changed fields to every track in the folder, with a warning for per-track fields like Title); copy checked tags and paste them onto other tracks or a whole folder; wider panel.
 - [x] **Task 2.13:** Filter the current folder by tag value (e.g. Label = Independent), shown as removable chips. Hints for non-standard dates ("Use 2026-10-23") and comma-separated multi-value fields ("Split into 3").
+- [x] **Task 2.15:** Smart suggestions: album-level fields (album, artist, genre, date, label, credits…) offer values from other tracks in the same folder in a dropdown; Track suggests the file's position ("2/6"). Picking fills the field without saving. Save buttons count changed fields, and hovering shows exactly what will change (old → new). Later: MusicBrainz as a second suggestion source.
 - [ ] **Task 2.14:** Library-wide tag search/filter (e.g. every release with Label = Independent), backed by a small tag index cached in the config folder so big libraries stay fast; refreshed when files change.
 
 ## Phase 3: Docker & Sharing

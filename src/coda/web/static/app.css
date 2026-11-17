@@ -536,7 +536,42 @@ dialog.sheet.small { width: min(420px, calc(100vw - 32px)); }
   border-bottom: 1px solid var(--border);
 }
 .toolbar-left, .toolbar-right { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.toolbar-right { margin-left: auto; }
+.toolbar-right { margin-left: auto; position: relative; }
+
+/* What will be saved: shown when hovering either Save button */
+.changes-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(340px, 80vw);
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  font-size: 12.5px;
+  z-index: 30;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition: opacity 0.12s, transform 0.12s, visibility 0.12s;
+  pointer-events: none;
+}
+.changes-pop:empty { display: none; }
+.toolbar-right:has(.btn:not(:disabled):hover) .changes-pop,
+.toolbar-right:has(.btn:not(:disabled):focus-visible) .changes-pop {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+}
+.changes-pop ul { list-style: none; margin: 6px 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow: hidden; }
+.changes-pop li { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 8px; }
+.pop-head { font-weight: 600; }
+.pop-key { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pop-val { overflow-wrap: anywhere; }
+.pop-val s { color: var(--faint); }
+.pop-removed { color: var(--danger); }
+.pop-foot { color: var(--faint); border-top: 1px solid var(--border); padding-top: 6px; }
 .paste-group { display: inline-flex; align-items: center; gap: 2px; }
 .icon-btn.small { width: 26px; height: 26px; }
 .icon-btn.small svg { width: 14px; height: 14px; }
@@ -621,6 +656,40 @@ dialog.sheet.small { width: min(420px, calc(100vw - 32px)); }
   color: var(--warning);
 }
 .field-hint .link-btn { font-size: 12px; }
+
+/* Smart suggestions dropdown */
+.spark { display: inline-flex; color: var(--accent); opacity: 0.8; }
+.spark svg { width: 12px; height: 12px; fill: currentColor; stroke: none; }
+.suggest {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 25;
+  padding: 4px;
+  border-radius: 10px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+}
+.suggest-head { display: flex; align-items: center; gap: 5px; padding: 4px 8px 2px; font-size: 11px; font-weight: 600; color: var(--muted); }
+.suggest-head svg { width: 11px; height: 11px; fill: var(--accent); stroke: none; }
+.suggest-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  text-align: left;
+}
+.suggest-item:hover, .suggest-item.active { background: var(--accent-soft); }
+.suggest-value { font-weight: 500; overflow-wrap: anywhere; }
+.suggest-note { font-size: 11px; color: var(--faint); white-space: nowrap; flex: none; }
 .field-label .flag.changed { color: var(--accent); }
 .field-label .flag.removed { color: var(--danger); }
 

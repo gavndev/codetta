@@ -39,6 +39,7 @@ const ICONS = {
   auto: '<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 3a7 7 0 0 1 0 14z" fill="currentColor" stroke="none"/></svg>',
   plus: '<svg viewBox="0 0 20 20"><path d="M10 4v12M4 10h12"/></svg>',
   copy: '<svg viewBox="0 0 20 20"><rect x="7" y="7" width="9.5" height="9.5" rx="2"/><path d="M13 7V5a1.5 1.5 0 0 0-1.5-1.5h-6A1.5 1.5 0 0 0 4 5v6A1.5 1.5 0 0 0 5.5 12.5H7"/></svg>',
+  spark: '<svg viewBox="0 0 20 20"><path d="M10 3.5 11.4 8.6 16.5 10l-5.1 1.4L10 16.5l-1.4-5.1L3.5 10l5.1-1.4z"/></svg>',
   paste: '<svg viewBox="0 0 20 20"><rect x="4.5" y="4" width="11" height="13" rx="2"/><path d="M8 4V3h4v1"/><path d="M7.5 9h5M7.5 12h3"/></svg>',
 };
 
@@ -786,6 +787,85 @@ function pasteTags() {
   toast(n ? `Pasted ${plural(n, "tag")}. Review, then Save or Save to folder.` : "These tracks already have those values.");
 }
 
+// ---- Smart suggestions from the folder ----------------------------------------------------------------
+
+// Tags that are usually the same across an album, so other tracks in the
+// folder are good suggestions. Per-track tags (title, isrc, comment...) are left out.
+const SMART_KEYS = new Set([
+  "artist", "album", "albumartist", "discnumber", "date", "genre",
+  "artists", "albumartists", "composer", "lyricist", "producer", "engineer", "mixer", "djmixer", "arranger", "conductor",
+  "releasetype", "releasestatus", "label", "catalognumber", "barcode", "media", "originaldate", "releasecountry",
+  "discsubtitle", "compilation", "mood", "language", "copyright", "grouping",
+]);
+
+/** Values other tracks in this folder use for ``key``: [{ value, note }], most common first. */
+function folderSuggestions(key) {
+  const tracks = (state.folder?.tracks || []).filter((t) => !t.error);
+  if (key === "tracknumber") {
+    // Suggest the track's position in the folder (files are in natural name order).
+    const ed = state.editor;
+    if (!ed || ed.paths.length !== 1) return [];
+    const i = tracks.findIndex((t) => t.path === ed.paths[0]);
+    return i < 0 ? [] : [{ value: `${i + 1}/${tracks.length}`, note: "Position in folder" }];
+  }
+  if (!SMART_KEYS.has(key)) return [];
+  const counts = new Map();
+  for (const t of tracks) {
+    const v = (t.tags[key] || []).join("; ");
+    if (v) counts.set(v, (counts.get(v) || 0) + 1);
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 6)
+    .map(([value, n]) => ({ value, note: `${plural(n, "track")} in folder` }));
+}
+
+/** Attach a suggestion dropdown to an input. Picking one fills the field (doesn't save). */
+function attachSuggestions(input, key, box) {
+  let items = [];
+  let active = -1;
+
+  const hide = () => { box.hidden = true; active = -1; };
+  const apply = (value) => {
+    input.value = value;
+    input.dispatchEvent(new Event("input"));
+    hide();
+  };
+  const render = () => {
+    items = folderSuggestions(key).filter((s) => s.value !== input.value);
+    if (!items.length || document.activeElement !== input) { hide(); return; }
+    setKids(box,
+      h("div", { class: "suggest-head" }, icon("spark"), "From this folder"),
+      items.map((s, i) => h("button", {
+        type: "button", class: `suggest-item${i === active ? " active" : ""}`, role: "option", tabindex: "-1",
+        onpointerdown: (e) => e.preventDefault(), // keep focus in the input
+        onclick: () => apply(s.value),
+      }, h("span", { class: "suggest-value" }, s.value), h("span", { class: "suggest-note" }, s.note))));
+    const wasHidden = box.hidden;
+    box.hidden = false;
+    // Near the bottom of the panel the list would sit under the activity log: scroll it into view.
+    if (wasHidden) box.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  };
+
+  input.addEventListener("focus", render);
+  input.addEventListener("input", () => { if (!box.hidden || document.activeElement === input) render(); });
+  input.addEventListener("blur", () => setTimeout(hide, 120));
+  input.addEventListener("keydown", (e) => {
+    if (box.hidden || !items.length) return;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      active = (active + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+      render();
+    } else if (e.key === "Enter" && active >= 0) {
+      e.preventDefault();
+      apply(items[active].value);
+    } else if (e.key === "Escape") {
+      e.stopPropagation(); // close the dropdown, not the editor
+      hide();
+    }
+  });
+}
+
 // ---- Editor hints: dates and comma-separated lists ------------------------------------------------
 
 const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
@@ -850,6 +930,8 @@ function fieldEl(field, model) {
 
   const flag = h("span", { class: "flag" });
   const hintEl = h("div", { class: "field-hint", hidden: true });
+  const suggestBox = h("div", { class: "suggest", role: "listbox", hidden: true });
+  const hasSuggestions = !isLong && folderSuggestions(key).some((sg) => sg.value !== m.value || m.mixed);
   const wrap = h("div", { class: "field", dataset: { key } });
   const input = isLong
     ? h("textarea", { id, rows: "3", spellcheck: "true" })
@@ -915,10 +997,13 @@ function fieldEl(field, model) {
     wrap.classList.add("copyable");
   }
   wrap.append(
-    h("label", { class: "field-label", for: copyBox ? null : id, title: `Tag name: ${key}` }, copyBox, field.label, flag),
-    isLong ? input : h("div", { class: "input-wrap" }, input, clearBtn),
+    h("label", { class: "field-label", for: copyBox ? null : id, title: `Tag name: ${key}` }, copyBox, field.label,
+      hasSuggestions ? h("span", { class: "spark", title: "Suggestions from this folder — click into the field" }, icon("spark")) : null,
+      flag),
+    isLong ? input : h("div", { class: "input-wrap" }, input, clearBtn, suggestBox),
     hintEl,
   );
+  if (!isLong) attachSuggestions(input, key, suggestBox);
   refresh();
   return wrap;
 }
@@ -968,7 +1053,31 @@ function updateSaveButton() {
   const covers = ed && folderPaths.every((p) => ed.paths.includes(p));
   els.editorSaveFolder.hidden = !ed || covers;
   els.editorSaveFolder.disabled = n === 0;
-  els.editorSaveFolder.textContent = `Save to folder (${folderPaths.length})`;
+  els.editorSaveFolder.textContent = n ? `Save to folder (${n})` : "Save to folder";
+  renderChangesPopover(folderPaths.length);
+}
+
+/** Hovering either Save button shows exactly what will change. */
+function renderChangesPopover(folderCount) {
+  const pop = $("#changes-pop");
+  const ed = state.editor;
+  if (!ed || !ed.changes.size) { pop.replaceChildren(); return; }
+  const rows = [...ed.changes.entries()].map(([key, c]) => {
+    const m = ed.model.get(key);
+    const old = m?.mixed ? "various" : m?.value || "";
+    return h("li", {},
+      h("span", { class: "pop-key" }, fieldLabel(key)),
+      h("span", { class: "pop-val" },
+        old ? [h("s", {}, old), " → "] : null,
+        c.remove ? h("span", { class: "pop-removed" }, "removed") : h("span", {}, c.value)));
+  });
+  const n = ed.paths.length;
+  setKids(pop,
+    h("div", { class: "pop-head" }, `${plural(ed.changes.size, "change")}`),
+    h("ul", {}, rows),
+    h("div", { class: "pop-foot" },
+      `Save → ${n === 1 ? "this track" : `${n} selected tracks`}`,
+      els.editorSaveFolder.hidden ? null : ` · Save to folder → all ${folderCount} tracks`));
 }
 
 // Tags that are normally different on every track of an album.
