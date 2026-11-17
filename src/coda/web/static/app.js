@@ -30,6 +30,48 @@ function setKids(el, ...kids) {
   el.replaceChildren(...kids.flat(Infinity).filter((k) => k != null && k !== false));
 }
 
+// ---- Motion helpers ------------------------------------------------------------------
+
+const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/** Play an exit animation (CSS class ``cls``), then call ``done``. Instant with reduced motion. */
+function playOut(el, cls, done) {
+  if (reducedMotion() || el.hidden) { done(); return; }
+  let finished = false;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    el.classList.remove(cls);
+    done();
+  };
+  el.classList.add(cls);
+  el.addEventListener("animationend", finish, { once: true });
+  setTimeout(finish, 400); // safety net if the animation doesn't run
+}
+
+/** Restart an entrance animation class on an element. */
+function replay(el, cls) {
+  el.classList.remove("nav-forward", "nav-back", "nav-fade");
+  void el.offsetWidth; // force reflow so the animation starts again
+  el.classList.add(cls);
+}
+
+function closeDialog(dialog) {
+  if (!dialog.open || dialog.classList.contains("closing")) return;
+  dialog.cancelClose = false;
+  playOut(dialog, "closing", () => { if (!dialog.cancelClose) dialog.close(); });
+}
+
+function openDialog(dialog) {
+  if (dialog.open) {
+    // Reopened while its close animation was still playing: keep it open.
+    dialog.cancelClose = true;
+    dialog.classList.remove("closing");
+    return;
+  }
+  dialog.showModal();
+}
+
 const ICONS = {
   folder: '<svg viewBox="0 0 20 20"><path d="M2.5 5.5a1.5 1.5 0 0 1 1.5-1.5h3.6l1.8 2H16a1.5 1.5 0 0 1 1.5 1.5v7A1.5 1.5 0 0 1 16 16H4a1.5 1.5 0 0 1-1.5-1.5z"/></svg>',
   close: '<svg viewBox="0 0 20 20"><path d="m5 5 10 10M15 5 5 15"/></svg>',
@@ -136,7 +178,7 @@ function relativeToFolder(path) {
 function toast(message, kind = "") {
   const el = h("div", { class: `toast ${kind}`, role: kind === "error" ? "alert" : "status" }, message);
   els.toasts.append(el);
-  setTimeout(() => el.remove(), kind === "error" ? 7000 : 3500);
+  setTimeout(() => playOut(el, "leaving", () => el.remove()), kind === "error" ? 7000 : 3500);
 }
 
 // ---- Theme -----------------------------------------------------------------------------------
@@ -151,7 +193,9 @@ function getTheme() {
 
 function setTheme(theme) {
   try { localStorage.setItem("coda-theme", theme); } catch { /* private mode */ }
-  applyTheme(theme);
+  // Crossfade the whole page between themes where the browser supports it.
+  if (document.startViewTransition && !reducedMotion()) document.startViewTransition(() => applyTheme(theme));
+  else applyTheme(theme);
 }
 
 function applyTheme(theme) {
@@ -259,6 +303,13 @@ async function loadFolder(path, { keepScroll = false } = {}) {
 
 function showFolder(data, scrollTop) {
   const sameFolder = state.folder && data.path === state.path;
+  if (!sameFolder) {
+    const prev = state.folder ? state.path : null;
+    const deeper = prev !== null && (prev === "" ? data.path !== "" : data.path.startsWith(prev + "/"));
+    const shallower = prev !== null && (data.path === "" ? prev !== "" : prev.startsWith(data.path + "/"));
+    const cls = deeper ? "nav-forward" : shallower ? "nav-back" : "nav-fade";
+    for (const el of [els.folderHead, els.folders, els.tracks]) replay(el, cls);
+  }
   state.folder = data;
   state.path = data.path;
   if (!sameFolder) {
@@ -488,7 +539,7 @@ function openTagFilter() {
   };
   keySel.onchange = fillValues;
   fillValues();
-  els.filterDialog.showModal();
+  openDialog(els.filterDialog);
 }
 
 function addTagFilter() {
@@ -497,7 +548,7 @@ function addTagFilter() {
   if (!key) return;
   state.tagFilters = state.tagFilters.filter((f) => f.key !== key); // one value per tag
   state.tagFilters.push({ key, value });
-  els.filterDialog.close();
+  closeDialog(els.filterDialog);
   renderBrowser();
 }
 
@@ -541,7 +592,14 @@ function updateRowStates() {
 
 function renderSelectionBar() {
   const n = state.selected.size;
-  els.selBar.hidden = n === 0;
+  if (n === 0 && !els.selBar.hidden) {
+    if (!els.selBar.classList.contains("leaving")) {
+      playOut(els.selBar, "leaving", () => { if (state.selected.size === 0) els.selBar.hidden = true; });
+    }
+  } else if (n > 0) {
+    els.selBar.classList.remove("leaving");
+    els.selBar.hidden = false;
+  }
   els.selCount.textContent = `${n} selected`;
 }
 
@@ -566,6 +624,7 @@ function openEditor(paths) {
   const skipped = paths.length - tracks.length;
   state.editor = { paths: tracks.map((t) => t.path), changes: new Map(), extraKeys: [], errors: [] };
   if (skipped) state.editor.errors.push(`${plural(skipped, "file")} couldn't be read and won't be edited.`);
+  els.editor.classList.remove("closing");
   els.editor.hidden = false;
   renderEditor();
   updateRowStates();
@@ -578,7 +637,7 @@ function closeEditor(force = false) {
   if (!state.editor) return;
   if (!force && !confirmDiscard()) return;
   state.editor = null;
-  els.editor.hidden = true;
+  playOut(els.editor, "closing", () => { if (!state.editor) els.editor.hidden = true; });
   document.body.style.overflow = "";
   updateRowStates();
 }
@@ -1170,6 +1229,7 @@ function artEl(tracks) {
   if (single) {
     const img = h("img", { alt: "Album art", decoding: "async", draggable: "false" });
     img.addEventListener("load", () => {
+      img.classList.add("loaded");
       square.classList.add("has-art");
       meta.textContent = `${img.naturalWidth} × ${img.naturalHeight}`;
       actions.replaceChildren(
@@ -1359,7 +1419,7 @@ async function openApply(target) {
   $(`input[name="target"][value="${target === "selection" && n ? "selection" : "folder"}"]`, d).checked = true;
   $("#apply-recursive").checked = false;
   syncApplyUi();
-  d.showModal();
+  openDialog(d);
   runPreview();
 }
 
@@ -1434,7 +1494,7 @@ async function doApply() {
     const results = await api("POST", "/api/loadouts/apply", { ...body, dry_run: false });
     const failed = results.filter((r) => r.error);
     const changed = results.filter((r) => !r.error && Object.keys(r.applied).length);
-    els.applyDialog.close();
+    closeDialog(els.applyDialog);
     if (failed.length) toast(`Updated ${plural(changed.length, "file")}; ${failed.length} failed: ${failed[0].error}`, "error");
     else toast(`Updated ${plural(changed.length, "file")}`, "success");
     refreshActivity();
@@ -1450,7 +1510,7 @@ async function doApply() {
 async function openManage() {
   try { await refreshLoadouts(); } catch (err) { toast(err.message, "error"); return; }
   renderManageList();
-  if (!els.manageDialog.open) els.manageDialog.showModal();
+  if (!els.manageDialog.open || els.manageDialog.classList.contains("closing")) openDialog(els.manageDialog);
 }
 
 function renderManageList() {
@@ -1472,7 +1532,7 @@ function renderManageList() {
   setKids($("#manage-foot"),
     h("button", { class: "btn", type: "button", onclick: () => renderManageForm(null) }, icon("plus"), "New loadout"),
     h("span", { class: "spacer" }),
-    h("button", { class: "btn primary", type: "button", onclick: () => els.manageDialog.close() }, "Done"));
+    h("button", { class: "btn primary", type: "button", onclick: () => closeDialog(els.manageDialog) }, "Done"));
 }
 
 function renderManageForm(loadout) {
@@ -1634,8 +1694,10 @@ function bindEvents() {
   // All dialogs: close buttons and backdrop clicks.
   for (const dialog of [els.applyDialog, els.manageDialog, els.filterDialog]) {
     dialog.addEventListener("click", (e) => {
-      if (e.target.closest("[data-close]") || e.target === dialog) dialog.close();
+      if (e.target.closest("[data-close]") || e.target === dialog) closeDialog(dialog);
     });
+    // Escape: animate out instead of vanishing.
+    dialog.addEventListener("cancel", (e) => { e.preventDefault(); closeDialog(dialog); });
   }
 
   document.addEventListener("keydown", (e) => {

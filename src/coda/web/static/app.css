@@ -38,6 +38,13 @@
 /* ---- Theme tokens ------------------------------------------------------- */
 
 :root {
+  /* Motion: quick, decelerating "Apple-style" easing */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --dur-fast: 120ms;
+  --dur: 200ms;
+  --dur-slow: 260ms;
+
   color-scheme: light;
   --bg: #f5f5f7;
   --surface: #ffffff;
@@ -371,7 +378,8 @@ dialog.sheet.small { width: min(420px, calc(100vw - 32px)); }
   font-weight: 500;
   min-width: 0;
 }
-.folder:hover { background: var(--hover); border-color: var(--border-strong); }
+@media (hover: hover) { .folder:hover { background: var(--hover); border-color: var(--border-strong); } }
+.folder:active { background: var(--pressed); }
 .folder svg { color: var(--accent); }
 .folder span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -401,7 +409,7 @@ dialog.sheet.small { width: min(420px, calc(100vw - 32px)); }
   color: var(--muted);
   background: var(--surface);
 }
-.track-row:not(.head):hover { background: var(--hover); }
+@media (hover: hover) { .track-row:not(.head):hover { background: var(--hover); } }
 .track-row.selected { background: var(--selected); }
 .track-row.editing { box-shadow: inset 3px 0 0 var(--accent); }
 .track-row > * { padding: 0 8px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -793,7 +801,10 @@ button.chip:hover { border-color: var(--accent); color: var(--accent); }
   place-items: center;
   transition: border-color 0.15s, background 0.15s;
 }
-.art-square:hover, .art-square.drag { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.art-square.drag { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+@media (hover: hover) {
+  .art-square:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+}
 .art-square.has-art { border: 1px solid var(--border); background: var(--hover); box-shadow: var(--shadow); }
 .art-square.has-art:hover { border-color: var(--border); }
 .art-square img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -1034,12 +1045,71 @@ dialog::backdrop { background: var(--backdrop); }
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
   font-weight: 500;
-  animation: toast-in 0.2s ease-out;
   overflow-wrap: anywhere;
 }
 .toast.error { color: var(--danger); }
 .toast.success::before { content: "✓  "; color: var(--success); }
-@keyframes toast-in { from { opacity: 0; transform: translateY(6px); } }
+
+/* ---- Motion ---------------------------------------------------------------------------------------- */
+
+/* Small state changes ease instead of snapping. */
+.btn, .icon-btn, .folder, .track-row, .chip, .chip-x, .link-btn, .segmented span,
+.suggest-item, .activity-head, .search, .check-cell input, .copy-box,
+input[type="text"], input:not([type]), select, textarea {
+  transition: background-color var(--dur-fast) ease, border-color var(--dur-fast) ease,
+    color var(--dur-fast) ease, box-shadow var(--dur-fast) ease, opacity var(--dur-fast) ease;
+}
+.btn:active, .icon-btn:active { transform: scale(0.97); }
+.btn, .icon-btn { transition-property: background-color, border-color, color, box-shadow, opacity, transform; }
+
+/* Folder navigation: content slides in from the direction you're going. */
+.nav-forward { animation: nav-in-forward var(--dur-slow) var(--ease-out) both; }
+.nav-back { animation: nav-in-back var(--dur-slow) var(--ease-out) both; }
+.nav-fade { animation: fade-in var(--dur) var(--ease-out) both; }
+#folders.nav-forward, #folders.nav-back { animation-delay: 20ms; }
+#tracks.nav-forward, #tracks.nav-back, #tracks.nav-fade { animation-delay: 40ms; }
+@keyframes nav-in-forward { from { opacity: 0; translate: 14px 0; } }
+@keyframes nav-in-back { from { opacity: 0; translate: -14px 0; } }
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes fade-out { to { opacity: 0; } }
+
+/* Editor panel: slides in from the right on desktop. */
+.editor:not([hidden]) { animation: panel-in var(--dur-slow) var(--ease-out); }
+.editor.closing { animation: panel-out 160ms var(--ease-in) forwards; pointer-events: none; }
+@keyframes panel-in { from { opacity: 0; translate: 28px 0; } }
+@keyframes panel-out { to { opacity: 0; translate: 28px 0; } }
+
+/* Dialogs: a gentle scale-up with a fading backdrop. */
+dialog.sheet[open] { animation: dialog-in var(--dur) var(--ease-out); }
+dialog.sheet[open]::backdrop { animation: fade-in var(--dur) ease; }
+dialog.sheet.closing { animation: dialog-out 150ms var(--ease-in) forwards; }
+dialog.sheet.closing::backdrop { animation: fade-out 150ms ease forwards; }
+@keyframes dialog-in { from { opacity: 0; scale: 0.96; translate: 0 6px; } }
+@keyframes dialog-out { to { opacity: 0; scale: 0.97; translate: 0 4px; } }
+
+/* Popovers and small pieces. */
+.suggest:not([hidden]) { animation: pop-in 140ms var(--ease-out); transform-origin: top center; }
+.filter-chip { animation: pop-in var(--dur) var(--ease-out); }
+.activity-list:not([hidden]) { animation: list-open var(--dur) var(--ease-out); }
+.activity-chevron { transition: transform var(--dur) var(--ease-out); }
+.group > summary::after { transition: transform var(--dur) var(--ease-out); }
+@keyframes pop-in { from { opacity: 0; translate: 0 -4px; scale: 0.98; } }
+@keyframes list-open { from { opacity: 0; translate: 0 6px; } }
+
+/* Album art fades in once it has loaded. */
+.art-square img { opacity: 0; transition: opacity var(--dur-slow) ease; }
+.art-square img.loaded { opacity: 1; }
+
+/* Selection bar and toasts rise up, and sink away when they leave. */
+.selection-bar:not([hidden]) { animation: rise-in var(--dur-slow) var(--ease-out); }
+.selection-bar.leaving { animation: sink-out 160ms var(--ease-in) forwards; }
+.toast { animation: rise-in var(--dur) var(--ease-out); }
+.toast.leaving { animation: sink-out 200ms var(--ease-in) forwards; }
+@keyframes rise-in { from { opacity: 0; translate: 0 14px; } }
+@keyframes sink-out { to { opacity: 0; translate: 0 10px; } }
+
+/* Theme switch crossfade (browsers with View Transitions). */
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 260ms; animation-timing-function: ease; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
@@ -1092,8 +1162,9 @@ dialog::backdrop { background: var(--backdrop); }
     z-index: 20;
     border-left: 0;
     padding-top: env(safe-area-inset-top);
-    animation: sheet-up 0.22s ease-out;
   }
+  .editor:not([hidden]) { animation: sheet-up 340ms var(--ease-out); }
+  .editor.closing { animation: sheet-down 240ms var(--ease-in) forwards; }
   .editor-head { padding-left: max(12px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
   .editor-body { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
   .btn { height: 38px; }
@@ -1107,14 +1178,17 @@ dialog::backdrop { background: var(--backdrop); }
     margin: auto 0 0;
     border-radius: 16px 16px 0 0;
     border-bottom: 0;
-    animation: sheet-up 0.22s ease-out;
   }
+  dialog.sheet[open] { animation: sheet-up 340ms var(--ease-out); }
+  dialog.sheet.closing { animation: sheet-down 240ms var(--ease-in) forwards; }
   .row-2 { gap: 8px; }
   .art-square { width: min(62vw, 220px); }
   .activity-list { max-height: 34vh; }
 }
 
-@keyframes sheet-up { from { transform: translateY(24px); opacity: 0; } }
+/* Phone sheets slide fully from the bottom and stay solid, like iOS. */
+@keyframes sheet-up { from { translate: 0 100%; } }
+@keyframes sheet-down { to { translate: 0 100%; } }
 
 @media (min-width: 761px) {
   .editor-close { order: 0; }
