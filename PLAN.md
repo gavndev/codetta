@@ -11,11 +11,14 @@
 - [x] **Task 2.1:** FastAPI entry point `src/coda/web/app.py`: settings from env (`CODA_MUSIC_DIR`, `CODA_CONFIG_DIR`), path safety (no access outside the music folder), serves the UI at `/`.
 - [x] **Task 2.2:** Library API: `GET /api/browse` (one folder at a time, so huge libraries stay fast; skips hidden `.coda-*` temp files), `GET /api/track`, `PATCH /api/tracks` (same changes to one or many files), `GET /api/fields` (tag vocabulary for the editor).
 - [x] **Task 2.3:** Loadouts API: list/create/edit/delete, and apply to selected files or a folder with a dry-run preview.
-- [ ] **Task 2.4:** UI shell: self-hosted Inter font, light/dark/system theme, mobile-first responsive layout (iPhone safe areas, no zoom-on-focus), works the same in Safari/WebKit, Chromium, and Firefox. Plain HTML/CSS/JS, no build step, no CDNs.
-- [ ] **Task 2.5:** Library browser: breadcrumb navigation, folder list, track list with multi-select and filter.
-- [ ] **Task 2.6:** Tag editor panel: single and batch edits, Navidrome fields grouped (Basics, Credits, Release, More), multi-value tags, custom tags, shows "multiple values" for mixed selections.
-- [ ] **Task 2.7:** Loadouts UI: apply to selection or folder with a preview (fill vs. overwrite) before writing; create/edit/delete loadouts.
-- [ ] **Task 2.8:** API tests in `tests/test_api.py`; manual check on desktop and iPhone.
+- [x] **Task 2.4:** UI shell: self-hosted Inter font, light/dark/system theme, mobile-first responsive layout (iPhone safe areas, no zoom-on-focus), works the same in Safari/WebKit, Chromium, and Firefox. Plain HTML/CSS/JS, no build step, no CDNs.
+- [x] **Task 2.5:** Library browser: breadcrumb navigation, folder list, track list with multi-select and filter.
+- [x] **Task 2.6:** Tag editor panel: single and batch edits, Navidrome fields grouped (Basics, Credits, Release, More), multi-value tags, custom tags, shows "multiple values" for mixed selections.
+- [x] **Task 2.7:** Loadouts UI: apply to selection or folder with a preview (fill vs. overwrite) before writing; create/edit/delete loadouts.
+- [x] **Task 2.8:** API tests in `tests/test_api.py`; manual check on desktop and iPhone.
+- [x] **Task 2.9:** Album art: rounded square at the top of the editor (preview, or "+ Add album art"); upload/replace/remove for one or many tracks, JPEG/PNG, drag-and-drop on desktop, photo picker on iPhone. Same safe temp-copy write as tags (`src/coda/core/artwork.py`).
+- [x] **Task 2.10:** Activity log pinned to the bottom of the editor: every change (edits, art, loadouts) with old → new values and errors, saved to `activity.jsonl` in the config folder, live-updating across devices.
+- [x] **Task 2.11:** Remember visited folders so navigating back is instant (refreshed quietly in the background), and restore scroll position.
 
 ## Phase 3: Docker & Sharing
 - [ ] **Task 3.1:** Multi-stage `Dockerfile` on `python:3.14-slim`, running as a non-root user with configurable `PUID`/`PGID` so edited files keep the right owner.

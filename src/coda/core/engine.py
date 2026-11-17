@@ -12,23 +12,26 @@ import contextlib
 import os
 import shutil
 import tempfile
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import mutagen
 from mutagen.easymp4 import EasyMP4
 from mutagen.flac import FLAC
-from mutagen.mp3 import EasyMP3
+from mutagen.mp3 import MP3, EasyMP3
+from mutagen.mp4 import MP4
 from mutagen.oggopus import OggOpus
 from mutagen.oggvorbis import OggVorbis
 
 # Importing tagmap registers the extra tag names (mood, label, engineer, ...)
 # so every format shares one vocabulary.
+from coda.core.artwork import Artwork, ArtworkError, parse_image, read_picture, write_picture
 from coda.core.tagmap import HIDDEN_ALIASES, is_tag_supported
 
 __all__ = [
     "SUPPORTED_EXTENSIONS",
+    "Artwork",
     "MetadataEngine",
     "MetadataError",
     "TagValue",
@@ -158,6 +161,61 @@ class MetadataEngine:
         if not normalized:
             return original
 
+        def write_and_verify(temp: Path) -> None:
+            self._write_tags(temp, original.format, normalized)
+            self._verify_tags(temp, normalized)
+
+        self._safe_write(path, write_and_verify)
+        return self.load_metadata(path)
+
+    # --- Album art --------------------------------------------------------------
+
+    def read_artwork(self, path: str | Path) -> Artwork | None:
+        """The file's front cover (or first picture), or None if it has none."""
+        path = Path(path)
+        self.load_metadata(path)  # validates path and format
+        audio, format_name = _open_raw(path)
+        return read_picture(audio, format_name)
+
+    def update_artwork(self, path: str | Path, image: bytes | None) -> Artwork | None:
+        """Embed ``image`` (JPEG or PNG bytes) as the album art, or remove all
+        embedded pictures when ``image`` is None. Tags are left untouched.
+
+        Uses the same temp-copy -> verify -> atomic swap as ``update_tags``.
+        """
+        path = Path(path)
+        try:
+            art = parse_image(image) if image is not None else None
+        except ArtworkError as exc:
+            raise MetadataError(str(exc)) from exc
+        original = self.load_metadata(path)
+
+        def write_and_verify(temp: Path) -> None:
+            try:
+                audio, format_name = _open_raw(temp)
+                write_picture(audio, format_name, art)
+                audio.save()
+                check, _ = _open_raw(temp)
+                after = read_picture(check, format_name)
+            except (mutagen.MutagenError, ValueError, KeyError) as exc:
+                raise MetadataError(f"Could not save album art to {path}: {exc}") from exc
+            saved_ok = after is None if art is None else (after is not None and after.data == art.data)
+            if not saved_ok:
+                raise MetadataError("Album art did not save correctly")
+            if self.load_metadata(temp).tags != original.tags:
+                raise MetadataError("Saving album art unexpectedly changed the tags")
+
+        self._safe_write(path, write_and_verify)
+        return art
+
+    # --- Safe writing -------------------------------------------------------------
+
+    def _safe_write(self, path: Path, write_and_verify: Callable[[Path], None]) -> None:
+        """Run ``write_and_verify`` on a temp copy of ``path``, then swap it in.
+
+        The original is never edited in place. If anything fails, it is left
+        untouched and the copy is deleted.
+        """
         # If ``path`` is a symlink, edit the file it points to. Otherwise the
         # swap below would replace the link itself with a regular file.
         target = Path(os.path.realpath(path))
@@ -177,8 +235,7 @@ class MetadataEngine:
             shutil.copy2(target, temp_path)  # also copies permissions
             _copy_ownership(target, temp_path)
 
-            self._write_tags(temp_path, original.format, normalized)
-            self._verify_tags(temp_path, normalized)
+            write_and_verify(temp_path)
 
             with open(temp_path, "rb") as f:
                 os.fsync(f.fileno())  # make sure it's on disk before the swap
@@ -188,13 +245,11 @@ class MetadataEngine:
             os.replace(temp_path, target)
             temp_path = None
         except OSError as exc:
-            raise MetadataError(f"Could not write tags to {path}: {exc}") from exc
+            raise MetadataError(f"Could not write to {path}: {exc}") from exc
         finally:
             if temp_path is not None:
                 with contextlib.suppress(OSError):
                     temp_path.unlink()
-
-        return self.load_metadata(path)
 
     def _write_tags(self, path: Path, format_name: str, changes: dict[str, list[str]]) -> None:
         try:
@@ -240,6 +295,22 @@ def _open_audio(path: Path):
     if audio is None or type(audio) not in _FORMAT_NAMES:
         raise UnsupportedFormatError(f"Not a recognised audio file: {path}")
     return audio
+
+
+def _open_raw(path: Path):
+    """Open ``path`` with mutagen's full (non-"easy") classes, for pictures.
+
+    Returns (audio, format_name).
+    """
+    audio = _open_audio(path)
+    format_name = _FORMAT_NAMES[type(audio)]
+    raw_class = {"mp3": MP3, "m4a": MP4}.get(format_name)
+    if raw_class is not None:
+        try:
+            audio = raw_class(path)
+        except (mutagen.MutagenError, OSError) as exc:
+            raise MetadataError(f"Could not read {path}: {exc}") from exc
+    return audio, format_name
 
 
 def _sniff_format(path: Path) -> type | None:

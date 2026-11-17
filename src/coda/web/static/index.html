@@ -12,7 +12,7 @@
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/static/icon.svg">
   <link rel="preload" href="/static/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/static/app.css?v=1">
+  <link rel="stylesheet" href="/static/app.css?v=2">
   <script>
     // Apply the saved theme before first paint, so there's no flash.
     try {
@@ -61,6 +61,15 @@
           <button class="btn primary" id="editor-save" type="button" disabled>Save</button>
         </div>
         <form class="editor-body" id="editor-form" autocomplete="off"></form>
+        <section class="activity" id="activity" aria-label="Activity log">
+          <button class="activity-head" id="activity-toggle" type="button" aria-expanded="false" aria-controls="activity-list">
+            <span class="activity-dot" id="activity-dot" aria-hidden="true"></span>
+            <span class="activity-latest" id="activity-latest">Activity</span>
+            <span class="activity-time" id="activity-latest-time"></span>
+            <svg class="activity-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m6 12 4-4 4 4"/></svg>
+          </button>
+          <ol class="activity-list" id="activity-list" aria-live="polite" hidden></ol>
+        </section>
       </aside>
     </div>
 
@@ -129,6 +138,6 @@
   <datalist id="tag-keys"></datalist>
   <div class="toasts" id="toasts" aria-live="polite"></div>
 
-  <script src="/static/app.js?v=1" type="module"></script>
+  <script src="/static/app.js?v=2" type="module"></script>
 </body>
 </html>

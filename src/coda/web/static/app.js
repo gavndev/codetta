@@ -187,38 +187,50 @@ function onHashChange() {
 
 // ---- Browsing --------------------------------------------------------------------------------------
 
+// Folders you've visited are remembered, so going back is instant. Each visit
+// still asks the server for fresh data in the background and only redraws if
+// something actually changed (e.g. edited on another device).
+const folderCache = new Map();   // folder path -> /api/browse response
+const scrollMemory = new Map();  // folder path -> scroll position
+const MAX_CACHED_FOLDERS = 60;
+
+function rememberFolder(data) {
+  folderCache.delete(data.path);
+  folderCache.set(data.path, data);
+  if (folderCache.size > MAX_CACHED_FOLDERS) folderCache.delete(folderCache.keys().next().value);
+}
+
 async function loadFolder(path, { keepScroll = false } = {}) {
   const token = ++state.loadToken;
-  const scroll = els.browser.scrollTop;
-  if (!keepScroll) {
-    els.folderHead.replaceChildren(h("p", { class: "loading" }, "Loading…"));
-    els.folders.replaceChildren();
-    els.tracks.replaceChildren();
+  const navigating = !state.folder || path !== state.path;
+  if (state.folder && navigating) scrollMemory.set(state.path, els.browser.scrollTop);
+
+  const cached = navigating ? folderCache.get(path) : null;
+  let loadingTimer = null;
+  if (cached) {
+    showFolder(cached, scrollMemory.get(path) ?? 0);
+  } else if (navigating) {
+    // Only show "Loading…" if the server is slow, to avoid a flash.
+    loadingTimer = setTimeout(() => {
+      els.folderHead.replaceChildren(h("p", { class: "loading" }, "Loading…"));
+      els.folders.replaceChildren();
+      els.tracks.replaceChildren();
+    }, 200);
   }
+
   try {
     const data = await api("GET", `/api/browse?path=${encodeURIComponent(path)}`);
+    clearTimeout(loadingTimer);
     if (token !== state.loadToken) return; // a newer navigation won
-    const sameFolder = state.folder && data.path === state.path;
-    state.folder = data;
-    state.path = data.path;
-    if (!sameFolder) {
-      state.selected.clear();
-      state.lastClicked = null;
-      state.filter = "";
-      els.filter.value = "";
-      closeEditor(true);
-    } else {
-      // Keep only selections that still exist.
-      const paths = new Set(data.tracks.map((t) => t.path));
-      for (const p of state.selected) if (!paths.has(p)) state.selected.delete(p);
-      if (state.editor) renderEditor(); // show the fresh tags
-    }
-    document.title = data.path ? `${data.name} — Coda` : "Coda";
-    renderBrowser();
-    if (keepScroll) els.browser.scrollTop = scroll;
-    else els.browser.scrollTop = 0;
+    const unchanged = cached && JSON.stringify(cached) === JSON.stringify(data);
+    rememberFolder(unchanged ? cached : data);
+    if (unchanged) return;
+    const scroll = cached || keepScroll ? els.browser.scrollTop : scrollMemory.get(data.path) ?? 0;
+    showFolder(data, scroll);
   } catch (err) {
+    clearTimeout(loadingTimer);
     if (token !== state.loadToken) return;
+    folderCache.delete(path);
     state.folder = null;
     els.folderHead.replaceChildren();
     els.tracks.replaceChildren();
@@ -229,6 +241,27 @@ async function loadFolder(path, { keepScroll = false } = {}) {
         h("a", { href: "#/" }, "Back to library")),
     );
   }
+}
+
+function showFolder(data, scrollTop) {
+  const sameFolder = state.folder && data.path === state.path;
+  state.folder = data;
+  state.path = data.path;
+  if (!sameFolder) {
+    state.selected.clear();
+    state.lastClicked = null;
+    state.filter = "";
+    els.filter.value = "";
+    closeEditor(true);
+  } else {
+    // Keep only selections that still exist.
+    const paths = new Set(data.tracks.map((t) => t.path));
+    for (const p of state.selected) if (!paths.has(p)) state.selected.delete(p);
+    if (state.editor) renderEditor(); // show the fresh tags
+  }
+  document.title = data.path ? `${data.name} — Coda` : "Coda";
+  renderBrowser();
+  els.browser.scrollTop = scrollTop;
 }
 
 function trackByPath(path) {
@@ -355,7 +388,8 @@ function renderTracks() {
       h("div", { class: "col-num" }, (first(t, "tracknumber").split("/")[0]) || ""),
       h("div", { class: "col-title" },
         h("span", { class: "main" }, title || h("span", { class: "untitled" }, t.name)),
-        h("span", { class: "sub" }, t.error ? t.error : [artist, album].filter(Boolean).join(" · ") || t.name)),
+        h("span", { class: "sub" }, t.error ? t.error
+          : [artist, album].filter(Boolean).join(" · ") || (title ? t.name : `${(t.format || "").toUpperCase()} · No tags yet`))),
       h("div", { class: "col-artist" }, t.error ? t.error : artist),
       h("div", { class: "col-album" }, album),
       h("div", { class: "col-fmt" }, t.format ? h("span", { class: "badge" }, t.format) : ""),
@@ -441,6 +475,8 @@ function openEditor(paths) {
   els.editor.hidden = false;
   renderEditor();
   updateRowStates();
+  renderActivity();
+  refreshActivity();
   if (window.matchMedia("(max-width: 760px)").matches) document.body.style.overflow = "hidden";
 }
 
@@ -485,13 +521,14 @@ function renderEditor() {
   if (tracks.length === 1) {
     const t = tracks[0];
     els.editorTitle.textContent = first(t, "title") || t.name;
-    els.editorSub.textContent = [(t.tags.artist || []).join(", "), first(t, "album")].filter(Boolean).join(" — ") || relativeToFolder(t.path);
+    const byline = [(t.tags.artist || []).join(", "), first(t, "album")].filter(Boolean).join(" — ");
+    els.editorSub.textContent = byline || (first(t, "title") ? relativeToFolder(t.path) : "No tags yet");
   } else {
     els.editorTitle.textContent = `Editing ${tracks.length} tracks`;
     els.editorSub.textContent = "Only the fields you change are saved";
   }
 
-  const parts = [];
+  const parts = [artEl(tracks)];
 
   // File info
   if (tracks.length === 1) {
@@ -567,7 +604,7 @@ function fieldEl(field, model) {
   input.value = change ? change.value : m.value;
 
   const basePlaceholder = m.mixed ? "Multiple values — leave to keep"
-    : (field.multi || m.multiValued) ? "Separate values with ;" : "";
+    : (field.multi || m.multiValued) ? "Use ; for several" : "";
 
   const refresh = () => {
     const c = ed.changes.get(key);
@@ -606,8 +643,7 @@ function fieldEl(field, model) {
   }, icon("clear"));
 
   wrap.append(
-    h("label", { class: "field-label", for: id }, field.label,
-      field.label.toLowerCase() !== key && h("span", { class: "key" }, key), flag),
+    h("label", { class: "field-label", for: id, title: `Tag name: ${key}` }, field.label, flag),
     isLong ? input : h("div", { class: "input-wrap" }, input, clearBtn),
   );
   refresh();
@@ -684,10 +720,189 @@ async function saveEditor() {
     }
     renderTracks();
     renderEditor();
+    refreshActivity();
   } catch (err) {
     toast(err.message, "error");
     updateSaveButton();
   }
+}
+
+// ---- Album art ----------------------------------------------------------------------------------------
+
+const ART_TYPES = ["image/jpeg", "image/png"];
+const ART_MAX_BYTES = 20 * 1024 * 1024;
+const artUrl = (t) => `/api/art?path=${encodeURIComponent(t.path)}&v=${t.mtime || 0}`;
+
+function artEl(tracks) {
+  const single = tracks.length === 1;
+  const t = tracks[0];
+  const fileInput = h("input", {
+    type: "file", accept: ART_TYPES.join(","), hidden: true, "aria-hidden": "true", tabindex: "-1",
+    onchange: (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) uploadArt(f); },
+  });
+  const pick = () => fileInput.click();
+  const square = h("button", {
+    class: "art-square", type: "button",
+    "aria-label": single ? "Change album art" : `Set album art for ${tracks.length} tracks`,
+    title: "Click or drop an image (JPEG or PNG)",
+    onclick: pick,
+  });
+  const meta = h("div", { class: "art-meta" });
+  const actions = h("div", { class: "art-actions" });
+
+  const placeholder = (label) => {
+    square.classList.remove("has-art");
+    square.replaceChildren(h("span", { class: "art-empty" }, icon("plus"), h("span", {}, label)));
+  };
+
+  if (single) {
+    const img = h("img", { alt: "Album art", decoding: "async", draggable: "false" });
+    img.addEventListener("load", () => {
+      square.classList.add("has-art");
+      meta.textContent = `${img.naturalWidth} × ${img.naturalHeight}`;
+      actions.replaceChildren(
+        h("button", { class: "btn small", type: "button", onclick: pick }, "Replace"),
+        h("button", { class: "btn small danger", type: "button", onclick: () => removeArt() }, "Remove"));
+    });
+    img.addEventListener("error", () => {
+      placeholder("Add album art");
+      meta.textContent = "";
+      actions.replaceChildren();
+    });
+    img.src = artUrl(t);
+    square.replaceChildren(img);
+  } else {
+    placeholder(`Set art for ${tracks.length} tracks`);
+    actions.replaceChildren(
+      h("button", { class: "btn small danger", type: "button", onclick: () => removeArt() }, "Remove from all"));
+  }
+
+  // Drag and drop an image onto the square (desktop).
+  square.addEventListener("dragover", (e) => { e.preventDefault(); square.classList.add("drag"); });
+  square.addEventListener("dragleave", () => square.classList.remove("drag"));
+  square.addEventListener("drop", (e) => {
+    e.preventDefault();
+    square.classList.remove("drag");
+    const f = e.dataTransfer?.files?.[0];
+    if (f) uploadArt(f);
+  });
+
+  return h("div", { class: "art" }, square, meta, actions, fileInput);
+}
+
+async function changeArt(method, body, contentType) {
+  const ed = state.editor;
+  if (!ed) return;
+  const square = $(".art-square", els.editorForm);
+  square?.classList.add("busy");
+  const query = ed.paths.map((p) => `path=${encodeURIComponent(p)}`).join("&");
+  try {
+    const res = await fetch(`/api/art?${query}`, {
+      method, body, headers: contentType ? { "Content-Type": contentType } : {},
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error((data && typeof data.detail === "string" && data.detail) || `Request failed (${res.status})`);
+    const failed = data.filter((r) => !r.ok);
+    for (const r of data) {
+      if (!r.ok) continue;
+      const i = state.folder.tracks.findIndex((t) => t.path === r.path);
+      if (i >= 0) state.folder.tracks[i] = r.track;
+    }
+    if (failed.length) toast(failed.length === data.length ? failed[0].error : `${failed.length} of ${data.length} failed: ${failed[0].error}`, "error");
+    else toast(method === "PUT" ? "Album art saved" : "Album art removed", "success");
+    if (state.editor === ed) renderEditor();
+  } catch (err) {
+    toast(err.message, "error");
+    square?.classList.remove("busy");
+  }
+  refreshActivity();
+}
+
+function uploadArt(file) {
+  if (!ART_TYPES.includes(file.type)) { toast("Album art must be a JPEG or PNG image", "error"); return; }
+  if (file.size > ART_MAX_BYTES) { toast("That image is too large (max 20 MB)", "error"); return; }
+  changeArt("PUT", file, file.type);
+}
+
+function removeArt() {
+  const n = state.editor?.paths.length || 0;
+  if (!window.confirm(n > 1 ? `Remove album art from ${n} tracks?` : "Remove the album art from this track?")) return;
+  changeArt("DELETE");
+}
+
+// ---- Activity log ---------------------------------------------------------------------------------------
+
+const activity = { entries: [], lastId: 0, timer: null, open: null };
+
+function activityOpenPref() {
+  try {
+    const v = localStorage.getItem("coda-activity-open");
+    if (v !== null) return v === "1";
+  } catch { /* ignore */ }
+  return !window.matchMedia("(max-width: 760px)").matches; // open on desktop, closed on phones
+}
+
+async function refreshActivity() {
+  try {
+    const sinceId = activity.lastId;
+    let fresh = await api("GET", `/api/activity?limit=50&after_id=${sinceId}`);
+    fresh = fresh.filter((e) => e.id > activity.lastId); // another refresh may have got these already
+    if (!fresh.length && activity.entries.length) return;
+    const isFirstLoad = activity.lastId === 0 && !activity.entries.length;
+    activity.entries = [...fresh, ...activity.entries].slice(0, 50);
+    if (fresh.length) activity.lastId = Math.max(activity.lastId, fresh[0].id);
+    renderActivity(isFirstLoad ? new Set() : new Set(fresh.map((e) => e.id)));
+  } catch { /* offline for a moment: try again on the next tick */ }
+}
+
+function fmtTime(iso) {
+  const d = new Date(iso);
+  const sameDay = d.toDateString() === new Date().toDateString();
+  return sameDay
+    ? d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" })
+    : d.toLocaleDateString([], { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+function renderActivity(newIds = new Set()) {
+  if (activity.open === null) activity.open = activityOpenPref();
+  const list = $("#activity-list");
+  const toggle = $("#activity-toggle");
+  toggle.setAttribute("aria-expanded", String(activity.open));
+  list.hidden = !activity.open;
+  $("#activity").classList.toggle("open", activity.open);
+
+  const latest = activity.entries[0];
+  $("#activity-dot").className = `activity-dot ${latest ? (latest.ok ? "ok" : "err") : ""}`;
+  $("#activity-latest").textContent = activity.open ? "Activity" : latest ? latest.message : "Activity";
+  $("#activity-latest-time").textContent = !activity.open && latest ? fmtTime(latest.time) : "";
+
+  const editing = new Set(state.editor?.paths || []);
+  if (!activity.entries.length) {
+    list.replaceChildren(h("li", { class: "act-empty" }, "Changes you make will show up here."));
+    return;
+  }
+  list.replaceChildren(...activity.entries.map((e) => {
+    const related = e.files.some((f) => editing.has(f));
+    return h("li", { class: `act ${e.ok ? "ok" : "err"}${related ? " related" : ""}${newIds.has(e.id) ? " new" : ""}` },
+      h("span", { class: "act-icon", "aria-label": e.ok ? "Succeeded" : "Failed" }, e.ok ? "✓" : "!"),
+      h("div", { class: "act-main" },
+        h("div", { class: "act-msg" }, e.message),
+        e.changes.slice(0, 6).map((c) => h("div", { class: "act-change" },
+          h("span", { class: "act-key" }, c.key),
+          c.old && c.old !== c.new ? [h("span", { class: "act-old" }, c.old), " → "] : null,
+          c.new ? h("span", { class: "act-new" }, c.new) : h("span", { class: "act-removed" }, "removed"))),
+        e.changes.length > 6 ? h("div", { class: "act-change" }, `+${e.changes.length - 6} more`) : null,
+        e.errors.slice(0, 3).map((x) => h("div", { class: "act-err" }, `${x.path.split("/").pop()}: ${x.error}`))),
+      h("time", { datetime: e.time }, fmtTime(e.time)));
+  }));
+}
+
+function startActivityPolling() {
+  clearInterval(activity.timer);
+  // Picks up changes made from other devices too. Paused while the tab is hidden.
+  activity.timer = setInterval(() => {
+    if (document.visibilityState === "visible" && state.editor) refreshActivity();
+  }, 4000);
 }
 
 // ---- Loadouts: apply -----------------------------------------------------------------------------------
@@ -810,6 +1025,7 @@ async function doApply() {
     els.applyDialog.close();
     if (failed.length) toast(`Updated ${plural(changed.length, "file")}; ${failed.length} failed: ${failed[0].error}`, "error");
     else toast(`Updated ${plural(changed.length, "file")}`, "success");
+    refreshActivity();
     await loadFolder(state.path, { keepScroll: true });
   } catch (err) {
     toast(err.message, "error");
@@ -978,6 +1194,11 @@ function bindEvents() {
   });
 
   $("#editor-close").addEventListener("click", () => closeEditor());
+  $("#activity-toggle").addEventListener("click", () => {
+    activity.open = !activity.open;
+    try { localStorage.setItem("coda-activity-open", activity.open ? "1" : "0"); } catch { /* ignore */ }
+    renderActivity();
+  });
   els.editorSave.addEventListener("click", saveEditor);
   els.editorForm.addEventListener("submit", (e) => { e.preventDefault(); saveEditor(); });
 
@@ -1026,6 +1247,8 @@ async function boot() {
     toast(`Can't reach the Coda server: ${err.message}`, "error");
   }
   await loadFolder(pathFromHash());
+  refreshActivity();
+  startActivityPolling();
 }
 
 boot();

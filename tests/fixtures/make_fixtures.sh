@@ -29,3 +29,7 @@ FF=(ffmpeg -hide_banner -loglevel error -y)
 "${FF[@]}" "${SRC[@]}" -map_metadata -1 -fflags +bitexact -c:a flac untagged.flac
 
 ls -la sample.* untagged.flac
+
+# Tiny cover images for album art tests.
+"${FF[@]}" -f lavfi -i "color=c=0x3b8cff:s=64x48" -frames:v 1 -q:v 5 cover.jpg
+"${FF[@]}" -f lavfi -i "color=c=0xff6b3b:s=32x32" -frames:v 1 cover.png

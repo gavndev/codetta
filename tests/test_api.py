@@ -291,3 +291,84 @@ def test_apply_errors(client):
     assert client.post("/api/loadouts/apply", json={"name": "Single", "folder": "../.."}).status_code == 400
     assert client.post("/api/loadouts/apply", json={"name": "Single", "paths": ["../x.mp3"]}).status_code == 400
     assert client.post("/api/loadouts/apply", json={"name": "Single", "folder": "Nope"}).status_code == 404
+
+
+# --- Album art & activity ---------------------------------------------------------------------
+
+JPEG = (FIXTURES_DIR / "cover.jpg").read_bytes()
+PNG = (FIXTURES_DIR / "cover.png").read_bytes()
+
+
+def test_art_lifecycle(client):
+    path = "Artist/Album/01 - Intro.flac"
+    assert client.get("/api/art", params={"path": path}).status_code == 404
+    mtime_before = client.get("/api/track", params={"path": path}).json()["mtime"]
+
+    res = client.put("/api/art", params={"path": path}, content=JPEG, headers={"Content-Type": "image/jpeg"})
+    [result] = res.json()
+    assert result["ok"] is True
+    assert result["track"]["mtime"] != mtime_before  # lets the UI refresh its cached image
+
+    art = client.get("/api/art", params={"path": path})
+    assert art.status_code == 200
+    assert art.headers["content-type"] == "image/jpeg"
+    assert art.content == JPEG
+
+    [result] = client.delete("/api/art", params={"path": path}).json()
+    assert result["ok"] is True
+    assert client.get("/api/art", params={"path": path}).status_code == 404
+
+
+def test_art_batch_with_failures(client):
+    paths = ["Artist/Album/2 - Groove.mp3", "Artist/Album/10 - Outro.m4a", "Artist/Broken/bad.flac", "../x.flac"]
+    res = client.put("/api/art", params={"path": paths}, content=PNG, headers={"Content-Type": "image/png"})
+    assert [r["ok"] for r in res.json()] == [True, True, False, False]
+    for p in paths[:2]:
+        assert client.get("/api/art", params={"path": p}).content == PNG
+
+
+def test_art_rejects_non_images(client):
+    res = client.put("/api/art", params={"path": "Loose Track.mp3"}, content=b"GIF89a", headers={"Content-Type": "image/gif"})
+    [result] = res.json()
+    assert result["ok"] is False
+    assert "JPEG or PNG" in result["error"]
+
+
+def test_art_path_safety(client):
+    assert client.get("/api/art", params={"path": "../../etc/passwd"}).status_code == 400
+
+
+def test_activity_records_changes(client):
+    assert client.get("/api/activity").json() == []
+    client.patch("/api/tracks", json={"paths": ["Loose Track.mp3"], "changes": {"title": "Night Drive"}})
+    client.put("/api/art", params={"path": "Loose Track.mp3"}, content=JPEG, headers={"Content-Type": "image/jpeg"})
+    client.post("/api/loadouts/apply", json={"name": "Single", "paths": ["Artist/Album/2 - Groove.mp3"], "dry_run": False})
+    client.post("/api/loadouts/apply", json={"name": "Single", "paths": ["Artist/Album/2 - Groove.mp3"]})  # preview: not logged
+
+    log = client.get("/api/activity").json()
+    assert [e["kind"] for e in log] == ["loadout", "art", "edit"]
+    edit = log[2]
+    assert edit["ok"] is True
+    assert edit["message"] == "Edited title on Loose Track.mp3"
+    assert edit["changes"] == [{"key": "title", "old": "Test Track", "new": "Night Drive"}]
+    assert log[1]["message"].startswith("Added album art on Loose Track.mp3 (64×48 JPEG")
+    assert "Single" in log[0]["message"]
+
+    newer = client.get("/api/activity", params={"after_id": edit["id"]}).json()
+    assert [e["kind"] for e in newer] == ["loadout", "art"]
+
+
+def test_activity_records_failures(client):
+    client.patch("/api/tracks", json={"paths": ["Loose Track.mp3"], "changes": {"made_up": "x"}})
+    [entry] = client.get("/api/activity").json()
+    assert entry["ok"] is False
+    assert entry["errors"][0]["path"] == "Loose Track.mp3"
+
+
+def test_activity_persists_in_config_dir(music, tmp_path):
+    config = tmp_path / "config"
+    settings = Settings(music_dir=music, config_dir=config)
+    with TestClient(create_app(settings)) as c:
+        c.patch("/api/tracks", json={"paths": ["Loose Track.mp3"], "changes": {"genre": "Jazz"}})
+    with TestClient(create_app(settings)) as c:
+        assert c.get("/api/activity").json()[0]["message"] == "Edited genre on Loose Track.mp3"

@@ -18,10 +18,13 @@ from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from coda.core.activity import ActivityLog
+from coda.core.artwork import MAX_ART_BYTES
 from coda.core.engine import MetadataEngine, MetadataError, TrackMetadata
 from coda.core.library import Library, LibraryPathError
 from coda.core.presets import (
@@ -72,6 +75,7 @@ class TrackOut(BaseModel):
     bitrate: int | None = None
     sample_rate: int | None = None
     channels: int | None = None
+    mtime: int | None = None  # changes whenever the file does (used to refresh cover art)
     error: str | None = None  # set if the file couldn't be read
 
 
@@ -141,6 +145,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     library = Library(settings.music_dir)
     store = LoadoutStore(settings.config_dir / "loadouts")
     engine = MetadataEngine()
+    activity = ActivityLog(settings.config_dir / "activity.jsonl")
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -176,10 +181,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "Set CODA_MUSIC_DIR (or mount your music at /music in Docker).",
             )
 
+    def to_out(rel: str, meta: TrackMetadata) -> TrackOut:
+        try:
+            mtime = library.resolve(rel).stat().st_mtime_ns
+        except OSError:
+            mtime = None
+        return _to_track_out(rel, meta, mtime)
+
     def track_out(rel: str) -> TrackOut:
         name = rel.rsplit("/", 1)[-1]
         try:
-            return _to_track_out(rel, engine.load_metadata(library.resolve(rel)))
+            return to_out(rel, engine.load_metadata(library.resolve(rel)))
         except (MetadataError, OSError) as exc:
             return TrackOut(path=rel, name=name, error=str(exc))
 
@@ -236,7 +248,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/track", response_model=TrackOut)
     def get_track(path: str = Query(..., description="File, relative to the music folder")):
         require_library()
-        return _to_track_out(path, engine.load_metadata(library.resolve(path)))
+        return to_out(path, engine.load_metadata(library.resolve(path)))
 
     @app.patch("/api/tracks", response_model=list[UpdateResult])
     def update_tracks(body: UpdateIn):
@@ -246,13 +258,66 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         """
         require_library()
         results = []
+        before: dict[str, dict[str, list[str]]] = {}  # for the activity log
         for rel in body.paths:
             try:
-                meta = engine.update_tags(library.resolve(rel), body.changes)
-                results.append(UpdateResult(path=rel, ok=True, track=_to_track_out(rel, meta)))
+                target = library.resolve(rel)
+                before[rel] = engine.load_metadata(target).tags
+                meta = engine.update_tags(target, body.changes)
+                results.append(UpdateResult(path=rel, ok=True, track=to_out(rel, meta)))
             except (MetadataError, LibraryPathError, OSError) as exc:
                 results.append(UpdateResult(path=rel, ok=False, error=str(exc)))
+        _log_edit(activity, body.changes, results, before)
         return results
+
+    # --- Album art ---------------------------------------------------------------------
+
+    @app.get("/api/art", responses={200: {"content": {"image/jpeg": {}, "image/png": {}}}})
+    def get_art(path: str = Query(..., description="File, relative to the music folder")):
+        """The track's embedded cover image (404 if it has none)."""
+        require_library()
+        art = engine.read_artwork(library.resolve(path))
+        if art is None:
+            raise HTTPException(404, "This track has no album art")
+        # The UI adds ?v=<mtime> to the URL, so a changed file gets a new URL.
+        return Response(art.data, media_type=art.mime, headers={"Cache-Control": "private, max-age=86400"})
+
+    @app.put("/api/art", response_model=list[UpdateResult])
+    async def set_art(request: Request, path: list[str] = Query(..., description="One or more files")):
+        """Embed the request body (a JPEG or PNG image) as album art in each file."""
+        require_library()
+        length = int(request.headers.get("content-length") or 0)
+        if length > MAX_ART_BYTES:
+            raise HTTPException(413, f"The image is too large (max {MAX_ART_BYTES // (1024 * 1024)} MB)")
+        image = await request.body()
+        return await run_in_threadpool(_change_art, path, image)
+
+    @app.delete("/api/art", response_model=list[UpdateResult])
+    def delete_art(path: list[str] = Query(..., description="One or more files")):
+        """Remove all embedded pictures from each file."""
+        require_library()
+        return _change_art(path, None)
+
+    def _change_art(paths: list[str], image: bytes | None) -> list[UpdateResult]:
+        results, had_art = [], 0
+        art = None
+        for rel in paths:
+            try:
+                target = library.resolve(rel)
+                had_art += engine.read_artwork(target) is not None
+                art = engine.update_artwork(target, image)
+                results.append(UpdateResult(path=rel, ok=True, track=to_out(rel, engine.load_metadata(target))))
+            except (MetadataError, LibraryPathError, OSError) as exc:
+                results.append(UpdateResult(path=rel, ok=False, error=str(exc)))
+        _log_art(activity, image is not None, art, had_art, results)
+        return results
+
+    # --- Activity -------------------------------------------------------------------------
+
+    @app.get("/api/activity")
+    def get_activity(limit: int = Query(50, ge=1, le=500), after_id: int = Query(0, ge=0)) -> list[dict]:
+        """Recent changes, newest first. Pass ``after_id`` to get only newer ones."""
+        return activity.recent(limit=limit, after_id=after_id)
 
     # --- Loadouts --------------------------------------------------------------------
 
@@ -299,7 +364,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             results = apply_loadout(engine, loadout, paths, mode=body.mode, dry_run=body.dry_run)
         else:
             raise HTTPException(400, "Choose some files or a folder to apply the loadout to")
-        return [result_out(r) for r in results]
+        out = [result_out(r) for r in results]
+        if not body.dry_run:
+            _log_loadout(activity, loadout.name, body.mode, out)
+        return out
 
     # --- UI ------------------------------------------------------------------------------
 
@@ -311,7 +379,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     return app
 
 
-def _to_track_out(rel: str, meta: TrackMetadata) -> TrackOut:
+def _to_track_out(rel: str, meta: TrackMetadata, mtime: int | None = None) -> TrackOut:
     return TrackOut(
         path=rel,
         name=rel.rsplit("/", 1)[-1],
@@ -321,6 +389,7 @@ def _to_track_out(rel: str, meta: TrackMetadata) -> TrackOut:
         bitrate=meta.bitrate,
         sample_rate=meta.sample_rate,
         channels=meta.channels,
+        mtime=mtime,
     )
 
 
@@ -339,3 +408,73 @@ def _exists(store: LoadoutStore, name: str) -> bool:
 
 
 app = create_app()
+
+
+# --- Activity log messages ------------------------------------------------------------
+
+
+def _name(rel: str) -> str:
+    return rel.rsplit("/", 1)[-1]
+
+
+def _join(values: list[str]) -> str:
+    return "; ".join(values)
+
+
+def _log_edit(activity: ActivityLog, changes: dict, results: list[UpdateResult], before: dict) -> None:
+    ok = [r for r in results if r.ok]
+    failed = [r for r in results if not r.ok]
+    keys = list(changes)
+    diff = []
+    for key in keys:
+        olds = {_join(before[r.path].get(key, [])) for r in ok if r.path in before}
+        new = _join(ok[0].track.tags.get(key, [])) if ok else ""
+        old = olds.pop() if len(olds) == 1 else ("various" if olds else "")
+        diff.append({"key": key, "old": old, "new": new})
+    field_list = ", ".join(keys[:4]) + (f" +{len(keys) - 4} more" if len(keys) > 4 else "")
+    target = _name(results[0].path) if len(results) == 1 else f"{len(results)} tracks"
+    if not failed:
+        message = f"Edited {field_list} on {target}"
+    elif not ok:
+        message = f"Couldn't edit {target}"
+    else:
+        message = f"Edited {field_list} on {len(ok)} of {len(results)} tracks"
+    activity.add(
+        "edit", message, ok=not failed,
+        files=[r.path for r in results], changes=diff if ok else [],
+        errors=[{"path": r.path, "error": r.error or ""} for r in failed],
+    )
+
+
+def _log_art(activity: ActivityLog, adding: bool, art, had_art: int, results: list[UpdateResult]) -> None:
+    ok = [r for r in results if r.ok]
+    failed = [r for r in results if not r.ok]
+    target = _name(results[0].path) if len(results) == 1 else f"{len(ok)} tracks"
+    if adding:
+        verb = "Replaced" if had_art else "Added"
+        detail = ""
+        if art is not None:
+            size = f"{art.width}×{art.height} " if art.width and art.height else ""
+            detail = f" ({size}{art.mime.split('/')[-1].upper()}, {max(1, len(art.data) // 1024)} KB)"
+        message = f"{verb} album art on {target}{detail}" if ok else f"Couldn't set album art on {_name(results[0].path) if len(results) == 1 else f'{len(results)} tracks'}"
+    else:
+        message = f"Removed album art from {target}" if ok else "Couldn't remove album art"
+    activity.add(
+        "art", message, ok=not failed,
+        files=[r.path for r in results],
+        errors=[{"path": r.path, "error": r.error or ""} for r in failed],
+    )
+
+
+def _log_loadout(activity: ActivityLog, name: str, mode: str, results: list[ApplyResultOut]) -> None:
+    changed = [r for r in results if not r.error and r.applied]
+    failed = [r for r in results if r.error]
+    keys = sorted({k for r in changed for k in r.applied})
+    diff = [{"key": k, "old": "", "new": _join(changed[0].applied[k]) if len(changed) == 1 and k in changed[0].applied else "set"} for k in keys]
+    how = "filled empty tags" if mode == "fill" else "overwrote tags"
+    message = f"Applied loadout “{name}” to {len(changed)} of {len(results)} files ({how})"
+    activity.add(
+        "loadout", message, ok=not failed,
+        files=[r.path for r in changed], changes=diff,
+        errors=[{"path": r.path, "error": r.error or ""} for r in failed],
+    )
