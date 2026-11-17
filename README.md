@@ -51,8 +51,10 @@ OpenSubsonic servers in mind: Codetta writes the tags those apps actually show
   downloads into properly tagged singles or albums. You always see a preview
   before anything is written.
 - **Filter a folder by tag**, e.g. *Label: Independent*.
-- **Activity log.** Every change is recorded with its old and new values,
-  and the log survives restarts.
+- **Activity log with undo.** Every change is recorded with its old and new
+  values. Changed your mind? Undo it straight from the log, even for a whole
+  album, and redo if you change it back. Files you edited again since are
+  left alone.
 - **Sign-in** with a hashed password, 30-day sessions and lockout after
   repeated wrong guesses.
 - **Light and dark themes** that follow your device, smooth animations,
@@ -194,7 +196,7 @@ All optional. Set them under `environment:` in your
 | Folder in the container | What's in it |
 |---|---|
 | `/music` | Your library. Codetta needs read-write access to edit it. |
-| `/config` | Your account, sign-in sessions, loadouts and the activity log (`activity.jsonl`). Include it in your backups. |
+| `/config` | Your account, sign-in sessions, loadouts, the activity log (`activity.jsonl`) and previous album art kept for undo (`undo-art/`). Include it in your backups. |
 
 The provided compose file also runs the container with a read-only system
 filesystem and without the ability to gain extra privileges.
@@ -261,14 +263,11 @@ file still opens correctly.
 - One account per Codetta instance (no separate users yet).
 - WAV, AIFF, WMA and raw `.aac` files aren't supported.
 - Filtering by tag works within a folder, not across the whole library.
-- There's no undo button yet. The activity log records every old value, so
-  changes can be reverted by hand.
 
 ## Roadmap
 
 - **MusicBrainz:** match a track or folder to a MusicBrainz release and
   apply its official metadata, with a preview first.
-- **Undo** straight from the activity log.
 - Library-wide tag search.
 
 ## Removing Codetta

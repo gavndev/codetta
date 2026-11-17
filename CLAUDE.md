@@ -10,7 +10,7 @@ Codetta is a self-hosted music metadata editor built in Python (FastAPI + Mutage
 - **Tag Loadouts:** JSON files in `config/loadouts/`, handled by `src/codetta/core/presets.py`.
 - **Album art:** `src/codetta/core/artwork.py` (per-format picture handling); writes go through `MetadataEngine.update_artwork()`.
 - **Sign-in:** `src/codetta/core/auth.py` (account, sessions, rate limiting) + middleware in `src/codetta/web/app.py`. Every new API route is private by default; only `/`, `/static/*`, `/api/auth/*` and `/api/health` are public. Account files (`auth.json`, `sessions.json`) live in the config folder and must never be committed.
-- **Activity log:** `src/codetta/core/activity.py`, stored as `activity.jsonl` in the config folder. Every API action that changes files must log an entry.
+- **Activity log:** `src/codetta/core/activity.py`, stored as `activity.jsonl` in the config folder. Every API action that changes files must log an entry, with an `undo` record (see `src/codetta/core/undo.py`) so it can be reversed.
 - **Backend Framework:** FastAPI with Uvicorn.
 - **Frontend:** Single-page web UI in `src/codetta/web/static/` (plain HTML/CSS/JS, no framework, no build step, no CDNs, so it works on servers without internet). Inter font is bundled. Light/dark/system theme via CSS variables. Must work on iPhone (all iOS browsers are WebKit) as well as desktop Chromium/Firefox/Safari: 16px inputs on mobile, safe-area insets, 44px touch targets.
 - **Library access:** `src/codetta/core/library.py`. The API only takes paths relative to the music folder and rejects anything that escapes it. Browsing is one folder at a time so huge libraries stay fast.

@@ -210,6 +210,7 @@ class FileResult:
     applied: dict[str, list[str]] = field(default_factory=dict)
     kept_existing: list[str] = field(default_factory=list)  # fill mode: already had a value
     unsupported: list[str] = field(default_factory=list)  # this format can't store it
+    previous: dict[str, list[str]] = field(default_factory=dict)  # values before (for undo)
     error: str | None = None
 
     @property
@@ -293,6 +294,7 @@ def _apply_one(
             elif current.tags.get(key) != filled:
                 changes[key] = filled
         result.applied = {k: list(v) for k, v in changes.items()}
+        result.previous = {k: list(current.tags.get(k, [])) for k in changes}
         if changes and not dry_run:
             engine.update_tags(path, changes)
     except (MetadataError, FileNotFoundError) as exc:

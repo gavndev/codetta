@@ -48,7 +48,8 @@ def test_no_releases_yet():
         raise urllib.error.HTTPError("u", 404, "Not Found", {}, None)
     status = UpdateChecker("0.1.0", fetch=missing).status()
     assert status["update_available"] is False
-    assert status["error"] == "No releases published yet"
+    assert status["error"] is None
+    assert status["note"] == "No releases published yet"
 
 
 def test_offline():

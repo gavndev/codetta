@@ -84,6 +84,7 @@ const ICONS = {
   chevron: '<svg viewBox="0 0 20 20"><path d="m8 5 5 5-5 5"/></svg>',
   rows: '<svg viewBox="0 0 20 20"><path d="M4 5.5h12M4 10h12M4 14.5h12"/></svg>',
   grid: '<svg viewBox="0 0 20 20"><rect x="3.5" y="3.5" width="5" height="5" rx="1"/><rect x="11.5" y="3.5" width="5" height="5" rx="1"/><rect x="3.5" y="11.5" width="5" height="5" rx="1"/><rect x="11.5" y="11.5" width="5" height="5" rx="1"/></svg>',
+  undo: '<svg viewBox="0 0 20 20"><path d="M7.5 5 4 8.5 7.5 12"/><path d="M4.5 8.5h7a4.5 4.5 0 0 1 0 9H9"/></svg>',
   spark: '<svg viewBox="0 0 20 20"><path d="M10 3.5 11.4 8.6 16.5 10l-5.1 1.4L10 16.5l-1.4-5.1L3.5 10l5.1-1.4z"/></svg>',
   paste: '<svg viewBox="0 0 20 20"><rect x="4.5" y="4" width="11" height="13" rx="2"/><path d="M8 4V3h4v1"/><path d="M7.5 9h5M7.5 12h3"/></svg>',
 };
@@ -1400,6 +1401,7 @@ async function refreshActivity() {
     const sinceId = activity.lastId;
     let fresh = await api("GET", `/api/activity?limit=50&after_id=${sinceId}`);
     fresh = fresh.filter((e) => e.id > activity.lastId); // another refresh may have got these already
+    if (sinceId > 0 && fresh.some((e) => e.undoes != null)) { await reloadActivity(); return; }
     if (!fresh.length && activity.entries.length) return;
     const isFirstLoad = activity.lastId === 0 && !activity.entries.length;
     activity.entries = [...fresh, ...activity.entries].slice(0, 50);
@@ -1436,7 +1438,7 @@ function renderActivity(newIds = new Set()) {
   }
   list.replaceChildren(...activity.entries.map((e) => {
     const related = e.files.some((f) => editing.has(f));
-    return h("li", { class: `act ${e.ok ? "ok" : "err"}${related ? " related" : ""}${newIds.has(e.id) ? " new" : ""}` },
+    return h("li", { class: `act ${e.ok ? "ok" : "err"}${related ? " related" : ""}${newIds.has(e.id) ? " new" : ""}${e.undone ? " undone" : ""}` },
       h("span", { class: "act-icon", "aria-label": e.ok ? "Succeeded" : "Failed" }, e.ok ? "✓" : "!"),
       h("div", { class: "act-main" },
         h("div", { class: "act-msg" }, e.message),
@@ -1445,9 +1447,42 @@ function renderActivity(newIds = new Set()) {
           c.old && c.old !== c.new ? [h("span", { class: "act-old" }, c.old), " → "] : null,
           c.new ? h("span", { class: "act-new" }, c.new) : h("span", { class: "act-removed" }, "removed"))),
         e.changes.length > 6 ? h("div", { class: "act-change" }, `+${e.changes.length - 6} more`) : null,
-        e.errors.slice(0, 3).map((x) => h("div", { class: "act-err" }, `${x.path.split("/").pop()}: ${x.error}`))),
+        e.errors.slice(0, 3).map((x) => h("div", { class: "act-err" }, `${x.path.split("/").pop()}: ${x.error}`)),
+        e.can_undo || e.undone ? h("div", { class: "act-actions" },
+          e.can_undo
+            ? h("button", { class: "link-btn act-undo", type: "button", onclick: () => undoEntry(e) },
+                icon("undo"), e.kind === "undo" ? "Redo" : "Undo")
+            : h("span", { class: "act-undone" }, "Undone")) : null),
       h("time", { datetime: e.time }, fmtTime(e.time)));
   }));
+}
+
+async function reloadActivity() {
+  activity.entries = [];
+  activity.lastId = 0;
+  await refreshActivity();
+}
+
+async function undoEntry(e) {
+  const verb = e.kind === "undo" ? "Redo" : "Undo";
+  if (e.file_count > 1 && !window.confirm(`${verb} “${e.message}” on ${e.file_count} files?\n\nFiles that were changed again since are left as they are.`)) return;
+  if (isDirty() && !window.confirm("You have unsaved changes in the editor. Continue? They'll be kept, but the fields will refresh.")) return;
+  try {
+    const res = await api("POST", `/api/activity/${e.id}/undo`);
+    if (!res.undone) {
+      toast(res.results.find((r) => r.error)?.error || "Nothing could be undone", "error");
+    } else if (res.skipped || res.failed) {
+      const left = res.skipped + res.failed;
+      toast(`${res.message}. ${plural(left, "file")} left as ${left === 1 ? "it is" : "they are"} (changed since or unreadable).`);
+    } else {
+      toast(res.message, "success");
+    }
+  } catch (err) {
+    toast(err.message, "error");
+  }
+  await reloadActivity();
+  folderCache.clear(); // other folders may hold stale tags now
+  await loadFolder(state.path, { keepScroll: true });
 }
 
 function startActivityPolling() {
@@ -1925,7 +1960,7 @@ async function boot() {
 
 function showVersion(version) {
   if (!version) return;
-  $("#auth-version").textContent = `Codetta v${version}`;
+  setKids($("#auth-version"), h("span", { class: "auth-version-name" }, "Codetta"), " ", h("i", {}, `v${version}`));
   $(".brand").title = `Codetta v${version}`;
   $("#about-version").textContent = `v${version}`;
 }
@@ -1961,6 +1996,8 @@ function renderAbout() {
     status.textContent = "Update checks are turned off (CODETTA_UPDATE_CHECK=off).";
   } else if (u.error) {
     status.textContent = `Couldn't check for updates: ${u.error}.`;
+  } else if (u.note) {
+    status.textContent = `${u.note}${checked}.`;
   } else if (u.update_available) {
     setKids(status, h("b", {}, `Version ${u.latest} is available.`), " ",
       u.release_url ? h("a", { href: u.release_url, target: "_blank", rel: "noopener" }, "What's new") : null);

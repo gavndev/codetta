@@ -83,6 +83,7 @@ class UpdateChecker:
             "published_at": None,
             "checked_at": None,
             "error": None,
+            "note": None,  # neutral info, e.g. no releases published yet
         }
         if not self.enabled:
             return base
@@ -97,8 +98,9 @@ class UpdateChecker:
         try:
             release = self.fetch(self.repo)
         except urllib.error.HTTPError as exc:
-            msg = "No releases published yet" if exc.code == 404 else f"GitHub answered {exc.code}"
-            return {"error": msg}
+            if exc.code == 404:
+                return {"note": "No releases published yet"}
+            return {"error": f"GitHub answered {exc.code}"}
         except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
             return {"error": f"Couldn't reach GitHub ({exc.__class__.__name__})"}
         tag = release.get("tag_name")

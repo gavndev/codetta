@@ -35,8 +35,14 @@ class ActivityLog:
         files: list[str] | None = None,
         changes: list[dict[str, str]] | None = None,
         errors: list[dict[str, str]] | None = None,
+        undo: dict | None = None,
+        undoes: int | None = None,
     ) -> dict[str, Any]:
-        """Record one action. ``kind`` is "edit", "art" or "loadout"."""
+        """Record one action. ``kind`` is "edit", "art", "loadout" or "undo".
+
+        ``undo`` holds what's needed to reverse it (see codetta.core.undo);
+        ``undoes`` is the id of the entry this one reversed.
+        """
         files = files or []
         with self._lock:
             entry = {
@@ -50,16 +56,58 @@ class ActivityLog:
                 "changes": changes or [],
                 "errors": (errors or [])[:MAX_FILES_PER_ENTRY],
             }
+            if undo:
+                entry["undo"] = undo
+            if undoes is not None:
+                entry["undoes"] = undoes
             self._next_id += 1
             self._entries.append(entry)
             self._append_to_file(entry)
-        return entry
+        return self._public(entry, self._undone_ids())
 
     def recent(self, limit: int = 50, after_id: int = 0) -> list[dict[str, Any]]:
-        """Newest first. ``after_id`` returns only entries newer than that id."""
+        """Newest first, without the (possibly large) undo records.
+
+        Each entry gets ``can_undo`` and ``undone``. ``after_id`` returns only
+        entries newer than that id.
+        """
         with self._lock:
-            entries = [e for e in self._entries if e["id"] > after_id]
+            undone = self._undone_ids()
+            entries = [self._public(e, undone) for e in self._entries if e["id"] > after_id]
         return list(reversed(entries))[:limit]
+
+    def get(self, entry_id: int) -> dict[str, Any] | None:
+        """The full entry, including its undo record."""
+        with self._lock:
+            for e in self._entries:
+                if e["id"] == entry_id:
+                    return dict(e)
+        return None
+
+    def is_undone(self, entry_id: int) -> bool:
+        with self._lock:
+            return entry_id in self._undone_ids()
+
+    def undo_records(self) -> list[dict]:
+        with self._lock:
+            return [e["undo"] for e in self._entries if e.get("undo")]
+
+    def _undone_ids(self) -> set[int]:
+        """Entries currently undone. Undoing an undo (redo) re-activates the original."""
+        undone: set[int] = set()
+        # Newest first: a later undo decides the fate of everything before it.
+        for e in sorted(self._entries, key=lambda x: x["id"], reverse=True):
+            target = e.get("undoes")
+            if target is not None and e["id"] not in undone:
+                undone.add(target)
+        return undone
+
+    @staticmethod
+    def _public(entry: dict[str, Any], undone: set[int]) -> dict[str, Any]:
+        out = {k: v for k, v in entry.items() if k != "undo"}
+        out["undone"] = entry["id"] in undone
+        out["can_undo"] = bool(entry.get("undo")) and not out["undone"]
+        return out
 
     # --- Persistence ---------------------------------------------------------------
 

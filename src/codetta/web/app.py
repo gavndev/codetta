@@ -54,6 +54,7 @@ from codetta.core.presets import (
     slugify,
 )
 from codetta.core.tagmap import FIELDS
+from codetta.core.undo import ArtStore, art_hashes, undo_change
 from codetta.core.updates import DEFAULT_REPO, Fetcher, UpdateChecker, fetch_latest_release
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -203,6 +204,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     store = LoadoutStore(settings.config_dir / "loadouts")
     engine = MetadataEngine()
     activity = ActivityLog(settings.config_dir / "activity.jsonl")
+    art_store = ArtStore(settings.config_dir / "undo-art")
     accounts = AccountStore(settings.config_dir / "auth.json", settings.username, settings.password)
     sessions = SessionStore(settings.config_dir / "sessions.json")
     limiter = LoginRateLimiter()
@@ -216,6 +218,11 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             store.install_defaults()
         except OSError:
             pass  # read-only config folder: loadouts just won't be saved
+        # Drop saved album art that no remembered change refers to any more.
+        try:
+            art_store.prune(h for rec in activity.undo_records() for h in art_hashes(rec))
+        except OSError:
+            pass
         yield
 
     app = FastAPI(
@@ -449,7 +456,17 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
                 results.append(UpdateResult(path=rel, ok=True, track=to_out(rel, meta)))
             except (MetadataError, LibraryPathError, OSError) as exc:
                 results.append(UpdateResult(path=rel, ok=False, error=str(exc)))
-        _log_edit(activity, body.changes, results, before)
+        keys = {k.lower() for k in body.changes}
+        undo_files = {}
+        for r in results:
+            if r.ok and r.path in before:
+                b = {k: before[r.path].get(k, []) for k in keys}
+                a = {k: r.track.tags.get(k, []) for k in keys}
+                changed = [k for k in keys if b[k] != a[k]]
+                if changed:
+                    undo_files[r.path] = {"before": {k: b[k] for k in changed}, "after": {k: a[k] for k in changed}}
+        _log_edit(activity, body.changes, results, before,
+                  undo={"type": "tags", "files": undo_files} if undo_files else None)
         return results
 
     # --- Album art ---------------------------------------------------------------------
@@ -483,16 +500,65 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     def _change_art(paths: list[str], image: bytes | None) -> list[UpdateResult]:
         results, had_art = [], 0
         art = None
+        undo_files = {}
         for rel in paths:
             try:
                 target = library.resolve(rel)
-                had_art += engine.read_artwork(target) is not None
+                old = engine.read_artwork(target)
+                had_art += old is not None
                 art = engine.update_artwork(target, image)
+                # Keep both images so the change can be undone (and redone).
+                try:
+                    before = art_store.save(old.data if old else None)
+                    after = art_store.save(art.data if art else None)
+                    if before != after:
+                        undo_files[rel] = {"before": before, "after": after}
+                except OSError:
+                    pass  # couldn't keep a copy: this change just won't be undoable
                 results.append(UpdateResult(path=rel, ok=True, track=to_out(rel, engine.load_metadata(target))))
             except (MetadataError, LibraryPathError, OSError) as exc:
                 results.append(UpdateResult(path=rel, ok=False, error=str(exc)))
-        _log_art(activity, image is not None, art, had_art, results)
+        _log_art(activity, image is not None, art, had_art, results,
+                 undo={"type": "art", "files": undo_files} if undo_files else None)
         return results
+
+    @app.post("/api/activity/{entry_id}/undo")
+    def undo(entry_id: int) -> dict:
+        """Reverse a logged change. Files edited again since are left alone."""
+        require_library()
+        entry = activity.get(entry_id)
+        if entry is None:
+            raise HTTPException(404, "That change is no longer in the activity log")
+        if not entry.get("undo"):
+            raise HTTPException(422, "This change can't be undone")
+        if activity.is_undone(entry_id):
+            raise HTTPException(409, "This change has already been undone")
+        outcome = undo_change(engine, library.resolve, art_store, entry["undo"])
+        done = [r for r in outcome.results if r.ok]
+        skipped = [r for r in outcome.results if r.skipped]
+        failed = [r for r in outcome.results if not r.ok and not r.skipped]
+        n = len(outcome.results)
+        what = entry["message"]
+        if not done:
+            message = f"Couldn't undo “{what}”"
+        elif len(done) == n:
+            message = f"Undid “{what}”"
+        else:
+            message = f"Undid “{what}” on {len(done)} of {n} files"
+        if done:
+            activity.add(
+                "undo", message, ok=not failed,
+                files=[r.path for r in done],
+                changes=[{"key": c["key"], "old": c["new"], "new": c["old"]} for c in entry.get("changes", [])
+                         if c.get("old") != "various"],
+                errors=[{"path": r.path, "error": r.error or ""} for r in skipped + failed],
+                undo=outcome.reverse, undoes=entry_id,
+            )
+        return {
+            "message": message,
+            "undone": len(done), "skipped": len(skipped), "failed": len(failed),
+            "results": [{"path": r.path, "ok": r.ok, "skipped": r.skipped, "error": r.error} for r in outcome.results],
+        }
 
     # --- Activity -------------------------------------------------------------------------
 
@@ -548,7 +614,12 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             raise HTTPException(400, "Choose some files or a folder to apply the loadout to")
         out = [result_out(r) for r in results]
         if not body.dry_run:
-            _log_loadout(activity, loadout.name, body.mode, out)
+            undo_files = {
+                library.relative(r.path): {"before": r.previous, "after": r.applied}
+                for r in results if not r.error and r.applied
+            }
+            _log_loadout(activity, loadout.name, body.mode, out,
+                         undo={"type": "tags", "files": undo_files} if undo_files else None)
         return out
 
     # --- UI ------------------------------------------------------------------------------
@@ -603,7 +674,7 @@ def _join(values: list[str]) -> str:
     return "; ".join(values)
 
 
-def _log_edit(activity: ActivityLog, changes: dict, results: list[UpdateResult], before: dict) -> None:
+def _log_edit(activity: ActivityLog, changes: dict, results: list[UpdateResult], before: dict, undo: dict | None = None) -> None:
     ok = [r for r in results if r.ok]
     failed = [r for r in results if not r.ok]
     keys = list(changes)
@@ -625,10 +696,11 @@ def _log_edit(activity: ActivityLog, changes: dict, results: list[UpdateResult],
         "edit", message, ok=not failed,
         files=[r.path for r in results], changes=diff if ok else [],
         errors=[{"path": r.path, "error": r.error or ""} for r in failed],
+        undo=undo,
     )
 
 
-def _log_art(activity: ActivityLog, adding: bool, art, had_art: int, results: list[UpdateResult]) -> None:
+def _log_art(activity: ActivityLog, adding: bool, art, had_art: int, results: list[UpdateResult], undo: dict | None = None) -> None:
     ok = [r for r in results if r.ok]
     failed = [r for r in results if not r.ok]
     target = _name(results[0].path) if len(results) == 1 else f"{len(ok)} tracks"
@@ -645,10 +717,11 @@ def _log_art(activity: ActivityLog, adding: bool, art, had_art: int, results: li
         "art", message, ok=not failed,
         files=[r.path for r in results],
         errors=[{"path": r.path, "error": r.error or ""} for r in failed],
+        undo=undo,
     )
 
 
-def _log_loadout(activity: ActivityLog, name: str, mode: str, results: list[ApplyResultOut]) -> None:
+def _log_loadout(activity: ActivityLog, name: str, mode: str, results: list[ApplyResultOut], undo: dict | None = None) -> None:
     changed = [r for r in results if not r.error and r.applied]
     failed = [r for r in results if r.error]
     keys = sorted({k for r in changed for k in r.applied})
@@ -659,4 +732,5 @@ def _log_loadout(activity: ActivityLog, name: str, mode: str, results: list[Appl
         "loadout", message, ok=not failed,
         files=[r.path for r in changed], changes=diff,
         errors=[{"path": r.path, "error": r.error or ""} for r in failed],
+        undo=undo,
     )
