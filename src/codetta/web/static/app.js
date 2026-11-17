@@ -1960,7 +1960,7 @@ async function boot() {
 
 function showVersion(version) {
   if (!version) return;
-  setKids($("#auth-version"), h("span", { class: "auth-version-name" }, "Codetta"), " ", h("i", {}, `v${version}`));
+  setKids($("#auth-version"), h("span", { class: "auth-version-name" }, "Codetta"), h("span", { class: "badge version-badge" }, `v${version}`));
   $(".brand").title = `Codetta v${version}`;
   $("#about-version").textContent = `v${version}`;
 }

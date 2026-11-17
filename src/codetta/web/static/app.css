@@ -1098,7 +1098,8 @@ dialog::backdrop { background: var(--backdrop); }
 .about-head { display: flex; align-items: center; gap: 8px; }
 .about-head h3 { margin: 0; font-size: 15px; line-height: 22px; font-weight: 650; color: var(--text); text-transform: none; letter-spacing: 0; }
 .about-head .btn { margin-left: auto; }
-#about-version { text-transform: none; letter-spacing: 0; display: inline-flex; align-items: center; height: 20px; padding: 0 7px; line-height: 1; }
+/* Version badge, same look on the sign-in screen and in the About section. */
+.version-badge, #about-version { text-transform: none; letter-spacing: 0; display: inline-flex; align-items: center; height: 20px; padding: 0 7px; line-height: 1; font-variant-numeric: tabular-nums; }
 .about-status { color: var(--muted); font-size: 13px; margin-top: 6px; }
 .about-status:empty { display: none; }
 .about-status a { color: var(--accent); }
@@ -1111,9 +1112,8 @@ dialog::backdrop { background: var(--backdrop); }
   margin: 0 0 8px; padding: 10px 12px; border-radius: 8px; background: var(--input-bg); border: 1px solid var(--border);
   font: 12px/1.6 ui-monospace, "SF Mono", Menlo, Consolas, monospace; white-space: pre; overflow-x: auto;
 }
-.auth-version { color: var(--faint); font-size: 11px; text-align: center; margin-top: 10px; font-variant-numeric: tabular-nums; }
-.auth-version-name { color: var(--text); font-weight: 600; font-style: normal; }
-.auth-version i { font-style: italic; }
+.auth-version { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 11px; margin-top: 10px; }
+.auth-version-name { color: var(--text); font-weight: 600; }
 .auth-version:empty { display: none; }
 #account-btn { position: relative; }
 #account-btn.has-update::after {
