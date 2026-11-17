@@ -6,6 +6,8 @@ Coda is a self-hosted music metadata editor built in Python (FastAPI + Mutagen) 
 ## Tech Stack & Architecture
 - **Language:** Python 3.14+
 - **Core Library:** `mutagen` for reading/writing audio metadata (FLAC, MP3, M4A/AAC, OGG Vorbis, Opus).
+- **Tag vocabulary:** `src/coda/core/tagmap.py` gives every format the same lowercase tag names (Navidrome/OpenSubsonic set, stored the way MusicBrainz Picard does). Add new tag names there.
+- **Tag Loadouts:** JSON files in `config/loadouts/`, handled by `src/coda/core/presets.py`.
 - **Backend Framework:** FastAPI with Uvicorn.
 - **Frontend:** Single-page web UI served directly by FastAPI (HTML + Tailwind CSS via CDN).
 - **Deployment:** Docker & Docker Compose with a mounted music volume (`/music`).

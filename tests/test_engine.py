@@ -347,3 +347,98 @@ def test_failure_during_swap_leaves_file_untouched(engine, fixture_copy, monkeyp
 
     assert sha256(path) == before
     assert sorted(p.name for p in path.parent.iterdir()) == ["sample.flac"]
+
+
+# --- Shared tag vocabulary (see coda/core/tagmap.py) ------------------------
+
+# Tags Navidrome / OpenSubsonic clients use, with a sample value for each.
+NAVIDROME_TAGS = {
+    "artists": ["Artist A", "Artist B"],
+    "albumartists": ["Artist A", "Artist B"],
+    "originaldate": ["2019-03-01"],
+    "discsubtitle": ["The B-Sides"],
+    "compilation": ["1"],
+    "releasetype": ["single"],
+    "releasestatus": ["official"],
+    "label": ["Indie Records"],
+    "catalognumber": ["IR-001"],
+    "barcode": ["0123456789012"],
+    "isrc": ["USABC1234567"],
+    "media": ["Digital Media"],
+    "mood": ["Chill"],
+    "bpm": ["120"],
+    "composer": ["Comp Oser"],
+    "lyricist": ["Lyric Writer"],
+    "conductor": ["Con Ductor"],
+    "arranger": ["Arr Anger"],
+    "engineer": ["Engi Neer"],
+    "mixer": ["Mix Er"],
+    "producer": ["Pro Ducer", "Co Producer"],
+    "djmixer": ["DJ Someone"],
+    "comment": ["Ripped from SoundCloud"],
+    "language": ["eng"],
+    "copyright": ["2024 Indie Records"],
+}
+
+
+@pytest.mark.parametrize("name", SAMPLE_FILES)
+def test_navidrome_tags_round_trip_on_every_format(engine, fixture_copy, name):
+    path = fixture_copy(name)
+
+    engine.update_tags(path, NAVIDROME_TAGS)
+    tags = MetadataEngine().load_metadata(path).tags
+
+    for key, value in NAVIDROME_TAGS.items():
+        assert tags.get(key) == value, f"{name}: tag '{key}'"
+    # The original tags are still there too.
+    for key, value in EXPECTED_TAGS.items():
+        assert tags.get(key) == value, f"{name}: tag '{key}'"
+
+
+@pytest.mark.parametrize("name", SAMPLE_FILES)
+def test_each_credit_role_is_independent(engine, fixture_copy, name):
+    # On MP3 these all share one TIPL frame; changing one must not touch others.
+    path = fixture_copy(name)
+    engine.update_tags(path, {"engineer": "E", "mixer": "M", "producer": "P"})
+
+    tags = engine.update_tags(path, {"mixer": None}).tags
+
+    assert tags["engineer"] == ["E"]
+    assert tags["producer"] == ["P"]
+    assert "mixer" not in tags
+
+
+@pytest.mark.parametrize("name", ["sample.mp3", "sample.m4a"])
+def test_aliases_are_not_duplicated(engine, fixture_copy, name):
+    # e.g. on MP3 "label" and mutagen's "organization" are the same field.
+    tags = engine.update_tags(fixture_copy(name), {"label": "L", "releasetype": "album"}).tags
+    assert "organization" not in tags
+    assert "musicbrainz_albumtype" not in tags
+
+
+def test_m4a_compilation_rejects_non_boolean(engine, fixture_copy):
+    path = fixture_copy("sample.m4a")
+    before = sha256(path)
+    with pytest.raises(MetadataError):
+        engine.update_tags(path, {"compilation": "yes"})
+    assert sha256(path) == before
+
+
+@pytest.mark.parametrize(
+    ("fmt", "key", "expected"),
+    [
+        ("flac", "anything_goes", True),
+        ("ogg", "mood", True),
+        ("opus", "bad=key", False),
+        ("mp3", "mood", True),
+        ("mp3", "engineer", True),
+        ("mp3", "made_up_tag", False),
+        ("m4a", "releasetype", True),
+        ("m4a", "made_up_tag", False),
+        ("wav", "title", False),
+    ],
+)
+def test_is_tag_supported(fmt, key, expected):
+    from coda.core.engine import is_tag_supported
+
+    assert is_tag_supported(fmt, key) is expected

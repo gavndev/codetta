@@ -1,4 +1,4 @@
-"""Core metadata engine: reads (and later writes) tags on audio files.
+"""Core metadata engine: reads and writes tags on audio files.
 
 Every supported format is opened through mutagen's "easy" interface, so tags
 come back with the same friendly names regardless of format (``title``,
@@ -17,13 +17,25 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import mutagen
-from mutagen.easyid3 import EasyID3
-from mutagen.easymp4 import EasyMP4, EasyMP4Tags
+from mutagen.easymp4 import EasyMP4
 from mutagen.flac import FLAC
-from mutagen.id3 import COMM
 from mutagen.mp3 import EasyMP3
 from mutagen.oggopus import OggOpus
 from mutagen.oggvorbis import OggVorbis
+
+# Importing tagmap registers the extra tag names (mood, label, engineer, ...)
+# so every format shares one vocabulary.
+from coda.core.tagmap import HIDDEN_ALIASES, is_tag_supported
+
+__all__ = [
+    "SUPPORTED_EXTENSIONS",
+    "MetadataEngine",
+    "MetadataError",
+    "TagValue",
+    "TrackMetadata",
+    "UnsupportedFormatError",
+    "is_tag_supported",
+]
 
 # File extensions Coda will open. Anything else is rejected up front.
 SUPPORTED_EXTENSIONS: frozenset[str] = frozenset({".flac", ".mp3", ".m4a", ".ogg", ".opus"})
@@ -42,40 +54,6 @@ _FORMAT_NAMES: dict[type, str] = {
 # A tag value as callers may pass it: one string, several strings, or None.
 # None, "" and [] all mean "remove this tag".
 TagValue = str | Iterable[str] | None
-
-
-# --- Fill gaps in mutagen's "easy" tag names -------------------------------
-# Out of the box, easy MP4 has no ``composer`` and easy ID3 (MP3) has no
-# ``comment``. Both formats can store them, so register the names here so
-# every format accepts the same common tags.
-
-EasyMP4Tags.RegisterTextKey("composer", "\xa9wrt")
-
-
-def _id3_comment_keys(id3) -> list[str]:
-    # Plain user comments have an empty description; others (e.g. iTunes'
-    # "iTunNORM" volume data) are left alone.
-    return [k for k in id3.keys() if k.startswith("COMM:") and id3[k].desc == ""]
-
-
-def _id3_comment_get(id3, key):
-    values = [text for k in _id3_comment_keys(id3) for text in id3[k].text]
-    if not values:
-        raise KeyError(key)
-    return values
-
-
-def _id3_comment_set(id3, key, value):
-    _id3_comment_delete(id3, key)
-    id3.add(COMM(encoding=3, lang="eng", desc="", text=list(value)))
-
-
-def _id3_comment_delete(id3, key):
-    for k in _id3_comment_keys(id3):
-        del id3[k]
-
-
-EasyID3.RegisterKey("comment", _id3_comment_get, _id3_comment_set, _id3_comment_delete)
 
 
 class MetadataError(Exception):
@@ -133,6 +111,8 @@ class MetadataEngine:
             key.lower(): [str(value) for value in values]
             for key, values in (audio.tags or {}).items()
         }
+        for old_name in HIDDEN_ALIASES.get(format_name, {}):
+            tags.pop(old_name, None)
         info = audio.info
         sample_rate = getattr(info, "sample_rate", None)
         if format_name == "opus":
