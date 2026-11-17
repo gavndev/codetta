@@ -12,7 +12,7 @@
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
   <link rel="preload" href="/static/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/static/app.css?v=8">
+  <link rel="stylesheet" href="/static/app.css?v=9">
   <script>
     // Apply the saved theme before first paint, so there's no flash.
     try {
@@ -25,7 +25,7 @@
   <!-- Sign in / first-run setup. Shown over the app; the app keeps its state underneath. -->
   <div class="auth" id="auth" hidden>
     <form class="auth-card" id="auth-form" method="post" action="#">
-      <svg class="auth-logo" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-linecap="round" aria-hidden="true"><ellipse cx="16" cy="16" rx="7" ry="9" stroke-width="2.6"/><path d="M16 2.5v27M2.5 16h27" stroke-width="2"/></svg>
+      <svg class="auth-logo" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-linecap="butt" aria-hidden="true"><circle cx="16" cy="16" r="9.8" stroke-width="3.4"/><path d="M16 1v30M1 16h30" stroke-width="3.4"/></svg>
       <h1 id="auth-title">Sign in to Coda</h1>
       <p class="auth-sub" id="auth-sub"></p>
       <div class="error-box" id="auth-error" role="alert" hidden></div>
@@ -49,7 +49,7 @@
   <div class="app" id="app" hidden>
     <header class="topbar">
       <a class="brand" href="#/" aria-label="Coda — library home">
-        <svg class="brand-mark" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-linecap="round" aria-hidden="true"><ellipse cx="16" cy="16" rx="7" ry="9" stroke-width="2.6"/><path d="M16 2.5v27M2.5 16h27" stroke-width="2"/></svg>
+        <svg class="brand-mark" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-linecap="butt" aria-hidden="true"><circle cx="16" cy="16" r="9.8" stroke-width="3.4"/><path d="M16 1v30M1 16h30" stroke-width="3.4"/></svg>
         <span>Coda</span>
       </a>
       <nav class="crumbs" id="crumbs" aria-label="Folder path"></nav>
@@ -233,6 +233,6 @@
   <datalist id="tag-keys"></datalist>
   <div class="toasts" id="toasts" aria-live="polite"></div>
 
-  <script src="/static/app.js?v=8" type="module"></script>
+  <script src="/static/app.js?v=9" type="module"></script>
 </body>
 </html>
