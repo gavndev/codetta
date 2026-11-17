@@ -22,9 +22,13 @@
 - [x] **Task 2.12:** Editor toolbar: "Save" (this track/selection) and "Save to folder" (the changed fields to every track in the folder, with a warning for per-track fields like Title); copy checked tags and paste them onto other tracks or a whole folder; wider panel.
 - [x] **Task 2.13:** Filter the current folder by tag value (e.g. Label = Independent), shown as removable chips. Hints for non-standard dates ("Use 2026-10-23") and comma-separated multi-value fields ("Split into 3").
 - [x] **Task 2.15:** Smart suggestions: album-level fields (album, artist, genre, date, label, credits…) offer values from other tracks in the same folder in a dropdown; Track suggests the file's position ("2/6"). Picking fills the field without saving. Save buttons count changed fields, and hovering shows exactly what will change (old → new). Later: MusicBrainz as a second suggestion source.
-- [ ] **Task 2.14:** Library-wide tag search/filter (e.g. every release with Label = Independent), backed by a small tag index cached in the config folder so big libraries stay fast; refreshed when files change.
 
 ## Phase 3: Docker & Sharing
 - [ ] **Task 3.1:** Multi-stage `Dockerfile` on `python:3.14-slim`, running as a non-root user with configurable `PUID`/`PGID` so edited files keep the right owner.
 - [ ] **Task 3.2:** `docker-compose.yml` with `/music` and `/config` volumes, port `8111` (8000 is taken by another service on the host), and a healthcheck.
 - [ ] **Task 3.3:** `README.md`: what Coda is, screenshots, Docker setup, and a note on access (no login yet, so keep it on your LAN or behind a reverse proxy).
+
+## Later (ideas, not scheduled)
+- Fluid UI transitions (panel slide-in, list/folder changes, dialogs).
+- Library-wide tag search/filter, backed by a cached tag index. Folder-level filtering covers current needs.
+- MusicBrainz lookup as a second source of smart suggestions.
