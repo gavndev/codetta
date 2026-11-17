@@ -55,7 +55,7 @@ from codetta.core.presets import (
     slugify,
 )
 from codetta.core.tagmap import FIELDS
-from codetta.core.undo import ArtStore, art_hashes, undo_change
+from codetta.core.undo import ArtStore, art_hashes, sha256, undo_change
 from codetta.core.updates import DEFAULT_REPO, Fetcher, UpdateChecker, fetch_latest_release
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -117,6 +117,12 @@ class PasswordChange(BaseModel):
 TagValueIn = str | list[str] | None
 
 
+class ArtInfo(BaseModel):
+    hash: str  # SHA-256 of the image: identical covers share one URL, so they load once
+    width: int | None = None
+    height: int | None = None
+
+
 class TrackOut(BaseModel):
     path: str
     name: str
@@ -127,6 +133,7 @@ class TrackOut(BaseModel):
     sample_rate: int | None = None
     channels: int | None = None
     mtime: int | None = None  # changes whenever the file does (used to refresh cover art)
+    art: ArtInfo | None = None  # embedded cover, if any
     error: str | None = None  # set if the file couldn't be read
 
 
@@ -400,12 +407,34 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
                 "Set CODETTA_MUSIC_DIR (or mount your music at /music in Docker).",
             )
 
-    def to_out(rel: str, meta: TrackMetadata) -> TrackOut:
+    # Embedded-art fingerprints, remembered per (file, version) so re-opening a
+    # folder doesn't re-read every cover.
+    art_cache: dict[tuple[str, int], ArtInfo | None] = {}
+
+    def art_info(rel: str, target: Path, mtime: int | None) -> ArtInfo | None:
+        key = (rel, mtime or 0)
+        if mtime is not None and key in art_cache:
+            return art_cache[key]
         try:
-            mtime = library.resolve(rel).stat().st_mtime_ns
+            art = engine.read_artwork(target)
+        except (MetadataError, OSError):
+            art = None
+        info = ArtInfo(hash=sha256(art.data)[:16], width=art.width, height=art.height) if art else None
+        if mtime is not None:
+            if len(art_cache) > 20000:
+                art_cache.clear()
+            art_cache[key] = info
+        return info
+
+    def to_out(rel: str, meta: TrackMetadata) -> TrackOut:
+        target = library.resolve(rel)
+        try:
+            mtime = target.stat().st_mtime_ns
         except OSError:
             mtime = None
-        return _to_track_out(rel, meta, mtime)
+        out = _to_track_out(rel, meta, mtime)
+        out.art = art_info(rel, target, mtime)
+        return out
 
     def folder_out(rel: str) -> FolderOut:
         counts = count_contents(library.resolve(rel))
@@ -522,7 +551,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         if art is None:
             raise HTTPException(404, "This track has no album art")
         # The UI adds ?v=<mtime> to the URL, so a changed file gets a new URL.
-        return Response(art.data, media_type=art.mime, headers={"Cache-Control": "private, max-age=86400"})
+        return Response(art.data, media_type=art.mime, headers={"Cache-Control": "private, max-age=31536000, immutable"})
 
     @app.put("/api/art", response_model=list[UpdateResult])
     async def set_art(request: Request, path: list[str] = Query(..., description="One or more files")):

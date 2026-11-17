@@ -44,7 +44,8 @@ OpenSubsonic servers in mind: Codetta writes the tags those apps actually show
   in the same folder already use, and Track suggests the file's position
   (`2/6`). One tap fills the field; nothing saves until you say so.
 - **Copy & paste tags** between tracks and folders.
-- **Album art.** Add, replace or remove embedded covers (JPEG or PNG),
+- **Album art.** See every track's cover at a glance, and add, replace or
+  remove covers for one track, a selection or the whole album in one save,
   straight from your phone's photo library if you like.
 - **Tag Loadouts.** Saved sets of tags with placeholders such as
   `{filename_title}`, `{folder}` and `{track}/{tracktotal}` that turn loose

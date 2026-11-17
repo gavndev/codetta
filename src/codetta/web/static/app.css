@@ -429,7 +429,7 @@ dialog.sheet.small { width: min(420px, calc(100vw - 32px)); }
 
 .track-row {
   display: grid;
-  grid-template-columns: 44px 36px minmax(0, 2.2fr) minmax(0, 1.4fr) minmax(0, 1.4fr) 76px 56px;
+  grid-template-columns: 44px 36px 48px minmax(0, 2.2fr) minmax(0, 1.4fr) minmax(0, 1.4fr) 76px 56px;
   align-items: center;
   min-height: 44px;
   border-bottom: 1px solid var(--border);
@@ -452,6 +452,25 @@ dialog.sheet.small { width: min(420px, calc(100vw - 32px)); }
 .track-row .col-title .untitled { color: var(--muted); font-weight: 400; font-style: italic; }
 .track-row .col-artist, .track-row .col-album { color: var(--muted); }
 .track-row .sub { display: none; }
+
+/* Album-art thumbnail on each track */
+.track-row .col-art { display: flex; align-items: center; justify-content: center; padding: 0 4px; overflow: visible; }
+.track-row .col-art img { width: 36px; height: 36px; border-radius: 6px; object-fit: cover; display: block; background: var(--hover); box-shadow: 0 0 0 1px var(--border); }
+.art-none {
+  width: 36px; height: 36px; border-radius: 6px; display: grid; place-items: center;
+  background: var(--hover); color: var(--faint); border: 1px dashed var(--border-strong);
+}
+.art-none svg { width: 15px; height: 15px; }
+
+/* Pending album art in the editor */
+.art-square.pending { box-shadow: 0 0 0 2px var(--accent); }
+.art-square.removing { border-color: var(--danger); color: var(--danger); background: var(--danger-soft); }
+.art-badge {
+  position: absolute; top: 8px; left: 8px; padding: 2px 8px; border-radius: 999px;
+  background: var(--accent); color: #fff; font-size: 11px; font-weight: 600;
+}
+.pop-art { display: inline-flex; align-items: center; gap: 6px; }
+.pop-art img { width: 22px; height: 22px; border-radius: 4px; object-fit: cover; }
 /* Right-to-left names (Arabic, Hebrew…) read in their own direction. */
 .track-row > *, .track-row .main, .track-row .sub, .folder-name, .editor-title h2, .editor-title p,
 .act-msg, .preview-item .name, .crumbs a, .filter-chip > span { unicode-bidi: plaintext; }
@@ -1267,7 +1286,7 @@ dialog.sheet.closing::backdrop { animation: fade-out 150ms ease forwards; }
 /* ---- Medium screens: narrower columns ------------------------------------------------------- */
 
 @media (max-width: 1180px) {
-  .track-row { grid-template-columns: 44px 36px minmax(0, 2fr) minmax(0, 1.4fr) 76px 56px; }
+  .track-row { grid-template-columns: 44px 36px 48px minmax(0, 2fr) minmax(0, 1.4fr) 76px 56px; }
   .track-row .col-album { display: none; }
 }
 
@@ -1293,7 +1312,7 @@ dialog.sheet.closing::backdrop { animation: fade-out 150ms ease forwards; }
   .folder { border: 0; border-bottom: 1px solid var(--border); border-radius: 0; min-height: 50px; }
   .folder:last-child { border-bottom: 0; }
 
-  .track-row { grid-template-columns: 48px minmax(0, 1fr) auto; min-height: 58px; }
+  .track-row { grid-template-columns: 48px 52px minmax(0, 1fr) auto; min-height: 62px; }
   .track-row.head { display: none; }
   .track-row .col-num, .track-row .col-artist, .track-row .col-album, .track-row .col-fmt { display: none; }
   .track-row .col-title { white-space: normal; padding-top: 8px; padding-bottom: 8px; }
@@ -1304,9 +1323,10 @@ dialog.sheet.closing::backdrop { animation: fade-out 150ms ease forwards; }
   .check-cell input { width: 22px; height: 22px; }
 
   /* Selection circles only appear after tapping "Select". */
-  .tracks:not(.selecting) .track-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .tracks:not(.selecting) .track-row { grid-template-columns: 62px minmax(0, 1fr) auto; }
   .tracks:not(.selecting) .check-cell { display: none; }
-  .tracks:not(.selecting) .track-row .col-title { padding-left: 16px; }
+  .tracks:not(.selecting) .track-row .col-art { padding-left: 14px; }
+  .track-row .col-art img, .track-row .art-none { width: 44px; height: 44px; border-radius: 7px; }
   .tracks.selecting .check-cell { animation: pop-in var(--dur) var(--ease-out); }
   .folder-actions { flex-wrap: wrap; justify-content: flex-end; }
 

@@ -9,7 +9,7 @@ First release.
 - Edit tags on FLAC, MP3, M4A, OGG Vorbis and Opus files, one track or many at once.
 - Navidrome / OpenSubsonic tag set (credits, mood, label, release type, multiple artists…), stored the way MusicBrainz Picard does.
 - Save to folder, copy & paste tags, smart suggestions from the folder, and hints for dates and multi-value fields.
-- Album art: add, replace or remove embedded covers.
+- Album art: add, replace or remove embedded covers as part of a save, for one track, a selection or the whole folder; thumbnails on every track row.
 - Tag Loadouts with placeholders and a preview before writing.
 - Filter a folder by tag; folders as a list (default) or grid.
 - Works with any language: every script and emoji round-trips exactly; accent-insensitive search; right-to-left names display correctly; sorting ignores case and accents; file names that aren't valid UTF-8 are skipped with a note instead of breaking the folder; emoji get a gentle tip, never a block; commas in names (e.g. "Tyler, The Creator") are never flagged.

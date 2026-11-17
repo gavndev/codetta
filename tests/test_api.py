@@ -404,3 +404,12 @@ def test_browse_reports_skipped_names_and_survives_them(client, music):
     data = client.get("/api/browse").json()
     assert data["skipped"] == 1
     assert [t["name"] for t in data["tracks"]] == ["Loose Track.mp3"]
+
+
+def test_tracks_report_art_fingerprints(client):
+    paths = ["Artist/Album/01 - Intro.flac", "Artist/Album/2 - Groove.mp3"]
+    client.put("/api/art", params={"path": paths}, content=JPEG, headers={"Content-Type": "image/jpeg"})
+    tracks = {t["name"]: t for t in client.get("/api/browse", params={"path": "Artist/Album"}).json()["tracks"]}
+    a, b = tracks["01 - Intro.flac"]["art"], tracks["2 - Groove.mp3"]["art"]
+    assert a == b and (a["width"], a["height"]) == (64, 48)  # same cover -> same fingerprint
+    assert tracks["10 - Outro.m4a"]["art"] is None

@@ -114,6 +114,7 @@ const ICONS = {
   chevron: '<svg viewBox="0 0 20 20"><path d="m8 5 5 5-5 5"/></svg>',
   rows: '<svg viewBox="0 0 20 20"><path d="M4 5.5h12M4 10h12M4 14.5h12"/></svg>',
   grid: '<svg viewBox="0 0 20 20"><rect x="3.5" y="3.5" width="5" height="5" rx="1"/><rect x="11.5" y="3.5" width="5" height="5" rx="1"/><rect x="3.5" y="11.5" width="5" height="5" rx="1"/><rect x="11.5" y="11.5" width="5" height="5" rx="1"/></svg>',
+  note: '<svg viewBox="0 0 20 20"><path d="M8 15.5V5l8-1.5v10"/><circle cx="6" cy="15.5" r="2"/><circle cx="14" cy="13.5" r="2"/></svg>',
   user: '<svg viewBox="0 0 20 20"><circle cx="10" cy="7" r="3.2"/><path d="M3.8 16.5a6.2 6.2 0 0 1 12.4 0"/></svg>',
   undo: '<svg viewBox="0 0 20 20"><path d="M7.5 5 4 8.5 7.5 12"/><path d="M4.5 8.5h7a4.5 4.5 0 0 1 0 9H9"/></svg>',
   spark: '<svg viewBox="0 0 20 20"><path d="M10 3.5 11.4 8.6 16.5 10l-5.1 1.4L10 16.5l-1.4-5.1L3.5 10l5.1-1.4z"/></svg>',
@@ -588,6 +589,7 @@ function renderTracks() {
         onchange: (e) => selectAll(e.target.checked),
       })),
     h("div", { class: "col-num" }, "#"),
+    h("div", { class: "col-art", "aria-hidden": "true" }),
     h("div", {}, "Title"),
     h("div", { class: "col-artist" }, "Artist"),
     h("div", { class: "col-album" }, "Album"),
@@ -622,6 +624,9 @@ function renderTracks() {
     },
       h("label", { class: "check-cell", onclick: (e) => e.stopPropagation() }, checkbox),
       h("div", { class: "col-num" }, (first(t, "tracknumber").split("/")[0]) || ""),
+      h("div", { class: "col-art" }, t.art
+        ? h("img", { src: artUrlFor(t), alt: "", loading: "lazy", decoding: "async", width: "40", height: "40" })
+        : h("span", { class: "art-none", title: "No album art" }, icon("note"))),
       h("div", { class: "col-title" },
         h("span", { class: "main" }, title || h("span", { class: "untitled" }, t.name)),
         h("span", { class: "sub" }, t.error ? t.error
@@ -770,7 +775,7 @@ function editorTracks() {
 }
 
 function isDirty() {
-  return !!state.editor && state.editor.changes.size > 0;
+  return pendingCount(state.editor) > 0;
 }
 
 async function confirmDiscard() {
@@ -804,6 +809,7 @@ function closeEditor(force = false) {
     confirmDiscard().then((ok) => { if (ok) closeEditor(true); });
     return;
   }
+  clearPendingArt(state.editor);
   state.editor = null;
   playOut(els.editor, "closing", () => { if (!state.editor) els.editor.hidden = true; });
   document.body.style.overflow = "";
@@ -925,6 +931,7 @@ function saveClipboard(clip) {
 }
 
 function fieldLabel(key) {
+  if (key === "__art") return "Album art";
   return state.fieldMap.get(key)?.label || key;
 }
 
@@ -1282,7 +1289,7 @@ function folderTrackPaths() {
 
 function updateSaveButton() {
   const ed = state.editor;
-  const n = ed?.changes.size || 0;
+  const n = pendingCount(ed);
   els.editorSave.disabled = n === 0;
   els.editorSave.textContent = n ? `Save ${n > 1 ? `(${n})` : ""}`.trim() : "Save";
   // "Save to folder" only makes sense if it reaches more tracks than "Save" does.
@@ -1297,7 +1304,7 @@ function updateSaveButton() {
 /** The pending edits as "Field  old → new" rows. */
 function changeList() {
   const ed = state.editor;
-  return h("ul", { class: "change-list" }, [...ed.changes.entries()].map(([key, c]) => {
+  const rows = [...ed.changes.entries()].map(([key, c]) => {
     const m = ed.model.get(key);
     const old = m?.mixed ? "various" : m?.value || "";
     return h("li", {},
@@ -1305,17 +1312,25 @@ function changeList() {
       h("span", { class: "pop-val" },
         old ? [h("s", {}, old), " → "] : null,
         c.remove ? h("span", { class: "pop-removed" }, "removed") : h("span", {}, c.value)));
-  }));
+  });
+  if (ed.art) {
+    rows.unshift(h("li", {},
+      h("span", { class: "pop-key" }, "Album art"),
+      h("span", { class: "pop-val" }, ed.art.action === "remove"
+        ? h("span", { class: "pop-removed" }, "removed")
+        : h("span", { class: "pop-art" }, h("img", { src: ed.art.url, alt: "" }), `new image (${ed.art.width} × ${ed.art.height})`))));
+  }
+  return h("ul", { class: "change-list" }, rows);
 }
 
 /** Hovering either Save button (with a mouse) shows exactly what will change. */
 function renderChangesPopover(folderCount) {
   const pop = $("#changes-pop");
   const ed = state.editor;
-  if (!ed || !ed.changes.size) { pop.replaceChildren(); return; }
+  if (!pendingCount(ed)) { pop.replaceChildren(); return; }
   const n = ed.paths.length;
   setKids(pop,
-    h("div", { class: "pop-head" }, `${plural(ed.changes.size, "change")}`),
+    h("div", { class: "pop-head" }, `${plural(pendingCount(ed), "change")}`),
     changeList(),
     h("div", { class: "pop-foot" },
       `Save → ${n === 1 ? "this track" : `${n} selected tracks`}`,
@@ -1327,9 +1342,9 @@ const PER_TRACK_KEYS = new Set(["title", "tracknumber", "isrc", "comment", "bpm"
 
 async function saveToFolder() {
   const ed = state.editor;
-  if (!ed || !ed.changes.size) return;
+  if (!pendingCount(ed)) return;
   const paths = folderTrackPaths();
-  const keys = [...ed.changes.keys()];
+  const keys = [...(ed.art ? ["__art"] : []), ...ed.changes.keys()];
   const risky = keys.filter((k) => PER_TRACK_KEYS.has(k)).map(fieldLabel);
   const folderName = state.folder.path ? state.folder.name : "Library";
   const ok = await ask({
@@ -1348,7 +1363,7 @@ async function saveToFolder() {
 
 async function saveEditor(targetPaths = null) {
   const ed = state.editor;
-  if (!ed || !ed.changes.size) return;
+  if (!pendingCount(ed)) return;
   const paths = targetPaths || ed.paths;
   const changes = {};
   for (const [key, c] of ed.changes) {
@@ -1361,83 +1376,119 @@ async function saveEditor(targetPaths = null) {
   els.editorSave.disabled = true;
   els.editorSaveFolder.disabled = true;
   (targetPaths ? els.editorSaveFolder : els.editorSave).textContent = "Saving…";
-  try {
-    const results = await api("PATCH", "/api/tracks", { paths, changes });
-    const failed = results.filter((r) => !r.ok);
+  const failures = [];
+  let saved = 0;
+  const apply = (results) => {
     for (const r of results) {
-      if (!r.ok) continue;
+      if (!r.ok) { failures.push(`${baseName(r.path)}: ${r.error}`); continue; }
       const i = state.folder.tracks.findIndex((t) => t.path === r.path);
       if (i >= 0) state.folder.tracks[i] = r.track;
     }
-    if (state.editor !== ed) return; // closed meanwhile
-    ed.errors = failed.map((r) => `${baseName(r.path)}: ${r.error}`);
-    ed.copyMode = false;
-    if (!failed.length) {
-      ed.changes.clear();
-      toast(results.length === 1 ? "Saved" : targetPaths ? `Saved to all ${results.length} tracks in this folder` : `Saved ${results.length} tracks`, "success");
-    } else {
-      // Keep the changes so the user can fix and retry.
-      const ok = results.length - failed.length;
-      toast(ok ? `Saved ${ok}, ${failed.length} failed` : "Couldn't save", "error");
+    saved = Math.max(saved, results.length);
+    return results.every((r) => r.ok);
+  };
+  try {
+    if (ed.changes.size) {
+      if (apply(await api("PATCH", "/api/tracks", { paths, changes }))) ed.changes.clear();
     }
-    renderTracks();
-    renderEditor();
-    refreshActivity();
+    if (ed.art) {
+      if (apply(await sendArt(paths, ed.art))) clearPendingArt(ed);
+    }
   } catch (err) {
     toast(err.message, "error");
     updateSaveButton();
+    return;
   }
+  if (state.editor !== ed) return; // closed meanwhile
+  ed.errors = failures;
+  ed.copyMode = false;
+  if (!failures.length) {
+    toast(saved === 1 ? "Saved" : targetPaths ? `Saved to all ${saved} tracks in this folder` : `Saved ${saved} tracks`, "success");
+  } else {
+    toast(`${plural(failures.length, "file")} couldn't be saved`, "error"); // pending edits are kept for a retry
+  }
+  renderTracks();
+  renderEditor();
+  refreshActivity();
 }
 
 // ---- Album art ----------------------------------------------------------------------------------------
+//
+// Picking or removing art is a *pending* change, like a tag edit: nothing is
+// written until Save (this track / selection) or Save to folder (every track).
 
-const ART_TYPES = ["image/jpeg", "image/png"];
+const ART_KEEP_AS_IS = ["image/jpeg", "image/png"]; // others are converted to JPEG
 const ART_MAX_BYTES = 20 * 1024 * 1024;
-const artUrl = (t) => `/api/art?path=${encodeURIComponent(t.path)}&v=${t.mtime || 0}`;
+const ART_MAX_SIDE = 3000;
+
+/** One URL per distinct cover, so a whole album's art downloads once. */
+function artUrlFor(t) {
+  if (!t?.art) return null;
+  const first = (state.folder?.tracks || []).find((x) => x.art?.hash === t.art.hash) || t;
+  return `/api/art?path=${encodeURIComponent(first.path)}&v=${t.art.hash}`;
+}
+
+function pendingCount(ed) {
+  return ed ? ed.changes.size + (ed.art ? 1 : 0) : 0;
+}
+
+function clearPendingArt(ed) {
+  if (ed?.art?.url) URL.revokeObjectURL(ed.art.url);
+  if (ed) ed.art = null;
+}
 
 function artEl(tracks) {
+  const ed = state.editor;
   const single = tracks.length === 1;
-  const t = tracks[0];
+  const hashes = new Set(tracks.map((t) => t.art?.hash || ""));
+  const mixed = hashes.size > 1;
+  const shared = !mixed ? tracks[0].art : null;
+  const pending = ed.art;
+
   const fileInput = h("input", {
-    type: "file", accept: ART_TYPES.join(","), hidden: true, "aria-hidden": "true", tabindex: "-1",
-    onchange: (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) uploadArt(f); },
+    type: "file", accept: "image/*,.heic,.heif", hidden: true, "aria-hidden": "true", tabindex: "-1",
+    onchange: (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) stageArt(f); },
   });
   const pick = () => fileInput.click();
   const square = h("button", {
     class: "art-square", type: "button",
     "aria-label": single ? "Change album art" : `Set album art for ${tracks.length} tracks`,
-    title: "Click or drop an image (JPEG or PNG)",
-    onclick: pick,
+    title: "Click or drop an image", onclick: pick,
   });
   const meta = h("div", { class: "art-meta" });
   const actions = h("div", { class: "art-actions" });
-
+  const btn = (label, onclick, cls = "") => h("button", { class: `btn small ${cls}`, type: "button", onclick }, label);
+  const showImage = (src, onLoaded) => {
+    const img = h("img", { alt: "Album art", decoding: "async", draggable: "false" });
+    img.addEventListener("load", () => { img.classList.add("loaded"); square.classList.add("has-art"); onLoaded?.(img); });
+    img.src = src;
+    square.replaceChildren(img);
+  };
   const placeholder = (label) => {
     square.classList.remove("has-art");
     square.replaceChildren(h("span", { class: "art-empty" }, icon("plus"), h("span", {}, label)));
   };
 
-  if (single) {
-    const img = h("img", { alt: "Album art", decoding: "async", draggable: "false" });
-    img.addEventListener("load", () => {
-      img.classList.add("loaded");
-      square.classList.add("has-art");
-      meta.textContent = `${img.naturalWidth} × ${img.naturalHeight}`;
-      actions.replaceChildren(
-        h("button", { class: "btn small", type: "button", onclick: pick }, "Replace"),
-        h("button", { class: "btn small danger", type: "button", onclick: () => removeArt() }, "Remove"));
-    });
-    img.addEventListener("error", () => {
-      placeholder("Add album art");
-      meta.textContent = "";
-      actions.replaceChildren();
-    });
-    img.src = artUrl(t);
-    square.replaceChildren(img);
+  if (pending?.action === "set") {
+    showImage(pending.url);
+    square.classList.add("pending");
+    square.append(h("span", { class: "art-badge" }, "Not saved"));
+    meta.textContent = `${pending.width} × ${pending.height} · not saved yet`;
+    actions.append(btn("Replace", pick), btn("Revert", revertArt));
+  } else if (pending?.action === "remove") {
+    placeholder(single ? "Will be removed" : `Will be removed from ${tracks.length} tracks`);
+    square.classList.add("removing");
+    meta.textContent = "Not saved yet";
+    actions.append(btn("Revert", revertArt));
+  } else if (shared) {
+    showImage(artUrlFor(tracks[0]));
+    meta.textContent = `${shared.width ?? "?"} × ${shared.height ?? "?"}${single ? "" : ` · same on all ${tracks.length}`}`;
+    actions.append(btn("Replace", pick), btn(single ? "Remove" : "Remove from all", stageRemoveArt, "danger"));
+  } else if (mixed) {
+    placeholder(`Different art on ${tracks.length} tracks`);
+    actions.append(btn("Replace all", pick), btn("Remove from all", stageRemoveArt, "danger"));
   } else {
-    placeholder(`Set art for ${tracks.length} tracks`);
-    actions.replaceChildren(
-      h("button", { class: "btn small danger", type: "button", onclick: () => removeArt() }, "Remove from all"));
+    placeholder(single ? "Add album art" : `Add art to ${tracks.length} tracks`);
   }
 
   // Drag and drop an image onto the square (desktop).
@@ -1447,54 +1498,79 @@ function artEl(tracks) {
     e.preventDefault();
     square.classList.remove("drag");
     const f = e.dataTransfer?.files?.[0];
-    if (f) uploadArt(f);
+    if (f) stageArt(f);
   });
 
   return h("div", { class: "art" }, square, meta, actions, fileInput);
 }
 
-async function changeArt(method, body, contentType) {
+/** Prepare a picked image as pending art. JPEG/PNG are kept as-is; anything
+ *  else the browser can open (HEIC on Safari/iPhone, WebP, AVIF, GIF…) is
+ *  converted to a high-quality JPEG. */
+async function stageArt(file) {
   const ed = state.editor;
   if (!ed) return;
-  const square = $(".art-square", els.editorForm);
-  square?.classList.add("busy");
-  const query = ed.paths.map((p) => `path=${encodeURIComponent(p)}`).join("&");
+  const looksHeic = /image\/hei[cf]/i.test(file.type) || /\.(heic|heif)$/i.test(file.name);
+  let image;
   try {
-    const res = await fetch(`/api/art?${query}`, {
-      method, body, headers: contentType ? { "Content-Type": contentType } : {},
-    });
-    const data = await res.json().catch(() => null);
-    if (!res.ok) throw new Error((data && typeof data.detail === "string" && data.detail) || `Request failed (${res.status})`);
-    const failed = data.filter((r) => !r.ok);
-    for (const r of data) {
-      if (!r.ok) continue;
-      const i = state.folder.tracks.findIndex((t) => t.path === r.path);
-      if (i >= 0) state.folder.tracks[i] = r.track;
-    }
-    if (failed.length) toast(failed.length === data.length ? failed[0].error : `${failed.length} of ${data.length} failed: ${failed[0].error}`, "error");
-    else toast(method === "PUT" ? "Album art saved" : "Album art removed", "success");
-    if (state.editor === ed) renderEditor();
-  } catch (err) {
-    toast(err.message, "error");
-    square?.classList.remove("busy");
+    image = await decodeImage(file);
+  } catch {
+    toast(looksHeic
+      ? "This browser can't open HEIC photos. Save it as JPEG first, or use Safari (or any browser on an iPhone)."
+      : "That file isn't an image Codetta can open.", "error");
+    return;
   }
-  refreshActivity();
+  let width = image.width || image.naturalWidth;
+  let height = image.height || image.naturalHeight;
+  let blob = file;
+  if (!ART_KEEP_AS_IS.includes(file.type)) {
+    const scale = Math.min(1, ART_MAX_SIDE / Math.max(width, height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(width * scale);
+    canvas.height = Math.round(height * scale);
+    const ctx = canvas.getContext("2d");
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    blob = await canvasToBlob(canvas, "image/jpeg", 0.92);
+    width = canvas.width;
+    height = canvas.height;
+  }
+  if (!blob || blob.size > ART_MAX_BYTES) { toast("That image is too large (max 20 MB)", "error"); return; }
+  if (state.editor !== ed) return;
+  clearPendingArt(ed);
+  ed.art = { action: "set", blob, url: URL.createObjectURL(blob), width, height, mime: blob.type };
+  renderEditor();
 }
 
-function uploadArt(file) {
-  if (!ART_TYPES.includes(file.type)) { toast("Album art must be a JPEG or PNG image", "error"); return; }
-  if (file.size > ART_MAX_BYTES) { toast("That image is too large (max 20 MB)", "error"); return; }
-  changeArt("PUT", file, file.type);
+function stageRemoveArt() {
+  const ed = state.editor;
+  if (!ed) return;
+  clearPendingArt(ed);
+  ed.art = { action: "remove" };
+  renderEditor();
 }
 
-async function removeArt() {
-  const n = state.editor?.paths.length || 0;
-  const ok = await ask({
-    title: n > 1 ? `Remove album art from ${n} tracks?` : "Remove the album art?",
-    message: "You can undo this from the activity log.",
-    confirmLabel: "Remove", danger: true,
+function revertArt() {
+  clearPendingArt(state.editor);
+  renderEditor();
+}
+
+/** Write pending art to ``paths``; returns the per-file results. */
+async function sendArt(paths, art) {
+  const query = paths.map((p) => `path=${encodeURIComponent(p)}`).join("&");
+  const setting = art.action === "set";
+  const res = await fetch(`/api/art?${query}`, {
+    method: setting ? "PUT" : "DELETE",
+    body: setting ? art.blob : undefined,
+    headers: setting ? { "Content-Type": art.mime } : {},
   });
-  if (ok) changeArt("DELETE");
+  if (res.status === 401) {
+    showAuth("login", "Your session ended. Sign in again to carry on where you left off.");
+    throw new Error("Sign in required");
+  }
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error((data && typeof data.detail === "string" && data.detail) || `Request failed (${res.status})`);
+  return data;
 }
 
 // ---- Activity log ---------------------------------------------------------------------------------------

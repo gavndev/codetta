@@ -44,6 +44,9 @@
 - [x] **Task 5.2:** Phones: selection circles are hidden until you tap **Select** (then tapping a track selects it; **Select all** / **Done**), like the Photos app. Desktop keeps always-visible checkboxes.
 - [x] **Task 5.3:** No browser pop-ups: every confirmation (discard changes, save to folder, remove art, undo, delete loadout, sign out) is an in-page sheet with clear button labels; Save to folder lists the exact changes. The hover popover only appears with a mouse (no longer sticks open on phones).
 
+- [x] **Task 5.4:** Album art is a pending change like tags: preview with "Not saved", Revert, counted on the Save buttons and listed in the change list; Save writes it to the track/selection, Save to folder to every track in the folder. Any image the browser can open (HEIC on iPhone/Safari, WebP, AVIF, GIF) is converted to JPEG; JPEG/PNG kept as-is.
+- [x] **Task 5.5:** Album-art thumbnail on every track row (placeholder when missing). Tracks report an art fingerprint, so a cover shared by an album downloads once and is cached.
+
 ## Later (ideas, not scheduled)
 - Library-wide tag search/filter, backed by a cached tag index. Folder-level filtering covers current needs.
 - MusicBrainz plugin: match a file or folder to a MusicBrainz release/recording and offer its "official" metadata (titles, artists, dates, label, catalog number, MBIDs, cover art) to append to the matched tracks, previewed before writing, like loadouts. Also feeds smart suggestions.
