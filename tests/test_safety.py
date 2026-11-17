@@ -356,3 +356,53 @@ def test_many_edits_in_a_row_stay_healthy(engine, fixture_copy, name):
     for key in ("artist", "album", "tracknumber"):
         assert meta.tags[key] == EXPECTED_TAGS[key]
     assert decodes_cleanly(path)
+
+
+# --- Worldwide text ---------------------------------------------------------------------
+
+WORLD_TAGS = {
+    "title": ["夜に駆ける"],                                    # Japanese
+    "artist": ["ए. आर. रहमान", "Ben&Ben", "아이유"],            # Hindi (Devanagari), Tagalog/Filipino band, Korean
+    "album": ["Tyler, The Creator — CALL ME IF YOU GET LOST"],  # commas are fine
+    "albumartist": ["Tyler, The Creator"],
+    "genre": ["Pinoy Pop", "เพลงไทย", "粤语流行"],               # Thai, Cantonese
+    "comment": ["Salamat po! Maraming salamat. 🙏🏽 👨‍👩‍👧 🇵🇭"],  # Tagalog + emoji incl. skin tone, ZWJ family, flag
+    "composer": ["فيروز"],                                      # Arabic (right-to-left)
+    "mood": ["😌 Chill"],
+    "label": ["Café Records"],                            # decomposed accent (NFD) kept exactly
+}
+
+
+@pytest.mark.parametrize("name", SAMPLE_FILES)
+def test_worldwide_text_round_trips_exactly(engine, fixture_copy, name):
+    path = fixture_copy(name)
+    engine.update_tags(path, WORLD_TAGS)
+    tags = MetadataEngine().load_metadata(path).tags
+    for key, value in WORLD_TAGS.items():
+        assert tags[key] == value, f"{name}: {key}"
+
+
+def test_non_utf8_file_names_are_skipped_not_fatal(tmp_path):
+    from codetta.core.library import Library
+
+    root = tmp_path / "music"
+    root.mkdir()
+    shutil.copy2(FIXTURES_DIR / "sample.flac", root / "good.flac")
+    bad = os.fsdecode(b"caf\xe9 (latin-1).flac")  # an old Windows-style name
+    shutil.copy2(FIXTURES_DIR / "sample.flac", root / bad)
+    (root / os.fsdecode(b"Disc \xe9")).mkdir()
+
+    listing = Library(root).list_folder("")
+    assert listing.files == ["good.flac"]
+    assert listing.folders == []
+    assert listing.skipped == 2
+
+
+def test_sorting_ignores_case_and_accents_and_odd_digits():
+    from codetta.core.library import natural_key
+
+    names = ["Zeta", "éclair", "Eagle", "10 b", "2 b", "²", "Ångström", "apple", "١٠ arabic digits", "٢ arabic digits"]
+    assert sorted(names, key=natural_key) == [
+        # Arabic-Indic digits are real numbers (٢ = 2, ١٠ = 10); ties sort by the rest of the name.
+        "٢ arabic digits", "2 b", "١٠ arabic digits", "10 b", "²", "Ångström", "apple", "Eagle", "éclair", "Zeta",
+    ]

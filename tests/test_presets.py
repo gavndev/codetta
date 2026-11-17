@@ -58,10 +58,19 @@ def test_loadout_normalizes_values_and_keys():
     assert lo.tags == {"genre": ["Rock"], "artist": ["A", "B"]}
 
 
-@pytest.mark.parametrize("name", ["", "   ", "!!!"])
+@pytest.mark.parametrize("name", ["", "   "])
 def test_loadout_requires_a_name(name):
     with pytest.raises(LoadoutError):
         Loadout(name=name)
+
+
+@pytest.mark.parametrize("name", ["🔥🔥", "!!!", "★ Favourites ★", "हिंदी गाने", "夜のドライブ"])
+def test_loadout_names_in_any_script_or_emoji(tmp_path, name):
+    store = LoadoutStore(tmp_path)
+    store.save(Loadout(name=name, tags={"genre": "Test"}))
+    assert store.get(name).name == name
+    assert [lo.name for lo in store.list()] == [name]
+    assert slugify(name)  # always a usable file name
 
 
 def test_unknown_placeholder_is_rejected():

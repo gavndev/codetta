@@ -146,6 +146,7 @@ class BrowseOut(BaseModel):
     name: str
     breadcrumbs: list[Crumb]
     folders: list[FolderOut]
+    skipped: int = 0  # items whose names aren't valid UTF-8
     tracks: list[TrackOut]
 
 
@@ -431,6 +432,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             name=crumbs[-1].name,
             breadcrumbs=crumbs,
             folders=[folder_out(f) for f in listing.folders],
+            skipped=listing.skipped,
             tracks=[track_out(f) for f in listing.files],
         )
 
@@ -538,13 +540,16 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         skipped = [r for r in outcome.results if r.skipped]
         failed = [r for r in outcome.results if not r.ok and not r.skipped]
         n = len(outcome.results)
-        what = entry["message"]
+        # Name the original change, however many times it's been undone/redone.
+        what = entry.get("root_message") or entry["message"]
+        redo = entry.get("kind") == "undo" and not entry.get("redo")
+        verb = "Redid" if redo else "Undid"
         if not done:
-            message = f"Couldn't undo “{what}”"
+            message = f"Couldn't {'redo' if redo else 'undo'} “{what}”"
         elif len(done) == n:
-            message = f"Undid “{what}”"
+            message = f"{verb} “{what}”"
         else:
-            message = f"Undid “{what}” on {len(done)} of {n} files"
+            message = f"{verb} “{what}” on {len(done)} of {n} files"
         if done:
             activity.add(
                 "undo", message, ok=not failed,
@@ -553,6 +558,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
                          if c.get("old") != "various"],
                 errors=[{"path": r.path, "error": r.error or ""} for r in skipped + failed],
                 undo=outcome.reverse, undoes=entry_id,
+                extra={"root_message": what, "redo": redo},
             )
         return {
             "message": message,

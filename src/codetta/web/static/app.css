@@ -144,7 +144,12 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  /* Inter for Latin, Cyrillic and Greek; good system fonts for every other
+     script (Japanese, Chinese, Korean, Hindi, Thai…) and colour emoji. */
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, "Noto Sans",
+    "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", "Noto Sans CJK JP", "PingFang SC", "Microsoft YaHei",
+    "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", "Nirmala UI", "Noto Sans Devanagari",
+    "Leelawadee UI", "Noto Sans Thai", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji";
   font-size: 14px;
   line-height: 1.45;
   font-feature-settings: "cv11", "ss03"; /* Inter: single-storey a, rounder quotes */
@@ -445,6 +450,12 @@ dialog.sheet.small { width: min(420px, calc(100vw - 32px)); }
 .track-row .col-title .untitled { color: var(--muted); font-weight: 400; font-style: italic; }
 .track-row .col-artist, .track-row .col-album { color: var(--muted); }
 .track-row .sub { display: none; }
+/* Right-to-left names (Arabic, Hebrew…) read in their own direction. */
+.track-row > *, .track-row .main, .track-row .sub, .folder-name, .editor-title h2, .editor-title p,
+.act-msg, .preview-item .name, .crumbs a, .filter-chip > span { unicode-bidi: plaintext; }
+/* ...but columns stay aligned to one edge, whatever the script. */
+.track-row .col-title, .track-row .col-artist, .track-row .col-album, .folder-name, .act-msg { text-align: left; }
+.skipped-note { color: var(--warning); cursor: help; }
 .track-row:not(.head) { cursor: pointer; }
 .track-row.has-error .col-title { color: var(--danger); }
 

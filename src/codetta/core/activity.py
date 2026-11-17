@@ -37,6 +37,7 @@ class ActivityLog:
         errors: list[dict[str, str]] | None = None,
         undo: dict | None = None,
         undoes: int | None = None,
+        extra: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Record one action. ``kind`` is "edit", "art", "loadout" or "undo".
 
@@ -60,6 +61,8 @@ class ActivityLog:
                 entry["undo"] = undo
             if undoes is not None:
                 entry["undoes"] = undoes
+            if extra:
+                entry.update(extra)
             self._next_id += 1
             self._entries.append(entry)
             self._append_to_file(entry)

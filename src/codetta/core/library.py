@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
@@ -25,6 +26,9 @@ class FolderListing:
     path: str  # relative to the library root, "" for the root itself
     folders: list[str] = field(default_factory=list)  # relative paths
     files: list[str] = field(default_factory=list)  # relative paths of audio files
+    # Entries whose names aren't valid UTF-8 (e.g. from an old Windows zip).
+    # They can't be shown or sent to the browser, so they're counted instead.
+    skipped: int = 0
 
 
 class Library:
@@ -60,10 +64,13 @@ class Library:
         folder = self.resolve(relative)
         if not folder.is_dir():
             raise FileNotFoundError(f"No such folder: {relative or '/'}")
-        folders, files = [], []
+        folders, files, skipped = [], [], 0
         with os.scandir(folder) as entries:
             for entry in entries:
                 if entry.name.startswith("."):
+                    continue
+                if not _is_valid_text(entry.name):
+                    skipped += 1
                     continue
                 try:
                     if entry.is_dir():
@@ -78,6 +85,7 @@ class Library:
             path=prefix,
             folders=[join(n) for n in sorted(folders, key=natural_key)],
             files=[join(n) for n in sorted(files, key=natural_key)],
+            skipped=skipped,
         )
 
 
@@ -102,6 +110,24 @@ def count_contents(folder: Path) -> tuple[int, int] | None:
     return folders, files
 
 
+def _is_valid_text(name: str) -> bool:
+    """False for file names that aren't valid UTF-8 (Python keeps those as
+    "surrogate" characters, which can't be sent as JSON)."""
+    try:
+        name.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return True
+
+
+def _sort_text(text: str) -> str:
+    """Case- and accent-insensitive form for sorting: "Éclair" sorts with "eclair"."""
+    decomposed = unicodedata.normalize("NFKD", text)
+    return "".join(ch for ch in decomposed if not unicodedata.combining(ch)).casefold()
+
+
 def natural_key(text: str) -> list:
-    """Sort key that orders numbers numerically: "2 song" < "10 song"."""
-    return [int(p) if p.isdigit() else p.lower() for p in re.split(r"(\d+)", text)]
+    """Sort key that orders numbers numerically ("2 song" < "10 song") and
+    ignores case and accents. Works for any script."""
+    # isdecimal (not isdigit): "²" counts as a digit but int() can't read it.
+    return [(0, int(p), "") if p.isdecimal() else (1, 0, _sort_text(p)) for p in re.split(r"(\d+)", text)]

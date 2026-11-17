@@ -12,7 +12,7 @@
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
   <link rel="preload" href="/static/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/static/app.css?v=18">
+  <link rel="stylesheet" href="/static/app.css?v=20">
   <script>
     // Apply the saved theme before first paint, so there's no flash.
     try {
@@ -37,7 +37,7 @@
       <div class="error-box" id="auth-error" role="alert" hidden></div>
       <label class="field">
         <span class="field-label">Username</span>
-        <input id="auth-user" name="username" type="text" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" required>
+        <input id="auth-user" name="username" type="text" dir="auto" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" required>
       </label>
       <label class="field">
         <span class="field-label">Password</span>
@@ -63,7 +63,7 @@
       <div class="topbar-actions">
         <label class="search">
           <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg>
-          <input id="filter" type="search" placeholder="Filter this folder" autocomplete="off" spellcheck="false" aria-label="Filter tracks in this folder">
+          <input id="filter" type="search" dir="auto" placeholder="Filter this folder" autocomplete="off" spellcheck="false" aria-label="Filter tracks in this folder">
         </label>
         <button class="icon-btn" id="tagfilter-btn" type="button" aria-label="Filter by tag" title="Filter by tag">
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 4.5h14l-5.5 6.5v5l-3-1.5V11z"/></svg>
@@ -249,6 +249,6 @@
   <datalist id="tag-keys"></datalist>
   <div class="toasts" id="toasts" aria-live="polite"></div>
 
-  <script src="/static/app.js?v=17" type="module"></script>
+  <script src="/static/app.js?v=19" type="module"></script>
 </body>
 </html>

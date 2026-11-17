@@ -12,6 +12,7 @@ First release.
 - Album art: add, replace or remove embedded covers.
 - Tag Loadouts with placeholders and a preview before writing.
 - Filter a folder by tag; folders as a list (default) or grid.
+- Works with any language: every script and emoji round-trips exactly; accent-insensitive search; right-to-left names display correctly; sorting ignores case and accents; file names that aren't valid UTF-8 are skipped with a note instead of breaking the folder; emoji get a gentle tip, never a block; commas in names (e.g. "Tyler, The Creator") are never flagged.
 - Comma-separated genres and moods ("Hip-Hop, Trap, Rap", as Navidrome splits them by default) are saved as typed and filter by each part.
 - Activity log of every change, with old and new values, and undo/redo straight from the log (files edited again since are left alone).
 - Safe writes: temporary copy, verify, atomic swap; symlinks, hard links, permissions and cover art preserved.

@@ -183,3 +183,13 @@ def test_undo_requires_sign_in(settings):
         entry_id = c.get("/api/activity").json()[0]["id"]
         c.cookies.clear()
         assert c.post(f"/api/activity/{entry_id}/undo").status_code == 401
+
+
+def test_undo_redo_messages_stay_readable(client):
+    client.patch("/api/tracks", json={"paths": ["Album/01.flac"], "changes": {"title": "Changed"}})
+    original = latest(client)
+    for expected in ["Undid", "Redid", "Undid", "Redid"]:
+        client.post(f"/api/activity/{latest(client)['id']}/undo")
+        entry = latest(client)
+        assert entry["message"] == f"{expected} “{original['message']}”"
+    assert tags(client, "Album/01.flac")["title"] == ["Changed"]  # ended on a redo

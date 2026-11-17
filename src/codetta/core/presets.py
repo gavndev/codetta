@@ -38,6 +38,7 @@ Applying a loadout:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -46,6 +47,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 
+from codetta.core.library import natural_key
 from codetta.core.engine import (
     SUPPORTED_EXTENSIONS,
     MetadataEngine,
@@ -80,7 +82,7 @@ class Loadout:
     def __post_init__(self) -> None:
         self.name = self.name.strip()
         if not self.name or not slugify(self.name):
-            raise LoadoutError("A loadout needs a name containing letters or numbers")
+            raise LoadoutError("A loadout needs a name")
         self.tags = {key.strip().lower(): _as_list(value) for key, value in self.tags.items()}
         for key, values in self.tags.items():
             if not key:
@@ -331,8 +333,17 @@ def _audio_files_by_folder(folder: Path, recursive: bool) -> list[list[Path]]:
 
 
 def slugify(name: str) -> str:
-    """"Album Folder!" -> "album-folder" (used as the file name)."""
-    return re.sub(r"\W+", "-", name.lower()).strip("-_")
+    """"Album Folder!" -> "album-folder" (used as the file name).
+
+    Names with no letters or digits at all (e.g. only emoji: "🔥🔥") get a
+    short stable id instead, so any non-blank name works.
+    """
+    slug = re.sub(r"\W+", "-", name.strip().lower()).strip("-_")
+    if slug:
+        return slug
+    if not name.strip():
+        return ""
+    return "loadout-" + hashlib.sha1(name.strip().encode("utf-8")).hexdigest()[:10]
 
 
 def filename_to_title(stem: str) -> str:
@@ -362,7 +373,7 @@ def _as_list(value: TagValue) -> list[str]:
 
 
 def _natural_key(text: str) -> list:
-    return [int(part) if part.isdigit() else part.lower() for part in re.split(r"(\d+)", text)]
+    return natural_key(text)
 
 
 def _is_hidden(path: Path, root: Path) -> bool:

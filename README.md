@@ -57,6 +57,10 @@ OpenSubsonic servers in mind: Codetta writes the tags those apps actually show
   left alone.
 - **Sign-in** with a hashed password, 30-day sessions and lockout after
   repeated wrong guesses.
+- **Any language, any script.** Japanese, Hindi, Korean, Thai, Arabic,
+  Tagalog, accented names and emoji are all saved exactly as typed. Search
+  ignores accents ("beyonce" finds "Beyoncé"), right-to-left names display
+  correctly, and names like "Tyler, The Creator" are never flagged.
 - **Light and dark themes** that follow your device, smooth animations,
   and a layout made for phones. Works offline: fonts are bundled.
 

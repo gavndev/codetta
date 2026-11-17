@@ -396,3 +396,11 @@ def test_folder_counts_ignore_hidden_and_non_audio(client):
     album = next(f for f in data["folders"] if f["name"] == "Album")
     # 3 audio files; cover.jpg, .codetta-tmp.flac and .hidden.flac are not counted
     assert (album["folders"], album["tracks"]) == (0, 3)
+
+
+def test_browse_reports_skipped_names_and_survives_them(client, music):
+    import os
+    shutil.copy2(FIXTURES_DIR / "sample.flac", music / os.fsdecode(b"bad \xff name.flac"))
+    data = client.get("/api/browse").json()
+    assert data["skipped"] == 1
+    assert [t["name"] for t in data["tracks"]] == ["Loose Track.mp3"]

@@ -384,19 +384,24 @@ function trackByPath(path) {
   return state.folder?.tracks.find((t) => t.path === path);
 }
 
+/** Case- and accent-insensitive form for searching: "Beyoncé" -> "beyonce". */
+function fold(text) {
+  return String(text).normalize("NFKD").replace(/\p{M}+/gu, "").toLowerCase();
+}
+
 function matchesTagFilters(track) {
   return state.tagFilters.every(({ key, value }) => {
-    const values = listParts(key, track.tags[key] || []).map((v) => v.toLowerCase());
-    return value === "" ? values.length === 0 : values.includes(value.toLowerCase());
+    const values = listParts(key, track.tags[key] || []).map(fold);
+    return value === "" ? values.length === 0 : values.includes(fold(value));
   });
 }
 
 function matchesFilter(track) {
   if (!matchesTagFilters(track)) return false;
   if (!state.filter) return true;
-  const q = state.filter.toLowerCase();
-  return [track.name, first(track, "title"), first(track, "artist"), first(track, "album")]
-    .some((s) => s.toLowerCase().includes(q));
+  const q = fold(state.filter);
+  return [track.name, first(track, "title"), ...(track.tags.artist || []), first(track, "album"), first(track, "albumartist")]
+    .some((s) => fold(s).includes(q));
 }
 
 function visibleTracks() {
@@ -433,10 +438,14 @@ function renderFolderHead() {
   const counts = [];
   if (f.folders.length) counts.push(plural(f.folders.length, "folder"));
   if (f.tracks.length) counts.push(plural(f.tracks.length, "track"));
+  const skippedNote = f.skipped ? h("span", {
+    class: "skipped-note",
+    title: "These names aren't valid UTF-8 text (often from old Windows zips), so Codetta can't show them. Renaming them fixes it.",
+  }, ` · ${plural(f.skipped, "item")} with unreadable names hidden`) : null;
   els.folderHead.replaceChildren(
     h("div", {},
       h("h1", {}, f.path ? f.name : "Library"),
-      h("p", {}, counts.join(" · ") || "Empty folder")),
+      h("p", {}, counts.join(" · ") || (f.skipped ? "" : "Empty folder"), skippedNote)),
     h("div", { class: "folder-actions" },
       f.folders.length ? h("div", { class: "view-toggle", role: "group", "aria-label": "Folder view" },
         ["list", "grid"].map((v) => h("button", {
@@ -471,8 +480,8 @@ function folderSummary(f) {
 }
 
 function renderFolders() {
-  const q = state.filter.toLowerCase();
-  const folders = (state.folder?.folders || []).filter((f) => !q || f.name.toLowerCase().includes(q));
+  const q = fold(state.filter);
+  const folders = (state.folder?.folders || []).filter((f) => !q || fold(f.name).includes(q));
   const list = folderView() === "list";
   els.folders.classList.toggle("as-list", list);
   els.folders.replaceChildren(...folders.map((f) =>
@@ -1021,6 +1030,7 @@ function listParts(key, values) {
 }
 
 const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+const EMOJI = /\p{Extended_Pictographic}/u;
 const DATE_OK = /^\d{4}(-\d{2}(-\d{2})?)?$/;
 
 /** Turn "October 23, 2026" or "2026/10/23" into "2026-10-23", if unambiguous. */
@@ -1061,13 +1071,10 @@ function fieldHint(field, value) {
     const fix = suggestDate(v);
     return { text: "Players expect dates like 2026-10-23 (or just 2026).", fix, fixLabel: fix && `Use ${fix}` };
   }
-  if (field.multi && !COMMA_LIST_KEYS.has(field.key) && v.includes(",") && !v.includes(";")) {
-    const parts = v.split(",").map((x) => x.trim()).filter(Boolean);
-    if (parts.length < 2) return null;
-    return {
-      text: `This saves as one ${field.label.toLowerCase()}. Use ; to separate.`,
-      fix: parts.join("; "), fixLabel: `Split into ${parts.length}`,
-    };
+  // Commas are never flagged: they're part of names ("Tyler, The Creator")
+  // and a common genre separator. Emoji save fine; this is only a heads-up.
+  if (EMOJI.test(v)) {
+    return { text: "Contains emoji. Most players show them, but some older devices and car stereos may not." };
   }
   return null;
 }
@@ -1086,8 +1093,8 @@ function fieldEl(field, model) {
   const hasSuggestions = !isLong && folderSuggestions(key).some((sg) => sg.value !== m.value || m.mixed);
   const wrap = h("div", { class: "field", dataset: { key } });
   const input = isLong
-    ? h("textarea", { id, rows: "3", spellcheck: "true" })
-    : h("input", { id, type: "text", spellcheck: "false", autocapitalize: "off", inputmode: ["tracknumber", "discnumber", "bpm"].includes(key) ? "numeric" : null });
+    ? h("textarea", { id, rows: "3", dir: "auto", spellcheck: "true" })
+    : h("input", { id, type: "text", dir: "auto", spellcheck: "false", autocapitalize: "off", inputmode: ["tracknumber", "discnumber", "bpm"].includes(key) ? "numeric" : null });
   input.value = change ? change.value : m.value;
 
   const basePlaceholder = m.mixed ? "Multiple values — leave to keep"
@@ -1463,7 +1470,7 @@ function renderActivity(newIds = new Set()) {
         e.can_undo || e.undone ? h("div", { class: "act-actions" },
           e.can_undo
             ? h("button", { class: "link-btn act-undo", type: "button", onclick: () => undoEntry(e) },
-                icon("undo"), e.kind === "undo" ? "Redo" : "Undo")
+                icon("undo"), e.kind === "undo" && !e.redo ? "Redo" : "Undo")
             : h("span", { class: "act-undone" }, "Undone")) : null),
       h("time", { datetime: e.time }, fmtTime(e.time)));
   }));
@@ -1476,7 +1483,7 @@ async function reloadActivity() {
 }
 
 async function undoEntry(e) {
-  const verb = e.kind === "undo" ? "Redo" : "Undo";
+  const verb = e.kind === "undo" && !e.redo ? "Redo" : "Undo";
   if (e.file_count > 1 && !window.confirm(`${verb} “${e.message}” on ${e.file_count} files?\n\nFiles that were changed again since are left as they are.`)) return;
   if (isDirty() && !window.confirm("You have unsaved changes in the editor. Continue? They'll be kept, but the fields will refresh.")) return;
   try {
