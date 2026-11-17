@@ -216,8 +216,8 @@ function applyTheme(theme) {
 
 // ---- Routing ------------------------------------------------------------------------------------
 
-function pathFromHash() {
-  const raw = location.hash.replace(/^#\/?/, "");
+function pathFromHash(hash = location.hash) {
+  const raw = hash.replace(/^#\/?/, "");
   try {
     return raw.split("/").filter(Boolean).map(decodeURIComponent).join("/");
   } catch {
@@ -229,18 +229,36 @@ function hashFor(path) {
   return "#/" + path.split("/").filter(Boolean).map(encodeURIComponent).join("/");
 }
 
-let ignoreHashChange = false;
+// Folder links are handled in-page with the History API (pushState) rather
+// than by letting the browser follow "#/..." links. Same URLs, so bookmarks
+// and back/forward still work, but browsers such as Brave on iOS no longer
+// treat every folder tap as a page load (loading bar, reload icon).
+let navTarget = null; // the folder we're currently heading to
 
-function onHashChange() {
-  if (ignoreHashChange) { ignoreHashChange = false; return; }
+function navigate(path) {
+  if (path === (navTarget ?? state.path) && state.folder) return;
+  if (!confirmDiscard()) return;
+  navTarget = path;
+  history.pushState({ path }, "", hashFor(path));
+  loadFolder(path);
+}
+
+/** Back/forward buttons, or a hand-edited URL. */
+function onHistoryChange() {
   const path = pathFromHash();
-  if (path === state.path && state.folder) return;
+  if (path === (navTarget ?? state.path) && state.folder) return;
   if (!confirmDiscard()) {
-    ignoreHashChange = true;
-    location.hash = hashFor(state.path);
+    history.pushState({ path: state.path }, "", hashFor(state.path)); // stay put
     return;
   }
+  navTarget = path;
   loadFolder(path);
+}
+
+function folderLinkPath(event) {
+  const a = event.target.closest?.('a[href^="#/"]');
+  if (!a || !a.closest("#app")) return null;
+  return pathFromHash(a.getAttribute("href"));
 }
 
 // ---- Browsing --------------------------------------------------------------------------------------
@@ -258,6 +276,23 @@ function rememberFolder(data) {
   if (folderCache.size > MAX_CACHED_FOLDERS) folderCache.delete(folderCache.keys().next().value);
 }
 
+const inflight = new Map(); // folder path -> pending /api/browse request
+
+function fetchFolder(path) {
+  if (!inflight.has(path)) {
+    const req = api("GET", `/api/browse?path=${encodeURIComponent(path)}`)
+      .finally(() => setTimeout(() => inflight.delete(path), 1500));
+    inflight.set(path, req);
+  }
+  return inflight.get(path);
+}
+
+/** Start loading a folder as soon as a finger touches its link (or the mouse hovers it). */
+function prefetchFolder(path) {
+  if (path == null || folderCache.has(path) || inflight.has(path)) return;
+  fetchFolder(path).then(rememberFolder, () => { /* ignore; the real visit will report errors */ });
+}
+
 async function loadFolder(path, { keepScroll = false } = {}) {
   const token = ++state.loadToken;
   const navigating = !state.folder || path !== state.path;
@@ -268,17 +303,19 @@ async function loadFolder(path, { keepScroll = false } = {}) {
   if (cached) {
     showFolder(cached, scrollMemory.get(path) ?? 0);
   } else if (navigating) {
-    // Only show "Loading…" if the server is slow, to avoid a flash.
-    loadingTimer = setTimeout(() => {
+    // Keep the current folder on screen (dimmed) until the new one arrives,
+    // instead of blanking the page. Only dim if the server is slow.
+    if (state.folder) {
+      loadingTimer = setTimeout(() => els.browser.classList.add("is-loading"), 150);
+    } else {
       els.folderHead.replaceChildren(h("p", { class: "loading" }, "Loading…"));
-      els.folders.replaceChildren();
-      els.tracks.replaceChildren();
-    }, 200);
+    }
   }
 
   try {
-    const data = await api("GET", `/api/browse?path=${encodeURIComponent(path)}`);
+    const data = await fetchFolder(path);
     clearTimeout(loadingTimer);
+    els.browser.classList.remove("is-loading");
     if (token !== state.loadToken) return; // a newer navigation won
     const unchanged = cached && JSON.stringify(cached) === JSON.stringify(data);
     rememberFolder(unchanged ? cached : data);
@@ -287,7 +324,9 @@ async function loadFolder(path, { keepScroll = false } = {}) {
     showFolder(data, scroll);
   } catch (err) {
     clearTimeout(loadingTimer);
+    els.browser.classList.remove("is-loading");
     if (token !== state.loadToken) return;
+    navTarget = null;
     folderCache.delete(path);
     state.folder = null;
     els.folderHead.replaceChildren();
@@ -302,6 +341,7 @@ async function loadFolder(path, { keepScroll = false } = {}) {
 }
 
 function showFolder(data, scrollTop) {
+  if (navTarget === data.path) navTarget = null;
   const sameFolder = state.folder && data.path === state.path;
   if (!sameFolder) {
     const prev = state.folder ? state.path : null;
@@ -1650,7 +1690,17 @@ function showStatus(status) {
 // ---- Wiring -------------------------------------------------------------------------------------------------------
 
 function bindEvents() {
-  window.addEventListener("hashchange", onHashChange);
+  window.addEventListener("popstate", onHistoryChange);
+  window.addEventListener("hashchange", onHistoryChange); // hand-typed URLs
+  document.addEventListener("click", (e) => {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const path = folderLinkPath(e);
+    if (path == null) return;
+    e.preventDefault();
+    navigate(path);
+  });
+  document.addEventListener("pointerdown", (e) => prefetchFolder(folderLinkPath(e)), { passive: true });
+  document.addEventListener("pointerover", (e) => { if (e.pointerType === "mouse") prefetchFolder(folderLinkPath(e)); }, { passive: true });
   window.addEventListener("beforeunload", (e) => { if (isDirty()) { e.preventDefault(); e.returnValue = ""; } });
 
   $("#theme-btn").addEventListener("click", () => {
