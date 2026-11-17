@@ -81,6 +81,27 @@ class Library:
         )
 
 
+def count_contents(folder: Path) -> tuple[int, int] | None:
+    """(subfolders, audio files) directly inside ``folder``, without reading
+    any tags. None if the folder can't be read."""
+    folders = files = 0
+    try:
+        with os.scandir(folder) as entries:
+            for entry in entries:
+                if entry.name.startswith("."):
+                    continue
+                try:
+                    if entry.is_dir():
+                        folders += 1
+                    elif entry.is_file() and Path(entry.name).suffix.lower() in SUPPORTED_EXTENSIONS:
+                        files += 1
+                except OSError:
+                    continue
+    except OSError:
+        return None
+    return folders, files
+
+
 def natural_key(text: str) -> list:
     """Sort key that orders numbers numerically: "2 song" < "10 song"."""
     return [int(p) if p.isdigit() else p.lower() for p in re.split(r"(\d+)", text)]

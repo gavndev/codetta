@@ -104,7 +104,8 @@ def test_browse_root(client):
     data = client.get("/api/browse").json()
     assert data["path"] == ""
     assert data["breadcrumbs"] == [{"name": "Library", "path": ""}]
-    assert data["folders"] == [{"name": "Artist", "path": "Artist"}]
+    # "Artist" holds two folders (Album, Broken) and no audio files directly.
+    assert data["folders"] == [{"name": "Artist", "path": "Artist", "folders": 2, "tracks": 0}]
     assert [t["name"] for t in data["tracks"]] == ["Loose Track.mp3"]
     assert data["tracks"][0]["tags"]["title"] == ["Test Track"]
 
@@ -388,3 +389,10 @@ def test_activity_persists_in_config_dir(music, tmp_path):
     with TestClient(create_app(settings)) as c:
         signed_in(c)
         assert c.get("/api/activity").json()[0]["message"] == "Edited genre on Loose Track.mp3"
+
+
+def test_folder_counts_ignore_hidden_and_non_audio(client):
+    data = client.get("/api/browse", params={"path": "Artist"}).json()
+    album = next(f for f in data["folders"] if f["name"] == "Album")
+    # 3 audio files; cover.jpg, .codetta-tmp.flac and .hidden.flac are not counted
+    assert (album["folders"], album["tracks"]) == (0, 3)

@@ -81,6 +81,9 @@ const ICONS = {
   auto: '<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 3a7 7 0 0 1 0 14z" fill="currentColor" stroke="none"/></svg>',
   plus: '<svg viewBox="0 0 20 20"><path d="M10 4v12M4 10h12"/></svg>',
   copy: '<svg viewBox="0 0 20 20"><rect x="7" y="7" width="9.5" height="9.5" rx="2"/><path d="M13 7V5a1.5 1.5 0 0 0-1.5-1.5h-6A1.5 1.5 0 0 0 4 5v6A1.5 1.5 0 0 0 5.5 12.5H7"/></svg>',
+  chevron: '<svg viewBox="0 0 20 20"><path d="m8 5 5 5-5 5"/></svg>',
+  rows: '<svg viewBox="0 0 20 20"><path d="M4 5.5h12M4 10h12M4 14.5h12"/></svg>',
+  grid: '<svg viewBox="0 0 20 20"><rect x="3.5" y="3.5" width="5" height="5" rx="1"/><rect x="11.5" y="3.5" width="5" height="5" rx="1"/><rect x="3.5" y="11.5" width="5" height="5" rx="1"/><rect x="11.5" y="11.5" width="5" height="5" rx="1"/></svg>',
   spark: '<svg viewBox="0 0 20 20"><path d="M10 3.5 11.4 8.6 16.5 10l-5.1 1.4L10 16.5l-1.4-5.1L3.5 10l5.1-1.4z"/></svg>',
   paste: '<svg viewBox="0 0 20 20"><rect x="4.5" y="4" width="11" height="13" rx="2"/><path d="M8 4V3h4v1"/><path d="M7.5 9h5M7.5 12h3"/></svg>',
 };
@@ -434,17 +437,49 @@ function renderFolderHead() {
       h("h1", {}, f.path ? f.name : "Library"),
       h("p", {}, counts.join(" · ") || "Empty folder")),
     h("div", { class: "folder-actions" },
+      f.folders.length ? h("div", { class: "view-toggle", role: "group", "aria-label": "Folder view" },
+        ["list", "grid"].map((v) => h("button", {
+          type: "button", class: "icon-btn", title: v === "list" ? "List" : "Grid",
+          "aria-label": v === "list" ? "Show folders as a list" : "Show folders as a grid",
+          "aria-pressed": String(folderView() === v),
+          onclick: () => setFolderView(v),
+        }, icon(v === "list" ? "rows" : "grid")))) : null,
       f.tracks.length || f.folders.length ? h("button", {
         class: "btn", type: "button", onclick: () => openApply("folder"),
       }, "Apply loadout…") : null),
   );
 }
 
+// Folders show as a list by default (clean with hundreds of artists), or as a grid.
+function folderView() {
+  try { return localStorage.getItem("codetta-folder-view") === "grid" ? "grid" : "list"; } catch { return "list"; }
+}
+
+function setFolderView(view) {
+  try { localStorage.setItem("codetta-folder-view", view); } catch { /* ignore */ }
+  renderFolderHead();
+  renderFolders();
+}
+
+function folderSummary(f) {
+  if (f.folders == null) return "";
+  const parts = [];
+  if (f.folders) parts.push(plural(f.folders, "folder"));
+  if (f.tracks) parts.push(plural(f.tracks, "track"));
+  return parts.join(" · ") || "Empty";
+}
+
 function renderFolders() {
   const q = state.filter.toLowerCase();
   const folders = (state.folder?.folders || []).filter((f) => !q || f.name.toLowerCase().includes(q));
+  const list = folderView() === "list";
+  els.folders.classList.toggle("as-list", list);
   els.folders.replaceChildren(...folders.map((f) =>
-    h("a", { class: "folder", href: hashFor(f.path), title: f.name }, icon("folder"), h("span", {}, f.name))));
+    h("a", { class: "folder", href: hashFor(f.path), title: f.name },
+      icon("folder"),
+      h("span", { class: "folder-name" }, f.name),
+      list ? h("span", { class: "folder-meta" }, folderSummary(f)) : null,
+      list ? icon("chevron") : null)));
 }
 
 function renderTracks() {

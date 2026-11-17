@@ -383,6 +383,32 @@ dialog.sheet.small { width: min(420px, calc(100vw - 32px)); }
 .folder svg { color: var(--accent); }
 .folder span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* List view (default): rows like the track list. */
+.folders.as-list {
+  display: block;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.folders.as-list .folder {
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  min-height: 46px;
+  padding: 0 14px 0 16px;
+}
+.folders.as-list .folder:last-child { border-bottom: 0; }
+.folder-name { flex: 1; min-width: 0; }
+.folder-meta { flex: none; color: var(--muted); font-size: 13px; font-weight: 400; font-variant-numeric: tabular-nums; }
+.folders.as-list .folder > svg:last-child { color: var(--faint); width: 15px; height: 15px; }
+
+.folder-actions { align-items: center; }
+.view-toggle { display: flex; gap: 2px; padding: 2px; border-radius: 9px; background: var(--hover); }
+.view-toggle .icon-btn { width: 30px; height: 28px; border-radius: 7px; }
+.view-toggle .icon-btn[aria-pressed="true"] { background: var(--surface-raised); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); }
+
 /* ---- Track list --------------------------------------------------------------------- */
 
 .tracks {
@@ -1108,6 +1134,9 @@ input[type="text"], input:not([type]), select, textarea {
 .nav-fade { animation: fade-in var(--dur) var(--ease-out) both; }
 #folders.nav-forward, #folders.nav-back { animation-delay: 20ms; }
 #tracks.nav-forward, #tracks.nav-back, #tracks.nav-fade { animation-delay: 40ms; }
+/* Keep content readable on very wide monitors. */
+.browser > * { max-width: 1200px; margin-left: auto; margin-right: auto; }
+
 /* While a slow folder loads, the current one stays visible, just dimmed. */
 .browser > * { transition: opacity var(--dur) ease; }
 .browser.is-loading > * { opacity: 0.55; pointer-events: none; }

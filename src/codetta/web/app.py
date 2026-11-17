@@ -39,7 +39,7 @@ from codetta.core.auth import (
     SessionStore,
 )
 from codetta.core.engine import MetadataEngine, MetadataError, TrackMetadata
-from codetta.core.library import Library, LibraryPathError
+from codetta.core.library import Library, LibraryPathError, count_contents
 from codetta.core.presets import (
     PLACEHOLDERS,
     FileResult,
@@ -126,11 +126,18 @@ class Crumb(BaseModel):
     path: str
 
 
+class FolderOut(BaseModel):
+    name: str
+    path: str
+    folders: int | None = None  # subfolders inside it (None if unreadable)
+    tracks: int | None = None  # audio files directly inside it
+
+
 class BrowseOut(BaseModel):
     path: str
     name: str
     breadcrumbs: list[Crumb]
-    folders: list[Crumb]
+    folders: list[FolderOut]
     tracks: list[TrackOut]
 
 
@@ -342,6 +349,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             mtime = None
         return _to_track_out(rel, meta, mtime)
 
+    def folder_out(rel: str) -> FolderOut:
+        counts = count_contents(library.resolve(rel))
+        return FolderOut(
+            name=rel.rsplit("/", 1)[-1], path=rel,
+            folders=counts[0] if counts else None, tracks=counts[1] if counts else None,
+        )
+
     def track_out(rel: str) -> TrackOut:
         name = rel.rsplit("/", 1)[-1]
         try:
@@ -395,7 +409,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             path=listing.path,
             name=crumbs[-1].name,
             breadcrumbs=crumbs,
-            folders=[Crumb(name=f.rsplit("/", 1)[-1], path=f) for f in listing.folders],
+            folders=[folder_out(f) for f in listing.folders],
             tracks=[track_out(f) for f in listing.files],
         )
 
