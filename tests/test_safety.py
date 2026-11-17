@@ -16,7 +16,7 @@ from mutagen.flac import FLAC, Picture
 from mutagen.id3 import APIC, ID3
 from mutagen.mp4 import MP4, MP4Cover
 
-from coda.core.engine import MetadataEngine, MetadataError, UnsupportedFormatError
+from codetta.core.engine import MetadataEngine, MetadataError, UnsupportedFormatError
 from tests.conftest import EXPECTED_TAGS, FIXTURES_DIR, SAMPLE_FILES
 
 IS_ROOT = hasattr(os, "geteuid") and os.geteuid() == 0
@@ -39,7 +39,7 @@ def sha256(path):
 
 def assert_untouched(path, before):
     assert sha256(path) == before, "original file was modified"
-    leftovers = [p.name for p in path.parent.iterdir() if p.name.startswith(".coda-")]
+    leftovers = [p.name for p in path.parent.iterdir() if p.name.startswith(".codetta-")]
     assert leftovers == [], f"temp files left behind: {leftovers}"
 
 
@@ -202,7 +202,7 @@ def test_hard_linked_copy_is_left_untouched(engine, tmp_path):
     """e.g. a torrent client seeding the same file the library hard-links to.
 
     Writing tags in place would change the seeding copy too (breaking the
-    torrent). Coda writes a new file instead, so the other link keeps the
+    torrent). Codetta writes a new file instead, so the other link keeps the
     original bytes.
     """
     seeding = tmp_path / "downloads" / "song.flac"
@@ -318,7 +318,7 @@ def test_disk_full_while_copying(engine, fixture_copy, monkeypatch):
     def disk_full(*args, **kwargs):
         raise OSError(28, "No space left on device")
 
-    monkeypatch.setattr("coda.core.engine.shutil.copy2", disk_full)
+    monkeypatch.setattr("codetta.core.engine.shutil.copy2", disk_full)
 
     with pytest.raises(MetadataError, match="No space left"):
         engine.update_tags(path, {"title": "Changed"})

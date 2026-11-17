@@ -29,10 +29,10 @@ dist/
 # Local test audio / scratch music (never commit real libraries)
 music/
 
-# Local Coda data: account, sessions, activity log, loadouts. Never commit these.
+# Local Codetta data: account, sessions, activity log, loadouts. Never commit these.
 config/*
 !config/.gitkeep
-coda-config/
+codetta-config/
 
 # Per-server Docker settings (e.g. your music path)
 docker-compose.override.yml

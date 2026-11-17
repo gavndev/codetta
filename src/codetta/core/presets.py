@@ -46,7 +46,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 
-from coda.core.engine import (
+from codetta.core.engine import (
     SUPPORTED_EXTENSIONS,
     MetadataEngine,
     MetadataError,
@@ -160,7 +160,7 @@ class LoadoutStore:
         self.directory.mkdir(parents=True, exist_ok=True)
         path = self._path_for(loadout.name)
         text = json.dumps(loadout.to_dict(), indent=2, ensure_ascii=False) + "\n"
-        fd, temp_name = tempfile.mkstemp(prefix=".coda-", suffix=".json", dir=self.directory)
+        fd, temp_name = tempfile.mkstemp(prefix=".codetta-", suffix=".json", dir=self.directory)
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(text)
@@ -315,7 +315,7 @@ def _audio_files_by_folder(folder: Path, recursive: bool) -> list[list[Path]]:
                 f
                 for f in d.iterdir()
                 if f.is_file()
-                and not f.name.startswith(".")  # includes .coda-* temp files
+                and not f.name.startswith(".")  # includes .codetta-* temp files
                 and f.suffix.lower() in SUPPORTED_EXTENSIONS
             ),
             key=lambda f: _natural_key(f.name),

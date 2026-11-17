@@ -1,4 +1,4 @@
-"""Tests for Tag Loadouts (coda.core.presets)."""
+"""Tests for Tag Loadouts (codetta.core.presets)."""
 
 import hashlib
 import json
@@ -7,8 +7,8 @@ import shutil
 import mutagen
 import pytest
 
-from coda.core.engine import MetadataEngine
-from coda.core.presets import (
+from codetta.core.engine import MetadataEngine
+from codetta.core.presets import (
     ApplyMode,
     Loadout,
     LoadoutError,
@@ -138,7 +138,7 @@ def test_store_list_skips_broken_files(tmp_path):
     store.save(Loadout(name="Good"))
     (tmp_path / "broken.json").write_text("{ not json")
     (tmp_path / "wrong.json").write_text('{"name": "W", "tags": {"genre": 5}}')
-    (tmp_path / ".coda-leftover.json").write_text('{"name": "Ghost"}')
+    (tmp_path / ".codetta-leftover.json").write_text('{"name": "Ghost"}')
     assert [lo.name for lo in store.list()] == ["Good"]
 
 
@@ -346,7 +346,7 @@ def test_album_folder_numbers_tracks_in_natural_order(engine, blank_file, tmp_pa
     blank_file("sample.m4a", "2 - Groove.m4a", album)
     blank_file("sample.ogg", "3 - Haze.ogg", album)
     (tmp_path / album / "cover.jpg").write_bytes(b"jpeg")  # non-audio: ignored
-    (tmp_path / album / ".coda-temp.flac").write_bytes(b"x")  # temp: ignored
+    (tmp_path / album / ".codetta-temp.flac").write_bytes(b"x")  # temp: ignored
 
     results = apply_loadout_to_folder(engine, default_loadouts()[1], tmp_path / album)
 

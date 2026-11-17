@@ -1,15 +1,15 @@
-"""Coda's web app: a JSON API plus the single-page UI.
+"""Codetta's web app: a JSON API plus the single-page UI.
 
 Run locally:
-    CODA_MUSIC_DIR=~/Music uvicorn coda.web.app:app --reload --port 8111
+    CODETTA_MUSIC_DIR=~/Music uvicorn codetta.web.app:app --reload --port 8111
 
 Settings (environment variables):
-    CODA_MUSIC_DIR   the music library to edit (default: /music)
-    CODA_CONFIG_DIR  where loadouts, the activity log and the account are
+    CODETTA_MUSIC_DIR   the music library to edit (default: /music)
+    CODETTA_CONFIG_DIR  where loadouts, the activity log and the account are
                      stored (default: ./config)
-    CODA_USERNAME    optional: set the account here instead of the setup screen
-    CODA_PASSWORD      (both must be set; the password can't then be changed in the UI)
-    CODA_AUTH        "off" disables sign-in entirely, e.g. behind a reverse proxy
+    CODETTA_USERNAME    optional: set the account here instead of the setup screen
+    CODETTA_PASSWORD      (both must be set; the password can't then be changed in the UI)
+    CODETTA_AUTH        "off" disables sign-in entirely, e.g. behind a reverse proxy
                      that already handles it (default: on)
 """
 
@@ -29,18 +29,18 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from coda.core.activity import ActivityLog
-from coda.core.artwork import MAX_ART_BYTES
-from coda.core.auth import (
+from codetta.core.activity import ActivityLog
+from codetta.core.artwork import MAX_ART_BYTES
+from codetta.core.auth import (
     SESSION_DAYS,
     AccountStore,
     AuthError,
     LoginRateLimiter,
     SessionStore,
 )
-from coda.core.engine import MetadataEngine, MetadataError, TrackMetadata
-from coda.core.library import Library, LibraryPathError
-from coda.core.presets import (
+from codetta.core.engine import MetadataEngine, MetadataError, TrackMetadata
+from codetta.core.library import Library, LibraryPathError
+from codetta.core.presets import (
     PLACEHOLDERS,
     FileResult,
     Loadout,
@@ -51,22 +51,27 @@ from coda.core.presets import (
     apply_loadout_to_folder,
     slugify,
 )
-from coda.core.tagmap import FIELDS
+from codetta.core.tagmap import FIELDS
 
 STATIC_DIR = Path(__file__).parent / "static"
-SESSION_COOKIE = "coda_session"
-log = logging.getLogger("coda")
-if not log.handlers:  # show Coda's own messages (sign-ins etc.) next to uvicorn's
+SESSION_COOKIE = "codetta_session"
+log = logging.getLogger("codetta")
+if not log.handlers:  # show Codetta's own messages (sign-ins etc.) next to uvicorn's
     _handler = logging.StreamHandler()
-    _handler.setFormatter(logging.Formatter("%(levelname)s:     coda: %(message)s"))
+    _handler.setFormatter(logging.Formatter("%(levelname)s:     codetta: %(message)s"))
     log.addHandler(_handler)
     log.setLevel(logging.INFO)
     log.propagate = False
 
 try:
-    VERSION = version("coda")
+    VERSION = version("codetta")
 except PackageNotFoundError:  # running from a source checkout without install
     VERSION = "dev"
+
+
+def env(name: str, default: str | None = None) -> str | None:
+    """Read CODETTA_<name>, falling back to the old CODA_<name> (Codetta's earlier name)."""
+    return os.environ.get(f"CODETTA_{name}") or os.environ.get(f"CODA_{name}") or default
 
 
 @dataclass
@@ -74,17 +79,17 @@ class Settings:
     music_dir: Path
     config_dir: Path
     auth: bool = True
-    username: str | None = None  # from CODA_USERNAME (with password: overrides setup)
+    username: str | None = None  # from CODETTA_USERNAME (with password: overrides setup)
     password: str | None = None
 
     @classmethod
     def from_env(cls) -> Settings:
         return cls(
-            music_dir=Path(os.environ.get("CODA_MUSIC_DIR", "/music")).expanduser(),
-            config_dir=Path(os.environ.get("CODA_CONFIG_DIR", "config")).expanduser(),
-            auth=os.environ.get("CODA_AUTH", "on").strip().lower() not in ("off", "false", "0", "no"),
-            username=os.environ.get("CODA_USERNAME") or None,
-            password=os.environ.get("CODA_PASSWORD") or None,
+            music_dir=Path(env("MUSIC_DIR", "/music")).expanduser(),
+            config_dir=Path(env("CONFIG_DIR", "config")).expanduser(),
+            auth=env("AUTH", "on").strip().lower() not in ("off", "false", "0", "no"),
+            username=env("USERNAME"),
+            password=env("PASSWORD"),
         )
 
 
@@ -187,7 +192,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     sessions = SessionStore(settings.config_dir / "sessions.json")
     limiter = LoginRateLimiter()
     if not settings.auth:
-        log.warning("Sign-in is turned OFF (CODA_AUTH=off). Anyone who can reach Coda can edit your music.")
+        log.warning("Sign-in is turned OFF (CODETTA_AUTH=off). Anyone who can reach Codetta can edit your music.")
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -199,10 +204,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         yield
 
     app = FastAPI(
-        title="Coda", version=VERSION, docs_url="/docs", redoc_url=None, lifespan=lifespan
+        title="Codetta", version=VERSION, docs_url="/docs", redoc_url=None, lifespan=lifespan
     )
 
-    # Map Coda's errors to HTTP status codes, with a readable message.
+    # Map Codetta's errors to HTTP status codes, with a readable message.
     def _error(status: int):
         async def handler(request: Request, exc: Exception) -> JSONResponse:
             return JSONResponse(status_code=status, content={"detail": str(exc)})
@@ -272,7 +277,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not settings.auth:
             raise HTTPException(400, "Sign-in is turned off")
         if not accounts.setup_required:
-            raise HTTPException(409, "Coda is already set up. Sign in instead.")
+            raise HTTPException(409, "Codetta is already set up. Sign in instead.")
         try:
             account = accounts.create(body.username, body.password)
         except AuthError as exc:
@@ -327,7 +332,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(
                 503,
                 f"Music folder not found: {library.root}. "
-                "Set CODA_MUSIC_DIR (or mount your music at /music in Docker).",
+                "Set CODETTA_MUSIC_DIR (or mount your music at /music in Docker).",
             )
 
     def to_out(rel: str, meta: TrackMetadata) -> TrackOut:

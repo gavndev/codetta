@@ -1,4 +1,4 @@
-"""Tests for the web API (coda.web.app)."""
+"""Tests for the web API (codetta.web.app)."""
 
 import hashlib
 import shutil
@@ -7,7 +7,7 @@ import mutagen
 import pytest
 from fastapi.testclient import TestClient
 
-from coda.web.app import Settings, create_app
+from codetta.web.app import Settings, create_app
 from tests.conftest import FIXTURES_DIR
 
 
@@ -39,7 +39,7 @@ def music(tmp_path):
           01 - Intro.flac        (tagged)
           2 - Groove.mp3         (untagged)
           10 - Outro.m4a         (untagged)
-          cover.jpg, .coda-tmp.flac, .hidden.flac   (ignored)
+          cover.jpg, .codetta-tmp.flac, .hidden.flac   (ignored)
         Broken/
           bad.flac               (garbage)
     """
@@ -52,7 +52,7 @@ def music(tmp_path):
         shutil.copy2(FIXTURES_DIR / src, album / name)
         mutagen.File(album / name).delete()
     (album / "cover.jpg").write_bytes(b"jpeg")
-    (album / ".coda-tmp.flac").write_bytes(b"x")
+    (album / ".codetta-tmp.flac").write_bytes(b"x")
     shutil.copy2(FIXTURES_DIR / "sample.flac", album / ".hidden.flac")
     broken = root / "Artist" / "Broken"
     broken.mkdir()
@@ -88,7 +88,7 @@ def test_fields(client):
 def test_ui_is_served(client):
     page = client.get("/")
     assert page.status_code == 200
-    assert "<title>Coda</title>" in page.text
+    assert "<title>Codetta</title>" in page.text
     for asset in ["/static/app.css", "/static/app.js", "/static/icon.svg", "/static/fonts/inter-latin.woff2"]:
         assert client.get(asset).status_code == 200, asset
 
@@ -149,7 +149,7 @@ def test_missing_music_folder_explains_itself(tmp_path):
         assert c.get("/api/status").json()["music_dir_found"] is False
         res = c.get("/api/browse")
         assert res.status_code == 503
-        assert "CODA_MUSIC_DIR" in res.json()["detail"]
+        assert "CODETTA_MUSIC_DIR" in res.json()["detail"]
 
 
 # --- Track read & update ------------------------------------------------------------------------

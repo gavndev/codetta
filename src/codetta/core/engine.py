@@ -26,8 +26,8 @@ from mutagen.oggvorbis import OggVorbis
 
 # Importing tagmap registers the extra tag names (mood, label, engineer, ...)
 # so every format shares one vocabulary.
-from coda.core.artwork import Artwork, ArtworkError, parse_image, read_picture, write_picture
-from coda.core.tagmap import HIDDEN_ALIASES, is_tag_supported
+from codetta.core.artwork import Artwork, ArtworkError, parse_image, read_picture, write_picture
+from codetta.core.tagmap import HIDDEN_ALIASES, is_tag_supported
 
 __all__ = [
     "SUPPORTED_EXTENSIONS",
@@ -40,10 +40,10 @@ __all__ = [
     "is_tag_supported",
 ]
 
-# File extensions Coda will open. Anything else is rejected up front.
+# File extensions Codetta will open. Anything else is rejected up front.
 SUPPORTED_EXTENSIONS: frozenset[str] = frozenset({".flac", ".mp3", ".m4a", ".ogg", ".opus"})
 
-# The mutagen class detected from the file's contents -> Coda's format name.
+# The mutagen class detected from the file's contents -> Codetta's format name.
 # Detection is by content (see _sniff_format), so a mislabelled file is still
 # identified correctly.
 _FORMAT_NAMES: dict[type, str] = {
@@ -70,12 +70,12 @@ class MetadataError(Exception):
 
 
 class UnsupportedFormatError(MetadataError):
-    """The file is not one of the audio formats Coda handles."""
+    """The file is not one of the audio formats Codetta handles."""
 
 
 @dataclass(frozen=True)
 class TrackMetadata:
-    """Everything Coda knows about one audio file."""
+    """Everything Codetta knows about one audio file."""
 
     path: Path
     format: str
@@ -226,7 +226,7 @@ class MetadataEngine:
         try:
             try:
                 fd, temp_name = tempfile.mkstemp(
-                    prefix=".coda-", suffix=target.suffix, dir=target.parent
+                    prefix=".codetta-", suffix=target.suffix, dir=target.parent
                 )
             except OSError as exc:
                 raise MetadataError(f"Cannot write to folder {target.parent}: {exc}") from exc
@@ -284,7 +284,7 @@ def _open_audio(path: Path):
 
     mutagen on its own trusts the extension over the contents, so an MP3
     renamed to ``.flac`` would fail to open. Sniffing the header first avoids
-    that, and also guarantees only Coda's five formats are ever tried.
+    that, and also guarantees only Codetta's five formats are ever tried.
     """
     try:
         kind = _sniff_format(path)
@@ -360,7 +360,7 @@ def _normalize_value(value: TagValue) -> list[str]:
 def _copy_ownership(source: Path, dest: Path) -> None:
     """Give ``dest`` the same owner/group as ``source`` where permitted.
 
-    Matters when Coda runs as root in Docker: without this, edited files would
+    Matters when Codetta runs as root in Docker: without this, edited files would
     end up owned by root instead of the user who owns the music library.
     """
     st = source.stat()

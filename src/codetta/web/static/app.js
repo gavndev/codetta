@@ -1,6 +1,6 @@
-// Coda UI — plain JavaScript, no framework, no build step.
+// Codetta UI — plain JavaScript, no framework, no build step.
 //
-// Talks to the JSON API in coda/web/app.py. The current folder lives in the
+// Talks to the JSON API in codetta/web/app.py. The current folder lives in the
 // URL hash (#/Artist/Album), so the back button and refresh work.
 
 // ---- Tiny DOM helpers ----------------------------------------------------------
@@ -194,11 +194,11 @@ const THEME_LABEL = { system: "Theme: match system", light: "Theme: light", dark
 const THEME_ICON = { system: "auto", light: "sun", dark: "moon" };
 
 function getTheme() {
-  try { return localStorage.getItem("coda-theme") || "system"; } catch { return "system"; }
+  try { return localStorage.getItem("codetta-theme") || "system"; } catch { return "system"; }
 }
 
 function setTheme(theme) {
-  try { localStorage.setItem("coda-theme", theme); } catch { /* private mode */ }
+  try { localStorage.setItem("codetta-theme", theme); } catch { /* private mode */ }
   // Crossfade the whole page between themes where the browser supports it.
   if (document.startViewTransition && !reducedMotion()) document.startViewTransition(() => applyTheme(theme));
   else applyTheme(theme);
@@ -371,7 +371,7 @@ function showFolder(data, scrollTop) {
     for (const p of state.selected) if (!paths.has(p)) state.selected.delete(p);
     if (state.editor) renderEditor(); // show the fresh tags
   }
-  document.title = data.path ? `${data.name} — Coda` : "Coda";
+  document.title = data.path ? `${data.name} — Codetta` : "Codetta";
   renderBrowser();
   els.browser.scrollTop = scrollTop;
 }
@@ -458,7 +458,7 @@ function renderTracks() {
     if (!f.folders.length) {
       els.folders.replaceChildren(h("div", { class: "empty" },
         h("strong", {}, "No audio files here"),
-        "Coda shows FLAC, MP3, M4A, OGG and Opus files."));
+        "Codetta shows FLAC, MP3, M4A, OGG and Opus files."));
     }
     return;
   }
@@ -791,14 +791,14 @@ function renderEditor() {
 // ---- Editor toolbar: copy & paste tags ---------------------------------------------------------
 
 function loadClipboard() {
-  try { return JSON.parse(localStorage.getItem("coda-clipboard")) || null; } catch { return null; }
+  try { return JSON.parse(localStorage.getItem("codetta-clipboard")) || null; } catch { return null; }
 }
 
 function saveClipboard(clip) {
   state.clipboard = clip;
   try {
-    if (clip) localStorage.setItem("coda-clipboard", JSON.stringify(clip));
-    else localStorage.removeItem("coda-clipboard");
+    if (clip) localStorage.setItem("codetta-clipboard", JSON.stringify(clip));
+    else localStorage.removeItem("codetta-clipboard");
   } catch { /* private mode: clipboard just won't survive a reload */ }
 }
 
@@ -1354,7 +1354,7 @@ const activity = { entries: [], lastId: 0, timer: null, open: null };
 
 function activityOpenPref() {
   try {
-    const v = localStorage.getItem("coda-activity-open");
+    const v = localStorage.getItem("codetta-activity-open");
     if (v !== null) return v === "1";
   } catch { /* ignore */ }
   return !window.matchMedia("(max-width: 760px)").matches; // open on desktop, closed on phones
@@ -1682,13 +1682,13 @@ function showStatus(status) {
   if (!status.music_dir_found) {
     els.banner.replaceChildren(
       h("strong", {}, "Music folder not found"),
-      "Coda is looking for your music at ", h("code", {}, status.music_dir), ". ",
-      "Set ", h("code", {}, "CODA_MUSIC_DIR"), " to your library, or mount it at ", h("code", {}, "/music"), " in Docker.");
+      "Codetta is looking for your music at ", h("code", {}, status.music_dir), ". ",
+      "Set ", h("code", {}, "CODETTA_MUSIC_DIR"), " to your library, or mount it at ", h("code", {}, "/music"), " in Docker.");
     els.banner.hidden = false;
   } else if (!status.music_dir_writable) {
     els.banner.replaceChildren(
       h("strong", {}, "Read-only library"),
-      "Coda can read your music but can't save changes. Check the folder's permissions (or remove ", h("code", {}, ":ro"), " from the Docker volume).");
+      "Codetta can read your music but can't save changes. Check the folder's permissions (or remove ", h("code", {}, ":ro"), " from the Docker volume).");
     els.banner.hidden = false;
   }
 }
@@ -1724,7 +1724,7 @@ function bindEvents() {
   $("#editor-close").addEventListener("click", () => closeEditor());
   $("#activity-toggle").addEventListener("click", () => {
     activity.open = !activity.open;
-    try { localStorage.setItem("coda-activity-open", activity.open ? "1" : "0"); } catch { /* ignore */ }
+    try { localStorage.setItem("codetta-activity-open", activity.open ? "1" : "0"); } catch { /* ignore */ }
     renderActivity();
   });
   els.editorSave.addEventListener("click", () => saveEditor());
@@ -1734,7 +1734,7 @@ function bindEvents() {
   els.editorForm.addEventListener("submit", (e) => { e.preventDefault(); saveEditor(); });
   // Keep "Copy tags" / "Paste" in sync when tags are copied in another tab.
   window.addEventListener("storage", (e) => {
-    if (e.key === "coda-clipboard") { state.clipboard = loadClipboard(); if (state.editor) renderToolbar(); }
+    if (e.key === "codetta-clipboard") { state.clipboard = loadClipboard(); if (state.editor) renderToolbar(); }
   });
 
   $("#sel-clear").addEventListener("click", () => { state.selected.clear(); updateRowStates(); renderSelectionBar(); });
@@ -1778,7 +1778,7 @@ let appStarted = false;
 function showAuth(mode, message = "") {
   authMode = mode;
   const setup = mode === "setup";
-  $("#auth-title").textContent = setup ? "Welcome to Coda" : "Sign in to Coda";
+  $("#auth-title").textContent = setup ? "Welcome to Codetta" : "Sign in to Codetta";
   $("#auth-sub").textContent = setup ? "Create the account that protects your music library." : message;
   $("#auth-confirm-wrap").hidden = !setup;
   $("#auth-confirm").required = setup;
@@ -1872,7 +1872,7 @@ async function boot() {
   try {
     state.auth = await api("GET", "/api/auth/status");
   } catch (err) {
-    toast(`Can't reach the Coda server: ${err.message}`, "error");
+    toast(`Can't reach the Codetta server: ${err.message}`, "error");
     return;
   }
   if (state.auth.auth_enabled && !state.auth.signed_in) {
@@ -1894,7 +1894,7 @@ async function startApp() {
     $("#tag-keys").replaceChildren(...fields.fields.map((f) => h("option", { value: f.key }, f.label)));
     showStatus(status);
   } catch (err) {
-    toast(`Can't reach the Coda server: ${err.message}`, "error");
+    toast(`Can't reach the Codetta server: ${err.message}`, "error");
   }
   await loadFolder(pathFromHash());
   refreshActivity();

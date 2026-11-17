@@ -1,13 +1,13 @@
-# Coda — self-hosted music metadata editor.
+# Codetta — self-hosted music metadata editor.
 #
 # 1. Change the music path below to your library's folder.
 # 2. Set PUID/PGID to the user that owns your music (run `id` on the server).
 # 3. docker compose up -d   →   open http://<server>:8111 and create your account.
 services:
-  coda:
+  codetta:
     build: .
-    image: coda:local
-    container_name: coda
+    image: codetta:local
+    container_name: codetta
     restart: unless-stopped
     ports:
       - "8111:8111"
@@ -15,13 +15,13 @@ services:
       PUID: "1000"   # user that owns your music files
       PGID: "1000"   # its group
       # Optional: set the account here instead of the setup screen.
-      # CODA_USERNAME: "you"
-      # CODA_PASSWORD: "a long password"
+      # CODETTA_USERNAME: "you"
+      # CODETTA_PASSWORD: "a long password"
       # Optional: turn sign-in off ONLY if a reverse proxy already handles it.
-      # CODA_AUTH: "off"
+      # CODETTA_AUTH: "off"
     volumes:
       - /path/to/your/music:/music     # ← your music library (read-write)
-      - ./coda-config:/config          # account, loadouts, activity log
+      - ./codetta-config:/config          # account, loadouts, activity log
     # Hardening: no privilege escalation, read-only system files.
     security_opt:
       - no-new-privileges:true

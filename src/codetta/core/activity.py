@@ -1,8 +1,8 @@
-"""Activity log: a record of every change Coda makes to your files.
+"""Activity log: a record of every change Codetta makes to your files.
 
 Entries are kept in memory for the UI and appended to ``activity.jsonl`` in
 the config folder (one JSON object per line), so the history survives
-restarts and you can always check what Coda did to your library.
+restarts and you can always check what Codetta did to your library.
 """
 
 from __future__ import annotations

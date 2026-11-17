@@ -1,12 +1,12 @@
-"""Coda admin commands, run on the server.
+"""Codetta admin commands, run on the server.
 
-    python -m coda.cli set-password       # create the account or reset its password
-    python -m coda.cli sign-out-all       # sign out every browser
+    python -m codetta.cli set-password       # create the account or reset its password
+    python -m codetta.cli sign-out-all       # sign out every browser
 
 In Docker:
-    docker exec -it coda python -m coda.cli set-password
+    docker exec -it codetta codetta-admin set-password
 
-Uses CODA_CONFIG_DIR (default ./config) like the web app, or --config DIR.
+Uses CODETTA_CONFIG_DIR (default ./config) like the web app, or --config DIR.
 """
 
 from __future__ import annotations
@@ -17,13 +17,13 @@ import os
 import sys
 from pathlib import Path
 
-from coda.core.auth import AccountStore, AuthError, SessionStore
+from codetta.core.auth import AccountStore, AuthError, SessionStore
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="python -m coda.cli", description="Coda admin commands")
-    parser.add_argument("--config", default=os.environ.get("CODA_CONFIG_DIR", "config"),
-                        help="config folder (default: $CODA_CONFIG_DIR or ./config)")
+    parser = argparse.ArgumentParser(prog="python -m codetta.cli", description="Codetta admin commands")
+    parser.add_argument("--config", default=os.environ.get("CODETTA_CONFIG_DIR") or os.environ.get("CODA_CONFIG_DIR") or "config",
+                        help="config folder (default: $CODETTA_CONFIG_DIR or ./config)")
     sub = parser.add_subparsers(dest="command", required=True)
     sp = sub.add_parser("set-password", help="create the account, or reset its password")
     sp.add_argument("--username", help="username (default: keep the current one)")

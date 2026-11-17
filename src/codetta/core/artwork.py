@@ -8,7 +8,7 @@ Each format keeps pictures somewhere different:
     OGG / Opus  a base64-encoded picture block in the ``metadata_block_picture``
                 comment
 
-Coda keeps it simple and predictable: *setting* art replaces every embedded
+Codetta keeps it simple and predictable: *setting* art replaces every embedded
 picture with one front cover, and *removing* art removes them all. Images must
 be JPEG or PNG, which every player (and Navidrome) understands.
 

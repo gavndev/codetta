@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
-  <!-- Coda's mark: the musical coda sign, flat. Black on light, white on dark. -->
+  <!-- Codetta's mark: the musical coda sign, flat. Black on light, white on dark. -->
   <style>
     .mark { stroke: #1d1d1f; }
     @media (prefers-color-scheme: dark) { .mark { stroke: #f5f5f7; } }

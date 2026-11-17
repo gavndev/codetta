@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "coda"
+name = "codetta"
 version = "0.1.0"
 description = "Self-hosted music metadata editor for homelab audio libraries"
 requires-python = ">=3.14"
@@ -23,7 +23,7 @@ dev = [
 where = ["src"]
 
 [tool.setuptools.package-data]
-coda = ["web/static/*", "web/static/fonts/*"]
+codetta = ["web/static/*", "web/static/fonts/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

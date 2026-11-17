@@ -13,7 +13,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
-from coda.core.engine import SUPPORTED_EXTENSIONS
+from codetta.core.engine import SUPPORTED_EXTENSIONS
 
 
 class LibraryPathError(ValueError):
@@ -54,7 +54,7 @@ class Library:
         """Subfolders and audio files directly inside one folder.
 
         Hidden entries (names starting with ".") are skipped, which includes
-        Coda's own ``.coda-*`` temp files. Both lists are in natural order
+        Codetta's own ``.codetta-*`` temp files. Both lists are in natural order
         ("Disc 2" before "Disc 10").
         """
         folder = self.resolve(relative)

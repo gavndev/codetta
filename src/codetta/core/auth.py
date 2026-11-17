@@ -1,4 +1,4 @@
-"""Sign-in for Coda: one account, password hashing, sessions, and rate limiting.
+"""Sign-in for Codetta: one account, password hashing, sessions, and rate limiting.
 
 Design:
 * One account (username + password). It's created on the first visit
@@ -83,7 +83,7 @@ def validate_new_credentials(username: str, password: str) -> str:
 def _write_private_json(path: Path, data: object) -> None:
     """Write JSON atomically, readable only by the owner (chmod 600)."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(prefix=".coda-", suffix=".json", dir=path.parent)
+    fd, tmp = tempfile.mkstemp(prefix=".codetta-", suffix=".json", dir=path.parent)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
@@ -111,7 +111,7 @@ class Account:
 
 
 class AccountStore:
-    """The single Coda account, from env vars or ``auth.json`` in the config folder."""
+    """The single Codetta account, from env vars or ``auth.json`` in the config folder."""
 
     def __init__(self, file: Path, env_username: str | None = None, env_password: str | None = None) -> None:
         self.file = file
@@ -138,14 +138,14 @@ class AccountStore:
         username = validate_new_credentials(username, password)
         with self._lock:
             if self.get() is not None:
-                raise AuthError("Coda is already set up. Sign in instead.")
+                raise AuthError("Codetta is already set up. Sign in instead.")
             account = Account(username, hash_password(password))
             self._save(account)
         return account
 
     def set_password(self, username: str, new_password: str) -> Account:
         if self.managed_by_env:
-            raise AuthError("The password is set by environment variables (CODA_USERNAME / CODA_PASSWORD).")
+            raise AuthError("The password is set by environment variables (CODETTA_USERNAME / CODETTA_PASSWORD).")
         username = validate_new_credentials(username, new_password)
         with self._lock:
             account = Account(username, hash_password(new_password))
@@ -179,7 +179,7 @@ def _token_hash(token: str) -> str:
 class SessionStore:
     """Signed-in browsers. Persisted (as token hashes) so restarts don't sign you out.
 
-    The file is re-read whenever it changes on disk, so ``python -m coda.cli
+    The file is re-read whenever it changes on disk, so ``python -m codetta.cli
     sign-out-all`` (a separate process) takes effect on a running server.
     """
 

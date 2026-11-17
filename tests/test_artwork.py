@@ -1,4 +1,4 @@
-"""Tests for album art (coda.core.artwork + MetadataEngine artwork methods)."""
+"""Tests for album art (codetta.core.artwork + MetadataEngine artwork methods)."""
 
 import hashlib
 import shutil
@@ -6,9 +6,9 @@ import subprocess
 
 import pytest
 
-from coda.core.activity import ActivityLog
-from coda.core.artwork import ArtworkError, parse_image
-from coda.core.engine import MetadataEngine, MetadataError
+from codetta.core.activity import ActivityLog
+from codetta.core.artwork import ArtworkError, parse_image
+from codetta.core.engine import MetadataEngine, MetadataError
 from tests.conftest import EXPECTED_TAGS, FIXTURES_DIR, SAMPLE_FILES
 
 JPEG = (FIXTURES_DIR / "cover.jpg").read_bytes()
@@ -128,7 +128,7 @@ def test_invalid_image_leaves_file_untouched(engine, fixture_copy):
 def test_art_write_failure_leaves_file_untouched(engine, fixture_copy, monkeypatch):
     path = fixture_copy("sample.mp3")
     before = sha256(path)
-    monkeypatch.setattr("coda.core.engine.os.replace", lambda *a: (_ for _ in ()).throw(OSError("disk gone")))
+    monkeypatch.setattr("codetta.core.engine.os.replace", lambda *a: (_ for _ in ()).throw(OSError("disk gone")))
     with pytest.raises(MetadataError, match="disk gone"):
         engine.update_artwork(path, JPEG)
     assert sha256(path) == before

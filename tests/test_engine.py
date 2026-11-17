@@ -7,7 +7,7 @@ import subprocess
 
 import pytest
 
-from coda.core.engine import (
+from codetta.core.engine import (
     MetadataEngine,
     MetadataError,
     TrackMetadata,
@@ -340,7 +340,7 @@ def test_failure_during_swap_leaves_file_untouched(engine, fixture_copy, monkeyp
     def failing_replace(src, dst):
         raise OSError("disk on fire")
 
-    monkeypatch.setattr("coda.core.engine.os.replace", failing_replace)
+    monkeypatch.setattr("codetta.core.engine.os.replace", failing_replace)
 
     with pytest.raises(MetadataError, match="disk on fire"):
         engine.update_tags(path, {"title": "Changed"})
@@ -349,7 +349,7 @@ def test_failure_during_swap_leaves_file_untouched(engine, fixture_copy, monkeyp
     assert sorted(p.name for p in path.parent.iterdir()) == ["sample.flac"]
 
 
-# --- Shared tag vocabulary (see coda/core/tagmap.py) ------------------------
+# --- Shared tag vocabulary (see codetta/core/tagmap.py) ------------------------
 
 # Tags Navidrome / OpenSubsonic clients use, with a sample value for each.
 NAVIDROME_TAGS = {
@@ -439,6 +439,6 @@ def test_m4a_compilation_rejects_non_boolean(engine, fixture_copy):
     ],
 )
 def test_is_tag_supported(fmt, key, expected):
-    from coda.core.engine import is_tag_supported
+    from codetta.core.engine import is_tag_supported
 
     assert is_tag_supported(fmt, key) is expected

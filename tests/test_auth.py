@@ -7,8 +7,8 @@ import stat
 import pytest
 from fastapi.testclient import TestClient
 
-from coda.cli.__main__ import main as cli_main
-from coda.core.auth import (
+from codetta.cli.__main__ import main as cli_main
+from codetta.core.auth import (
     AccountStore,
     AuthError,
     LoginRateLimiter,
@@ -16,7 +16,7 @@ from coda.core.auth import (
     hash_password,
     verify_password,
 )
-from coda.web.app import SESSION_COOKIE, Settings, create_app
+from codetta.web.app import SESSION_COOKIE, Settings, create_app
 
 USER, PASSWORD = "gavin", "correct horse battery"
 
@@ -290,12 +290,12 @@ def test_auth_off(make_client):
 
 
 def test_settings_from_env(monkeypatch):
-    monkeypatch.setenv("CODA_AUTH", "off")
-    monkeypatch.setenv("CODA_USERNAME", "a")
-    monkeypatch.setenv("CODA_PASSWORD", "b")
+    monkeypatch.setenv("CODETTA_AUTH", "off")
+    monkeypatch.setenv("CODETTA_USERNAME", "a")
+    monkeypatch.setenv("CODETTA_PASSWORD", "b")
     s = Settings.from_env()
     assert (s.auth, s.username, s.password) == (False, "a", "b")
-    monkeypatch.delenv("CODA_AUTH")
+    monkeypatch.delenv("CODETTA_AUTH")
     assert Settings.from_env().auth is True
 
 
@@ -342,3 +342,15 @@ def test_cli_sign_out_all_affects_running_server(make_client, tmp_path):
         assert c.get("/api/browse").status_code == 200
         assert cli_main(["--config", str(tmp_path / "config"), "sign-out-all"]) == 0
         assert c.get("/api/browse").status_code == 401
+
+
+def test_old_coda_env_names_still_work(monkeypatch):
+    # Codetta was called Coda before; existing setups keep working.
+    for k in ("CODETTA_AUTH", "CODETTA_USERNAME", "CODETTA_PASSWORD", "CODETTA_MUSIC_DIR"):
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("CODA_AUTH", "off")
+    monkeypatch.setenv("CODA_MUSIC_DIR", "/old/music")
+    s = Settings.from_env()
+    assert s.auth is False and str(s.music_dir) == "/old/music"
+    monkeypatch.setenv("CODETTA_MUSIC_DIR", "/new/music")  # the new name wins
+    assert str(Settings.from_env().music_dir) == "/new/music"

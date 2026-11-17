@@ -139,7 +139,7 @@ def _register_id3_credit(key: str, role: str) -> None:
     """Credits like engineer/mixer live in the TIPL "involved people" frame.
 
     TIPL holds [role, name] pairs, e.g. [["engineer", "Ann"], ["mix", "Bob"]].
-    Each Coda tag reads and writes only the pairs for its own role.
+    Each Codetta tag reads and writes only the pairs for its own role.
     """
 
     def people(id3):
