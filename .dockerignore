@@ -13,3 +13,7 @@ tests
 music
 .env
 .env.*
+docs
+.github
+*.md
+!README.md

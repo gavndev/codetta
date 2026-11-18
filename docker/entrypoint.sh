@@ -8,7 +8,8 @@ PGID="${PGID:-1000}"
 PORT="${CODETTA_PORT:-${CODA_PORT:-8111}}"
 CONFIG="${CODETTA_CONFIG_DIR:-${CODA_CONFIG_DIR:-/config}}"
 
-set -- uvicorn codetta.web.app:app --host 0.0.0.0 --port "$PORT" --no-server-header "$@"
+# No per-request access log: health checks and polling would grow Docker's log forever.
+set -- uvicorn codetta.web.app:app --host 0.0.0.0 --port "$PORT" --no-server-header --no-access-log "$@"
 
 if [ "$(id -u)" = "0" ]; then
     mkdir -p "$CONFIG"

@@ -7,9 +7,15 @@ and display details:
 
 * The first scan reads every audio file once. Later scans only look at file
   sizes and modification times, and re-read just the files that changed.
+* There is no timer: after the startup scan, the library is only re-checked
+  when someone searches (at most every ``RESCAN_SECONDS``), so an idle Codetta
+  never wakes sleeping hard drives.
 * Files Codetta edits itself are refreshed right away (``mark_dirty``).
-* Searches never block on a scan; while the first scan runs, results simply
-  cover what has been indexed so far.
+* Searches never block on a scan; while a scan runs, results cover what has
+  been indexed so far.
+* It stays small: fingerprints, IDs, ReplayGain values and very long text
+  (lyrics) aren't indexed, and the stored track details are compressed. The
+  editor reads full tags from the file itself.
 
 Query syntax (see ``parse_query``)::
 
@@ -31,6 +37,7 @@ import sqlite3
 import threading
 import time
 import unicodedata
+import zlib
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -41,13 +48,45 @@ from codetta.core.tagmap import FIELDS
 
 log = logging.getLogger("codetta.index")
 
-SCHEMA_VERSION = 1
-RESCAN_SECONDS = 10 * 60  # look for added/changed/removed files this often
+SCHEMA_VERSION = 3
+RESCAN_SECONDS = 15 * 60  # a search re-checks the library if the last scan is older than this
 BATCH = 200  # files per database transaction while scanning
 MAX_QUERY_CHARS = 500
 
 # Tags searched by plain words (no "key:").
 FREE_TEXT_KEYS = ("title", "artist", "album", "albumartist")
+
+# Not worth searching, and often large: fingerprints, IDs, loudness data.
+_SKIP_KEY = re.compile(r"^(acoustid_|musicbrainz_|replaygain_|itunnorm|itunsmpb|isrc$|barcode$|tidal_|spotify_|discogs_|deezer_|qobuz_|.*_id$|.*fingerprint)")
+# Searchable, but not worth an index entry: sort names and credits repeat the real names.
+_DUPLICATE_KEY = re.compile(r"^(.*sort|.*_credit|.*sortorder)$")
+MAX_INDEXED_VALUE = 300  # longer values (lyrics, essays in comments) aren't searchable
+MAX_STORED_VALUE = 1000  # longer values are left out of the stored track details
+
+
+def _searchable(key: str, value: str) -> bool:
+    return len(value) <= MAX_INDEXED_VALUE and not _SKIP_KEY.match(key) and not _DUPLICATE_KEY.match(key)
+
+
+def _slim(track: dict) -> dict:
+    """The track details kept in the index: everything the track list shows,
+    without huge values. Marked ``partial`` so the editor reloads full tags."""
+    tags = {}
+    for key, values in (track.get("tags") or {}).items():
+        if _SKIP_KEY.match(key.lower()):
+            continue
+        kept = [v for v in values if len(v) <= MAX_STORED_VALUE]
+        if kept:
+            tags[key] = kept
+    return {**track, "tags": tags, "partial": True}
+
+
+def _pack(track: dict) -> bytes:
+    return zlib.compress(json.dumps(_slim(track), ensure_ascii=False, separators=(",", ":")).encode(), 6)
+
+
+def _unpack(blob: bytes) -> dict:
+    return json.loads(zlib.decompress(blob))
 
 # Scripts written without spaces between words: match anywhere, not on word starts.
 _NO_SPACES = re.compile(r"[฀-๿⺀-鿿가-힯豈-﫿぀-ヿ]")
@@ -183,6 +222,8 @@ class LibraryIndex:
         self._scanning = False
         self._seen = 0
         self._ready = False
+        self._last_scan = 0.0  # monotonic time the last full scan finished
+        self._scan_requested = True  # scan once at startup
         self.db = self._open(db_path)
 
     # -- database ------------------------------------------------------------------------------
@@ -195,8 +236,8 @@ class LibraryIndex:
                 db = sqlite3.connect(db_path, check_same_thread=False)
                 db.execute("PRAGMA journal_mode=WAL")
                 version = db.execute("PRAGMA user_version").fetchone()[0]
-                if version not in (0, SCHEMA_VERSION):
-                    db.executescript("DROP TABLE IF EXISTS files; DROP TABLE IF EXISTS tags;")
+                if version not in (0, SCHEMA_VERSION):  # older layout: rebuild from scratch
+                    db.executescript("DROP TABLE IF EXISTS files; DROP TABLE IF EXISTS tags; DROP TABLE IF EXISTS keys; VACUUM;")
             except (OSError, sqlite3.Error) as exc:
                 log.warning("Library index can't be saved in the config folder (%s); keeping it in memory.", exc)
                 db = None
@@ -205,18 +246,27 @@ class LibraryIndex:
         db.executescript(
             """
             CREATE TABLE IF NOT EXISTS files (
-                path TEXT PRIMARY KEY, mtime INTEGER, size INTEGER,
-                text TEXT, track TEXT NOT NULL);
+                id INTEGER PRIMARY KEY, path TEXT NOT NULL UNIQUE, mtime INTEGER, size INTEGER,
+                text TEXT, track BLOB NOT NULL);
+            CREATE TABLE IF NOT EXISTS keys (id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE);
+            -- One row per file and tag; tag names are stored once, in "keys".
             CREATE TABLE IF NOT EXISTS tags (
-                path TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL);
-            CREATE INDEX IF NOT EXISTS tags_key ON tags(key);
-            CREATE INDEX IF NOT EXISTS tags_path ON tags(path);
+                key INTEGER NOT NULL, file INTEGER NOT NULL, value TEXT NOT NULL,
+                PRIMARY KEY (key, file)) WITHOUT ROWID;
+            CREATE INDEX IF NOT EXISTS tags_file ON tags(file);
             """
         )
         db.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         db.create_function("wm", 2, word_match, deterministic=True)
         db.commit()
+        self._key_ids = dict(db.execute("SELECT name, id FROM keys").fetchall())
         return db
+
+    def _key_id(self, cur: sqlite3.Cursor, name: str) -> int:
+        if name not in self._key_ids:
+            cur.execute("INSERT OR IGNORE INTO keys(name) VALUES (?)", (name,))
+            self._key_ids[name] = cur.execute("SELECT id FROM keys WHERE name=?", (name,)).fetchone()[0]
+        return self._key_ids[name]
 
     def _store(self, rows: list[tuple[str, int, int, dict]]) -> None:
         with self._lock:
@@ -226,15 +276,23 @@ class LibraryIndex:
                 text = "\x1f".join(
                     [sfold(v) for k in FREE_TEXT_KEYS for v in tags.get(k, [])] + [sfold(Path(rel).stem)]
                 )
-                cur.execute("DELETE FROM tags WHERE path=?", (rel,))
-                cur.execute(
-                    "INSERT OR REPLACE INTO files(path, mtime, size, text, track) VALUES (?,?,?,?,?)",
-                    (rel, mtime, size, text, json.dumps(track, ensure_ascii=False)),
-                )
-                cur.executemany(
-                    "INSERT INTO tags(path, key, value) VALUES (?,?,?)",
-                    [(rel, k.lower(), "\x1f".join(sfold(v) for v in vals)) for k, vals in tags.items() if vals],
-                )
+                row = cur.execute("SELECT id FROM files WHERE path=?", (rel,)).fetchone()
+                if row:
+                    file_id = row[0]
+                    cur.execute("DELETE FROM tags WHERE file=?", (file_id,))
+                    cur.execute("UPDATE files SET mtime=?, size=?, text=?, track=? WHERE id=?",
+                                (mtime, size, text, _pack(track), file_id))
+                else:
+                    cur.execute("INSERT INTO files(path, mtime, size, text, track) VALUES (?,?,?,?,?)",
+                                (rel, mtime, size, text, _pack(track)))
+                    file_id = cur.lastrowid
+                merged: dict[str, list[str]] = {}  # "Genre" and "genre" are the same tag
+                for k, vals in tags.items():
+                    kept = [sfold(v) for v in vals if _searchable(k.lower(), v)]
+                    if kept:
+                        merged.setdefault(k.lower(), []).extend(kept)
+                cur.executemany("INSERT INTO tags(key, file, value) VALUES (?,?,?)",
+                                [(self._key_id(cur, k), file_id, "\x1f".join(v)) for k, v in merged.items()])
             self.db.commit()
 
     def _remove(self, rels: Iterable[str]) -> None:
@@ -242,8 +300,11 @@ class LibraryIndex:
         if not rels:
             return
         with self._lock:
-            self.db.executemany("DELETE FROM files WHERE path=?", [(r,) for r in rels])
-            self.db.executemany("DELETE FROM tags WHERE path=?", [(r,) for r in rels])
+            for r in rels:
+                row = self.db.execute("SELECT id FROM files WHERE path=?", (r,)).fetchone()
+                if row:
+                    self.db.execute("DELETE FROM tags WHERE file=?", (row[0],))
+                    self.db.execute("DELETE FROM files WHERE id=?", (row[0],))
             self.db.commit()
 
     def _read(self, rel: str, st: os.stat_result) -> tuple[str, int, int, dict]:
@@ -313,6 +374,10 @@ class LibraryIndex:
                 gone = set(known) - present
                 self._remove(gone)
                 self._ready = True
+                self._last_scan = time.monotonic()
+                if changed or gone:
+                    with self._lock:  # fold the write-ahead log back in, so it doesn't linger on disk
+                        self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
                 if changed or gone:
                     log.info("Library index: %d files, %d updated, %d removed (%.1fs)",
                              len(present), changed, len(gone), time.monotonic() - started)
@@ -356,18 +421,24 @@ class LibraryIndex:
             self._thread.join(timeout=5)
             self._thread = None
 
+    def request_rescan(self) -> None:
+        """Called on each search: re-check the library if the last scan is old."""
+        if not self._scanning and time.monotonic() - self._last_scan > self.rescan_seconds:
+            self._scan_requested = True
+            self._wake.set()
+
     def _run(self) -> None:
-        next_scan = 0.0
+        # No timer: sleeps until something asks (startup, a search, an edit).
         while not self._stop.is_set():
             try:
-                if time.monotonic() >= next_scan:
+                if self._scan_requested:
+                    self._scan_requested = False
                     self.scan()
-                    next_scan = time.monotonic() + self.rescan_seconds
                 self._flush_dirty()
-            except Exception:  # noqa: BLE001 - keep the index alive; try again later
+            except Exception:  # noqa: BLE001 - keep the index alive; try again on the next request
                 log.exception("Library index scan failed")
-                next_scan = time.monotonic() + self.rescan_seconds
-            self._wake.wait(timeout=max(0.0, min(30.0, next_scan - time.monotonic())))
+                self._last_scan = time.monotonic()
+            self._wake.wait()
             self._wake.clear()
 
     # -- searching ---------------------------------------------------------------------------------
@@ -379,7 +450,7 @@ class LibraryIndex:
 
     def has_key(self, key: str) -> bool:
         with self._lock:
-            return self.db.execute("SELECT 1 FROM tags WHERE key=? LIMIT 1", (key,)).fetchone() is not None
+            return key in self._key_ids
 
     def search(self, query: Query, limit: int = 500) -> tuple[list[dict], int]:
         """Tracks matching ``query``, in library order (first ``limit``), and the total count."""
@@ -395,7 +466,8 @@ class LibraryIndex:
             needles = [sfold(v) for v in clause.values]
             if not needles:
                 continue
-            sql.append("AND path IN (SELECT path FROM tags WHERE key=? AND (" + " OR ".join(["wm(value, ?)"] * len(needles)) + "))")
+            sql.append("AND id IN (SELECT file FROM tags WHERE key=(SELECT id FROM keys WHERE name=?) AND ("
+                       + " OR ".join(["wm(value, ?)"] * len(needles)) + "))")
             args += [clause.key, *needles]
         with self._lock:
             paths = [p for (p,) in self.db.execute(" ".join(sql), args)]
@@ -406,5 +478,5 @@ class LibraryIndex:
             for i in range(0, len(shown), 500):
                 chunk = shown[i:i + 500]
                 q = "SELECT path, track FROM files WHERE path IN (" + ",".join("?" * len(chunk)) + ")"
-                tracks.update({p: json.loads(t) for p, t in self.db.execute(q, chunk)})
+                tracks.update({p: _unpack(t) for p, t in self.db.execute(q, chunk)})
         return [tracks[p] for p in shown if p in tracks], len(paths)

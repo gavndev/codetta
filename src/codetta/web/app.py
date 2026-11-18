@@ -148,6 +148,7 @@ class TrackOut(BaseModel):
     mtime: int | None = None  # changes whenever the file does (used to refresh cover art)
     art: ArtInfo | None = None  # embedded cover, if any
     error: str | None = None  # set if the file couldn't be read
+    partial: bool = False  # from the search index: long/technical tags left out (editor reloads)
 
 
 class Crumb(BaseModel):
@@ -476,22 +477,24 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
 
     # Embedded-art fingerprints, remembered per (file, version) so re-opening a
     # folder doesn't re-read every cover.
-    art_cache: dict[tuple[str, int], ArtInfo | None] = {}
+    # Small tuples (hash, width, height), not models: this can hold thousands of entries.
+    art_cache: dict[tuple[str, int], tuple[str, int | None, int | None] | None] = {}
 
     def art_info(rel: str, target: Path, mtime: int | None) -> ArtInfo | None:
         key = (rel, mtime or 0)
         if mtime is not None and key in art_cache:
-            return art_cache[key]
+            hit = art_cache[key]
+            return ArtInfo(hash=hit[0], width=hit[1], height=hit[2]) if hit else None
         try:
             art = engine.read_artwork(target)
         except (MetadataError, OSError):
             art = None
-        info = ArtInfo(hash=sha256(art.data)[:16], width=art.width, height=art.height) if art else None
+        info = (sha256(art.data)[:16], art.width, art.height) if art else None
         if mtime is not None:
-            if len(art_cache) > 20000:
+            if len(art_cache) > 10000:
                 art_cache.clear()
             art_cache[key] = info
-        return info
+        return ArtInfo(hash=info[0], width=info[1], height=info[2]) if info else None
 
     def to_out(rel: str, meta: TrackMetadata) -> TrackOut:
         target = library.resolve(rel)
@@ -587,6 +590,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         require_library()
         query = parse_query(q, lib_index.has_key)
         tracks, total = lib_index.search(query, limit)
+        lib_index.request_rescan()  # pick up music added outside Codetta (in the background)
         status = lib_index.status()
         return SearchOut(
             path="", name="Search", breadcrumbs=[Crumb(name="Library", path="")], folders=[], tracks=tracks,

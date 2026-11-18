@@ -204,6 +204,16 @@ Your library matters, so Codetta is careful with it:
 You need a server with [Docker](https://docs.docker.com/engine/install/) and
 Docker Compose, and your music in a folder on that server.
 
+Codetta is light enough for starter hardware like a Raspberry Pi 4 and scales
+to big libraries:
+
+| | Typical |
+|---|---|
+| Download (image) | about 100 MB, for Intel/AMD and ARM |
+| Memory | about 70 MB (a little more while it first reads your library) |
+| Search index | about 2 KB per track (10 MB for 5,000 tracks) |
+| When idle | no CPU and no disk activity, so your drives can sleep |
+
 ### 1. Back up your library
 
 If you don't have a backup of your music yet, make one now. Codetta is

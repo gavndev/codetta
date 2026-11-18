@@ -221,3 +221,68 @@ def test_search_input_is_bounded(client):
 def test_search_requires_sign_in(client):
     client.cookies.clear()
     assert client.get("/api/search", params={"q": "rap"}).status_code == 401
+
+
+# --- Footprint ----------------------------------------------------------------------------------
+
+
+def test_technical_and_long_tags_are_not_indexed_but_editor_gets_them(library, tmp_path):
+    root, add, engine = library
+    big = "AQAD" + "x" * 3000
+    add("Big/01 - Big.flac", title="Big", artist="Somebody", acoustid_fingerprint=big,
+        musicbrainz_albumid="4f0c3a8e-0000-4000-8000-000000000000", lyrics="la " * 2000)
+    idx = make_index(root, tmp_path, engine)
+    idx.scan()
+    tracks, _ = idx.search(parse_query("artist: somebody"))
+    t = tracks[0]
+    assert t["partial"] is True
+    assert "acoustid_fingerprint" not in t["tags"] and "musicbrainz_albumid" not in t["tags"]
+    assert "lyrics" not in t["tags"]  # too long to store; the editor reloads it from the file
+    assert idx.search(parse_query("acoustid_fingerprint: aqad"))[1] == 0
+
+
+def test_index_stays_small(library, tmp_path):
+    root, add, engine = library
+    for i in range(40):
+        add(f"Many/{i:02d}.flac", title=f"Song {i}", artist="Band", acoustid_fingerprint="AQAD" + "y" * 4000,
+            lyrics="words " * 800, musicbrainz_trackid=f"00000000-0000-4000-8000-{i:012d}")
+    db = tmp_path / "config" / "library-index.sqlite3"
+    idx = make_index(root, tmp_path, engine)
+    idx.scan()
+    idx.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    # 44 files with ~9 KB of tags each: the index keeps well under 1 KB per file.
+    per_file = db.stat().st_size / idx.status().files
+    assert per_file < 2500, per_file
+
+
+def test_no_timer_rescans_only_when_asked(library, tmp_path):
+    root, add, engine = library
+    idx = make_index(root, tmp_path, engine)
+    idx.rescan_seconds = 0
+    idx.start()
+    deadline = time.monotonic() + 10
+    while not idx.status().ready and time.monotonic() < deadline:
+        time.sleep(0.05)
+    add("Later/01 - Late.flac", title="Late")
+    time.sleep(0.5)
+    assert idx.status().files == 4  # nothing looks at the disk on its own
+    idx.request_rescan()
+    deadline = time.monotonic() + 10
+    while idx.status().files != 5 and time.monotonic() < deadline:
+        time.sleep(0.05)
+    idx.stop()
+    assert idx.status().files == 5
+
+
+def test_old_index_layout_is_rebuilt(library, tmp_path):
+    import sqlite3
+    root, _, engine = library
+    db_path = tmp_path / "config" / "library-index.sqlite3"
+    db_path.parent.mkdir(parents=True)
+    old = sqlite3.connect(db_path)
+    old.executescript("CREATE TABLE files (path TEXT PRIMARY KEY, mtime INTEGER, size INTEGER, text TEXT, track TEXT);"
+                      "CREATE TABLE tags (path TEXT, key TEXT, value TEXT); PRAGMA user_version=1;")
+    old.commit(); old.close()
+    idx = make_index(root, tmp_path, engine)
+    idx.scan()
+    assert idx.search(parse_query("artist: drake"))[1] == 2

@@ -886,6 +886,29 @@ async function openEditor(paths) {
   renderActivity();
   refreshActivity();
   if (window.matchMedia("(max-width: 760px)").matches) document.body.style.overflow = "hidden";
+  loadFullTags(state.editor);
+}
+
+/** Search results come from the index, which leaves out long or technical tags
+ *  (lyrics, fingerprints, IDs). Read the real files before they're edited. */
+async function loadFullTags(ed) {
+  const partial = ed.paths.map(trackByPath).filter((t) => t?.partial).slice(0, 200);
+  if (!partial.length) return;
+  const queue = [...partial];
+  const worker = async () => {
+    for (let t = queue.shift(); t; t = queue.shift()) {
+      try { replaceTrack(await api("GET", `/api/track?path=${encodeURIComponent(t.path)}`)); } catch { /* keep index data */ }
+    }
+  };
+  await Promise.all(Array.from({ length: 6 }, worker));
+  if (state.editor !== ed) return;
+  const focused = document.activeElement?.id, start = document.activeElement?.selectionStart;
+  renderEditor();
+  const again = focused && document.getElementById(focused);
+  if (again && again !== document.activeElement) {
+    again.focus({ preventScroll: true });
+    if (start != null && again.setSelectionRange) again.setSelectionRange(start, start);
+  }
 }
 
 function closeEditor(force = false) {
