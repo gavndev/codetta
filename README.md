@@ -12,7 +12,7 @@
 
 <p align="center">
   <img alt="Status: alpha" src="https://img.shields.io/badge/status-alpha-f59e0b">
-  <img alt="Version 0.2.0" src="https://img.shields.io/badge/version-0.2.0-007aff">
+  <img alt="Version 0.3.0" src="https://img.shields.io/badge/version-0.3.0-0e7c74">
   <a href="LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-555"></a>
   <img alt="Python 3.14" src="https://img.shields.io/badge/python-3.14-3776ab">
   <a href="https://github.com/gavndev/codetta/actions/workflows/ci.yml"><img alt="Tests" src="https://github.com/gavndev/codetta/actions/workflows/ci.yml/badge.svg"></a>
@@ -172,6 +172,8 @@ well alongside Picard or beets.
 
 ## What's new
 
+**0.3.0:** a new look, "liner notes": new logo and typeface, each album borrows a colour
+from its cover, album pages read like a booklet, and the editor like a credits sheet.
 **0.2.0:** 10 more formats (WAV, AIFF, DSF, WMA, WavPack and more), lyrics with
 **Find lyrics**, sort and classical fields, and an Advanced mode with raw tags.
 **0.1.1:** a quiet footer with a GitHub link and the version, a comparison with
