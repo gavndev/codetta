@@ -193,7 +193,7 @@ def test_undo_cannot_be_pointed_at_other_files(env):
 @pytest.mark.parametrize(("ip", "public"), [
     ("8.8.8.8", True), ("2001:4860:4860::8888", True), ("::ffff:8.8.8.8", True),
     ("192.168.1.20", False), ("10.0.0.5", False), ("172.16.3.4", False),
-    ("100.84.0.1", False), ("fd7a:115c:a1e0::1", False),  # Tailscale
+    ("100.101.0.1", False), ("fd7a:115c:a1e0::1", False),  # Tailscale
     ("127.0.0.1", False), ("::1", False), ("testclient", False),
 ])
 def test_public_address_detection(ip, public):
