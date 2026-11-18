@@ -180,3 +180,21 @@ def test_health_needs_sign_in(tmp_path):
         assert c.get("/api/library-health").status_code == 401
         assert c.get("/api/health").json() == {"ok": True}  # the public "am I up" check is untouched
         assert c.post("/api/library-health/fix", json={"id": "x"}).status_code == 401
+
+
+def test_library_health_can_be_switched_off(client, monkeypatch):
+    c, _ = client
+    assert c.get("/api/library-health").json()["enabled"] is True
+    issue = issues(c)["no_albumartist"]
+    off = c.put("/api/library-health/settings", json={"enabled": False}).json()
+    assert off["enabled"] is False and off["issues"] == [] and off["count"] == 0
+    assert c.get("/api/library-health/summary").json() == {"enabled": False, "count": 0, "indexing": False}
+    assert c.post("/api/library-health/fix", json={"id": issue["id"]}).status_code == 409
+    # Off means nothing is checked at all.
+    monkeypatch.setattr(c.app.state.index, "all_tracks", lambda: (_ for _ in ()).throw(AssertionError("checked while off")))
+    c.get("/api/library-health"); c.get("/api/library-health/summary")
+    monkeypatch.undo()
+    # Switching checks off and on keeps the master switch, and vice versa.
+    c.put("/api/library-health/settings", json={"disabled": ["small_cover"]})
+    on = c.put("/api/library-health/settings", json={"enabled": True}).json()
+    assert on["enabled"] and not next(x for x in on["checks"] if x["id"] == "small_cover")["enabled"]

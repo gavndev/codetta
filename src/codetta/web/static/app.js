@@ -3014,6 +3014,23 @@ async function renderSetupStep(step) {
       try { await api("PUT", "/api/organize/settings", { pattern: chosen }); } catch (err) { toast(err.message, "error"); return; }
       finishStep(step);
     };
+  } else if (step === "health") {
+    setKids(form, setupLogo(), stepCount(),
+      h("h1", {}, "Check your library for problems?"),
+      h("p", { class: "auth-sub" }, "Library health looks through your whole library for things worth fixing: albums your player shows split in two, missing tracks, missing covers or tags, duplicates. "
+        + "A card on the Library page shows what it found, obvious fixes are one tap, and every check can be switched off. Nothing changes unless you say so."),
+      h("p", { class: "auth-sub" }, "If your library is named exactly the way you want it, you can leave it off."),
+      h("button", { class: "btn primary auth-submit", type: "submit" }, "Turn on Library health"),
+      h("button", { class: "link-btn setup-skip", type: "button", onclick: async () => {
+        try { await setHealthEnabled(false); } catch { /* it stays as it was */ }
+        finishStep(step);
+      } }, "Leave it off"),
+      h("p", { class: "auth-foot" }, "You can change this any time in Account."));
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      try { await setHealthEnabled(true); } catch (err) { toast(err.message, "error"); return; }
+      finishStep(step);
+    };
   } else if (step === "slskd") {
     await renderSlskdStep(form, step);
   } else if (step === "inbox") {
@@ -3678,6 +3695,7 @@ async function updateHealthSlot(force = false) {
     try { health.summary = await api("GET", "/api/library-health/summary"); health.at = Date.now(); } catch { slot.hidden = true; return; }
   }
   const s = health.summary;
+  if (s.enabled === false) { slot.hidden = true; return; }
   const sub = s.indexing && !s.count ? "Reading your library…"
     : s.count ? `${plural(s.count, "thing")} to look at` : "All good";
   setKids(slot, h("button", { class: `health-card${s.count ? " has-issues" : ""}`, type: "button", onclick: () => openHealth() },
@@ -3772,9 +3790,38 @@ function healthItem(issue, ignored = false) {
     h("div", { class: "inbox-actions" }, actions));
 }
 
+/** Switch the whole of Library health on or off (Account, the Checks view, setup). */
+async function setHealthEnabled(on) {
+  const data = await api("PUT", "/api/library-health/settings", { enabled: on });
+  health.data = data;
+  health.summary = { enabled: on, count: data.count, indexing: data.indexing };
+  health.at = Date.now();
+  const toggle = $("#health-toggle");
+  if (toggle) toggle.checked = on;
+  updateHealthSlot();
+  return data;
+}
+
+function healthMasterSwitch() {
+  const input = h("input", { type: "checkbox", role: "switch", checked: true });
+  input.addEventListener("change", async () => {
+    input.disabled = true;
+    try {
+      await setHealthEnabled(input.checked);
+      closeDialog($("#health-dialog"));
+      toast("Library health is off. Switch it back on in Account.");
+    } catch (err) { input.checked = !input.checked; toast(err.message, "error"); input.disabled = false; }
+  });
+  return h("label", { class: "switch-row health-master" },
+    h("span", { class: "switch-text" }, h("span", { class: "switch-title" }, "Library health"),
+      h("span", { class: "switch-sub" }, "Off: no card on the Library page and nothing is checked. Handy if your library is named exactly the way you want it.")),
+    input);
+}
+
 function renderHealthSettings() {
   const d = health.data;
   return h("div", { class: "health-settings" },
+    healthMasterSwitch(),
     h("p", { class: "mb-lead" }, "Choose what Library health looks for. Switched-off checks are skipped; you can switch them back on any time."),
     d.categories.map((cat) => h("section", { class: "health-cat" },
       h("h3", { class: "field-label" }, cat.label),
@@ -4342,6 +4389,15 @@ function bindEvents() {
   $("#sel-edit").addEventListener("click", () => openEditor([...state.selected]));
   $("#sel-loadout").addEventListener("click", () => openApply("selection"));
   $("#manage-btn").addEventListener("click", openManage);
+  const healthToggle = $("#health-toggle");
+  healthToggle.addEventListener("change", async () => {
+    healthToggle.disabled = true;
+    try {
+      await setHealthEnabled(healthToggle.checked);
+      toast(healthToggle.checked ? "Library health on" : "Library health off");
+    } catch (err) { healthToggle.checked = !healthToggle.checked; toast(err.message, "error"); }
+    finally { healthToggle.disabled = false; }
+  });
   const adv = $("#advanced-toggle");
   adv.checked = state.advanced;
   adv.addEventListener("change", () => { setAdvanced(adv.checked); toast(adv.checked ? "Advanced mode on" : "Advanced mode off"); });
@@ -4520,6 +4576,7 @@ function openAccount() {
   if (!state.update) refreshUpdate();
   renderConnections();
   loadConnections().then(renderConnections); // pick up changes from other devices
+  api("GET", "/api/library-health/summary").then((s) => { $("#health-toggle").checked = s.enabled !== false; }).catch(() => {});
   const a = state.auth || {};
   // With sign-in off (behind a proxy that handles it) this is just Settings.
   const signedIn = !!a.auth_enabled;

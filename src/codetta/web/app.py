@@ -427,7 +427,8 @@ class SlskdImportIn(BaseModel):
 
 
 class HealthSettingsIn(BaseModel):
-    disabled: list[str] = Field(default=[], max_length=100)  # check ids switched off
+    enabled: bool | None = None  # the whole feature; None: leave as is
+    disabled: list[str] | None = Field(default=None, max_length=100)  # check ids switched off; None: leave as is
 
 
 class HealthIssueIn(BaseModel):
@@ -1498,7 +1499,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         steps = []
         if connections.needs_choice:
             steps.append("connections")
-        steps += [s for s in ("organize", "inbox", "slskd") if s not in onboarding.done]
+        steps += [s for s in ("organize", "inbox", "health", "slskd") if s not in onboarding.done]
         return {"steps": steps}
 
     @app.post("/api/onboarding/{step}")
@@ -2114,8 +2115,12 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     def get_health() -> dict:
         """Library health: things worth fixing, found from the search index."""
         require_library()
+        if not health_store.enabled:  # switched off: nothing is checked at all
+            return {"enabled": False, "indexing": False, "albums": 0, "tracks": 0, "unmatched": None, "count": 0,
+                    "categories": [], "checks": [], "issues": [], "ignored": []}
         data, shown, ignored = health_visible()
         return {
+            "enabled": True,
             "indexing": not lib_index.status().ready,
             "albums": data["albums"], "tracks": data["tracks"],
             "unmatched": data["unmatched"] if connections.enabled("musicbrainz") else None,
@@ -2132,14 +2137,19 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     def get_health_summary() -> dict:
         """Just the count (for the card on the Library page)."""
         require_library()
+        if not health_store.enabled:
+            return {"enabled": False, "count": 0, "indexing": False}
         _, shown, _ = health_visible()
-        return {"count": len(shown), "indexing": not lib_index.status().ready}
+        return {"enabled": True, "count": len(shown), "indexing": not lib_index.status().ready}
 
     @app.put("/api/library-health/settings")
     def put_health_settings(body: HealthSettingsIn) -> dict:
         known = {c.id for c in HEALTH_CHECKS}
         with health_store.lock:
-            health_store.disabled = {c for c in body.disabled if c in known}
+            if body.enabled is not None:
+                health_store.enabled = body.enabled
+            if body.disabled is not None:
+                health_store.disabled = {c for c in body.disabled if c in known}
         try:
             health_store.save()
         except OSError as exc:
@@ -2160,6 +2170,8 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     def health_fix(body: HealthIssueIn) -> dict:
         """Apply an issue's one-tap fix: ordinary safe tag writes, one undoable activity entry."""
         require_library()
+        if not health_store.enabled:
+            raise HTTPException(409, "Library health is switched off.")
         issue = next((i for i in health_data()["issues"] if i["id"] == body.id), None)
         if issue is None:
             raise HTTPException(404, "That issue is gone (fixed already?)")

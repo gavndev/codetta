@@ -422,11 +422,13 @@ class HealthStore:
     def __init__(self, file: Path) -> None:
         self.file = file
         self.lock = threading.Lock()
+        self.enabled = True  # the whole feature (off: no card, nothing is checked)
         self.disabled: set[str] = set()
         self.ignored: set[str] = set()
         try:
             data = json.loads(file.read_text("utf-8"))
             if isinstance(data, dict):
+                self.enabled = data.get("enabled") is not False
                 self.disabled = {c for c in data.get("disabled") or [] if c in BY_ID}
                 self.ignored = {i for i in data.get("ignored") or [] if isinstance(i, str)}
         except (OSError, ValueError):
@@ -438,7 +440,8 @@ class HealthStore:
             fd, tmp = tempfile.mkstemp(prefix=".health-", dir=self.file.parent)
             try:
                 with os.fdopen(fd, "w", encoding="utf-8") as f:
-                    json.dump({"disabled": sorted(self.disabled), "ignored": sorted(self.ignored)}, f)
+                    json.dump({"enabled": self.enabled, "disabled": sorted(self.disabled),
+                               "ignored": sorted(self.ignored)}, f)
                 os.replace(tmp, self.file)
             except BaseException:
                 Path(tmp).unlink(missing_ok=True)

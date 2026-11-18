@@ -118,6 +118,10 @@ class GuardMiddleware:
         async def send_with_headers(message):
             if message["type"] == "http.response.start":
                 extra = list(SECURITY_HEADERS)
+                if path.startswith("/static/") and path.endswith((".js", ".css")):
+                    # Always check with the server (a tiny 304 when unchanged), so an update is
+                    # picked up on the next load instead of whenever the browser feels like it.
+                    extra.append((b"cache-control", b"no-cache"))
                 if not path.startswith(NO_CSP_PATHS):
                     extra.append((b"content-security-policy", CSP.encode()))
                 existing = {k.lower() for k, _ in message.get("headers", [])}

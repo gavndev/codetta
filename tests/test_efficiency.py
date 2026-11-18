@@ -86,3 +86,11 @@ def test_replaced_albums_are_kept_30_days(tmp_path):
     assert prune_replaced(rep) == 1
     assert not old.exists() and new.exists() and (rep / "notes").exists()
     assert prune_replaced(tmp_path / "missing") == 0
+
+
+def test_app_code_is_always_revalidated(tmp_path):
+    c, _ = client_for(tmp_path)
+    with c:
+        r = c.get("/static/app.js")
+        assert r.headers.get("cache-control") == "no-cache" and r.headers.get("etag")
+        assert c.get("/static/app.js", headers={"If-None-Match": r.headers["etag"]}).status_code == 304
