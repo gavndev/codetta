@@ -19,6 +19,9 @@ services:
       # CODETTA_PASSWORD: "a long password"
       # Optional: turn sign-in off ONLY if a reverse proxy already handles it.
       # CODETTA_AUTH: "off"
+      # Optional: Codetta is offline unless you opt in (in the app, or here).
+      # CODETTA_MUSICBRAINZ: "on"     # Match on MusicBrainz + cover art
+      # CODETTA_OFFLINE: "on"         # never go online, whatever else is set
     volumes:
       - /path/to/your/music:/music     # ← your music library (read-write)
       - ./codetta-config:/config       # account, loadouts, activity log, search index

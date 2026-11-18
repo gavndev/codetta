@@ -8,6 +8,8 @@ file, the exact values before and after the change:
     {"type": "art",  "files": {"Artist/Album/01.flac": {"before": "<sha256 or null>",
                                                         "after":  "<sha256 or null>"}}}
 
+    {"type": "multi", "parts": [<tags record>, <art record>]}   (e.g. a MusicBrainz match)
+
 Album art is too big for the log, so images are kept in an ``ArtStore``
 (one file per distinct image, so a cover shared by a whole album is stored
 once) and the log only holds their SHA-256.
@@ -73,6 +75,8 @@ class ArtStore:
 
 def art_hashes(undo: dict | None) -> set[str]:
     """Image hashes an undo record refers to (for pruning the ArtStore)."""
+    if undo and undo.get("type") == "multi":
+        return {h for part in undo.get("parts", []) for h in art_hashes(part)}
     if not undo or undo.get("type") != "art":
         return set()
     return {h for f in undo["files"].values() for h in (f.get("before"), f.get("after")) if h}
@@ -99,9 +103,11 @@ def undo_change(
     record: dict,
 ) -> UndoOutcome:
     """Put each file in ``record`` back to its "before" state, where safe."""
+    kind = record.get("type")
+    if kind == "multi":
+        return _undo_multi(engine, resolve, art, record)
     outcome = UndoOutcome()
     reverse_files: dict[str, dict] = {}
-    kind = record.get("type")
 
     for rel, change in record.get("files", {}).items():
         try:
@@ -131,4 +137,25 @@ def undo_change(
 
     if reverse_files:
         outcome.reverse = {"type": kind, "files": reverse_files}
+    return outcome
+
+
+def _undo_multi(engine: MetadataEngine, resolve: Callable[[str], Path], art: ArtStore, record: dict) -> UndoOutcome:
+    """Undo each part (tags, then art) and report one result per file: done if
+    any part of it could be put back, skipped if every part changed since."""
+    parts = [undo_change(engine, resolve, art, p) for p in record.get("parts", []) if isinstance(p, dict)]
+    by_path: dict[str, list[UndoResult]] = {}
+    for part in parts:
+        for r in part.results:
+            by_path.setdefault(r.path, []).append(r)
+    outcome = UndoOutcome()
+    for path, rs in by_path.items():
+        if any(r.ok for r in rs):
+            outcome.results.append(UndoResult(path, ok=True))
+        else:
+            skipped = all(r.skipped for r in rs)
+            outcome.results.append(UndoResult(path, ok=False, skipped=skipped, error=next((r.error for r in rs if r.error), None)))
+    reverse = [p.reverse for p in parts if p.reverse]
+    if reverse:
+        outcome.reverse = {"type": "multi", "parts": reverse}
     return outcome

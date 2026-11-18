@@ -1,9 +1,9 @@
 """Online metadata providers: the first step toward Codetta plugins.
 
 A provider looks something up for one track and returns suggestions; it never
-writes files. The user always sees a preview and decides. Today there is one,
-LRCLIB for lyrics; MusicBrainz and Last.fm are planned to use the same shape,
-and later a small plugin SDK so others can add their own.
+writes files. The user always sees a preview and decides. LRCLIB (lyrics) lives
+here; MusicBrainz is in ``musicbrainz.py``. Each belongs to a *connection*
+(see ``connections.py``) that is off until the user opts in.
 
 Privacy: providers are only called when the user asks (a button press), and
 only send what the lookup needs (artist, title, album, duration).
@@ -56,26 +56,53 @@ class LyricsResult:
 Fetcher = Callable[[str], object]
 
 
-def http_get_json(url: str, user_agent: str) -> object:
-    """GET a JSON document from a fixed https provider URL, size- and time-limited."""
-    if not url.startswith("https://"):
+class _HttpsOnlyRedirects(urllib.request.HTTPRedirectHandler):
+    """Follow redirects (the Cover Art Archive sends you to archive.org), but
+    never from https down to plain http."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if req.full_url.startswith("https://") and not newurl.startswith("https://"):
+            raise ProviderError("The service tried to redirect to an insecure address")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+_opener = urllib.request.build_opener(_HttpsOnlyRedirects)
+
+
+def http_get(url: str, user_agent: str, *, accept: str = "application/json", max_bytes: int = MAX_RESPONSE_BYTES,
+             service: str = "the lyrics service", allow_http: bool = False) -> bytes | None:
+    """GET a provider URL, size- and time-limited. None means 404 (not found).
+
+    Only https, unless ``allow_http`` (a self-hosted mirror the admin set up)."""
+    if not (url.startswith("https://") or (allow_http and url.startswith("http://"))):
         raise ProviderError("Providers must use https")
-    req = urllib.request.Request(url, headers={"User-Agent": user_agent, "Accept": "application/json"})
+    req = urllib.request.Request(url, headers={"User-Agent": user_agent, "Accept": accept})
     try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT) as res:  # nosec B310: https-only, fixed provider host
-            data = res.read(MAX_RESPONSE_BYTES + 1)
+        with _opener.open(req, timeout=TIMEOUT) as res:  # nosec B310: http(s) only, fixed provider hosts
+            data = res.read(max_bytes + 1)
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
             return None
-        raise ProviderError(f"The lyrics service answered with an error ({exc.code})") from exc
+        if exc.code in (429, 503):
+            raise ProviderError(f"{service.capitalize()} is busy right now. Try again in a moment.") from exc
+        raise ProviderError(f"{service.capitalize()} answered with an error ({exc.code})") from exc
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
-        raise ProviderError("Couldn't reach the lyrics service. Is the server online?") from exc
-    if len(data) > MAX_RESPONSE_BYTES:
-        raise ProviderError("The lyrics service sent an unexpectedly large answer")
+        raise ProviderError(f"Couldn't reach {service}. Is the server online?") from exc
+    if len(data) > max_bytes:
+        raise ProviderError(f"{service.capitalize()} sent an unexpectedly large answer")
+    return data
+
+
+def http_get_json(url: str, user_agent: str, *, max_bytes: int = MAX_RESPONSE_BYTES,
+                  service: str = "the lyrics service", allow_http: bool = False) -> object:
+    """GET a JSON document (None for 404)."""
+    data = http_get(url, user_agent, max_bytes=max_bytes, service=service, allow_http=allow_http)
+    if data is None:
+        return None
     try:
         return json.loads(data)
     except ValueError as exc:
-        raise ProviderError("The lyrics service sent something that isn't JSON") from exc
+        raise ProviderError(f"{service.capitalize()} sent something that isn't JSON") from exc
 
 
 class LRCLib:

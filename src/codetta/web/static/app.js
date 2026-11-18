@@ -680,6 +680,10 @@ function renderFolderHead() {
           "aria-pressed": String(folderView() === v),
           onclick: () => setFolderView(v),
         }, icon(v === "list" ? "rows" : "grid")))) : null,
+      f.tracks.length && state.status?.musicbrainz ? h("button", {
+        class: "btn", type: "button", onclick: openMusicBrainz,
+        title: "Find this album on MusicBrainz and review its tags before writing them",
+      }, "Match on MusicBrainz…") : null,
       f.tracks.length || f.folders.length ? h("button", {
         class: "btn", type: "button", onclick: () => openApply("folder"),
       }, "Apply loadout…") : null,
@@ -2195,6 +2199,436 @@ async function doApply() {
   }
 }
 
+// ---- Connections: online features, all opt-in ------------------------------------------------
+//
+// Codetta is offline until the user turns a connection on (first-run card or
+// Account → Connections). An env var on the server can lock a switch.
+
+async function loadConnections() {
+  try { state.connections = await api("GET", "/api/connections"); } catch { state.connections = null; }
+  return state.connections;
+}
+
+const connectionOn = (id) => !!state.connections?.connections.find((c) => c.id === id)?.enabled;
+
+/** Tell the rest of the UI what's on now (buttons appear or disappear). */
+function applyConnections() {
+  if (state.status) {
+    state.status.lyrics_lookup = connectionOn("lyrics");
+    state.status.musicbrainz = connectionOn("musicbrainz");
+  }
+  renderFolderHead();
+  if (state.editor) renderEditor();
+}
+
+function connectionRow(c, checked, onchange) {
+  const input = h("input", { type: "checkbox", role: "switch", checked, disabled: !!c.locked_by });
+  input.dataset.id = c.id;
+  if (onchange) input.addEventListener("change", () => onchange(c, input));
+  return h("label", { class: `switch-row conn-row${c.locked_by ? " locked" : ""}` },
+    h("span", { class: "switch-text" },
+      h("span", { class: "switch-title" }, c.name),
+      h("span", { class: "switch-sub" }, c.summary),
+      h("span", { class: "conn-sends" }, h("b", {}, "Sends: "), c.sends, h("span", { class: "conn-hosts" }, ` → ${c.hosts.join(", ")}`)),
+      c.locked_by ? h("span", { class: "conn-lock" }, `Set on the server by ${c.locked_by}.`) : null),
+    input);
+}
+
+function showWelcome() {
+  const conn = state.connections;
+  const list = $("#welcome-list");
+  // Pre-ticked when "online" is chosen; the user can untick any of them.
+  setKids(list, conn.connections.map((c) => connectionRow(c, c.locked_by ? c.enabled : true)));
+  for (const r of document.querySelectorAll('input[name="welcome-mode"]')) r.checked = false;
+  list.hidden = true;
+  $("#welcome-go").disabled = true;
+  $("#welcome-go").textContent = "Continue";
+  $("#welcome-error").hidden = true;
+  $("#welcome").hidden = false;
+}
+
+function welcomeModeChanged() {
+  const mode = $('input[name="welcome-mode"]:checked')?.value;
+  $("#welcome-list").hidden = mode !== "online";
+  $("#welcome-go").disabled = !mode;
+  $("#welcome-go").textContent = mode === "online" ? "Turn on and continue" : "Stay offline";
+}
+
+async function submitWelcome(e) {
+  e.preventDefault();
+  const mode = $('input[name="welcome-mode"]:checked')?.value;
+  if (!mode) return;
+  const enabled = {};
+  for (const input of $("#welcome-list").querySelectorAll("input[data-id]")) {
+    if (!input.disabled) enabled[input.dataset.id] = mode === "online" && input.checked;
+  }
+  const go = $("#welcome-go");
+  go.disabled = true;
+  try {
+    state.connections = await api("PUT", "/api/connections", { enabled });
+    $("#welcome").hidden = true;
+    applyConnections();
+    if (connectionOn("updates")) refreshUpdate();
+    toast(state.connections.offline
+      ? "Codetta will stay offline. You can change this in Account → Connections."
+      : "Online features are on. Change them any time in Account → Connections.", "success");
+  } catch (err) {
+    $("#welcome-error").textContent = err.message;
+    $("#welcome-error").hidden = false;
+    go.disabled = false;
+  }
+}
+
+function renderConnections() {
+  const conn = state.connections;
+  const intro = $("#conn-intro");
+  if (!conn) {
+    intro.textContent = "Couldn't load the connection settings.";
+    $("#conn-list").replaceChildren();
+    return;
+  }
+  intro.textContent = conn.offline_locked
+    ? "This server is set to stay offline (CODETTA_OFFLINE), so these can't be turned on."
+    : "Codetta is offline unless you turn these on. Only what's listed is sent, and only to these sites.";
+  setKids($("#conn-list"), conn.connections.map((c) => connectionRow(c, c.enabled, async (item, input) => {
+    input.disabled = true;
+    try {
+      state.connections = await api("PUT", "/api/connections", { enabled: { [item.id]: input.checked } });
+      applyConnections();
+      if (item.id === "updates") refreshUpdate();
+    } catch (err) {
+      input.checked = !input.checked;
+      toast(err.message, "error");
+    } finally {
+      input.disabled = !!item.locked_by;
+    }
+  })));
+}
+
+// ---- Match on MusicBrainz ---------------------------------------------------------------------------
+//
+// Two steps in one sheet: pick the release (search results, or a pasted link),
+// then review what changes per file before anything is written.
+
+const mb = {
+  target: null, // { body: {folder} | {paths}, label }
+  query: { album: "", artist: "", link: "" },
+  results: null, // /api/musicbrainz/search response
+  error: null,
+  busy: false,
+  release: null, // chosen release id
+  proposal: null, // /api/musicbrainz/preview response
+  pairs: {}, // path -> track id ("" = leave this file alone), only the user's own picks
+  fields: null, // Set of tag names, or null for the server's default set
+  mode: "overwrite",
+  cover: "missing",
+  openGroups: new Set(),
+  openFiles: new Set(),
+  token: 0,
+  timer: null,
+};
+
+function mbTarget() {
+  const n = state.selected.size;
+  if (n) return { body: { paths: [...state.selected] }, label: plural(n, "selected track") };
+  if (isSearch()) return { body: { paths: folderTrackPaths().slice(0, 1000) }, label: plural(Math.min(folderTrackPaths().length, 1000), "result") };
+  return { body: { folder: state.path }, label: "this folder" };
+}
+
+async function openMusicBrainz() {
+  if (!(await confirmDiscard())) return;
+  Object.assign(mb, {
+    target: mbTarget(), query: { album: "", artist: "", link: "" }, results: null, error: null,
+    release: null, proposal: null, pairs: {}, fields: null, mode: "overwrite", cover: "missing",
+    openGroups: new Set(), openFiles: new Set(),
+  });
+  openDialog($("#mb-dialog"));
+  mbSearch({});
+}
+
+async function mbSearch(extra) {
+  const token = ++mb.token;
+  mb.busy = true;
+  mb.error = null;
+  mb.release = null;
+  renderMbSearch();
+  try {
+    const res = await api("POST", "/api/musicbrainz/search", { ...mb.target.body, ...extra });
+    if (token !== mb.token) return;
+    mb.results = res;
+    if (!extra.release) Object.assign(mb.query, { album: res.query.album, artist: res.query.artist });
+    // A pasted link names exactly one release: go straight to the review.
+    if (extra.release && res.candidates.length === 1) { mbPick(res.candidates[0].id); return; }
+  } catch (err) {
+    if (token !== mb.token) return;
+    mb.error = err.message;
+  }
+  mb.busy = false;
+  renderMbSearch();
+}
+
+function mbThumb(id, size = 250) {
+  const empty = () => h("span", { class: "mb-thumb mb-noart", "aria-hidden": "true" }, icon("note"));
+  if (!id) return empty();
+  const img = h("img", { class: "mb-thumb", src: `/api/musicbrainz/cover/${id}?size=${size}`, alt: "", loading: "lazy", decoding: "async", width: "56", height: "56" });
+  img.addEventListener("error", () => img.replaceWith(empty()), { once: true });
+  return img;
+}
+
+const mbYear = (date) => (date || "").slice(0, 4);
+
+function mbMeta(c) {
+  return [mbYear(c.date), c.country, c.formats, c.track_count ? plural(c.track_count, "track") : "", c.labels[0], c.type]
+    .filter(Boolean).join(" · ");
+}
+
+function renderMbSearch() {
+  const body = $("#mb-body");
+  const album = h("input", { type: "text", value: mb.query.album, dir: "auto", autocomplete: "off", spellcheck: "false", "aria-label": "Album" });
+  const artist = h("input", { type: "text", value: mb.query.artist, dir: "auto", autocomplete: "off", spellcheck: "false", "aria-label": "Artist" });
+  const link = h("input", { type: "text", value: mb.query.link, autocomplete: "off", spellcheck: "false", inputmode: "url",
+    placeholder: "https://musicbrainz.org/release/…", "aria-label": "MusicBrainz release link" });
+  for (const [input, key] of [[album, "album"], [artist, "artist"], [link, "link"]]) {
+    input.addEventListener("input", () => { mb.query[key] = input.value; });
+  }
+  const search = (e) => {
+    e.preventDefault();
+    mbSearch({ album: album.value.trim(), artist: artist.value.trim() });
+  };
+  const useLink = (e) => {
+    e.preventDefault();
+    if (link.value.trim()) mbSearch({ release: link.value.trim() });
+  };
+  const res = mb.results;
+  let list;
+  if (mb.busy) list = h("p", { class: "loading" }, "Asking MusicBrainz…");
+  else if (mb.error) list = h("div", { class: "error-box" }, mb.error);
+  else if (res && !res.candidates.length) {
+    list = h("p", { class: "mb-empty" }, res.query.album || res.query.artist
+      ? "No releases found. Try fewer words, or paste the release link from musicbrainz.org."
+      : "These tracks have no album or artist yet. Type what to search for above.");
+  } else if (res) {
+    list = h("div", { class: "mb-cands", role: "list" }, res.candidates.map((c) => h("button", {
+      type: "button", class: "mb-cand", role: "listitem", onclick: () => mbPick(c.id),
+    },
+      mbThumb(c.id),
+      h("span", { class: "mb-cand-main" },
+        h("span", { class: "mb-cand-title", dir: "auto" }, c.title, c.disambiguation ? h("span", { class: "mb-dis" }, ` (${c.disambiguation})`) : null),
+        h("span", { class: "mb-cand-artist", dir: "auto" }, c.artist),
+        h("span", { class: "mb-cand-meta" }, mbMeta(c)),
+        c.current ? h("span", { class: "mb-current" }, h("span", { class: "badge" }, "Your files use this release")) : null),
+      h("span", { class: "mb-cand-side" },
+        h("span", { class: `mb-score ${c.score >= 85 ? "good" : c.score >= 60 ? "ok" : "low"}`, title: "How well this release fits these files" }, `${c.score}%`),
+        h("span", { class: "mb-chev" }, icon("chevron"))))));
+  }
+  setKids(body,
+    h("p", { class: "mb-lead" }, `Find the release for ${mb.target.label}. Pick the exact edition (year, country, format), then review every change before it's written.`),
+    h("form", { class: "mb-search", onsubmit: search },
+      h("label", { class: "field" }, h("span", { class: "field-label" }, "Album"), album),
+      h("label", { class: "field" }, h("span", { class: "field-label" }, "Artist"), artist),
+      h("button", { class: "btn", type: "submit", disabled: mb.busy }, icon("search"), "Search")),
+    h("form", { class: "mb-link", onsubmit: useLink },
+      h("label", { class: "field" }, h("span", { class: "field-label" }, "Or paste a release link"), link),
+      h("button", { class: "btn", type: "submit", disabled: mb.busy }, "Use link")),
+    list);
+  setKids($("#mb-foot"),
+    h("span", { class: "mb-credit" }, "Data from ", h("a", { href: "https://musicbrainz.org", target: "_blank", rel: "noopener noreferrer" }, "MusicBrainz")),
+    h("span", { class: "spacer" }),
+    h("button", { class: "btn", type: "button", "data-close": true }, "Cancel"));
+}
+
+function mbPick(id) {
+  mb.release = id;
+  mb.proposal = null;
+  mb.pairs = {};
+  mb.fields = null;
+  mb.openFiles = new Set();
+  mb.error = null;
+  mbPreview(0);
+}
+
+function mbBody(extra = {}) {
+  return {
+    ...mb.target.body, release: mb.release, mode: mb.mode, cover: mb.cover,
+    pairs: Object.fromEntries(Object.entries(mb.pairs).map(([p, t]) => [p, t || null])),
+    fields: mb.fields ? [...mb.fields] : null,
+    ...extra,
+  };
+}
+
+function mbPreview(delay = 200) {
+  clearTimeout(mb.timer);
+  mb.busy = true;
+  if (!mb.proposal) renderMbReview();
+  else $("#mb-go")?.setAttribute("disabled", "");
+  mb.timer = setTimeout(async () => {
+    const token = ++mb.token;
+    try {
+      const p = await api("POST", "/api/musicbrainz/preview", mbBody());
+      if (token !== mb.token) return;
+      mb.proposal = p;
+      mb.error = null;
+      if (!mb.fields) mb.fields = new Set(p.fields);
+    } catch (err) {
+      if (token !== mb.token) return;
+      mb.error = err.message;
+    }
+    mb.busy = false;
+    renderMbReview();
+  }, delay);
+}
+
+function mbValue(values) {
+  return values.length ? values.join("; ") : "";
+}
+
+function renderMbReview() {
+  const body = $("#mb-body");
+  const p = mb.proposal;
+  const back = h("button", { class: "btn", type: "button", onclick: () => { mb.release = null; mb.busy = false; renderMbSearch(); } }, "Back");
+  if (!p) {
+    setKids(body, mb.error ? h("div", { class: "error-box" }, mb.error) : h("p", { class: "loading" }, "Reading the release from MusicBrainz…"));
+    setKids($("#mb-foot"), back, h("span", { class: "spacer" }), h("button", { class: "btn", type: "button", "data-close": true }, "Cancel"));
+    return;
+  }
+  const scroll = body.scrollTop;
+  const r = p.release;
+  const labels = new Map(p.groups.flatMap((g) => g.fields.map((f) => [f.key, f.label])));
+
+  // Fields to include, by group.
+  const groups = h("div", { class: "mb-groups" }, p.groups.map((g) => {
+    const keys = g.fields.map((f) => f.key);
+    const on = keys.filter((k) => mb.fields.has(k)).length;
+    const all = h("input", { type: "checkbox", checked: on === keys.length, indeterminate: on > 0 && on < keys.length });
+    all.addEventListener("change", () => {
+      for (const k of keys) all.checked ? mb.fields.add(k) : mb.fields.delete(k);
+      mbPreview();
+      renderMbReview();
+    });
+    const open = mb.openGroups.has(g.id);
+    return h("div", { class: `mb-group${open ? " open" : ""}` },
+      h("div", { class: "mb-group-row" },
+        h("label", { class: "check" }, all, h("span", { class: "mb-group-name" }, g.label)),
+        keys.length > 1 ? h("button", {
+          class: "link-btn mb-group-more", type: "button", "aria-expanded": String(open),
+          onclick: () => { open ? mb.openGroups.delete(g.id) : mb.openGroups.add(g.id); renderMbReview(); },
+        }, on === keys.length ? "All" : `${on} of ${keys.length}`, icon("chevron")) : null),
+      open ? h("div", { class: "mb-group-fields" }, g.fields.map((f) => {
+        const box = h("input", { type: "checkbox", checked: mb.fields.has(f.key) });
+        box.addEventListener("change", () => {
+          box.checked ? mb.fields.add(f.key) : mb.fields.delete(f.key);
+          mbPreview();
+          renderMbReview();
+        });
+        return h("label", { class: "check" }, box, f.label);
+      })) : null);
+  }));
+
+  const segmented = (name, value, options, onpick, disabled = false) => h("div", { class: "segmented" },
+    options.map(([v, label]) => {
+      const input = h("input", { type: "radio", name, value: v, checked: value === v, disabled });
+      input.addEventListener("change", () => { onpick(v); mbPreview(); });
+      return h("label", {}, input, h("span", {}, label));
+    }));
+
+  // Files and what changes in each.
+  const used = new Set(p.files.map((f) => f.track?.id).filter(Boolean));
+  const multiDisc = new Set(p.tracks.map((t) => t.disc)).size > 1;
+  const trackLabel = (t) => `${multiDisc ? `${t.disc}-` : ""}${t.number || t.position}. ${t.title}${t.length ? ` (${fmtDuration(t.length)})` : ""}`;
+  const changing = p.files.filter((f) => !f.error && f.track && (Object.keys(f.changes).length || f.cover));
+  const tagTotal = changing.reduce((n, f) => n + Object.keys(f.changes).length, 0);
+  const covers = changing.filter((f) => f.cover).length;
+  const check = p.files.filter((f) => f.confidence === "check" || (!f.track && !f.error)).length;
+  const files = p.files.map((f) => {
+    const name = relativeToFolder(f.path);
+    if (f.error) return h("div", { class: "mb-file error" }, h("div", { class: "mb-file-name" }, name), h("div", { class: "note" }, f.error));
+    const select = h("select", { "aria-label": `Track for ${name}` },
+      h("option", { value: "" }, "Leave this file alone"),
+      p.tracks.map((t) => h("option", { value: t.id, selected: f.track?.id === t.id },
+        `${trackLabel(t)}${used.has(t.id) && f.track?.id !== t.id ? "  · used" : ""}`)));
+    select.addEventListener("change", () => { mb.pairs[f.path] = select.value; mbPreview(0); });
+    const keys = Object.keys(f.changes);
+    const state_ = !f.track ? "skip" : f.confidence === "check" ? "check" : "ok";
+    const diff = keys.length || f.cover ? h("details", { class: "mb-diff", open: mb.openFiles.has(f.path) },
+      h("summary", {}, [keys.length ? plural(keys.length, "tag") : "", f.cover ? "cover art" : ""].filter(Boolean).join(" + ")),
+      h("div", { class: "mb-diff-list" },
+        keys.map((k) => h("div", { class: "mb-diff-row" },
+          h("span", { class: "mb-diff-key" }, labels.get(k) || k),
+          h("span", { class: "mb-diff-val", dir: "auto" },
+            f.changes[k].old.length ? [h("span", { class: "mb-old" }, mbValue(f.changes[k].old)), " → "] : null,
+            h("span", { class: "mb-new" }, mbValue(f.changes[k].new))))),
+        f.cover ? h("div", { class: "mb-diff-row" }, h("span", { class: "mb-diff-key" }, "Cover art"),
+          h("span", { class: "mb-diff-val" }, f.has_art ? "Replace with the release's front cover" : "Add the release's front cover")) : null)) : null;
+    if (diff) diff.addEventListener("toggle", () => { diff.open ? mb.openFiles.add(f.path) : mb.openFiles.delete(f.path); });
+    return h("div", { class: `mb-file ${state_}` },
+      h("div", { class: "mb-file-head" },
+        h("span", { class: "mb-file-icon", role: "img", "aria-label": state_ === "ok" ? "Matched" : state_ === "check" ? "Check this match" : "Not matched" },
+          icon(state_ === "ok" ? "check" : "alert")),
+        h("span", { class: "mb-file-name", title: f.path }, name),
+        select),
+      f.notes?.length && state_ !== "ok" ? h("div", { class: "note" }, f.notes.join(" · ")) : null,
+      f.unsupported?.length ? h("div", { class: "note" }, `This format can't store: ${f.unsupported.map((k) => labels.get(k) || k).join(", ")}`) : null,
+      diff || (f.track ? h("div", { class: "note" }, "Already matches") : null));
+  });
+  const spare = p.tracks.filter((t) => !used.has(t.id)).length;
+
+  const summary = [];
+  if (changing.length) summary.push(`${plural(changing.length, "track")} will change (${plural(tagTotal, "tag")}${covers ? `, cover on ${covers}` : ""}).`);
+  else summary.push("Nothing to change with these settings.");
+  if (check) summary.push(`${plural(check, "file")} to check.`);
+  if (spare) summary.push(`${plural(spare, "track")} on this release ${spare === 1 ? "has" : "have"} no file here.`);
+
+  setKids(body,
+    h("div", { class: "mb-release" },
+      mbThumb(r.id),
+      h("div", { class: "mb-release-main" },
+        h("div", { class: "mb-cand-title", dir: "auto" }, r.title, r.disambiguation ? h("span", { class: "mb-dis" }, ` (${r.disambiguation})`) : null),
+        h("div", { class: "mb-cand-artist", dir: "auto" }, r.artist),
+        h("div", { class: "mb-cand-meta" }, mbMeta(r)),
+        h("div", { class: "mb-release-links" },
+          h("button", { class: "link-btn", type: "button", onclick: () => { mb.release = null; mb.busy = false; renderMbSearch(); } }, "Choose another release"),
+          h("a", { href: r.url, target: "_blank", rel: "noopener noreferrer" }, "View on MusicBrainz")))),
+    mb.error ? h("div", { class: "error-box" }, mb.error) : null,
+    h("div", { class: "field" }, h("span", { class: "field-label" }, "Include"), groups),
+    h("div", { class: "mb-options" },
+      h("fieldset", { class: "field" }, h("legend", { class: "field-label" }, "Existing values"),
+        segmented("mb-mode", mb.mode, [["overwrite", "Replace"], ["fill", "Only fill empty"]], (v) => { mb.mode = v; })),
+      h("fieldset", { class: "field" }, h("legend", { class: "field-label" }, "Cover art"),
+        segmented("mb-cover", r.has_cover === false ? "none" : mb.cover,
+          [["missing", "Where missing"], ["all", "Replace all"], ["none", "Leave"]], (v) => { mb.cover = v; }, r.has_cover === false),
+        r.has_cover === false ? h("p", { class: "hint" }, "This release has no cover art on the Cover Art Archive.") : null)),
+    h("p", { class: "preview-summary", "aria-live": "polite" }, summary.join(" ")),
+    h("div", { class: "mb-files" }, files));
+  body.scrollTop = scroll;
+
+  setKids($("#mb-foot"),
+    back,
+    h("span", { class: "spacer" }),
+    h("button", { class: "btn", type: "button", "data-close": true }, "Cancel"),
+    h("button", { class: "btn primary", type: "button", id: "mb-go", disabled: mb.busy || !changing.length, onclick: mbApply },
+      changing.length ? `Write to ${plural(changing.length, "track")}` : "Write"));
+}
+
+async function mbApply() {
+  const go = $("#mb-go");
+  go.disabled = true;
+  go.textContent = "Writing…";
+  try {
+    const res = await api("POST", "/api/musicbrainz/apply", mbBody());
+    closeDialog($("#mb-dialog"));
+    const failed = res.results.filter((r) => !r.ok);
+    if (failed.length) toast(`Tagged ${plural(res.updated, "track")}; ${failed.length} failed: ${failed[0].error}`, "error");
+    else toast(`Tagged ${plural(res.updated, "track")} from MusicBrainz. Undo is in the activity log.`, "success");
+    if (res.cover_error) toast(`Cover art wasn't added: ${res.cover_error}`, "error");
+    refreshActivity();
+    folderCache.clear();
+    await loadFolder(state.path, { keepScroll: true });
+  } catch (err) {
+    toast(err.message, "error");
+    mbPreview(0);
+  }
+}
+
 // ---- Loadouts: manage -----------------------------------------------------------------------------------
 
 async function openManage() {
@@ -2426,7 +2860,7 @@ function bindEvents() {
   $("#apply-go").addEventListener("click", doApply);
 
   // All dialogs: close buttons and backdrop clicks.
-  for (const dialog of [els.applyDialog, els.manageDialog, els.filterDialog]) {
+  for (const dialog of [els.applyDialog, els.manageDialog, els.filterDialog, $("#mb-dialog")]) {
     dialog.addEventListener("click", (e) => {
       if (e.target.closest("[data-close]") || e.target === dialog) closeDialog(dialog);
     });
@@ -2592,11 +3026,18 @@ function openAccount() {
   renderAvatar();
   renderAbout();
   if (!state.update) refreshUpdate();
+  renderConnections();
+  loadConnections().then(renderConnections); // pick up changes from other devices
   const a = state.auth || {};
+  // With sign-in off (behind a proxy that handles it) this is just Settings.
+  const signedIn = !!a.auth_enabled;
+  $("#account-title").textContent = signedIn ? "Account" : "Settings";
+  $(".profile").hidden = !signedIn;
+  $("#sign-out").hidden = !signedIn;
   $("#account-name").textContent = a.username || "";
   $("#pw-username").value = a.username || "";
-  $("#password-form").hidden = !!a.managed_by_env;
-  $("#pw-env-note").hidden = !a.managed_by_env;
+  $("#password-form").hidden = !signedIn || !!a.managed_by_env;
+  $("#pw-env-note").hidden = !signedIn || !a.managed_by_env;
   $("#pw-error").hidden = true;
   openDialog($("#account-dialog"));
 }
@@ -2629,6 +3070,8 @@ async function boot() {
   applyTheme(getTheme());
   bindEvents();
   $("#auth-form").addEventListener("submit", submitAuth);
+  $("#welcome-form").addEventListener("submit", submitWelcome);
+  for (const r of document.querySelectorAll('input[name="welcome-mode"]')) r.addEventListener("change", welcomeModeChanged);
   $("#account-btn").addEventListener("click", openAccount);
   $("#password-form").addEventListener("submit", changePassword);
   $("#sign-out").addEventListener("click", signOut);
@@ -2696,10 +3139,11 @@ function renderAbout() {
   const box = $("#update-box");
   box.hidden = true;
   const checked = u?.checked_at ? ` (checked ${new Date(u.checked_at * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })})` : "";
+  $("#check-updates").hidden = !!u && !u.enabled;
   if (!u) {
     status.textContent = "";
   } else if (!u.enabled) {
-    status.textContent = "Update checks are turned off (CODETTA_UPDATE_CHECK=off).";
+    status.textContent = "Update checks are off. Turn on “Update check” under Connections to hear about new versions.";
   } else if (u.error) {
     status.textContent = `Couldn't check for updates: ${u.error}.`;
   } else if (u.note) {
@@ -2741,7 +3185,8 @@ async function copyText(text) {
 async function startApp() {
   appStarted = true;
   $("#app").hidden = false;
-  $("#account-btn").hidden = !state.auth?.auth_enabled;
+  $("#account-btn").hidden = false; // with sign-in off it opens Settings (connections, advanced mode)
+  if (!state.auth?.auth_enabled) { $("#account-btn").title = "Settings"; $("#account-btn").setAttribute("aria-label", "Settings"); }
   renderAvatar();
   try {
     const [status, fields] = await Promise.all([api("GET", "/api/status"), api("GET", "/api/fields")]);
@@ -2753,10 +3198,13 @@ async function startApp() {
   } catch (err) {
     toast(`Can't reach the Codetta server: ${err.message}`, "error");
   }
+  // First run (or first start after upgrading): offline, or opt in?
+  if ((await loadConnections())?.needs_choice) showWelcome();
   await loadFolder(pathFromHash());
   refreshActivity();
   startActivityPolling();
-  // Check for a new release in the background (and twice a day if left open).
+  // Check for a new release in the background (and twice a day if left open),
+  // only if the user turned the update check on.
   setTimeout(() => refreshUpdate(), 1500);
   setInterval(() => refreshUpdate(), 12 * 3600 * 1000);
 }

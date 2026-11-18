@@ -11,9 +11,18 @@ Settings (environment variables):
     CODETTA_PASSWORD      (both must be set; the password can't then be changed in the UI)
     CODETTA_AUTH        "off" disables sign-in entirely, e.g. behind a reverse proxy
                      that already handles it (default: on)
-    CODETTA_UPDATE_CHECK  "off" stops the twice-daily check for new releases on GitHub
+
+  Codetta is fully offline unless you opt in. Online features ("connections")
+  are off until turned on in the app (first-run card or Account → Connections)
+  or here. Setting one of these locks its switch in the app:
+    CODETTA_OFFLINE       "on" blocks every connection, whatever else is set
+    CODETTA_MUSICBRAINZ   "on"/"off": Match on MusicBrainz + Cover Art Archive
+    CODETTA_MUSICBRAINZ_URL  a self-hosted MusicBrainz mirror, e.g. http://mb:5000
+                          (no rate limit; http is allowed for this one)
+    CODETTA_LYRICS_LOOKUP "on"/"off": Find lyrics (asks lrclib.net, only when pressed)
+    CODETTA_UPDATE_CHECK  "on"/"off": twice-daily check for new releases on GitHub
     CODETTA_UPDATE_REPO   where to look for releases (default: gavndev/codetta)
-    CODETTA_LYRICS_LOOKUP "off" hides "Find lyrics" (which asks lrclib.net, only when pressed)
+
     CODETTA_ALLOW_PUBLIC_SETUP  "on" lets the first-run setup screen be used from a
                           public (internet) address; by default only home networks,
                           Tailscale and this machine can create the account
@@ -25,6 +34,8 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
+from collections import OrderedDict
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from importlib.metadata import PackageNotFoundError, version
@@ -52,7 +63,31 @@ from codetta.core.auth import (
 from codetta.core.engine import MetadataEngine, MetadataError, TrackMetadata
 from codetta.core.index import LibraryIndex, parse_query
 from codetta.core.library import Library, LibraryPathError, count_contents
-from codetta.core.providers import LRCLib, ProviderError, TrackQuery, http_get_json
+from codetta.core.artwork import MAX_ART_BYTES
+from codetta.core.connections import BY_ID as CONNECTION_BY_ID
+from codetta.core.connections import ConnectionStore, parse_switch
+from codetta.core.musicbrainz import (
+    ALL_FIELDS as MB_FIELDS,
+    FIELD_GROUPS as MB_FIELD_GROUPS,
+    ID_LABELS as MB_ID_LABELS,
+    MAX_MB_BYTES,
+    MB_BASE,
+    MBID_RE,
+    DEFAULT_OFF as MB_DEFAULT_OFF,
+    FileInfo,
+    MusicBrainz,
+    album_tags,
+    cover_url,
+    default_fields as mb_default_fields,
+    number,
+    pair_files,
+    parse_release_id,
+    release_tracks,
+    score_candidate,
+    summarize,
+    track_tags,
+)
+from codetta.core.providers import LRCLib, ProviderError, TrackQuery, http_get, http_get_json
 from codetta.core.rawtags import read_raw
 from codetta.core.presets import (
     PLACEHOLDERS,
@@ -65,7 +100,7 @@ from codetta.core.presets import (
     apply_loadout_to_folder,
     slugify,
 )
-from codetta.core.tagmap import FIELDS
+from codetta.core.tagmap import FIELDS, is_tag_supported
 from codetta.core.undo import ArtStore, art_hashes, sha256, undo_change
 from codetta.core.updates import DEFAULT_REPO, Fetcher, UpdateChecker, fetch_latest_release
 from codetta.web.security import GuardMiddleware
@@ -98,8 +133,13 @@ class Settings:
     auth: bool = True
     username: str | None = None  # from CODETTA_USERNAME (with password: overrides setup)
     password: str | None = None
-    update_check: bool = False  # on by default via from_env; off for tests/embedding
-    lyrics_lookup: bool = True  # "Find lyrics" button (asks LRCLIB only when pressed)
+    # Connections: None = the user decides in the app (off until they opt in);
+    # True/False = set by the environment, and the app's switch is locked.
+    offline: bool = False  # CODETTA_OFFLINE: blocks every connection
+    update_check: bool | None = None
+    lyrics_lookup: bool | None = None  # "Find lyrics" (asks LRCLIB only when pressed)
+    musicbrainz: bool | None = None  # "Match on MusicBrainz" + Cover Art Archive
+    musicbrainz_url: str | None = None  # self-hosted mirror instead of musicbrainz.org
     update_repo: str = DEFAULT_REPO
     allowed_hosts: tuple[str, ...] = ()  # empty = answer to any host name
     allow_public_setup: bool = False  # first-run setup only from private addresses
@@ -112,8 +152,11 @@ class Settings:
             auth=env("AUTH", "on").strip().lower() not in ("off", "false", "0", "no"),
             username=env("USERNAME"),
             password=env("PASSWORD"),
-            update_check=env("UPDATE_CHECK", "on").strip().lower() not in ("off", "false", "0", "no"),
-            lyrics_lookup=env("LYRICS_LOOKUP", "on").strip().lower() not in ("off", "false", "0", "no"),
+            offline=parse_switch(env("OFFLINE")) is True,
+            update_check=parse_switch(env("UPDATE_CHECK")),
+            lyrics_lookup=parse_switch(env("LYRICS_LOOKUP")),
+            musicbrainz=parse_switch(env("MUSICBRAINZ")),
+            musicbrainz_url=(env("MUSICBRAINZ_URL") or "").strip() or None,
             update_repo=env("UPDATE_REPO", DEFAULT_REPO),
             allowed_hosts=tuple(h.strip() for h in (env("ALLOWED_HOSTS") or "").split(",") if h.strip()),
             allow_public_setup=(env("ALLOW_PUBLIC_SETUP") or "").strip().lower() in ("on", "true", "1", "yes"),
@@ -249,13 +292,42 @@ class ApplyResultOut(BaseModel):
     error: str | None = None
 
 
+class ConnectionsIn(BaseModel):
+    enabled: dict[str, bool] = Field(default={}, max_length=50)  # connection id -> on/off
+
+
+class MBTarget(BaseModel):
+    paths: list[str] = Field(default=[], max_length=MAX_PATHS_PER_REQUEST)  # these files...
+    folder: str | None = None  # ...or the audio files directly in this folder (one album)
+
+
+class MBSearchIn(MBTarget):
+    album: str = Field("", max_length=500)
+    artist: str = Field("", max_length=500)
+    release: str = Field("", max_length=500)  # a release link or ID instead of a search
+
+
+class MBProposalIn(MBTarget):
+    release: str = Field(max_length=500)
+    pairs: dict[str, str | None] = Field(default={}, max_length=MAX_PATHS_PER_REQUEST)  # path -> track id (None: skip)
+    fields: list[str] | None = Field(default=None, max_length=200)  # None: the default set
+    mode: Literal["overwrite", "fill"] = "overwrite"  # fill: only tags that are empty now
+    cover: Literal["missing", "all", "none"] = "missing"
+
+
 # --- App ----------------------------------------------------------------------------
 
 
 def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_latest_release,
-               fetch_json=None) -> FastAPI:
+               fetch_json=None, fetch_mb=None, fetch_art=None) -> FastAPI:
+    """``fetch_*`` replace the network in tests: LRCLIB and MusicBrainz take
+    (url) -> parsed JSON or None, the Cover Art Archive (url) -> bytes or None."""
     settings = settings or Settings.from_env()
-    updates = UpdateChecker(VERSION, settings.update_repo, settings.update_check, fetch_release)
+    connections = ConnectionStore(
+        settings.config_dir / "connections.json", offline=settings.offline,
+        forced={"updates": settings.update_check, "lyrics": settings.lyrics_lookup, "musicbrainz": settings.musicbrainz},
+    )
+    updates = UpdateChecker(VERSION, settings.update_repo, lambda: connections.enabled("updates"), fetch_release)
     library = Library(settings.music_dir)
     store = LoadoutStore(settings.config_dir / "loadouts")
     engine = MetadataEngine()
@@ -267,6 +339,17 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     limiter = LoginRateLimiter()
     user_agent = f"Codetta/{VERSION} (https://github.com/gavndev/codetta)"
     lrclib = LRCLib(fetch_json or (lambda url: http_get_json(url, user_agent)))
+    mb_mirror = settings.musicbrainz_url.rstrip("/") if settings.musicbrainz_url else None
+    if mb_mirror and not mb_mirror.endswith("/ws/2"):
+        mb_mirror += "/ws/2"
+    mb = MusicBrainz(
+        fetch_mb or (lambda url: http_get_json(url, user_agent, max_bytes=MAX_MB_BYTES, service="MusicBrainz",
+                                               allow_http=mb_mirror is not None)),
+        base=mb_mirror or MB_BASE,
+        min_interval=0 if mb_mirror else 1.0,  # musicbrainz.org allows one request a second
+    )
+    download_art = fetch_art or (lambda url: http_get(url, user_agent, accept="image/*", max_bytes=MAX_ART_BYTES,
+                                                 service="the Cover Art Archive"))
 
     def describe(path: Path, rel: str) -> dict:  # what the search index stores per file
         return to_out(rel, engine.load_metadata(path)).model_dump()
@@ -551,8 +634,51 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             "music_dir": str(library.root),
             "music_dir_found": library.exists(),
             "music_dir_writable": library.exists() and os.access(library.root, os.W_OK),
-            "lyrics_lookup": settings.lyrics_lookup,
+            "lyrics_lookup": connections.enabled("lyrics"),
+            "musicbrainz": connections.enabled("musicbrainz"),
         }
+
+    # --- Connections (online features, all opt-in) ---------------------------------------
+
+    def connections_out() -> dict:
+        out = connections.status()
+        if mb_mirror:
+            from urllib.parse import urlsplit
+
+            for c in out["connections"]:
+                if c["id"] == "musicbrainz":
+                    c["hosts"] = [urlsplit(mb_mirror).netloc or mb_mirror, "coverartarchive.org"]
+                    c["mirror"] = True
+        return out
+
+    @app.get("/api/connections")
+    def get_connections() -> dict:
+        """Which online features are on, who decided (the user or an env var), and
+        whether the first-run choice has been made."""
+        return connections_out()
+
+    @app.put("/api/connections")
+    def put_connections(body: ConnectionsIn) -> dict:
+        unknown = [k for k in body.enabled if k not in CONNECTION_BY_ID]
+        if unknown:
+            raise HTTPException(422, f"Unknown connection: {unknown[0]}")
+        try:
+            connections.save(body.enabled)
+        except OSError as exc:
+            raise HTTPException(500, f"Could not save to the config folder: {exc}") from exc
+        on = [CONNECTION_BY_ID[c["id"]].name for c in connections.status()["connections"] if c["enabled"]]
+        log.info("Connections: %s", ", ".join(on) if on else "none (offline)")
+        return connections_out()
+
+    def require_connection(cid: str) -> None:
+        if connections.enabled(cid):
+            return
+        name = CONNECTION_BY_ID[cid].name
+        if settings.offline:
+            raise HTTPException(403, f"{name} is unavailable: Codetta is set to stay offline (CODETTA_OFFLINE).")
+        locked = connections.locked_by(cid)
+        where = f"it's turned off by {locked}" if locked else "turn it on in Account → Connections"
+        raise HTTPException(403, f"{name} is off: {where}.")
 
     @app.get("/api/fields")
     def fields() -> dict:
@@ -594,8 +720,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     def lyrics_lookup(path: str = Query(..., description="File, relative to the music folder")) -> dict:
         """Look up lyrics for a track on LRCLIB (sends artist, title, album and length only).
         Returns a suggestion; nothing is written."""
-        if not settings.lyrics_lookup:
-            raise HTTPException(403, "Lyrics lookup is turned off (CODETTA_LYRICS_LOOKUP=off).")
+        require_connection("lyrics")
         require_library()
         meta = engine.load_metadata(library.resolve(path))
         first = lambda key: (meta.tags.get(key) or [""])[0].strip()  # noqa: E731
@@ -608,6 +733,248 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         except ProviderError as exc:
             raise HTTPException(502, str(exc)) from exc
         return {"found": result is not None, "result": result.to_dict() if result else None}
+
+    # --- MusicBrainz ---------------------------------------------------------------------
+
+    def mb_targets(body: MBTarget) -> list[str]:
+        if body.folder is not None:
+            rels = library.list_folder(body.folder).files
+        else:
+            rels = _unique(body.paths)
+        if not rels:
+            raise HTTPException(400, "Choose an album folder or some tracks first.")
+        if len(rels) > MAX_PATHS_PER_REQUEST:
+            raise HTTPException(422, f"Too many files for one album (max {MAX_PATHS_PER_REQUEST}).")
+        return rels
+
+    def mb_read(rels: list[str]) -> tuple[list[FileInfo], dict[str, TrackMetadata], dict[str, str]]:
+        infos, metas, errors = [], {}, {}
+        for rel in rels:
+            try:
+                meta = engine.load_metadata(library.resolve(rel))
+            except (MetadataError, LibraryPathError, OSError) as exc:
+                errors[rel] = str(exc)
+                continue
+            metas[rel] = meta
+            one = lambda key: (meta.tags.get(key) or [""])[0].strip()  # noqa: E731
+            infos.append(FileInfo(
+                path=rel, title=one("title"), artist=one("artist"), album=one("album"),
+                albumartist=one("albumartist"), tracknumber=number(one("tracknumber")),
+                discnumber=number(one("discnumber")), duration=meta.duration, albumid=one("musicbrainz_albumid").lower(),
+            ))
+        return infos, metas, errors
+
+    def most_common(values) -> str:
+        counts: dict[str, int] = {}
+        for v in values:
+            if v:
+                counts[v] = counts.get(v, 0) + 1
+        return max(counts, key=counts.get) if counts else ""
+
+    def mb_release_id(text: str) -> str:
+        mbid = parse_release_id(text)
+        if not mbid:
+            raise HTTPException(422, "Paste a MusicBrainz release link (musicbrainz.org/release/…) or its ID.")
+        return mbid
+
+    @app.post("/api/musicbrainz/search")
+    def mb_search(body: MBSearchIn) -> dict:
+        """Find releases that could be this album. Sends only the album/artist
+        names (or the release ID you pasted) to MusicBrainz."""
+        require_connection("musicbrainz")
+        require_library()
+        rels = mb_targets(body)
+        infos, _, _ = mb_read(rels)
+        album = body.album.strip() or most_common(f.album for f in infos)
+        artist = body.artist.strip() or most_common(f.albumartist or f.artist for f in infos)
+        current = most_common(f.albumid for f in infos if MBID_RE.match(f.albumid))
+        try:
+            if body.release.strip():
+                found = [mb.release(mb_release_id(body.release))]
+            else:
+                found = mb.search(album, artist) if (album or artist) else []
+                if current and not body.album.strip() and not body.artist.strip() and all(r.get("id") != current for r in found):
+                    try:  # already tagged with a release: offer it first
+                        found.insert(0, mb.release(current))
+                    except ProviderError:
+                        pass
+        except ProviderError as exc:
+            raise HTTPException(502, str(exc)) from exc
+        candidates = []
+        for r in found:
+            c = summarize(r)
+            c["score"] = score_candidate(c, infos, album, artist)
+            c["current"] = c["id"] == current
+            candidates.append(c)
+        if not body.release.strip():
+            candidates.sort(key=lambda c: (not c["current"], -c["score"]))
+        return {"query": {"album": album, "artist": artist, "files": len(rels)}, "current": current or None,
+                "candidates": candidates}
+
+    def mb_proposal(body: MBProposalIn) -> tuple[dict, dict]:
+        """What applying this release would change, per file. Returns (proposal, release)."""
+        require_connection("musicbrainz")
+        require_library()
+        rels = mb_targets(body)
+        mbid = mb_release_id(body.release)
+        try:
+            release = mb.release(mbid)
+        except ProviderError as exc:
+            raise HTTPException(502, str(exc)) from exc
+        tracks = release_tracks(release)
+        if not tracks:
+            raise HTTPException(422, "This release has no track list on MusicBrainz yet.")
+        infos, metas, errors = mb_read(rels)
+        pairs = pair_files(infos, tracks, {p: t for p, t in body.pairs.items() if p in metas})
+        album = album_tags(release)
+        wanted = set(mb_default_fields() if body.fields is None else body.fields) & set(MB_FIELDS)
+        summary = summarize(release)
+        files = []
+        for rel in rels:
+            if rel in errors:
+                files.append({"path": rel, "error": errors[rel], "track": None, "changes": {}})
+                continue
+            meta, pairing = metas[rel], pairs[rel]
+            changes, unsupported = {}, []
+            if pairing.track:
+                for key, new in track_tags(release, pairing.track, album).items():
+                    if key not in wanted:
+                        continue
+                    if not is_tag_supported(meta.format or "", key):
+                        unsupported.append(key)
+                        continue
+                    old = meta.tags.get(key, [])
+                    if body.mode == "fill" and any(v.strip() for v in old):
+                        continue
+                    if old != new:
+                        changes[key] = {"old": old, "new": new}
+            target = library.resolve(rel)
+            try:
+                mtime = target.stat().st_mtime_ns
+            except OSError:
+                mtime = None
+            has_art = art_info(rel, target, mtime) is not None
+            files.append({
+                "path": rel, "error": None,
+                "track": pairing.track.to_dict() if pairing.track else None,
+                "confidence": pairing.confidence, "notes": pairing.notes,
+                "duration": meta.duration, "title": (meta.tags.get("title") or [""])[0],
+                "changes": changes, "unsupported": unsupported, "has_art": has_art,
+                "cover": bool(pairing.track) and summary["has_cover"] is not False
+                         and (body.cover == "all" or (body.cover == "missing" and not has_art)),
+            })
+        labels = {f.key: f.label for f in FIELDS}
+        groups = [
+            {"id": gid, "label": label, "default": not set(keys) <= MB_DEFAULT_OFF,
+             "fields": [{"key": k, "label": labels.get(k) or MB_ID_LABELS.get(k, k)} for k in keys]}
+            for gid, label, keys in MB_FIELD_GROUPS
+        ]
+        return {
+            "release": summary,
+            "tracks": [t.to_dict() for t in tracks],
+            "files": files,
+            "groups": groups,
+            "fields": sorted(wanted),
+            "mode": body.mode, "cover": body.cover,
+        }, release
+
+    @app.post("/api/musicbrainz/preview")
+    def mb_preview(body: MBProposalIn) -> dict:
+        """Pair the files with a release's tracks and show what would change. Writes nothing."""
+        return mb_proposal(body)[0]
+
+    cover_cache: OrderedDict[tuple[str, int | None], bytes | None] = OrderedDict()
+    cover_lock = threading.Lock()
+
+    def fetch_cover(mbid: str, size: int | None) -> bytes | None:
+        key = (mbid, size)
+        with cover_lock:
+            if key in cover_cache:
+                cover_cache.move_to_end(key)
+                return cover_cache[key]
+        data = download_art(cover_url(mbid, size))
+        if data is not None and sniff_image_type(data) not in ("image/jpeg", "image/png"):
+            data = None  # only real JPEG/PNG covers are used (and served to the page)
+        if size and size <= 500:  # only small thumbnails are kept (the candidate list)
+            with cover_lock:
+                cover_cache[key] = data
+                while len(cover_cache) > 48:
+                    cover_cache.popitem(last=False)
+        return data
+
+    @app.get("/api/musicbrainz/cover/{mbid}", responses={200: {"content": {"image/jpeg": {}, "image/png": {}}}})
+    def mb_cover(mbid: str, size: int = Query(250, description="250 or 500 pixels")):
+        """A release's front cover from the Cover Art Archive, fetched by the server
+        (so the page never loads anything from another site)."""
+        require_connection("musicbrainz")
+        if not MBID_RE.match(mbid) or size not in (250, 500):
+            raise HTTPException(422, "Not a release ID or thumbnail size")
+        try:
+            data = fetch_cover(mbid, size)
+        except ProviderError as exc:
+            raise HTTPException(502, str(exc)) from exc
+        if data is None:
+            raise HTTPException(404, "No cover art for this release")
+        return Response(data, media_type=sniff_image_type(data), headers={"Cache-Control": "private, max-age=86400"})
+
+    @app.post("/api/musicbrainz/apply")
+    def mb_apply(body: MBProposalIn) -> dict:
+        """Write the release's tags (and cover) to the paired files: one activity
+        entry, undoable as a whole."""
+        proposal, release = mb_proposal(body)
+        summary = proposal["release"]
+        art, art_error = None, None
+        if any(f.get("cover") for f in proposal["files"]):
+            try:
+                art = fetch_cover(summary["id"], 1200) or fetch_cover(summary["id"], None)
+                if art is None:
+                    art_error = "This release has no cover art on the Cover Art Archive"
+            except ProviderError as exc:
+                art_error = str(exc)
+        tag_undo, art_undo, results = {}, {}, []
+        for f in proposal["files"]:
+            rel = f["path"]
+            if f["error"]:
+                results.append({"path": rel, "ok": False, "error": f["error"]})
+                continue
+            set_art = bool(f["cover"] and art)
+            if not f["changes"] and not set_art:
+                continue
+            target = library.resolve(rel)
+            errors = []
+            if f["changes"]:
+                try:
+                    meta = engine.update_tags(target, {k: c["new"] for k, c in f["changes"].items()})
+                    tag_undo[rel] = {"before": {k: c["old"] for k, c in f["changes"].items()},
+                                     "after": {k: meta.tags.get(k, []) for k in f["changes"]}}
+                except (MetadataError, LibraryPathError, OSError) as exc:
+                    errors.append(str(exc))
+            if set_art and not errors:
+                try:
+                    old = engine.read_artwork(target)
+                    new = engine.update_artwork(target, art)
+                    try:
+                        before, after = art_store.save(old.data if old else None), art_store.save(new.data if new else None)
+                        if before != after:
+                            art_undo[rel] = {"before": before, "after": after}
+                    except OSError:
+                        pass  # couldn't keep a copy: the cover part just won't be undoable
+                except (MetadataError, LibraryPathError, OSError) as exc:
+                    errors.append(f"Cover art: {exc}")
+            results.append({"path": rel, "ok": not errors, "error": "; ".join(errors) or None,
+                            "tags": len(f["changes"]), "cover": set_art and not errors})
+        parts = [p for p in ({"type": "tags", "files": tag_undo}, {"type": "art", "files": art_undo}) if p["files"]]
+        undo = parts[0] if len(parts) == 1 else {"type": "multi", "parts": parts} if parts else None
+        if results:
+            _log_musicbrainz(activity, summary, proposal["files"], results, bool(art_undo), undo)
+        lib_index.mark_dirty(r["path"] for r in results if r["ok"])
+        return {
+            "release": summary,
+            "results": results,
+            "updated": sum(r["ok"] for r in results),
+            "failed": sum(not r["ok"] for r in results),
+            "cover_error": art_error,
+        }
 
     @app.get("/api/track/raw")
     def get_track_raw(path: str = Query(..., description="File, relative to the music folder")) -> dict:
@@ -965,4 +1332,35 @@ def _log_loadout(activity: ActivityLog, name: str, mode: str, results: list[Appl
         files=[r.path for r in changed], changes=diff,
         errors=[{"path": r.path, "error": r.error or ""} for r in failed],
         undo=undo,
+    )
+
+
+def _log_musicbrainz(activity: ActivityLog, release: dict, files: list[dict], results: list[dict],
+                     covers: bool, undo: dict | None) -> None:
+    ok = [r for r in results if r["ok"]]
+    failed = [r for r in results if not r["ok"]]
+    changed = {f["path"]: f["changes"] for f in files if f["path"] in {r["path"] for r in ok}}
+    keys = list(dict.fromkeys(k for ch in changed.values() for k in ch))
+    diff = []
+    for key in keys:
+        news = {_join(ch[key]["new"]) for ch in changed.values() if key in ch}
+        olds = {_join(ch[key]["old"]) for ch in changed.values() if key in ch}
+        diff.append({"key": key, "old": olds.pop() if len(olds) == 1 else "various",
+                     "new": news.pop() if len(news) == 1 else "set per track"})
+    if covers:
+        diff.append({"key": "cover art", "old": "", "new": "from the Cover Art Archive"})
+    detail = " · ".join(p for p in (release.get("date", "")[:4], release.get("formats"), release.get("country")) if p)
+    what = f"“{release.get('title')}” by {release.get('artist')}" + (f" ({detail})" if detail else "")
+    target = _name(ok[0]["path"]) if len(ok) == 1 else f"{len(ok)} tracks"
+    if not ok:
+        message = f"Couldn't tag from MusicBrainz: {what}"
+    elif failed:
+        message = f"Tagged {len(ok)} of {len(results)} tracks from MusicBrainz: {what}"
+    else:
+        message = f"Tagged {target} from MusicBrainz: {what}"
+    activity.add(
+        "musicbrainz", message, ok=not failed,
+        files=[r["path"] for r in results], changes=diff if ok else [],
+        errors=[{"path": r["path"], "error": r["error"] or ""} for r in failed],
+        undo=undo, extra={"release": release.get("id")},
     )

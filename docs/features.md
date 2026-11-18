@@ -90,9 +90,9 @@ covers straight from your photo library (HEIC included).
   ("beyonce" finds "Beyoncé") and right-to-left names display correctly.
 - **Light and dark themes** that follow your device, with smooth, subtle
   animations (off when your system asks for reduced motion).
-- **Works offline.** No CDNs, no tracking, fonts bundled. The only things Codetta
-  ever sends out are an optional check for new versions and, when you press
-  **Find lyrics**, one lookup on lrclib.net.
+- **Offline unless you opt in.** No CDNs, no tracking, fonts bundled. Online
+  features (MusicBrainz, lyrics, the update check) stay off until you turn them
+  on, and each one tells you exactly what it sends and where.
 
 <p align="center">
   <picture>
@@ -100,6 +100,33 @@ covers straight from your photo library (HEIC included).
     <img src="screenshots/editor-light.png" alt="Codetta's track editor next to an album" width="900">
   </picture>
 </p>
+
+## Match albums on MusicBrainz
+
+Turn on the MusicBrainz connection, open an album folder and press **Match on
+MusicBrainz…**. Codetta lists the editions that fit (year, country, format,
+label, catalog number, track count and a match score). Already-tagged albums
+offer their own release first, and you can paste any musicbrainz.org release
+link instead of searching.
+
+Pick a release, and the review screen shows every file next to the track it was
+paired with. Pairing uses disc and track numbers first, then title and length,
+and flags anything that looks off. You can choose:
+
+- **Which fields**: titles and numbering, credits (composer, lyricist,
+  producer, engineer, mixer, arranger, conductor), release details (original
+  date, type, status, country, label, catalog number, barcode, media), sort
+  names, MusicBrainz IDs and ISRCs, and community genres (off by default).
+- **Replace or only fill empty** tags.
+- **Cover art** from the Cover Art Archive: where missing, replace all, or leave.
+- **Which track each file gets**, or leave a file alone.
+
+Each file shows its old → new values before anything is written, and the
+whole match is one undoable entry in the activity log. Tags are stored the way
+MusicBrainz Picard writes them.
+
+Running your own MusicBrainz mirror? Point `CODETTA_MUSICBRAINZ_URL` at it and
+lookups stay on your network with no rate limit.
 
 ## Lyrics
 

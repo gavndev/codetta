@@ -12,7 +12,7 @@
   <link rel="icon" href="/static/icon.svg?v=3" type="image/svg+xml"> <!-- bump ?v= when the icon changes: browsers cache favicons hard -->
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=3">
   <link rel="preload" href="/static/fonts/schibsted-grotesk.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/static/app.css?v=42">
+  <link rel="stylesheet" href="/static/app.css?v=43">
   <script src="/static/theme.js?v=1"></script>
 </head>
 <body>
@@ -43,6 +43,35 @@
         <span>Made with <span class="credit-heart" role="img" aria-label="love">♥︎</span></span>
         <span class="credit-version" data-version></span>
       </footer>
+  </div>
+
+  <!-- First run (and once after upgrading): offline, or opt in to online features. -->
+  <div class="auth welcome" id="welcome" hidden>
+    <form class="auth-card welcome-card" id="welcome-form" method="post" action="#">
+      <div class="auth-logo" aria-hidden="true"><span class="wordmark">codetta<span class="spot-dot"></span></span></div>
+      <h1 id="welcome-title">Offline, unless you say so</h1>
+      <p class="auth-sub">Codetta runs entirely on your server. Your music and its tags never leave it. If you like, it can also look things up online for you.</p>
+      <fieldset class="choices" aria-labelledby="welcome-title">
+        <label class="choice">
+          <input type="radio" name="welcome-mode" value="offline">
+          <span class="choice-body">
+            <span class="choice-title">Stay offline</span>
+            <span class="choice-sub">Edit, batch-tag and use loadouts. Nothing goes online, ever.</span>
+          </span>
+        </label>
+        <label class="choice">
+          <input type="radio" name="welcome-mode" value="online">
+          <span class="choice-body">
+            <span class="choice-title">Turn on online features</span>
+            <span class="choice-sub">Match albums on MusicBrainz for official tags and cover art, find lyrics, and hear about updates.</span>
+          </span>
+        </label>
+      </fieldset>
+      <div class="welcome-list" id="welcome-list" hidden></div>
+      <div class="error-box" id="welcome-error" role="alert" hidden></div>
+      <button class="btn primary auth-submit" id="welcome-go" type="submit" disabled>Continue</button>
+      <p class="auth-foot">It's your choice, and you can change it any time in Account → Connections.</p>
+    </form>
   </div>
 
   <div class="app" id="app" hidden>
@@ -238,6 +267,11 @@
           <input type="checkbox" role="switch" id="advanced-toggle">
         </label>
       </section>
+      <section class="connections" aria-labelledby="conn-title">
+        <h3 id="conn-title" class="section-title">Connections</h3>
+        <p class="hint conn-intro" id="conn-intro"></p>
+        <div id="conn-list"></div>
+      </section>
       <form id="password-form" class="password-form">
         <input type="text" name="username" id="pw-username" autocomplete="username" hidden>
         <h3 class="field-label">Change password</h3>
@@ -260,6 +294,18 @@
     </div>
   </dialog>
 
+  <!-- Match an album on MusicBrainz (filled in by app.js) -->
+  <dialog class="sheet wide" id="mb-dialog" aria-labelledby="mb-title">
+    <div class="sheet-head">
+      <h2 id="mb-title">Match on MusicBrainz</h2>
+      <button class="icon-btn" type="button" data-close aria-label="Close">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body" id="mb-body"></div>
+    <div class="sheet-foot" id="mb-foot"></div>
+  </dialog>
+
   <!-- Manage loadouts -->
   <dialog class="sheet" id="manage-dialog" aria-labelledby="manage-title">
     <div class="sheet-head">
@@ -275,6 +321,6 @@
   <datalist id="tag-keys"></datalist>
   <div class="toasts" id="toasts" aria-live="polite"></div>
 
-  <script src="/static/app.js?v=42" type="module"></script>
+  <script src="/static/app.js?v=43" type="module"></script>
 </body>
 </html>

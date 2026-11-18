@@ -3,7 +3,8 @@
 The server asks GitHub for the latest published release of the Codetta repo,
 at most every ``ttl`` seconds, and compares version numbers. The request
 carries no information about you or your library (just a generic
-User-Agent), and it can be turned off with ``CODETTA_UPDATE_CHECK=off``.
+User-Agent), and only when the "Update check" connection is on (see
+``connections.py``; ``CODETTA_UPDATE_CHECK=on|off`` sets it).
 
 Codetta never updates itself: doing that from inside a container would need
 control of Docker, which means control of the whole server. Instead the UI
@@ -68,18 +69,22 @@ class UpdateChecker:
         self,
         current: str,
         repo: str = DEFAULT_REPO,
-        enabled: bool = True,
+        enabled: bool | Callable[[], bool] = True,  # a callable is asked each time
         fetch: Fetcher = fetch_latest_release,
         ttl: float = CHECK_EVERY,
     ) -> None:
         self.current = current
         self.repo = repo
-        self.enabled = enabled
+        self._enabled = enabled
         self.fetch = fetch
         self.ttl = ttl
         self._lock = threading.Lock()
         self._result: dict | None = None
         self._checked_at = 0.0
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self._enabled()) if callable(self._enabled) else bool(self._enabled)
 
     MIN_FORCE_INTERVAL = 60  # seconds; "Check for updates" can't hammer GitHub
 

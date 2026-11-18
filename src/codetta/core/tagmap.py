@@ -258,6 +258,14 @@ _ASF_NAMES = {
     "work": "WM/Work",
     "subtitle": "WM/SubTitle",
     "lyrics": "WM/Lyrics",
+    "script": "WM/Script",
+    "musicbrainz_trackid": "MusicBrainz/Track Id",
+    "musicbrainz_releasetrackid": "MusicBrainz/Release Track Id",
+    "musicbrainz_albumid": "MusicBrainz/Album Id",
+    "musicbrainz_artistid": "MusicBrainz/Artist Id",
+    "musicbrainz_albumartistid": "MusicBrainz/Album Artist Id",
+    "musicbrainz_releasegroupid": "MusicBrainz/Release Group Id",
+    "musicbrainz_workid": "MusicBrainz/Work Id",
 }
 _FROM_ASF = {v.lower(): k for k, v in _ASF_NAMES.items()}
 # Technical attributes written by encoders: never shown or edited as tags.
@@ -328,6 +336,7 @@ EasyID3.RegisterTextKey("subtitle", "TIT3")
 EasyID3.RegisterTextKey("movementname", "MVNM")
 EasyID3.RegisterTXXXKey("work", "WORK")
 EasyID3.RegisterTXXXKey("showmovement", "SHOWMOVEMENT")
+EasyID3.RegisterTXXXKey("script", "SCRIPT")
 
 
 def _register_id3_movement() -> None:
@@ -497,6 +506,11 @@ for _key, _atom_name in {
     "djmixer": "DJMIXER",
     "language": "LANGUAGE",
     "subtitle": "SUBTITLE",
+    "script": "SCRIPT",
+    # mutagen already knows the album/artist/track IDs; these complete Picard's set.
+    "musicbrainz_releasetrackid": "MusicBrainz Release Track Id",
+    "musicbrainz_releasegroupid": "MusicBrainz Release Group Id",
+    "musicbrainz_workid": "MusicBrainz Work Id",
 }.items():
     EasyMP4Tags.RegisterFreeformKey(_key, _atom_name)
 

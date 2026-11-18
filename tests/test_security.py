@@ -305,3 +305,56 @@ def test_multi_hop_forwarded_host(client):
 @pytest.mark.parametrize("stored", ["scrypt$65536$1$1$AAAA$AAAA", "scrypt$32768$8$0$AAAA$AAAA", "scrypt$16384$8$1$AAAA$AAAA"])
 def test_any_weaker_parameter_triggers_rehash(stored):
     assert needs_rehash(stored)
+
+
+# --- Connections (online features) ------------------------------------------------------
+
+
+def test_provider_redirects_never_downgrade_to_http():
+    """A provider (or someone in the middle) can't bounce a request to plain http."""
+    import urllib.request
+
+    from codetta.core.providers import ProviderError, _HttpsOnlyRedirects
+
+    req = urllib.request.Request("https://coverartarchive.org/release/x/front")
+    with pytest.raises(ProviderError):
+        _HttpsOnlyRedirects().redirect_request(req, None, 302, "Found", {}, "http://evil.example/cover.jpg")
+    ok = _HttpsOnlyRedirects().redirect_request(req, None, 307, "Found", {}, "https://archive.org/cover.jpg")
+    assert ok.full_url == "https://archive.org/cover.jpg"
+
+
+def test_providers_refuse_plain_http_unless_a_mirror_was_configured():
+    from codetta.core.providers import ProviderError, http_get
+
+    with pytest.raises(ProviderError):
+        http_get("http://musicbrainz.org/ws/2/release", "test")
+    with pytest.raises(ProviderError):
+        http_get("file:///etc/passwd", "test", allow_http=True)
+
+
+def test_connections_and_musicbrainz_routes_need_sign_in(music, tmp_path):
+    with make_client(music, tmp_path, musicbrainz=True) as c:
+        for method, url in [("get", "/api/connections"), ("put", "/api/connections"),
+                            ("post", "/api/musicbrainz/search"), ("post", "/api/musicbrainz/preview"),
+                            ("post", "/api/musicbrainz/apply"),
+                            ("get", "/api/musicbrainz/cover/11111111-1111-4111-8111-111111111111")]:
+            assert getattr(c, method)(url).status_code == 401, url
+
+
+def test_nothing_goes_online_on_a_fresh_install(music, tmp_path):
+    """Offline by default: no update check, lyrics or MusicBrainz until the user opts in."""
+    calls = []
+
+    def spy(*args):
+        calls.append(args)
+        raise AssertionError("network used")
+
+    app = create_app(Settings(music_dir=music, config_dir=tmp_path / "config"),
+                     fetch_release=spy, fetch_json=spy, fetch_mb=spy, fetch_art=spy)
+    with TestClient(app) as c:
+        c.post("/api/auth/setup", json={"username": "listener", "password": "correct horse 1"})
+        c.get("/api/update", params={"force": True})
+        c.get("/api/lyrics/lookup", params={"path": "song.flac"})
+        c.post("/api/musicbrainz/search", json={"folder": "", "album": "x"})
+        c.get("/api/musicbrainz/cover/11111111-1111-4111-8111-111111111111")
+    assert calls == []

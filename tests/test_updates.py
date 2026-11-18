@@ -94,6 +94,25 @@ def test_api_update_endpoint(tmp_path):
 
 def test_update_check_setting_from_env(monkeypatch):
     monkeypatch.delenv("CODETTA_UPDATE_CHECK", raising=False)
-    assert Settings.from_env().update_check is True
+    assert Settings.from_env().update_check is None  # unset: the user decides in the app (off until then)
     monkeypatch.setenv("CODETTA_UPDATE_CHECK", "off")
     assert Settings.from_env().update_check is False
+    monkeypatch.setenv("CODETTA_UPDATE_CHECK", "on")
+    assert Settings.from_env().update_check is True
+
+
+def test_update_check_is_off_until_opted_in(tmp_path):
+    (tmp_path / "music").mkdir()
+    calls = []
+
+    def fetch(repo):
+        calls.append(repo)
+        return {"tag_name": "v99.0.0"}
+
+    settings = Settings(music_dir=tmp_path / "music", config_dir=tmp_path / "config")
+    with TestClient(create_app(settings, fetch_release=fetch)) as c:
+        c.post("/api/auth/setup", json={"username": "listener", "password": "correct horse 1"})
+        assert c.get("/api/update").json()["enabled"] is False
+        assert calls == []  # GitHub was never asked
+        c.put("/api/connections", json={"enabled": {"updates": True}})
+        assert c.get("/api/update").json()["update_available"] is True

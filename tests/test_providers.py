@@ -61,6 +61,8 @@ def test_only_https_is_allowed():
 
 @pytest.fixture
 def client_for(tmp_path):
+    opened = []
+
     def make(fake, **settings):
         music = tmp_path / "music"
         music.mkdir(exist_ok=True)
@@ -69,9 +71,13 @@ def client_for(tmp_path):
         app = create_app(Settings(music_dir=music, config_dir=tmp_path / "config", **settings), fetch_json=fake)
         c = TestClient(app)
         c.__enter__()
+        opened.append(c)
         c.post("/api/auth/setup", json={"username": "owner", "password": "correct horse 1"})
+        c.put("/api/connections", json={"enabled": {"lyrics": True}})  # opt in, as the first-run card does
         return c
-    return make
+    yield make
+    for c in opened:
+        c.__exit__(None, None, None)
 
 
 def test_lookup_api(client_for):
@@ -90,6 +96,19 @@ def test_service_errors_are_reported_kindly(client_for):
     c = client_for(FakeService(error=ProviderError("Couldn't reach the lyrics service.")))
     res = c.get("/api/lyrics/lookup", params={"path": "a.flac"})
     assert res.status_code == 502 and "Couldn't reach" in res.json()["detail"]
+
+
+def test_lookup_is_off_until_opted_in(tmp_path):
+    svc = FakeService(get=SONG)
+    music = tmp_path / "music"
+    music.mkdir()
+    shutil.copy2(FIXTURES_DIR / "sample.flac", music / "a.flac")
+    with TestClient(create_app(Settings(music_dir=music, config_dir=tmp_path / "config"), fetch_json=svc)) as c:
+        c.post("/api/auth/setup", json={"username": "owner", "password": "correct horse 1"})
+        assert c.get("/api/status").json()["lyrics_lookup"] is False
+        res = c.get("/api/lyrics/lookup", params={"path": "a.flac"})
+        assert res.status_code == 403 and "Connections" in res.json()["detail"]
+    assert svc.urls == []
 
 
 def test_lookup_can_be_turned_off(client_for):
