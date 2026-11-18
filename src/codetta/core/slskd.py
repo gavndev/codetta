@@ -33,6 +33,7 @@ import urllib.parse
 import urllib.request
 import uuid
 from collections.abc import Callable
+from datetime import datetime
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -183,11 +184,66 @@ class SlskdClient:
             out.extend(t for t in d.get("files") or [] if isinstance(t, dict))
         return out
 
+    def all_downloads(self) -> list[dict]:
+        """Every download slskd knows, one entry per (user, remote folder)."""
+        out = []
+        for u in self.call("GET", "/transfers/downloads") or []:
+            for d in (u or {}).get("directories") or []:
+                out.append({"username": u.get("username") or "", "directory": d.get("directory") or "",
+                            "files": [t for t in d.get("files") or [] if isinstance(t, dict)]})
+        return out
+
     def cancel(self, username: str, transfer_id: str) -> None:
         try:
             self.call("DELETE", f"/transfers/downloads/{self._user(username)}/{transfer_id}?remove=true")
         except SlskdError:
             pass
+
+
+def _when(text: object) -> float | None:
+    """slskd's timestamps ("2026-11-18T18:50:01.1234567", UTC, with or without Z) -> epoch seconds."""
+    if not isinstance(text, str) or not text:
+        return None
+    m = re.match(r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(\.\d+)?(Z|[+-]\d\d:?\d\d)?$", text.strip())
+    if not m:
+        return None
+    frac = (m.group(2) or ".0")[:7]
+    zone = m.group(3) or "+00:00"
+    try:
+        return datetime.fromisoformat(m.group(1) + frac + ("+00:00" if zone == "Z" else zone)).timestamp()
+    except ValueError:
+        return None
+
+
+def transfer_progress(transfers: list[dict], now: float | None = None) -> dict | None:
+    """How far a folder's download has got, and roughly how long the rest takes:
+    the speed so far (bytes since the first file started) applied to what's left."""
+    if not transfers:
+        return None
+    now = time.time() if now is None else now
+    total = sum(int(t.get("size") or 0) for t in transfers)
+    done = sum(int(t.get("bytesTransferred") or 0) for t in transfers)
+    if total <= 0:
+        return None
+    starts = [s for t in transfers if (s := _when(t.get("startedAt"))) is not None]
+    finished = sum("Succeeded" in str(t.get("state") or "") for t in transfers)
+    eta = speed = None
+    if starts and 0 < done < total:
+        elapsed = max(1.0, now - min(starts))
+        speed = done / elapsed
+        eta = (total - done) / speed if speed > 0 else None
+    return {"progress": round(min(done / total, 1.0), 3), "eta": round(eta) if eta is not None else None,
+            "speed": round(speed) if speed else None, "files": len(transfers), "finished": finished}
+
+
+def folder_progress(downloads: list[dict], names: set[str], now: float | None = None) -> dict | None:
+    """The download (one slskd folder) that these files came from, by file name."""
+    best = None
+    for d in downloads:
+        hit = len(names & {split_remote(t.get("filename") or "")[1] for t in d["files"]})
+        if hit and (best is None or hit > best[0]):
+            best = (hit, d)
+    return transfer_progress(best[1]["files"], now) if best else None
 
 
 def check(client: SlskdClient) -> dict:
@@ -334,6 +390,7 @@ class Job:
     pick: int = -1  # index into candidates being downloaded
     tried: list[int] = field(default_factory=list)
     progress: float = 0.0  # 0..1 of the current pick
+    eta: float | None = None  # seconds left, roughly (speed since the first file started)
     moved: float = 0.0  # when the download last made progress
     note: str = ""
     inbox_key: str = ""  # its album in the inbox, once it's there
@@ -497,7 +554,7 @@ class Soulseek:
         cand = job.candidates[index]
         self.client().enqueue(cand["username"], cand["files"])
         tried = job.tried + ([index] if index not in job.tried else [])
-        self.store.update(job, status=DOWNLOADING, pick=index, tried=tried, progress=0.0, moved=self.clock(),
+        self.store.update(job, status=DOWNLOADING, pick=index, tried=tried, progress=0.0, eta=None, moved=self.clock(),
                           inbox_key="", note=f"Downloading {cand['name']} from {cand['username']}")
 
     def next_candidate(self, job: Job, reason: str) -> bool:
@@ -543,7 +600,9 @@ class Soulseek:
             return
         progress = min(done / total, 0.999)
         if progress > job.progress:
-            self.store.update(job, progress=progress, moved=now,
+            est = transfer_progress(transfers + [{"size": f["size"]} for f in cand["files"]
+                                                 if f["filename"] not in {t.get("filename") for t in transfers}], now)
+            self.store.update(job, progress=progress, moved=now, eta=est["eta"] if est else None,
                               note=f"Downloading {cand['name']} from {cand['username']}")
         elif now - job.moved > STALL_SECONDS:
             self.cancel_transfers(job)

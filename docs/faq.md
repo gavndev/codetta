@@ -7,8 +7,21 @@ Yes. Codetta writes standard tags that any player reads. It's tuned for
 Navidrome's extra fields, but nothing about it is Navidrome-only.
 
 **Does it rename or move my files?**
-No. Only tags and embedded album art change. File names and folders stay as
-they are.
+Only when you ask. Editing changes tags and embedded album art, nothing else.
+**Organize** and the **inbox** do rename and move files, but you see every
+move first, nothing is ever overwritten, and the activity log can undo it.
+
+**Do I need slskd for Soulseek?**
+Yes. Codetta doesn't speak the Soulseek protocol itself; it asks your own
+[slskd](https://github.com/slskd/slskd) to search and download, over slskd's
+API. Mount slskd's downloads folder into Codetta at `/inbox` so the downloads
+arrive in the inbox, and share a folder in slskd: many Soulseek users won't
+send files to someone who shares nothing.
+
+**Is downloading from Soulseek OK?**
+That's up to you and where you live. Soulseek is a peer-to-peer network, and
+what you download (and share) is your responsibility. Codetta only automates
+what you'd otherwise do in slskd's own web page.
 
 **How do I search for a tag that isn't in the list?**
 Any tag name in your files works, e.g. `catalognumber: ABC-123`, or a custom

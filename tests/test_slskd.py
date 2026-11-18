@@ -8,7 +8,7 @@ import pytest
 
 from codetta.core.slskd import (
     ARRIVED, DOWNLOADING, FAILED, FETCHED, NOTHING, SEARCHING, Soulseek, SoulseekStore, SlskdClient, SlskdError,
-    SlskdSettings, block_key, check, clean_url, name_match, rank,
+    SlskdSettings, _when, block_key, check, clean_url, folder_progress, name_match, rank, transfer_progress,
 )
 
 
@@ -68,6 +68,9 @@ class FakeSlskd:
             self.downloads[user] = [{"id": f"t{i}", "filename": x["filename"], "size": x["size"],
                                      "state": "Queued, Remotely", "bytesTransferred": 0} for i, x in enumerate(data)]
             return 201, b""
+        if method == "GET" and path == "/transfers/downloads":
+            return 200, json.dumps([{"username": u, "directories": [{"directory": "x", "files": ts}]}
+                                    for u, ts in self.downloads.items()]).encode()
         if method == "GET" and path.startswith("/transfers/downloads/"):
             user = path.rsplit("/", 1)[1]
             if user not in self.downloads:
@@ -215,3 +218,27 @@ def test_empty_query_and_unconfigured(tmp_path):
 def test_env_overrides_saved_settings(tmp_path):
     store = SoulseekStore(tmp_path / "s.json", env_url="slskd:5030", env_key="k")
     assert store.url == "http://slskd:5030" and store.api_key == "k" and store.configured
+
+
+def test_slskd_timestamps():
+    assert _when("2026-11-18T18:50:00Z") == 1795027800.0
+    assert _when("2026-11-18T18:50:00.1234567") == pytest.approx(1795027800.1234567, abs=1e-5)  # .NET: 7 digits, no zone = UTC
+    assert _when("2026-11-18T19:50:00+01:00") == 1795027800.0
+    assert _when(None) is None and _when("soon") is None
+
+
+def test_transfer_progress_estimates_time_left():
+    start = "2026-11-18T18:50:00Z"
+    now = 1795027800.0 + 60  # a minute after the first file started
+    ts = [{"filename": "a\\01.flac", "size": 100, "bytesTransferred": 100, "state": "Completed, Succeeded", "startedAt": start},
+          {"filename": "a\\02.flac", "size": 100, "bytesTransferred": 50, "state": "InProgress", "startedAt": "2026-11-18T18:50:30Z"},
+          {"filename": "a\\03.flac", "size": 100, "bytesTransferred": 0, "state": "Queued, Remotely"}]
+    p = transfer_progress(ts, now)
+    assert p["progress"] == 0.5 and p["finished"] == 1 and p["files"] == 3
+    assert p["eta"] == 60  # 150 bytes in 60 s, 150 to go
+    other = [{"username": "u", "directory": "b", "files": [{"filename": "b\\x.flac", "size": 5, "bytesTransferred": 0}]},
+             {"username": "v", "directory": "a", "files": ts}]
+    assert folder_progress(other, {"01.flac"}, now)["eta"] == 60
+    assert folder_progress(other, {"nope.flac"}, now) is None
+    assert transfer_progress([], now) is None
+    assert transfer_progress([{"size": 10, "bytesTransferred": 0}], now)["eta"] is None  # nothing moved yet

@@ -2139,3 +2139,8 @@ body:has(.now-playing:not([hidden])) .browser { padding-bottom: 120px; }
   .inbox-tools { flex: 1 1 100%; }
   .inbox-tools .btn { flex: 1; justify-content: center; height: 44px; }
 }
+
+/* Download progress (inbox items still arriving, Soulseek downloads) */
+.dl-progress { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; max-width: 360px; }
+.dl-progress .sk-progress { margin: 0; max-width: none; }
+.dl-progress-text { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }

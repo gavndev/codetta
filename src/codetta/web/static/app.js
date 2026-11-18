@@ -3161,7 +3161,8 @@ async function loadInbox() {
   renderInbox();
   // Keep it fresh while lookups run (and, more slowly, while downloads arrive) and the sheet is open.
   if ($("#inbox-dialog").open && (inboxState.data.running || inboxState.data.downloading)) {
-    inboxState.timer = setTimeout(loadInbox, inboxState.data.running ? 1500 : 15000);
+    const live = inboxState.data.groups.some((g) => g.transfer); // a progress bar to keep moving
+    inboxState.timer = setTimeout(loadInbox, inboxState.data.running ? 1500 : live ? 3000 : 15000);
   }
 }
 
@@ -3244,7 +3245,9 @@ function renderInbox() {
         h("div", { class: "mb-cand-meta" }, [rel ? mbMeta(rel) : "", `${plural(g.files, "file")} in ${inboxLabel(g.key)}`].filter(Boolean).join(" · ")),
         h("div", { class: "inbox-status" },
           h("span", { class: `inbox-chip ${g.status}` }, INBOX_LABELS[g.status] || g.status, g.score != null && g.status !== "filed" ? ` · ${g.score}%` : ""),
-          g.note ? h("span", { class: "inbox-note" }, g.note) : null)),
+          g.note && !g.transfer ? h("span", { class: "inbox-note" }, g.note) : null),
+        g.transfer ? progressBar(g.transfer.progress, [
+          `${g.transfer.finished} of ${plural(g.transfer.files, "file")}`, etaText(g.transfer.eta)].filter(Boolean).join(" · ")) : null),
       h("div", { class: "inbox-actions" }, actions));
   };
   setKids(body,
@@ -3280,6 +3283,19 @@ const SK_LABELS = {
 const SK_ACTIVE = ["searching", "downloading", "fetched"];
 const BANG = /^!(slskd|soulseek)(?=\s|$)/i; // the chip appears as soon as "!slskd" is typed
 const skReady = () => connectionOn("slskd") && !!sk.data?.configured;
+/** "about 3 min left" from seconds (null: not known yet). */
+const etaText = (s) => (s == null ? "" : s < 60 ? "less than a minute left" : s < 3600 ? `about ${Math.round(s / 60)} min left`
+  : `about ${Math.floor(s / 3600)} h ${Math.round((s % 3600) / 60)} min left`);
+
+/** A thin download bar with "62% · about 3 min left" under it. */
+function progressBar(fraction, extra = "") {
+  const pct = Math.round(fraction * 100);
+  const bar = h("div", { class: "sk-progress", role: "progressbar", "aria-label": "Download progress",
+    "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(pct) }, h("span", {}));
+  bar.firstChild.style.width = `${Math.max(2, pct)}%`;
+  return h("div", { class: "dl-progress" }, bar, h("span", { class: "dl-progress-text" }, [`${pct}%`, extra].filter(Boolean).join(" · ")));
+}
+
 const skSize = (b) => (b >= 1e9 ? `${(b / 1e9).toFixed(1)} GB` : `${Math.max(1, Math.round(b / 1e6))} MB`);
 
 async function loadSlskd() {
@@ -3584,9 +3600,7 @@ function skItem(j) {
       () => { sk.picking = sk.picking === j.id ? null : j.id; renderSoulseek(); }));
   }
   if (["imported", "nothing", "failed", "cancelled"].includes(j.status)) actions.push(link("Remove", () => skAction("DELETE", `/api/slskd/jobs/${j.id}`)));
-  const bar = j.status === "downloading" ? h("div", { class: "sk-progress", role: "progressbar", "aria-label": "Download progress",
-    "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(Math.round(j.progress * 100)) }, h("span", {})) : null;
-  if (bar) bar.firstChild.style.width = `${Math.max(2, j.progress * 100)}%`;
+  const bar = j.status === "downloading" && j.progress > 0 ? progressBar(j.progress, etaText(j.eta)) : null;
   return h("div", { class: `inbox-item sk-item ${j.status}`, "data-job": j.id },
     reviewable && g.release?.id && sk.data.enabled && connectionOn("musicbrainz") ? mbThumb(g.release.id)
       : h("span", { class: "mb-thumb mb-noart sk-thumb", "aria-hidden": "true" }, icon("slskd")),

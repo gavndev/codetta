@@ -185,3 +185,29 @@ def test_upgrade_replaces_the_old_album_and_can_be_undone(client, music, tmp_pat
     assert c.post(f"/api/activity/{organize['id']}/undo").json()["failed"] == 0
     assert c.post(f"/api/activity/{aside['id']}/undo").json()["failed"] == 0
     assert (old / "01 Opening.mp3").read_bytes() == b"old lossy copy" and (old / "cover.jpg").read_bytes() == b"old cover"
+
+
+def test_inbox_shows_progress_of_an_album_still_arriving(music, tmp_path):  # noqa: F811
+    """Downloads started in slskd itself: the inbox item gets slskd's progress and time left."""
+    downloads = tmp_path / "dl2"
+    (downloads / "Some Album").mkdir(parents=True)
+    (downloads / "Some Album" / "01 First.flac").write_bytes(b"x" * 100)  # arrived; 02 still on its way
+    fake = FakeSlskd()
+    fake.downloads["someone"] = [
+        {"id": "1", "filename": "Music\\Some Album\\01 First.flac", "size": 100, "bytesTransferred": 100,
+         "state": "Completed, Succeeded", "startedAt": "2020-01-01T00:00:00Z"},
+        {"id": "2", "filename": "Music\\Some Album\\02 Second.flac", "size": 300, "bytesTransferred": 100,
+         "state": "InProgress", "startedAt": "2020-01-01T00:00:00Z"}]
+    app = create_app(Settings(music_dir=music, config_dir=tmp_path / "cfg2", inbox_dir=downloads, inbox_settle_seconds=600),
+                     fetch_mb=FakeMB(), fetch_art=lambda url: None, slskd_request=fake)
+    with TestClient(app) as c:
+        c.post("/api/auth/setup", json={"username": "owner", "password": PASSWORD})
+        c.put("/api/connections", json={"enabled": {"slskd": True}})
+        c.put("/api/slskd/settings", json={"url": "slskd:5030", "api_key": "secret"})
+        g = c.put("/api/inbox/settings", json={"folder": "@inbox"}).json()["groups"][0]
+        assert g["status"] == "downloading"
+        assert g["transfer"]["progress"] == 0.5 and g["transfer"]["finished"] == 1 and g["transfer"]["files"] == 2
+        assert g["transfer"]["eta"] is not None
+        # Without the slskd connection, there's simply no bar.
+        c.put("/api/connections", json={"enabled": {"slskd": False}})
+        assert c.get("/api/inbox").json()["groups"][0]["transfer"] is None

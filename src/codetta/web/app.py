@@ -141,6 +141,7 @@ from codetta.core.slskd import (
     basenames as sk_basenames,
     check as slskd_check,
     clean_url as slskd_clean_url,
+    folder_progress,
     http_request as slskd_http_request,
 )
 from codetta.core.presets import (
@@ -1635,7 +1636,24 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
 
     app.state.inbox_watch = inbox_watch  # started in lifespan
 
+    sk_transfers: dict = {"at": 0.0, "list": []}
+
+    def inbox_transfers() -> list[dict]:
+        """slskd's downloads, while something in the inbox is still arriving (for its progress bar)."""
+        if not any(g.status == DOWNLOADING for g in list(inbox.groups.values())):
+            return []
+        if not (connections.enabled("slskd") and soulseek_store.configured):
+            return []
+        if time.time() - sk_transfers["at"] > 3:
+            try:
+                sk_transfers["list"] = soulseek.client().all_downloads()
+            except SlskdError:
+                sk_transfers["list"] = []
+            sk_transfers["at"] = time.time()
+        return sk_transfers["list"]
+
     def inbox_out() -> dict:
+        transfers = inbox_transfers()
         with inbox.lock:
             groups = sorted(inbox.groups.values(), key=lambda g: (g.status == FILED, -g.updated if g.status == FILED else 0, g.key))
             counts = {}
@@ -1659,7 +1677,9 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
                 "running": running, "counts": counts,
                 "groups": [{"key": g.key, "files": len(g.paths), "paths": g.paths[:1000], "status": g.status,
                             "title": g.title, "artist": g.artist, "release": g.release, "score": g.score,
-                            "recordings": g.recordings, "note": g.note, "dest": g.dest} for g in groups],
+                            "recordings": g.recordings, "note": g.note, "dest": g.dest,
+                            "transfer": folder_progress(transfers, {p.rsplit("/", 1)[-1] for p in g.paths})
+                                        if transfers and g.status == DOWNLOADING else None} for g in groups],
             }
 
     @app.get("/api/inbox")
@@ -1833,6 +1853,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         cur = job.current
         return {
             "id": job.id, "query": job.query, "status": job.status, "note": job.note, "progress": job.progress,
+            "eta": job.eta,
             "created": job.created, "updated": job.updated, "upgrade": job.upgrade,
             "current": cand(job.pick, cur) | {"files": [split_name(f["filename"]) for f in cur["files"]]} if cur else None,
             "candidates": [cand(i, c) for i, c in enumerate(job.candidates)],
