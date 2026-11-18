@@ -51,7 +51,9 @@ ACTIVE = (SEARCHING, DOWNLOADING, FETCHED)
 AUDIO = {"flac", "mp3", "m4a", "aac", "ogg", "opus", "wav", "aif", "aiff", "ape", "wv", "dsf", "alac", "wma"}
 LOSSLESS = {"flac", "wav", "aif", "aiff", "ape", "wv", "dsf", "alac"}
 MAX_CANDIDATES = 25
-MAX_JOBS = 100
+MAX_JOBS = 50
+QUIET_SAVE_SECONDS = 30  # progress-only changes reach the disk at most this often
+DONE = (IMPORTED, NOTHING, CANCELLED)  # finished for good: their file lists aren't needed any more
 STALL_SECONDS = 15 * 60  # a download that hasn't moved for this long gives way to the next candidate
 ARRIVE_SECONDS = 10 * 60  # finished in slskd but not in the inbox after this long: something's mounted wrong
 FAILED_STATES = ("Errored", "Rejected", "TimedOut", "Cancelled", "Aborted")
@@ -400,6 +402,12 @@ class Job:
         return self.candidates[self.pick] if 0 <= self.pick < len(self.candidates) else None
 
 
+def _slim(job: Job) -> None:
+    """A finished request keeps its summary, not every candidate's file list (most of its size)."""
+    if job.status in DONE and any("files" in c for c in job.candidates):
+        job.candidates = [{k: v for k, v in c.items() if k != "files"} for c in job.candidates]
+
+
 class SoulseekStore:
     """Settings, jobs and the blocklist, saved to slskd.json (owner-only: it holds the API key)."""
 
@@ -432,6 +440,9 @@ class SoulseekStore:
                 continue
             self.jobs[job.id] = job
         self.blocked = {b for b in data.get("blocked") or [] if isinstance(b, str)}
+        self._saved = 0.0
+        for job in self.jobs.values():
+            _slim(job)
 
     @property
     def url(self) -> str:
@@ -456,6 +467,7 @@ class SoulseekStore:
                 with os.fdopen(fd, "w", encoding="utf-8") as f:
                     json.dump(data, f, ensure_ascii=False)
                 os.replace(tmp, self.file)
+                self._saved = time.time()
             except BaseException:
                 Path(tmp).unlink(missing_ok=True)
                 raise
@@ -473,12 +485,16 @@ class SoulseekStore:
             self.save()
             return job
 
-    def update(self, job: Job, **changes) -> Job:
+    def update(self, job: Job, quiet: bool = False, **changes) -> Job:
+        """Change a job and save. ``quiet``: only progress moved, so the file is
+        written at most every QUIET_SAVE_SECONDS (a download ticks every few seconds)."""
         with self.lock:
             for k, v in changes.items():
                 setattr(job, k, v)
             job.updated = time.time()
-            self.save()
+            _slim(job)
+            if not quiet or job.updated - self._saved >= QUIET_SAVE_SECONDS:
+                self.save()
             return job
 
     def active(self) -> list[Job]:
@@ -536,7 +552,7 @@ class Soulseek:
         if not state.get("isComplete") and "Completed" not in str(state.get("state") or "") \
                 and elapsed < self.store.settings.search_seconds + 30:
             n = int(state.get("responseCount") or 0)
-            self.store.update(job, note=f"Asking Soulseek… {n} {'user has' if n == 1 else 'users have'} answered")
+            self.store.update(job, quiet=True, note=f"Asking Soulseek… {n} {'user has' if n == 1 else 'users have'} answered")
             return
         cands = rank(client.responses(job.id), job.query, self.store.settings, self.store.blocked)
         client.delete_search(job.id)
@@ -602,7 +618,7 @@ class Soulseek:
         if progress > job.progress:
             est = transfer_progress(transfers + [{"size": f["size"]} for f in cand["files"]
                                                  if f["filename"] not in {t.get("filename") for t in transfers}], now)
-            self.store.update(job, progress=progress, moved=now, eta=est["eta"] if est else None,
+            self.store.update(job, quiet=True, progress=progress, moved=now, eta=est["eta"] if est else None,
                               note=f"Downloading {cand['name']} from {cand['username']}")
         elif now - job.moved > STALL_SECONDS:
             self.cancel_transfers(job)
@@ -610,7 +626,7 @@ class Soulseek:
             self.next_candidate(job, f"{cand['username']} {'kept you waiting in their queue' if queued else 'stopped sending'}.")
         elif any("Queued" in st for st in states) and job.progress == 0:
             place = min((t.get("placeInQueue") for t in transfers if t.get("placeInQueue")), default=None)
-            self.store.update(job, note=f"Waiting in {cand['username']}'s queue" + (f" (place {place})" if place else ""))
+            self.store.update(job, quiet=True, note=f"Waiting in {cand['username']}'s queue" + (f" (place {place})" if place else ""))
 
     def _tick_fetched(self, job: Job, locate: Callable[[Job], str | None]) -> None:
         key = locate(job)
@@ -631,4 +647,4 @@ class Soulseek:
 
 def basenames(job: Job) -> list[str]:
     cand = job.current
-    return [split_remote(f["filename"])[1] for f in cand["files"]] if cand else []
+    return [split_remote(f["filename"])[1] for f in cand.get("files", [])] if cand else []

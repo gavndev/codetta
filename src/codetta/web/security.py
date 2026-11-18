@@ -128,6 +128,35 @@ class GuardMiddleware:
         await self.app(scope, receive, send_with_headers)
 
 
+# Already compressed (images, fonts) or must stay byte-exact for seeking (audio): never gzipped.
+NO_GZIP_PATHS = ("/api/stream", "/api/art", "/api/account/avatar", "/api/musicbrainz/cover")
+GZIP_STATIC = (".js", ".css", ".svg", ".html", ".json", ".txt", ".webmanifest")
+
+
+def gzip_worthy(path: str) -> bool:
+    """Text Codetta sends (the page, its script and styles, API answers) shrinks to a
+    quarter with gzip, which matters on a phone; media doesn't shrink at all."""
+    if path == "/":
+        return True
+    if path.startswith("/static/"):
+        return path.lower().endswith(GZIP_STATIC)
+    return path.startswith("/api/") and not path.startswith(NO_GZIP_PATHS)
+
+
+class SelectiveGZip:
+    """Starlette's GZipMiddleware, only for responses that are worth it."""
+
+    def __init__(self, app, minimum_size: int = 1400) -> None:
+        from starlette.middleware.gzip import GZipMiddleware
+        self.app = app
+        self.gzip = GZipMiddleware(app, minimum_size=minimum_size, compresslevel=6)
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and gzip_worthy(scope["path"]):
+            return await self.gzip(scope, receive, send)
+        return await self.app(scope, receive, send)
+
+
 async def _reject(send, status: int, detail: str) -> None:
     body = json.dumps({"detail": detail}).encode()
     await send({"type": "http.response.start", "status": status, "headers": [

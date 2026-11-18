@@ -98,6 +98,7 @@ from codetta.core.organize import (
     remove_empty_dirs,
     load_pattern,
     plan_moves,
+    prune_replaced,
     render,
     save_pattern,
 )
@@ -160,7 +161,7 @@ from codetta.core.presets import (
 from codetta.core.tagmap import FIELDS, is_tag_supported
 from codetta.core.undo import ArtStore, art_hashes, sha256, undo_change
 from codetta.core.updates import DEFAULT_REPO, Fetcher, UpdateChecker, fetch_latest_release
-from codetta.web.security import GuardMiddleware
+from codetta.web.security import GuardMiddleware, SelectiveGZip
 
 STATIC_DIR = Path(__file__).parent / "static"
 SESSION_COOKIE = "codetta_session"
@@ -519,12 +520,17 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         except OSError:
             pass
         lib_index.start()  # builds/refreshes the search index in the background
+        prune_replaced(settings.config_dir / "replaced")  # upgrades' old albums, after 30 days
         watcher = threading.Thread(target=app.state.inbox_watch, name="codetta-inbox-watch", daemon=True)
         watcher.start()  # sleeps; only looks at the inbox if "check every 15 minutes" is on
         app.state.soulseek_start()  # carries on with downloads that were under way
         yield
         inbox_wake.set()
         app.state.soulseek_stop()
+        try:
+            soulseek_store.save()  # the latest download progress (written to disk only now and then)
+        except OSError:
+            pass
         lib_index.stop()
 
     app = FastAPI(
@@ -762,11 +768,33 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             folders=counts[0] if counts else None, tracks=counts[1] if counts else None,
         )
 
+    # Tags of files that haven't changed since they were last read (same modification
+    # time, size and inode; every save through the engine replaces the file, so all
+    # three change). Opening a folder again then skips reading every file.
+    track_memory: OrderedDict[str, tuple[tuple[int, int, int], TrackOut]] = OrderedDict()
+    TRACK_MEMORY = 3000
+    track_memory_lock = threading.Lock()  # requests run in a thread pool
+
     def track_out(rel: str) -> TrackOut:
         name = rel.rsplit("/", 1)[-1]
         try:
-            return to_out(rel, engine.load_metadata(library.resolve(rel)))
+            target = library.resolve(rel)
+            st = target.stat()
+            stamp = (st.st_mtime_ns, st.st_size, st.st_ino)
+            with track_memory_lock:
+                hit = track_memory.get(rel)
+                if hit is not None and hit[0] == stamp:
+                    track_memory.move_to_end(rel)
+                    return hit[1]
+            out = to_out(rel, engine.load_metadata(target))
+            with track_memory_lock:
+                track_memory[rel] = (stamp, out)
+                while len(track_memory) > TRACK_MEMORY:
+                    track_memory.popitem(last=False)
+            return out
         except (MetadataError, OSError) as exc:
+            with track_memory_lock:
+                track_memory.pop(rel, None)
             return TrackOut(path=rel, name=name, error=str(exc))
 
     def result_out(r: FileResult) -> ApplyResultOut:
@@ -1628,7 +1656,11 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             inbox_worker["thread"].start()
 
     def inbox_watch() -> None:
+        last_prune = time.time()
         while not inbox_wake.wait(15 * 60):
+            if time.time() - last_prune > 86400:
+                last_prune = time.time()
+                prune_replaced(settings.config_dir / "replaced")
             if inbox.settings.watch and inbox.settings.folder and library.exists():
                 try:
                     inbox.sync(library)
@@ -1865,7 +1897,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             "id": job.id, "query": job.query, "status": job.status, "note": job.note, "progress": job.progress,
             "eta": job.eta,
             "created": job.created, "updated": job.updated, "upgrade": job.upgrade,
-            "current": cand(job.pick, cur) | {"files": [split_name(f["filename"]) for f in cur["files"]]} if cur else None,
+            "current": cand(job.pick, cur) | {"files": [split_name(f["filename"]) for f in cur.get("files", [])]} if cur else None,
             "candidates": [cand(i, c) for i, c in enumerate(job.candidates)],
             "inbox": {"key": g.key, "status": g.status, "title": g.title, "artist": g.artist, "release": g.release,
                       "score": g.score, "note": g.note, "paths": g.paths[:200], "recordings": g.recordings,
@@ -2149,6 +2181,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     # Size limits, cross-site protection and security headers (see web/security.py).
     # Added last so it wraps everything, including the sign-in check's 401s.
+    app.add_middleware(SelectiveGZip)  # inside the guard: rejected requests never reach it
     app.add_middleware(GuardMiddleware, allowed_hosts=set(settings.allowed_hosts))
     return app
 

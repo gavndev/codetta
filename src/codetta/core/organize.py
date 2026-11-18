@@ -460,3 +460,31 @@ def undo_moves(root: Root, moves: list[list[str]]) -> tuple[list[tuple[str, str,
     reverse.reverse()
     return report, reverse
 
+
+
+REPLACED_DAYS = 30  # like "Recently Deleted": an album an upgrade replaced is kept this long
+
+
+def prune_replaced(folder: Path, days: int = REPLACED_DAYS, now: float | None = None) -> int:
+    """Delete albums set aside by upgrades ("replaced/<YYYYmmdd-HHMMSS>/...") once
+    they're older than ``days``. Only ever touches folders named like that. Returns
+    how many were removed."""
+    import shutil
+    import time as _time
+    from datetime import datetime as _dt
+
+    now = _time.time() if now is None else now
+    removed = 0
+    try:
+        entries = list(folder.iterdir())
+    except OSError:
+        return 0
+    for entry in entries:
+        try:
+            when = _dt.strptime(entry.name, "%Y%m%d-%H%M%S").timestamp()
+        except ValueError:
+            continue  # not one of ours
+        if entry.is_dir() and not entry.is_symlink() and now - when > days * 86400:
+            shutil.rmtree(entry, ignore_errors=True)
+            removed += 1
+    return removed

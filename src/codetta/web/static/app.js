@@ -3423,7 +3423,7 @@ const skFiled = (res) => toast(res.status === "filed" ? `Filed in ${res.moved_to
 async function skImport(j) {
   if (j.upgrade && !await ask({
     title: "Replace the album?",
-    message: `The copy in ${j.upgrade} is moved out of your library (kept in Codetta's config folder; Activity can undo it), and this download takes its place.`,
+    message: `The copy in ${j.upgrade} is moved out of your library and kept for 30 days in Codetta's config folder (Activity can undo it until then), and this download takes its place.`,
     confirmLabel: "Replace",
   })) return;
   skAction("POST", `/api/slskd/jobs/${j.id}/import`, {}, (res) => { skFiled(res); if (res.moved_to) loadFolder(state.path); });

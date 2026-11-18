@@ -189,7 +189,8 @@ files to someone who shares nothing. Codetta checks and warns you if slskd
 isn't sharing anything.
 
 Replacing an album moves the old copy into Codetta's config folder
-(`replaced/`), as its own entry in the activity log, so it can be undone.
+(`replaced/`), as its own entry in the activity log, so it can be undone. It's
+kept there for 30 days (like "Recently Deleted"), then removed.
 
 ## Quick listen
 
