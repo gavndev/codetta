@@ -2,6 +2,10 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+- A quiet footer on the sign-in screen and under the track list: GitHub link · Made with ♥︎ · version.
+
 ## 0.1.0 (2026-11-17)
 
 First release.
