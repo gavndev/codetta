@@ -2,7 +2,7 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
-## Unreleased (0.6.2)
+## 0.6.2 (2026-11-18)
 
 - **Security:** a downloaded file's tags can no longer steer where Organize or the inbox puts it. A name starting with "@" (like an album artist "@replaced") used to point at one of Codetta's own folders; it now becomes "＠", which looks the same. The inbox can no longer be set to the folder that keeps replaced albums, and a Soulseek download is only ever matched to files that arrived for it (an older album in the inbox with the same file names is never taken for it, so blocklisting can't delete it). One look at the inbox also stops after 5,000 folders.
 - **Faster on phones:** the page, its script and styles and every API answer are now sent gzip-compressed (about a quarter of the size; the app's code goes from about 310 KB to 80 KB). Audio, images and fonts are sent as they are.
