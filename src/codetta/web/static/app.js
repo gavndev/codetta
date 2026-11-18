@@ -3355,7 +3355,7 @@ function skFindButton(where) {
     class: `mb-find sk-find ${where}`, type: "button", onclick: findInSlskd,
     "aria-label": "Find in slskd", title: "Look for a better copy of this album on Soulseek. You can edit the search before it's sent.",
   }, h("span", { class: "mb-find-inner" }, icon("slskd"),
-    h("span", { class: "mb-find-long" }, "Find in slskd"), h("span", { class: "mb-find-short" }, "slskd")));
+    h("span", { class: "mb-find-long" }, "Find in slskd"), h("span", { class: "mb-find-short" }, "Find")));
 }
 
 async function openSoulseek(focus = null) {
