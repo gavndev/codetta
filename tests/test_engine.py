@@ -450,3 +450,49 @@ def test_is_tag_supported(fmt, key, expected):
     from codetta.core.engine import is_tag_supported
 
     assert is_tag_supported(fmt, key) is expected
+
+
+# --- Sort and classical fields (0.2) -------------------------------------------------------------
+
+CLASSICAL = {
+    "work": "Symphony No. 5", "movementname": "Allegro con brio", "movement": "1", "movementtotal": "4",
+    "showmovement": "1", "subtitle": "Live", "titlesort": "Sort Title", "artistsort": "Tester, Coda",
+    "albumsort": "Album Sort", "albumartistsort": "Collective, Coda", "composersort": "Beethoven, Ludwig van",
+}
+
+
+@pytest.mark.parametrize("name", SAMPLE_FILES)
+def test_sort_and_classical_fields_round_trip(engine, fixture_copy, name):
+    path = fixture_copy(name)
+    engine.update_tags(path, CLASSICAL)
+    tags = engine.load_metadata(path).tags
+    assert {k: tags.get(k) for k in CLASSICAL} == {k: [v] for k, v in CLASSICAL.items()}
+    for key, value in EXPECTED_TAGS.items():  # nothing else disturbed
+        assert tags[key] == value
+
+
+def test_classical_fields_use_standard_storage(engine, fixture_copy):
+    from mutagen.flac import FLAC
+    from mutagen.id3 import ID3
+    from mutagen.mp4 import MP4
+
+    paths = {name: fixture_copy(name) for name in ("sample.mp3", "sample.m4a", "sample.flac")}
+    for path in paths.values():
+        engine.update_tags(path, CLASSICAL)
+    mp3 = ID3(paths["sample.mp3"])
+    assert mp3["MVIN"].text == ["1/4"] and mp3["MVNM"].text == ["Allegro con brio"]
+    assert mp3["TXXX:WORK"].text == ["Symphony No. 5"] and mp3["TIT3"].text == ["Live"]
+    m4a = MP4(paths["sample.m4a"])
+    assert m4a["\xa9mvi"] == [1] and m4a["\xa9mvc"] == [4] and m4a["\xa9wrk"] == ["Symphony No. 5"]
+    flac = FLAC(paths["sample.flac"])
+    assert flac["MOVEMENTNAME"] == ["Allegro con brio"] and flac["MOVEMENT"] == ["1"] and flac["WORK"] == ["Symphony No. 5"]
+
+
+def test_movement_number_and_total_are_independent_in_id3(engine, fixture_copy):
+    path = fixture_copy("sample.mp3")
+    engine.update_tags(path, {"movement": "2", "movementtotal": "5"})
+    engine.update_tags(path, {"movement": "3"})
+    assert engine.load_metadata(path).tags["movementtotal"] == ["5"]
+    engine.update_tags(path, {"movementtotal": None})
+    tags = engine.load_metadata(path).tags
+    assert tags["movement"] == ["3"] and "movementtotal" not in tags

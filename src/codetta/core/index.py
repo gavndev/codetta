@@ -148,6 +148,8 @@ for _alias, _key in {"year": "date", "track": "tracknumber", "disc": "discnumber
                      "band": "albumartist", "albumartist": "albumartist", "label": "label"}.items():
     _label = next((f.label for f in FIELDS if f.key == _key), _key)
     _FIELD_NAMES.setdefault(_norm_key(_alias), (_key, _label))
+# "movement: allegro" means the movement's name (the number is "movement number").
+_FIELD_NAMES[_norm_key("movement")] = ("movementname", "Movement")
 
 
 def parse_query(text: str, is_custom_key: Callable[[str], bool] = lambda k: False) -> Query:

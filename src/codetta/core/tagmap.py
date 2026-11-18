@@ -22,7 +22,7 @@ from mutagen.apev2 import is_valid_apev2_key
 from mutagen.asf import ASFBoolAttribute, ASFUnicodeAttribute
 from mutagen.easyid3 import EasyID3
 from mutagen.easymp4 import EasyMP4Tags
-from mutagen.id3 import COMM, TIPL
+from mutagen.id3 import COMM, MVIN, TIPL
 
 # Formats grouped by how they store tags. Each family shares one mapping.
 VORBIS_FORMATS = frozenset({"flac", "ogg", "opus", "oggflac", "speex"})  # free-form comments
@@ -89,6 +89,19 @@ FIELDS: tuple[Field, ...] = (
     Field("releasecountry", "Release country", "Release"),
     Field("discsubtitle", "Disc subtitle", "Release"),
     Field("compilation", "Compilation (1 = yes)", "Release"),
+    Field("titlesort", "Title sort", "Sorting"),
+    Field("artistsort", "Artist sort", "Sorting"),
+    Field("albumsort", "Album sort", "Sorting"),
+    Field("albumartistsort", "Album artist sort", "Sorting"),
+    Field("composersort", "Composer sort", "Sorting"),
+    # Classical. Keys follow how Vorbis comments store them (as Picard writes):
+    # MOVEMENTNAME is the name, MOVEMENT the number.
+    Field("work", "Work", "Classical"),
+    Field("movementname", "Movement", "Classical"),
+    Field("movement", "Movement number", "Classical"),
+    Field("movementtotal", "Movement count", "Classical"),
+    Field("showmovement", "Show movement (1 = yes)", "Classical"),
+    Field("subtitle", "Subtitle", "More"),
     Field("mood", "Mood", "More", multi=True),
     Field("bpm", "BPM", "More"),
     Field("isrc", "ISRC", "More"),
@@ -236,6 +249,13 @@ _ASF_NAMES = {
     "releasetype": "MusicBrainz/Album Type",
     "releasestatus": "MusicBrainz/Album Status",
     "releasecountry": "MusicBrainz/Album Release Country",
+    "titlesort": "WM/TitleSortOrder",
+    "artistsort": "WM/ArtistSortOrder",
+    "albumsort": "WM/AlbumSortOrder",
+    "albumartistsort": "WM/AlbumArtistSortOrder",
+    "composersort": "WM/ComposerSortOrder",
+    "work": "WM/Work",
+    "subtitle": "WM/SubTitle",
 }
 _FROM_ASF = {v.lower(): k for k, v in _ASF_NAMES.items()}
 # Technical attributes written by encoders: never shown or edited as tags.
@@ -302,6 +322,52 @@ EasyID3.RegisterTXXXKey("releasetype", "MusicBrainz Album Type")
 EasyID3.RegisterTXXXKey("releasestatus", "MusicBrainz Album Status")
 EasyID3.RegisterTXXXKey("artists", "ARTISTS")
 EasyID3.RegisterTXXXKey("albumartists", "ALBUMARTISTS")
+EasyID3.RegisterTextKey("subtitle", "TIT3")
+EasyID3.RegisterTextKey("movementname", "MVNM")
+EasyID3.RegisterTXXXKey("work", "WORK")
+EasyID3.RegisterTXXXKey("showmovement", "SHOWMOVEMENT")
+
+
+def _register_id3_movement() -> None:
+    """``movement`` / ``movementtotal`` share the MVIN frame ("2/4")."""
+
+    def parts(id3):
+        frame = id3.get("MVIN")
+        text = str(frame.text[0]) if frame and frame.text else ""
+        number, _, total = text.partition("/")
+        return number.strip(), total.strip()
+
+    def write(id3, number, total):
+        id3.delall("MVIN")
+        if number or total:
+            id3.add(MVIN(encoding=3, text=[f"{number}/{total}" if total else number]))
+
+    def make(index):
+        def get(id3, key):
+            value = parts(id3)[index]
+            if not value:
+                raise KeyError(key)
+            return [value]
+
+        def set_(id3, key, value):
+            if len(value) != 1:
+                raise ValueError(f"{key} takes a single value")
+            current = list(parts(id3))
+            current[index] = value[0].strip()
+            write(id3, *current)
+
+        def delete(id3, key):
+            current = list(parts(id3))
+            current[index] = ""
+            write(id3, *current)
+
+        return get, set_, delete
+
+    EasyID3.RegisterKey("movement", *make(0))
+    EasyID3.RegisterKey("movementtotal", *make(1))
+
+
+_register_id3_movement()
 
 
 def _register_id3_comment() -> None:
@@ -371,6 +437,11 @@ for _key, _role in {
 # --- M4A (MP4 atoms) -----------------------------------------------------------
 
 EasyMP4Tags.RegisterTextKey("composer", "\xa9wrt")
+EasyMP4Tags.RegisterTextKey("work", "\xa9wrk")
+EasyMP4Tags.RegisterTextKey("movementname", "\xa9mvn")
+EasyMP4Tags.RegisterIntKey("movement", "\xa9mvi", min_value=0, max_value=65535)
+EasyMP4Tags.RegisterIntKey("movementtotal", "\xa9mvc", min_value=0, max_value=65535)
+EasyMP4Tags.RegisterIntKey("showmovement", "shwm", min_value=0, max_value=1)
 
 # Everything else uses iTunes-style "freeform" atoms
 # (----:com.apple.iTunes:NAME), as Picard does.
@@ -395,6 +466,7 @@ for _key, _atom_name in {
     "producer": "PRODUCER",
     "djmixer": "DJMIXER",
     "language": "LANGUAGE",
+    "subtitle": "SUBTITLE",
 }.items():
     EasyMP4Tags.RegisterFreeformKey(_key, _atom_name)
 
