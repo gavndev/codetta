@@ -49,7 +49,7 @@ RUN case "${TARGETARCH:-$(uname -m)}" in \
 FROM python:3.14-alpine
 
 LABEL org.opencontainers.image.title="Codetta" \
-      org.opencontainers.image.description="Self-hosted music library manager: find music on Soulseek (via slskd), match it on MusicBrainz, fix tags and file it" \
+      org.opencontainers.image.description="Self-hosted music library manager: fix tags, match albums on MusicBrainz, organize files and bring in new music" \
       org.opencontainers.image.licenses="AGPL-3.0-or-later" \
       org.opencontainers.image.source="https://github.com/gavndev/codetta"
 

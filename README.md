@@ -7,7 +7,7 @@
 
 <p align="center">
   <strong>Your music library, looked after. On your own server.</strong><br>
-  Find music on Soulseek, match it on MusicBrainz, fix the tags and file it into place,<br>
+  Fix tags, match albums on MusicBrainz, organize your files and bring in new music,<br>
   from any browser, including your phone. FLAC, MP3, M4A, OGG, WAV, AIFF, WMA and more.
 </p>
 
@@ -39,18 +39,13 @@ If you run your own music server, you know the drill: a SoundCloud download
 with no tags, an album where every track spells the artist differently, a
 folder of loose files that shows up as *Unknown Album*. I created this tool for home server users like myself who are looking for more granular control over their library. Honestly, it's my hobby project that I thought could be useful to others.
 
-It started as a tag editor and grew into the whole trip a record takes into
-your library. Codetta lives on your server, next to your music:
-
-**Find** an album on Soulseek (through your own slskd) → it lands in the
-**inbox** → Codetta **matches** it on MusicBrainz → you take a look → it's
-**tagged and filed** into your library with your folder pattern →
-[Navidrome](https://www.navidrome.org/) and other music apps pick it up on
-their next scan.
-
-Every step is optional, and each works on its own: open Codetta on your laptop
-or phone, pick a track or a whole album, fix what's wrong and hit Save. Your
-files are updated **safely**, and anything Codetta does can be **undone**.
+Codetta lives on your server, next to your music. **Open it on your laptop or
+your phone, pick a track or a whole album, fix what's wrong and hit Save.**
+Match albums on MusicBrainz for official tags and cover art, rename and
+organize files into tidy folders, and let new music from your downloads folder
+be matched and filed for you. Your files are updated **safely**, anything
+Codetta does can be **undone**, and [Navidrome](https://www.navidrome.org/)
+and other music apps pick up the changes on their next scan.
 
 > **Codetta is alpha software.** It's careful with your files, but it's young.
 > Keep a backup of your library, as you would with any tool that edits files.
@@ -72,48 +67,21 @@ services:
       PGID: "1000"
     volumes:
       - /path/to/your/music:/music
-      # Optional: where new music lands (slskd's downloads, rips), for the inbox
+      # Optional: where new music lands (downloads, rips), for the inbox
       # - /path/to/downloads:/inbox
 EOF
 docker compose up -d
 ```
 
 Open `http://<your-server>:8111` and create your account. A few short setup
-steps follow (online features, folder naming, the inbox, Soulseek). Each can
-be skipped and changed later.
+steps follow (online features, folder naming, the inbox, optional
+integrations). Each can be skipped and changed later.
 
 Runs on Intel/AMD and ARM, from a Raspberry Pi 4 up: about a 100 MB download
 and 70 MB of memory, and no disk activity when idle. The
 [install guide](docs/install.md) walks through every step, including updates.
 
 ## What Codetta does
-
-### Get music: Soulseek through your slskd
-
-If you run [slskd](https://github.com/slskd/slskd), type `!slskd` in the
-search bar. It turns into a little **slskd** chip, and whatever you type next
-goes to Soulseek (`*` works as a wildcard for filtered names). Or press
-**Find in slskd** on an album to look for a better copy.
-
-Codetta picks the best copy for you (lossless first, then free upload slots,
-queue and speed), downloads it into your inbox with a progress bar, and asks
-before it joins your library: **Import**, **Blocklist & try next**, or choose
-another one. Search, download and import in one place, without a separate
-Lidarr or beets setup.
-
-### An inbox for everything new
-
-Point Codetta at your downloads folder. It groups what's there into albums,
-waits until downloads finish, finds each on **MusicBrainz** (by its tags, or
-**by sound** with AcoustID) and files it with your folder pattern. Confident
-matches can file themselves; the rest wait for a quick review. Albums you
-already have are never overwritten.
-
-### Match on MusicBrainz
-
-Official titles, credits, dates, labels, catalog numbers, MusicBrainz IDs and
-cover art for any album folder. Compare editions, then review every change per
-file before anything is written. Untagged files are recognised by sound.
 
 ### Fix a whole album in one go
 
@@ -140,11 +108,28 @@ so you can edit them all at once.
   <img src="docs/media/search.gif" alt="Searching the library for genre synthwave or jazz, then for artist kosei, which finds Kōsei Mori" width="900">
 </p>
 
-### Organize, listen, stay in the loop
+### Match on MusicBrainz
 
-- **Organize** renames and moves files from their tags with a pattern like
-  `{albumartist}/{album} ({year})/{disctrack} {title}`, with a preview of every
-  move first.
+Official titles, credits, dates, labels, catalog numbers, MusicBrainz IDs and
+cover art for any album folder. Compare editions, then review every change per
+file before anything is written. Untagged files are recognised by sound.
+
+### Organize your library
+
+**Organize** renames and moves files from their tags with a pattern like
+`{albumartist}/{album} ({year})/{disctrack} {title}`. You see every move
+first, nothing is ever overwritten, and the whole thing can be undone.
+
+### Bring in new music
+
+Point Codetta at your downloads folder. It groups what's there into albums,
+waits until downloads finish, finds each on **MusicBrainz** (by its tags, or
+**by sound** with AcoustID) and files it with your folder pattern. Confident
+matches can file themselves; the rest wait for a quick review. Albums you
+already have are never overwritten.
+
+### Listen and stay in the loop
+
 - **Quick listen:** a play button on every track and a now-playing pill, so you
   can check what a file is before you tag it.
 - **Notifications** tell you when the inbox has something for you, an album
@@ -158,9 +143,9 @@ so you can edit them all at once.
   move first and never overwrite a file; an album you replace is kept aside.
 - **Undo anything** from the activity log (tags, covers, moves, a whole
   album), and it's kept across restarts.
-- **Offline unless you opt in.** MusicBrainz, AcoustID, lyrics, Soulseek and
-  the update check are *connections*: each is off until you turn it on, and
-  each says exactly what it sends.
+- **Offline unless you opt in.** MusicBrainz, AcoustID, lyrics, the update
+  check and integrations are *connections*: each is off until you turn it on,
+  and each says exactly what it sends.
 - **Private by default.** Built-in sign-in, a strict security setup, and it
   runs as your user. See [SECURITY.md](SECURITY.md).
 
@@ -171,6 +156,14 @@ so you can edit them all at once.
   &nbsp;
   <img src="docs/screenshots/phone-editor.png" alt="Track editor on a phone" width="240">
 </p>
+
+### Optional: Soulseek through slskd
+
+Already run [slskd](https://github.com/slskd/slskd)? Connect it, and Codetta
+can look for an album for you: type `!slskd` in the search bar, or press
+**Find in slskd** on an album to look for a better copy. The best copy is
+downloaded into your inbox, and you decide whether it joins your library.
+It's off unless you set it up. [More about it →](docs/features.md#soulseek-through-slskd)
 
 **Also:** lyrics (plain or synced, with **Find lyrics** from LRCLIB), sort and
 classical fields, an Advanced mode with the raw tags, Tag Loadouts for turning
@@ -191,12 +184,11 @@ light and dark themes. [See every feature →](docs/features.md)
 | Album art | ✅ + Cover Art Archive | ✅ + Cover Art Archive | ✅ via plugin | ✅ |
 | Match releases on MusicBrainz | ✅ Opt-in, incl. audio fingerprints, reviewed per file | ✅ Incl. audio fingerprints | ✅ Automatic on import | ➖ Suggestions |
 | Import new music (match and file a downloads folder) | ✅ Inbox, reviewed or automatic | ❌ | ✅ `beet import` | ❌ |
-| Find and download music | ✅ Soulseek, through your slskd | ❌ | ❌ | ❌ |
 | Rename / organize files | ✅ Pattern, preview, undo | ✅ | ✅ | ✅ Rename |
 | Undo | ✅ Kept across restarts | ❌ | ❌ | ✅ Until restart |
 | Search the whole library by tag | ✅ | ➖ | ✅ Query language | ➖ Filtering |
 | Play tracks | ✅ In the browser | ➖ Basic player | ➖ Via external player | ✅ In the browser |
-| Plugins | ➖ Opt-in connections (MusicBrainz, AcoustID, LRCLIB, slskd) | ✅ | ✅ | ❌ |
+| Plugins | ➖ Opt-in connections (MusicBrainz, AcoustID, LRCLIB, optional slskd) | ✅ | ✅ | ❌ |
 | Formats | 15 file types | 20+ | Most common formats | 9 |
 | License | AGPL-3.0 | GPL-2.0 | MIT | AGPL-3.0 |
 
@@ -217,16 +209,16 @@ light and dark themes. [See every feature →](docs/features.md)
 ## Roadmap
 
 - **Batch matching:** match many albums at once in the background, review the uncertain ones later.
-- **Library health:** one page of fixable problems (no cover, no MusicBrainz IDs, duplicates, missing tracks, with Find in slskd for the gaps).
+- **Library health:** one page of fixable problems (no cover, no MusicBrainz IDs, duplicates, missing tracks).
 - **Edition preferences:** your preferred country, format (digital or CD) and release type when matching.
 - **Refresh from MusicBrainz:** pick up corrections made since an album was matched.
 - **ReplayGain:** volume levelling, opt-in.
 
 ## What's new
 
-**0.6.0:** Soulseek through your slskd (`!slskd` in the search bar, Find in
-slskd on albums, review or automatic import, blocklist & try next, upgrades),
-download progress in the inbox, and a roomier top bar on phones.
+**0.6.x:** a security sweep and a faster app (compressed pages, quicker
+folders), download progress in the inbox, a roomier top bar on phones, and an
+optional slskd integration.
 **0.5.0:** the import inbox, Organize (rename and move from a pattern), quick
 listen with a now-playing pill, multi-disc albums, setup steps, What's new and
 notifications.
@@ -243,5 +235,5 @@ Built with [mutagen](https://github.com/quodlibet/mutagen),
 [FastAPI](https://fastapi.tiangolo.com/) and the
 [Schibsted Grotesk](https://github.com/schibsted/schibsted-grotesk) typeface.
 Tag mappings follow [MusicBrainz Picard](https://picard.musicbrainz.org/docs/mappings/).
-Soulseek support talks to [slskd](https://github.com/slskd/slskd) over its API.
+The optional Soulseek integration talks to [slskd](https://github.com/slskd/slskd) over its API.
 The artists and albums in the screenshots are made up.
