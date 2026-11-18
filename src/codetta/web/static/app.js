@@ -582,7 +582,12 @@ function showFolder(data, scrollTop) {
     const deeper = prev !== null && (prev === "" ? data.path !== "" : data.path.startsWith(prev + "/"));
     const shallower = prev !== null && (data.path === "" ? prev !== "" : prev.startsWith(data.path + "/"));
     const cls = deeper ? "nav-forward" : shallower ? "nav-back" : "nav-fade";
-    for (const el of [els.folderHead, els.folders, els.tracks]) replay(el, cls);
+    for (const el of [els.folderHead, els.folders, els.tracks]) {
+      replay(el, cls);
+      // Only the arrival animates: rows redrawn later (filtering, saving) appear without a ripple.
+      clearTimeout(el.navTimer);
+      el.navTimer = setTimeout(() => el.classList.remove(cls), 700);
+    }
   }
   state.folder = data;
   state.path = data.path;

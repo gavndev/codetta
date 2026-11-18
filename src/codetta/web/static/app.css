@@ -2398,3 +2398,122 @@ dialog.cc.closing .cc-panel { animation: cc-out 240ms cubic-bezier(0.4, 0, 1, 1)
   .net-bar::before { animation-duration: 2.5s; }
   .spinner, .bang-chip.busy svg, .sk-shimmer, .live-dot { animation-duration: 2s; }
 }
+
+
+/* ==== Frosted glass & motion ====================================================================
+   Glass only on what floats above the page (sheets, menus, toasts, notifications, the selection bar,
+   the now-playing pill), so the blur stays cheap. Motion is transform + opacity only, on one curve. */
+
+:root {
+  --spring: cubic-bezier(0.32, 0.72, 0, 1);         /* settles like iOS sheets: quick start, soft landing */
+  --glass-pane: color-mix(in oklab, var(--surface-raised) 74%, transparent);
+  --glass-line: color-mix(in oklab, var(--border-strong) 55%, transparent);
+  --glass-blur: saturate(180%) blur(22px);
+  --glass-edge: inset 0 1px 0 color-mix(in oklab, #fff 16%, transparent);
+}
+
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  dialog.sheet, .notif-panel, .notif-pop, .toast, .suggest, .bang-suggest, .selection-bar, .now-playing, .changes-pop {
+    background: var(--glass-pane);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border-color: var(--glass-line);
+    box-shadow: var(--shadow-lg), var(--glass-edge);
+  }
+  dialog.sheet::backdrop, dialog.confirm::backdrop { -webkit-backdrop-filter: blur(6px) saturate(115%); backdrop-filter: blur(6px) saturate(115%); }
+  .topbar { -webkit-backdrop-filter: saturate(180%) blur(24px); backdrop-filter: saturate(180%) blur(24px); }
+  /* Long lists inside a glass sheet get a little more body so text stays crisp. */
+  .sheet-body .inbox-list, .sheet-body .mb-cands, .health-settings { background: transparent; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  dialog.sheet, .notif-panel, .notif-pop, .toast, .suggest, .bang-suggest, .selection-bar, .now-playing, .changes-pop, .cc-panel {
+    background: var(--surface-raised); -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+}
+
+/* Rounder floating surfaces, matching the Control Center. */
+dialog.sheet { border-radius: 22px; }
+.sheet-foot { border-top-color: var(--glass-line); }
+.toast { border-radius: 16px; }
+.suggest, .bang-suggest { border-radius: 14px; }
+.selection-bar { border-radius: 18px; }
+
+/* Sheets settle in on the spring; the backdrop fades and blurs behind them. */
+dialog.sheet[open] { animation: glass-in 380ms var(--spring) both; }
+dialog.sheet.closing { animation: glass-out 180ms var(--ease-in) forwards; }
+dialog.sheet[open]::backdrop { animation: fade-in 320ms ease both; }
+@keyframes glass-in { from { opacity: 0; scale: 0.94; translate: 0 10px; } }
+@keyframes glass-out { to { opacity: 0; scale: 0.97; translate: 0 6px; } }
+@media (max-width: 760px) {
+  dialog.sheet { border-radius: 24px 24px 0 0; }
+  dialog.sheet[open] { animation: sheet-up 420ms var(--spring) both; }
+  dialog.sheet.closing { animation: sheet-down 220ms var(--ease-in) forwards; }
+}
+
+/* Menus, toasts, the selection bar: same spring, a touch of scale. */
+.suggest:not([hidden]) { animation: glass-pop 220ms var(--spring); }
+.toast { animation: toast-in 420ms var(--spring) both; }
+.toast.leaving { animation: toast-out 200ms var(--ease-in) forwards; }
+.selection-bar:not([hidden]) { animation: toast-in 420ms var(--spring); }
+@keyframes glass-pop { from { opacity: 0; scale: 0.96; translate: 0 -6px; } }
+@keyframes toast-in { from { opacity: 0; scale: 0.92; translate: 0 18px; } }
+@keyframes toast-out { to { opacity: 0; scale: 0.96; translate: 0 10px; } }
+
+/* Things you press give a little. */
+.btn, .icon-btn, .mb-find, .health-card, .health-chip, .bang-suggest-item, .folder {
+  transition: transform 180ms var(--spring), background-color var(--dur) ease, border-color var(--dur) ease, box-shadow 240ms ease;
+}
+.btn:active:not(:disabled), .icon-btn:active, .health-chip:active, .bang-suggest-item:active { transform: scale(0.96); }
+.folders:not(.as-list) .folder:hover { transform: translateY(-2px); box-shadow: 0 10px 24px -14px rgba(0, 0, 0, 0.35); }
+.folder:active { transform: scale(0.985); }
+
+/* Changing pages: the first rows ripple in (cheap: a few rows, opacity + a short slide). */
+.nav-forward > .folder, .nav-back > .folder, .nav-fade > .folder,
+.nav-forward > .track-row, .nav-back > .track-row, .nav-fade > .track-row { animation: row-in 360ms var(--spring) both; }
+.nav-forward > .folder:nth-child(1), .nav-back > .folder:nth-child(1), .nav-fade > .folder:nth-child(1),
+.nav-forward > .track-row:nth-child(1), .nav-back > .track-row:nth-child(1), .nav-fade > .track-row:nth-child(1) { animation-delay: 16ms; }
+.nav-forward > .folder:nth-child(2), .nav-back > .folder:nth-child(2), .nav-fade > .folder:nth-child(2),
+.nav-forward > .track-row:nth-child(2), .nav-back > .track-row:nth-child(2), .nav-fade > .track-row:nth-child(2) { animation-delay: 32ms; }
+.nav-forward > .folder:nth-child(3), .nav-back > .folder:nth-child(3), .nav-fade > .folder:nth-child(3),
+.nav-forward > .track-row:nth-child(3), .nav-back > .track-row:nth-child(3), .nav-fade > .track-row:nth-child(3) { animation-delay: 48ms; }
+.nav-forward > .folder:nth-child(4), .nav-back > .folder:nth-child(4), .nav-fade > .folder:nth-child(4),
+.nav-forward > .track-row:nth-child(4), .nav-back > .track-row:nth-child(4), .nav-fade > .track-row:nth-child(4) { animation-delay: 64ms; }
+.nav-forward > .folder:nth-child(5), .nav-back > .folder:nth-child(5), .nav-fade > .folder:nth-child(5),
+.nav-forward > .track-row:nth-child(5), .nav-back > .track-row:nth-child(5), .nav-fade > .track-row:nth-child(5) { animation-delay: 80ms; }
+.nav-forward > .folder:nth-child(6), .nav-back > .folder:nth-child(6), .nav-fade > .folder:nth-child(6),
+.nav-forward > .track-row:nth-child(6), .nav-back > .track-row:nth-child(6), .nav-fade > .track-row:nth-child(6) { animation-delay: 96ms; }
+.nav-forward > .folder:nth-child(7), .nav-back > .folder:nth-child(7), .nav-fade > .folder:nth-child(7),
+.nav-forward > .track-row:nth-child(7), .nav-back > .track-row:nth-child(7), .nav-fade > .track-row:nth-child(7) { animation-delay: 112ms; }
+.nav-forward > .folder:nth-child(8), .nav-back > .folder:nth-child(8), .nav-fade > .folder:nth-child(8),
+.nav-forward > .track-row:nth-child(8), .nav-back > .track-row:nth-child(8), .nav-fade > .track-row:nth-child(8) { animation-delay: 128ms; }
+.nav-forward > .folder:nth-child(9), .nav-back > .folder:nth-child(9), .nav-fade > .folder:nth-child(9),
+.nav-forward > .track-row:nth-child(9), .nav-back > .track-row:nth-child(9), .nav-fade > .track-row:nth-child(9) { animation-delay: 144ms; }
+.nav-forward > .folder:nth-child(10), .nav-back > .folder:nth-child(10), .nav-fade > .folder:nth-child(10),
+.nav-forward > .track-row:nth-child(10), .nav-back > .track-row:nth-child(10), .nav-fade > .track-row:nth-child(10) { animation-delay: 160ms; }
+.nav-forward > .folder:nth-child(11), .nav-back > .folder:nth-child(11), .nav-fade > .folder:nth-child(11),
+.nav-forward > .track-row:nth-child(11), .nav-back > .track-row:nth-child(11), .nav-fade > .track-row:nth-child(11) { animation-delay: 176ms; }
+.nav-forward > .folder:nth-child(12), .nav-back > .folder:nth-child(12), .nav-fade > .folder:nth-child(12),
+.nav-forward > .track-row:nth-child(12), .nav-back > .track-row:nth-child(12), .nav-fade > .track-row:nth-child(12) { animation-delay: 192ms; }
+.nav-forward > .folder:nth-child(13), .nav-back > .folder:nth-child(13), .nav-fade > .folder:nth-child(13),
+.nav-forward > .track-row:nth-child(13), .nav-back > .track-row:nth-child(13), .nav-fade > .track-row:nth-child(13) { animation-delay: 208ms; }
+.nav-forward > .folder:nth-child(14), .nav-back > .folder:nth-child(14), .nav-fade > .folder:nth-child(14),
+.nav-forward > .track-row:nth-child(14), .nav-back > .track-row:nth-child(14), .nav-fade > .track-row:nth-child(14) { animation-delay: 224ms; }
+@keyframes row-in { from { opacity: 0; translate: 0 6px; } }
+
+/* Covers settle into place; the album header follows. */
+.album-cover { animation: cover-in 520ms var(--spring) both; }
+@keyframes cover-in { from { opacity: 0; scale: 0.94; } }
+.mbx-card { animation: row-in 360ms var(--spring) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  dialog.sheet[open], dialog.sheet.closing, .toast, .toast.leaving, .suggest:not([hidden]), .selection-bar:not([hidden]),
+  .nav-forward > *, .nav-back > *, .nav-fade > *, .album-cover, .mbx-card { animation-duration: 1ms !important; animation-delay: 0ms !important; }
+  .btn:active, .icon-btn:active, .folder:hover, .folder:active { transform: none !important; }
+}
+
+/* Softer buttons to match the rounder glass surfaces. */
+.btn { border-radius: 10px; }
+.btn.small { border-radius: 8px; }
+.mb-find { border-radius: 10px; }
+.mb-find-inner { border-radius: 8.5px; }
+.inbox-chip, .badge { border-radius: 6px; }
