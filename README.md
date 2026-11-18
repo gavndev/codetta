@@ -166,11 +166,12 @@ well alongside Picard or beets.
 
 ## Roadmap
 
-- **MusicBrainz:** match a release and fill in its official metadata, with a preview.
-- **Last.fm:** genres and similar artists as another source of suggestions.
-- **Preview player:** listen to a track before you tag it.
-- **Auto-organize (optional):** file new music into `Artist/Album/Track` folders.
-- **slskd integration:** find music, download, tag and add it to your library in one go.
+- **Batch matching:** match many albums at once in the background, review the uncertain ones later.
+- **Edition preferences:** your preferred country, format (digital or CD) and release type when matching.
+- **Library health:** one page of fixable problems (no cover, no MusicBrainz IDs, duplicates, missing tracks).
+- **Refresh from MusicBrainz:** pick up corrections made since an album was matched.
+- **ReplayGain:** volume levelling, opt-in.
+- **slskd integration:** search and download from Codetta; it lands in the inbox, gets tagged and filed.
 
 ## What's new
 

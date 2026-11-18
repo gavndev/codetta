@@ -3019,7 +3019,6 @@ async function renderSetupStep(step) {
     form.onsubmit = async (e) => {
       e.preventDefault();
       try { await api("PUT", "/api/inbox/settings", readInboxFields(form)); } catch (err) { toast(err.message, "error"); return; }
-      $("#inbox-btn").hidden = false;
       finishStep(step);
     };
   }
@@ -3129,7 +3128,7 @@ async function refreshInboxBadge(data = null) {
   try { data = data || await api("GET", "/api/inbox"); } catch { return; }
   inboxState.data = data;
   const n = inboxPending(data);
-  $("#inbox-btn").hidden = !data.settings.folder;
+  $("#inbox-btn").hidden = false; // always reachable: with no folder yet, it opens the setup
   $("#inbox-count").hidden = !n;
   $("#inbox-count").textContent = n > 99 ? "99+" : String(n);
 }
