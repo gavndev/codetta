@@ -2,6 +2,10 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.3.1 (2026-11-18)
+
+- The browser tab and home-screen icon now update to the new logo right away (they were being kept from the browser's cache).
+
 ## 0.3.0 (2026-11-18)
 
 - A new look, "liner notes": Codetta now reads like the credits pages of a CD or LP booklet. New lowercase wordmark and icon, the Schibsted Grotesk typeface (bundled), booklet-white and booklet-black themes, and ink rules and hairlines instead of boxes.
