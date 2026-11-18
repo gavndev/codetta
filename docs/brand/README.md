@@ -20,6 +20,11 @@ The dashboard icons follow the naming dashboard-icon collections use (`name`,
 `name-light`, `name-dark`) and are served by Codetta at `/static/icons/` without
 sign-in, so a dashboard can point straight at them. PNG and WebP are 512 × 512.
 
+`dashboard-icons/` holds the same three SVGs cropped to the artwork, as the
+shared collections want them: submit them at
+[dashboardicons.com/submit](https://dashboardicons.com/submit), and see the
+[selfh.st request](https://github.com/selfhst/icons/discussions/1098).
+
 **The wordmark** is "codetta" in Schibsted Grotesk at weight 800, tracked
 tight (−3.5%), followed by a small square "full stop" sized from the x-height.
 In the app the square takes the open album's spot colour; everywhere else it
