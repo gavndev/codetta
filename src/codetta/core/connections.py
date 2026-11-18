@@ -55,6 +55,14 @@ CONNECTIONS: tuple[Connection, ...] = (
         ("lrclib.net",), "LYRICS_LOOKUP",
     ),
     Connection(
+        "slskd", "Soulseek (slskd)",
+        "Find and download music on the Soulseek network through your own slskd: type !slskd in the "
+        "search bar, or use Find in slskd on an album. Downloads land in the inbox for a review.",
+        "Your searches go to your slskd, which asks other Soulseek users. Downloads come from them, "
+        "and slskd shares the folders you chose with them in return.",
+        ("your slskd server", "the Soulseek network"), "SLSKD",
+    ),
+    Connection(
         "updates", "Update check",
         "Tell you when a new version of Codetta is out.",
         "Nothing about you or your music: it asks GitHub for the latest release, twice a day.",

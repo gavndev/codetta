@@ -22,6 +22,9 @@ services:
       # Optional: Codetta is offline unless you opt in (in the app, or here).
       # CODETTA_MUSICBRAINZ: "on"     # Match on MusicBrainz + cover art
       # CODETTA_OFFLINE: "on"         # never go online, whatever else is set
+      # Optional: Soulseek through your slskd (downloads arrive in /inbox below).
+      # CODETTA_SLSKD_URL: "http://slskd:5030"
+      # CODETTA_SLSKD_API_KEY: "one of slskd's web.authentication.api_keys"
     volumes:
       - /path/to/your/music:/music     # ← your music library (read-write)
       - ./codetta-config:/config       # account, loadouts, activity log, search index

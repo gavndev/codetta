@@ -152,6 +152,45 @@ if a name is taken, that file is listed and left alone. Lyrics files
 booklet, logs and scans come along. Folders left empty are removed. The whole
 organize is one entry in the activity log, so **Undo** puts everything back.
 
+## Import inbox
+
+Point Codetta at the folder new music lands in (downloads, rips; mount it at
+`/inbox`). It groups what's there into albums, waits until downloads have
+finished arriving, finds each album on MusicBrainz (by tags, or by sound with
+AcoustID) and files it into your library with your Organize pattern. Confident
+matches can file themselves; the rest wait for a quick review. Albums already
+in your library are never overwritten.
+
+## Soulseek through slskd
+
+If you run [slskd](https://github.com/slskd/slskd), turn on the **Soulseek
+(slskd)** connection and give Codetta slskd's address and an API key. Then:
+
+- type `!slskd` and a space in the search bar: it turns into a little
+  **slskd** chip, and whatever you type next (say `T-Pain Epiphany`) goes to
+  Soulseek when you press Enter. `*` works as a wildcard for names Soulseek
+  filters (`*-Pain Epiphany`). Backspace on an empty box turns the chip off.
+- or press **Find in slskd** on an album: the search bar fills with the album
+  artist and album (from the tags, or the folder names if it has none), ready
+  to edit and send. A download found this way is an **upgrade**: importing it
+  replaces the copy you have.
+
+Codetta ranks every folder other users share by how well it matches, quality
+(lossless first, then 320 kbps by default; or lossless only), free upload
+slots, queue and speed, and downloads the best one into your inbox. If a
+download fails or stalls, it moves on to the next. When it arrives, the
+**Soulseek** sheet shows what came (format, tracks, who sent it, the
+MusicBrainz match), and you choose: **Import**, **Blocklist & try next**
+(deletes the download, never offers that folder again) or **Choose another**.
+Turn off *Review each download* to let exact matches file themselves.
+
+**Share a folder in slskd.** Soulseek is give-and-take: many users won't send
+files to someone who shares nothing. Codetta checks and warns you if slskd
+isn't sharing anything.
+
+Replacing an album moves the old copy into Codetta's config folder
+(`replaced/`), as its own entry in the activity log, so it can be undone.
+
 ## Quick listen
 
 Every track has a play button at the end of its row. It streams the file

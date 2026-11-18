@@ -128,6 +128,7 @@ const ICONS = {
   pause: '<svg viewBox="0 0 20 20"><rect x="5.5" y="4.5" width="3" height="11" rx="1" fill="currentColor" stroke="none"/><rect x="11.5" y="4.5" width="3" height="11" rx="1" fill="currentColor" stroke="none"/></svg>',
   // MusicBrainz's two-tone mark (drawn here: the page loads nothing from other sites).
   musicbrainz: '<svg class="mb-logo" viewBox="0 0 32 32"><path class="mb-l" d="M15.3 3.2 5.5 8.8v14.4l9.8 5.6z"/><path class="mb-r" d="M16.7 3.2l9.8 5.6v14.4l-9.8 5.6z"/><path class="mb-cut" d="M11.5 11.2c-1.8 0-3.2 1.4-3.2 3.2 0 1.2.7 2.3 1.7 2.8-.2.5-.3 1-.3 1.6 0 2.1 1.7 3.8 3.8 3.8h1.8V11.2z"/><path class="mb-cut" d="M20.5 11.2c1.8 0 3.2 1.4 3.2 3.2 0 1.2-.7 2.3-1.7 2.8.2.5.3 1 .3 1.6 0 2.1-1.7 3.8-3.8 3.8h-1.8V11.2z"/></svg>',
+  slskd: '<svg class="sk-logo" viewBox="0 0 20 20"><path class="sk-vane" d="M18 2c-6.2.3-10.6 3.8-11.7 9.6l3-.7-1.7 2c3.5.4 6.3-1.2 7.6-4l-2.3.3 2.8-2C16.6 5.5 17.3 3.8 18 2z"/><path class="sk-quill" d="M14.5 5.5 3 17.5"/></svg>',
   paste: '<svg viewBox="0 0 20 20"><rect x="4.5" y="4" width="11" height="13" rx="2"/><path d="M8 4V3h4v1"/><path d="M7.5 9h5M7.5 12h3"/></svg>',
 };
 
@@ -539,7 +540,7 @@ function showFolder(data, scrollTop) {
   }
   document.title = isSearchKey(data.path) ? `${searchQuery(data.path)} — Search — Codetta`
     : data.path ? `${data.name} — Codetta` : "Codetta";
-  els.filter.placeholder = isSearchKey(data.path) ? "Search library" : isPhone() ? "Filter" : "Filter this folder";
+  if (!sk.bang) els.filter.placeholder = isSearchKey(data.path) ? "Search library" : isPhone() ? "Filter" : "Filter this folder";
   renderBrowser();
   els.browser.scrollTop = scrollTop;
   updateSpot();
@@ -710,6 +711,7 @@ function renderFolderHead() {
     return set.size === 1 ? [...set][0] : "";
   })();
   const canMatch = f.tracks.length && state.status?.musicbrainz;
+  const canSoulseek = f.tracks.length && skReady() && !state.path.startsWith("@");
   const heading = coverTrack
     // A folder of tracks with a cover reads as the album's booklet spread.
     ? h("div", { class: "album-head" },
@@ -720,9 +722,10 @@ function renderFolderHead() {
           [common("albumartist") || common("artist"), common("date").slice(0, 4)].filter(Boolean).flatMap((v, i) => [i ? " · " : "", h("b", { dir: "auto" }, v)]),
           counts.length ? [common("albumartist") || common("artist") || common("date") ? " · " : "",
             h("span", { class: "nowrap" }, `${counts.join(" · ")}${runtime(f.tracks)}`)] : "", skippedNote),
-        genres || canMatch ? h("div", { class: "album-chips" },
+        genres || canMatch || canSoulseek ? h("div", { class: "album-chips" },
           genres ? h("span", { class: "spot-chip", dir: "auto" }, genres) : null,
-          canMatch ? mbFindButton("beside-genre") : null) : null))
+          canMatch ? mbFindButton("beside-genre") : null,
+          canSoulseek ? skFindButton("beside-genre") : null) : null))
     : h("div", {},
       h("h1", {}, f.path ? f.name : "Library"),
       h("p", {}, counts.join(" · ") || (f.skipped ? "" : "Empty folder"), skippedNote));
@@ -738,6 +741,7 @@ function renderFolderHead() {
         }, icon(v === "list" ? "rows" : "grid")))) : null,
       // Phones (and folders without a cover): first in the action row, on the left.
       canMatch ? mbFindButton(coverTrack ? "in-actions phone-only" : "in-actions") : null,
+      canSoulseek ? skFindButton(coverTrack ? "in-actions phone-only" : "in-actions") : null,
       f.tracks.length || f.folders.length ? h("button", {
         class: "btn", type: "button", onclick: () => openApply("folder"),
       }, "Apply loadout…") : null,
@@ -2458,6 +2462,7 @@ const connectionOn = (id) => !!state.connections?.connections.find((c) => c.id =
 
 /** Tell the rest of the UI what's on now (buttons appear or disappear). */
 function applyConnections() {
+  if (connectionOn("slskd") && !sk.data) loadSlskd().then(() => renderFolderHead());
   if (state.status) {
     state.status.lyrics_lookup = connectionOn("lyrics");
     state.status.musicbrainz = connectionOn("musicbrainz");
@@ -2549,6 +2554,7 @@ function renderConnections() {
   intro.textContent = conn.offline_locked
     ? "This server is set to stay offline (CODETTA_OFFLINE), so these can't be turned on."
     : "Codetta is offline unless you turn these on. Only what's listed is sent, and only to these sites.";
+  loadSlskd().then(renderSlskdSettings);
   setKids($("#conn-list"), conn.connections.map((c) => connectionRow(c, c.enabled, async (item, input) => {
     input.disabled = true;
     try {
@@ -2556,6 +2562,7 @@ function renderConnections() {
       const names = state.connections.connections.filter((c) => c.enabled).map((c) => c.name.split(":")[0]);
       $("#conn-summary").textContent = names.length ? `On: ${names.join(", ")}` : "Offline: nothing is sent anywhere";
       applyConnections();
+      if (item.id === "slskd") { await loadSlskd(); renderSlskdSettings(); }
       if (item.id === "updates") refreshUpdate();
     } catch (err) {
       input.checked = !input.checked;
@@ -3004,6 +3011,8 @@ async function renderSetupStep(step) {
       try { await api("PUT", "/api/organize/settings", { pattern: chosen }); } catch (err) { toast(err.message, "error"); return; }
       finishStep(step);
     };
+  } else if (step === "slskd") {
+    await renderSlskdStep(form, step);
   } else if (step === "inbox") {
     let root = { folders: [] };
     let external = { available: false };
@@ -3242,7 +3251,9 @@ function renderInbox() {
       h("p", { class: "mb-lead" }, d.groups.length
         ? `${pending ? plural(pending, "album") + " waiting" : "All caught up"} in ${inboxLabel(d.settings.folder)}.${d.downloading ? ` ${plural(d.downloading, "album")} still arriving: Codetta waits until the download finishes.` : ""}${d.settings.auto ? " Confident matches are filed automatically." : ""}`
         : `Nothing new in ${inboxLabel(d.settings.folder)}. When an album lands there, it shows up here.`),
-      h("button", { class: "link-btn", type: "button", onclick: () => { inboxState.settingsOpen = true; renderInbox(); } }, "Settings")),
+      h("span", { class: "inbox-links" },
+        skReady() ? h("button", { class: "link-btn", type: "button", onclick: () => { closeDialog($("#inbox-dialog")); openSoulseek(); } }, "Soulseek") : null,
+        h("button", { class: "link-btn", type: "button", onclick: () => { inboxState.settingsOpen = true; renderInbox(); } }, "Settings"))),
     d.groups.length ? h("div", { class: "inbox-list" }, d.groups.map(item)) : null);
   setKids($("#inbox-foot"),
     h("button", { class: "btn", type: "button", onclick: loadInbox }, "Check again"),
@@ -3252,13 +3263,391 @@ function renderInbox() {
       `File ${plural(ready.length, "confident match", "confident matches")}`) : h("button", { class: "btn", type: "button", "data-close": true }, "Close"));
 }
 
+// ---- Soulseek through slskd ---------------------------------------------------------------------------
+//
+// "!slskd" in the search bar turns into a chip; Enter then asks the user's own slskd.
+// Codetta downloads the best copy into the inbox, and the Soulseek sheet asks
+// whether to keep it (or blocklist it and try the next one).
+
+const sk = { data: null, timer: null, focus: null, bang: false, upgrade: "", picking: null, hinted: false };
+const SK_LABELS = {
+  searching: "Searching", downloading: "Downloading", fetched: "Downloaded", arrived: "Matching", imported: "Imported",
+  nothing: "Nothing found", failed: "Couldn't get it", cancelled: "Cancelled",
+};
+const SK_ACTIVE = ["searching", "downloading", "fetched"];
+const BANG = /^!(slskd|soulseek)\s/i; // the chip appears once the space after it is typed
+const skReady = () => connectionOn("slskd") && !!sk.data?.configured;
+const skSize = (b) => (b >= 1e9 ? `${(b / 1e9).toFixed(1)} GB` : `${Math.max(1, Math.round(b / 1e6))} MB`);
+
+async function loadSlskd() {
+  try { sk.data = await api("GET", "/api/slskd"); } catch { sk.data = null; }
+  return sk.data;
+}
+
+function filterPlaceholder() {
+  if (sk.bang) return isPhone() ? "Search Soulseek" : "Search Soulseek (* is a wildcard)";
+  return isSearch() ? "Search library" : isPhone() ? "Filter" : "Filter this folder";
+}
+
+/** Turn the Soulseek chip in the search bar on or off. */
+function setBang(on, upgrade = "") {
+  sk.bang = on;
+  sk.upgrade = on ? upgrade : "";
+  $("#bang-chip").hidden = !on;
+  $(".topbar .search").classList.toggle("banged", on);
+  els.filter.placeholder = filterPlaceholder();
+  els.filter.setAttribute("enterkeyhint", on ? "search" : "enter");
+}
+
+/** Typing "!slskd " in the search bar: true if the bang was taken. */
+function takeBang() {
+  if (sk.bang || !BANG.test(els.filter.value)) return false;
+  if (!connectionOn("slskd")) {
+    if (!sk.hinted) toast("Soulseek isn't connected. Turn it on in Account → Connections.");
+    sk.hinted = true;
+    return false;
+  }
+  els.filter.value = els.filter.value.replace(BANG, "");
+  setBang(true);
+  if (state.filter) { state.filter = ""; renderFolders(); renderTracks(); renderFilterChips(); }
+  return true;
+}
+
+async function skSearch(query, upgrade = sk.upgrade) {
+  query = query.trim();
+  if (!query) return;
+  try {
+    const res = await api("POST", "/api/slskd/search", { query, upgrade });
+    sk.data = res;
+    els.filter.value = "";
+    setBang(false);
+    els.filter.blur();
+    toast(`Asking Soulseek for “${query}”…`, "success");
+    openSoulseek(res.job.id);
+  } catch (err) {
+    toast(err.message, "error");
+  }
+}
+
+/** The album's search words: its album artist + album tags, else the parent and folder names. */
+function albumQuery() {
+  const ok = (state.folder?.tracks || []).filter((t) => !t.error);
+  const common = (key) => {
+    const v = new Set(ok.map((t) => first(t, key).trim()).filter(Boolean));
+    return v.size === 1 ? [...v][0] : "";
+  };
+  const artist = common("albumartist") || common("artist");
+  const album = common("album");
+  if (album) return [artist, album].filter(Boolean).join(" ");
+  return (state.path || "").split("/").filter(Boolean).slice(-2).join(" ");
+}
+
+/** Find in slskd: fills the search bar (chip + words) so the search can be edited before it's sent. */
+function findInSlskd() {
+  els.filter.value = albumQuery();
+  setBang(true, state.path);
+  els.filter.focus();
+  els.filter.select();
+}
+
+function skFindButton(where) {
+  return h("button", {
+    class: `mb-find sk-find ${where}`, type: "button", onclick: findInSlskd,
+    "aria-label": "Find in slskd", title: "Look for a better copy of this album on Soulseek. You can edit the search before it's sent.",
+  }, h("span", { class: "mb-find-inner" }, icon("slskd"),
+    h("span", { class: "mb-find-long" }, "Find in slskd"), h("span", { class: "mb-find-short" }, "slskd")));
+}
+
+async function openSoulseek(focus = null) {
+  sk.focus = focus;
+  sk.picking = null;
+  openDialog($("#soulseek-dialog"));
+  if (!sk.data) setKids($("#soulseek-body"), h("p", { class: "loading" }, "Loading…"));
+  await refreshSoulseek();
+}
+
+async function refreshSoulseek() {
+  clearTimeout(sk.timer);
+  try {
+    sk.data = await api("GET", "/api/slskd");
+  } catch (err) {
+    setKids($("#soulseek-body"), h("div", { class: "error-box" }, err.message));
+    return;
+  }
+  if (!$("#soulseek-dialog").open) return;
+  renderSoulseek();
+  const busy = sk.data.jobs.some((j) => SK_ACTIVE.includes(j.status)
+    || (j.status === "arrived" && (!j.inbox || ["waiting", "matching", "downloading"].includes(j.inbox.status))));
+  if (busy) sk.timer = setTimeout(refreshSoulseek, 2000);
+}
+
+async function skAction(method, url, body, done) {
+  try {
+    const res = await api(method, url, body);
+    sk.data = res;
+    if (done) done(res);
+    if ($("#soulseek-dialog").open) renderSoulseek();
+    folderCache.clear();
+    refreshActivity();
+    refreshInboxBadge();
+    clearTimeout(sk.timer);
+    sk.timer = setTimeout(refreshSoulseek, 1500);
+  } catch (err) {
+    toast(err.message, "error");
+  }
+}
+
+const skFiled = (res) => toast(res.status === "filed" ? `Filed in ${res.moved_to || "your library"}` : res.note,
+  res.status === "filed" ? "success" : "error");
+
+async function skImport(j) {
+  if (j.upgrade && !await ask({
+    title: "Replace the album?",
+    message: `The copy in ${j.upgrade} is moved out of your library (kept in Codetta's config folder; Activity can undo it), and this download takes its place.`,
+    confirmLabel: "Replace",
+  })) return;
+  skAction("POST", `/api/slskd/jobs/${j.id}/import`, {}, (res) => { skFiled(res); if (res.moved_to) loadFolder(state.path); });
+}
+
+function skReviewTags(j) {
+  const g = j.inbox;
+  closeDialog($("#soulseek-dialog"));
+  openMusicBrainzFor({ body: { paths: g.paths }, label: `“${g.title || j.query}”` }, {
+    release: g.release?.id, recordings: g.recordings,
+    onWritten: (release) => skAction("POST", `/api/slskd/jobs/${j.id}/import`, { release }, skFiled),
+  });
+}
+
+function shareWarning() {
+  return h("div", { class: "sk-warn", role: "note" },
+    h("strong", {}, "Share a folder in slskd"),
+    h("span", {}, "Soulseek is give-and-take. Many users won't send files to someone who shares nothing, and some ban them. "
+      + "In slskd, add a folder under shares → directories (your music folder, read-only, is the usual choice) and rescan. "
+      + "Codetta works without it, but downloads will often stall or be refused."));
+}
+
+function skCheckView(c, d) {
+  if (!c) return null;
+  if (!c.ok) return h("div", { class: "error-box" }, c.error);
+  return h("div", { class: "sk-check" },
+    h("p", { class: "sk-ok" }, icon("check"), `Connected to slskd ${c.version}`,
+      c.logged_in === false ? " · not signed in to Soulseek yet (check slskd's soulseek username and password)" : ""),
+    c.shared_folders ? h("p", { class: "hint" }, `Sharing ${plural(c.shared_folders, "folder")} (${c.shared_files.toLocaleString()} files). Thanks for giving back.`)
+      : shareWarning(),
+    h("p", { class: "hint" }, c.downloads_dir ? `slskd saves downloads to ${c.downloads_dir}. ` : "",
+      d?.inbox?.folder === "@inbox"
+        ? "Codetta's inbox is your downloads folder, so they arrive there. Make sure it's the same folder (mounted at /inbox)."
+        : "Mount slskd's downloads folder into Codetta at /inbox and choose it as the inbox (Inbox button), so downloads arrive there."));
+}
+
+/** The slskd connection fields (Account → Connections and the setup step). */
+function slskdFields(d) {
+  const st = d?.settings || { review: true, lossless_only: false, min_bitrate: 320 };
+  const locked = d?.locked || {};
+  const sw = (name, title, sub, checked) => h("label", { class: "switch-row" },
+    h("span", { class: "switch-text" }, h("span", { class: "switch-title" }, title), h("span", { class: "switch-sub" }, sub)),
+    h("input", { type: "checkbox", role: "switch", name, checked }));
+  return h("div", { class: "sk-fields" },
+    h("label", { class: "field" }, h("span", { class: "field-label" }, "slskd address"),
+      h("input", { name: "sk-url", type: "text", inputmode: "url", placeholder: "http://slskd:5030", value: d?.url || "",
+        disabled: locked.url, autocomplete: "off", spellcheck: "false", autocapitalize: "off" })),
+    h("label", { class: "field" }, h("span", { class: "field-label" }, "API key"),
+      h("input", { name: "sk-key", type: "password", disabled: locked.api_key, autocomplete: "off",
+        placeholder: d?.has_key ? "Saved (type a new one to change it)" : "One of the api_keys in slskd's settings" })),
+    locked.url || locked.api_key ? h("p", { class: "conn-lock" }, "Set on the server by CODETTA_SLSKD_URL / CODETTA_SLSKD_API_KEY.") : null,
+    h("p", { class: "hint" }, "Add a key in slskd's settings under ", h("code", {}, "web → authentication → api_keys"),
+      " (16+ characters), then paste it here. Codetta keeps it on this server and never shows it again."),
+    sw("sk-review", "Review each download", "Codetta asks before a download joins your library. Off: downloads that match MusicBrainz exactly are filed by themselves.", st.review),
+    sw("sk-lossless", "Lossless only", "Never download lossy files. Off: lossless first, otherwise the best MP3/AAC (at least the bitrate below).", st.lossless_only),
+    h("label", { class: "field sk-bitrate" }, h("span", { class: "field-label" }, "Lowest bitrate for lossy files"),
+      h("select", { name: "sk-bitrate" }, [128, 192, 256, 320].map((b) => h("option", { value: b, selected: b === st.min_bitrate }, `${b} kbps`)))),
+    h("div", { class: "sk-check-slot" }, skCheckView(d?.check, d)));
+}
+
+function readSlskdFields(root) {
+  const key = $('[name="sk-key"]', root).value.trim();
+  return {
+    url: $('[name="sk-url"]', root).value.trim(), api_key: key || null,
+    review: $('[name="sk-review"]', root).checked, lossless_only: $('[name="sk-lossless"]', root).checked,
+    min_bitrate: Number($('[name="sk-bitrate"]', root).value), search_seconds: sk.data?.settings?.search_seconds || 20,
+  };
+}
+
+/** Save (and test) the connection; shows the result in place. */
+async function saveSlskd(root) {
+  sk.data = await api("PUT", "/api/slskd/settings", readSlskdFields(root));
+  $('[name="sk-key"]', root).value = "";
+  if (sk.data.has_key) $('[name="sk-key"]', root).placeholder = "Saved (type a new one to change it)";
+  setKids($(".sk-check-slot", root), skCheckView(sk.data.check, sk.data));
+  renderFolderHead();
+  return sk.data;
+}
+
+function renderSlskdSettings() {
+  const box = $("#slskd-box");
+  if (!connectionOn("slskd")) { box.replaceChildren(); return; }
+  const form = h("form", { class: "sk-settings" },
+    h("h3", { class: "field-label sk-head" }, icon("slskd"), "Soulseek (slskd)"),
+    slskdFields(sk.data),
+    h("div", { class: "inbox-settings-actions" },
+      h("button", { class: "btn primary", type: "submit" }, "Save and test")));
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const go = $("[type=submit]", form);
+    go.disabled = true;
+    try {
+      const d = await saveSlskd(form);
+      toast(d.check?.ok ? "slskd connected" : "Saved, but slskd didn't answer", d.check?.ok ? "success" : "error");
+    } catch (err) { toast(err.message, "error"); } finally { go.disabled = false; }
+  });
+  box.replaceChildren(form);
+}
+
+async function renderSlskdStep(form, step) {
+  const d = await loadSlskd();
+  let warned = false;
+  setKids(form, setupLogo(), stepCount(),
+    h("h1", {}, "Do you use Soulseek?"),
+    h("p", { class: "auth-sub" }, "If you run slskd, Codetta can find music on Soulseek for you: type !slskd in the search bar, or tap Find in slskd on an album. "
+      + "The best copy is downloaded into your inbox, and you decide whether it joins your library."),
+    h("div", { class: "sk-warn soft" }, h("strong", {}, "You'll need a shared folder"),
+      h("span", {}, "Soulseek users often refuse people who share nothing. In slskd, share a folder (your music, read-only) before you start.")),
+    slskdFields(d),
+    h("button", { class: "btn primary auth-submit", type: "submit" }, "Connect slskd"),
+    h("button", { class: "link-btn setup-skip", type: "button", onclick: () => finishStep(step) }, "I don't use slskd"),
+    h("p", { class: "auth-foot" }, "You can connect it later in Account → Connections."));
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const go = $("[type=submit]", form);
+    if (warned) { finishStep(step); return; }
+    go.disabled = true;
+    try {
+      state.connections = await api("PUT", "/api/connections", { enabled: { slskd: true } });
+      applyConnections();
+      const res = await saveSlskd(form);
+      if (!res.check?.ok) { go.disabled = false; return; }
+      if (!res.check.shared_folders) {
+        warned = true;
+        go.textContent = "Continue anyway";
+        go.disabled = false;
+        return;
+      }
+      toast("slskd connected", "success");
+      finishStep(step);
+    } catch (err) {
+      toast(err.message, "error");
+      go.disabled = false;
+    }
+  };
+}
+
+function skCandidates(j) {
+  return h("ol", { class: "sk-cands" }, j.candidates.map((c) => {
+    const here = c.index === j.current?.index;
+    return h("li", { class: here ? "current" : "" },
+      h("span", { class: "sk-cand-text" },
+        h("strong", { dir: "auto" }, c.name),
+        h("span", {}, [c.quality, plural(c.tracks, "track"), skSize(c.size), c.username,
+          c.free_slot ? "free slot" : `${c.queue} queued`].join(" · "))),
+      here ? h("span", { class: "inbox-note" }, "This one")
+        : h("button", { class: "btn small", type: "button", onclick: () => skAction("POST", `/api/slskd/jobs/${j.id}/pick`, { index: c.index },
+          () => { sk.picking = null; toast(`Downloading ${c.name}…`); }) }, c.tried ? "Try again" : "Download"));
+  }));
+}
+
+function skItem(j) {
+  const c = j.current;
+  const g = j.inbox;
+  const url = (p) => `/api/slskd/jobs/${j.id}/${p}`;
+  const btn = (label, onclick, primary = false) => h("button", { class: `btn small${primary ? " primary" : ""}`, type: "button", onclick }, label);
+  const link = (label, onclick) => h("button", { class: "link-btn inbox-skip", type: "button", onclick }, label);
+  const reviewable = j.status === "arrived" && g && ["ready", "review", "nomatch", "local", "error"].includes(g.status);
+  let chip = SK_LABELS[j.status] || j.status;
+  let chipClass = j.status === "arrived" ? "matching" : j.status === "imported" ? "filed" : ["nothing", "failed"].includes(j.status) ? "error" : j.status;
+  const actions = [];
+  if (reviewable) {
+    chip = j.upgrade ? "Ready to replace" : "Have a look";
+    chipClass = "review";
+    actions.push(btn(j.upgrade ? "Replace album" : "Import", () => skImport(j), true),
+      btn("Blocklist & try next", () => skAction("POST", url("next"), { block: true }, () => toast("Blocklisted. Trying the next one…"))),
+      btn("Check tags", () => skReviewTags(j)));
+  }
+  if (SK_ACTIVE.includes(j.status)) actions.push(btn("Cancel", () => skAction("POST", url("cancel"))));
+  if (["nothing", "failed", "cancelled"].includes(j.status)) actions.push(btn("Search again", () => skSearch(j.query, j.upgrade), true));
+  if (j.status === "imported" && g?.dest) actions.push(btn("Open", () => { closeDialog($("#soulseek-dialog")); navigate(g.dest); }, true));
+  if (j.candidates.length > 1 && ["downloading", "arrived", "failed"].includes(j.status)) {
+    actions.push(link(sk.picking === j.id ? "Hide the others" : `Choose another (${j.candidates.length - 1})`,
+      () => { sk.picking = sk.picking === j.id ? null : j.id; renderSoulseek(); }));
+  }
+  if (["imported", "nothing", "failed", "cancelled"].includes(j.status)) actions.push(link("Remove", () => skAction("DELETE", `/api/slskd/jobs/${j.id}`)));
+  const bar = j.status === "downloading" ? h("div", { class: "sk-progress", role: "progressbar", "aria-label": "Download progress",
+    "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(Math.round(j.progress * 100)) }, h("span", {})) : null;
+  if (bar) bar.firstChild.style.width = `${Math.max(2, j.progress * 100)}%`;
+  return h("div", { class: `inbox-item sk-item ${j.status}`, "data-job": j.id },
+    reviewable && g.release?.id && sk.data.enabled && connectionOn("musicbrainz") ? mbThumb(g.release.id)
+      : h("span", { class: "mb-thumb mb-noart sk-thumb", "aria-hidden": "true" }, icon("slskd")),
+    h("div", { class: "inbox-main" },
+      h("div", { class: "inbox-title", dir: "auto" }, reviewable && g.title ? g.title : c?.name || j.query,
+        reviewable && g.artist ? h("span", { class: "inbox-artist" }, ` · ${g.artist}`) : null),
+      h("div", { class: "mb-cand-meta" }, c ? [c.quality, plural(c.tracks, "track"), skSize(c.size), `from ${c.username}`].join(" · ") : `“${j.query}”`,
+        j.upgrade ? ` · replaces ${j.upgrade}` : ""),
+      reviewable && g.release ? h("div", { class: "mb-cand-meta" }, `MusicBrainz: ${mbMeta(g.release)}${g.score != null ? ` · ${g.score}% match` : ""}`) : null,
+      bar,
+      h("div", { class: "inbox-status" },
+        h("span", { class: `inbox-chip ${chipClass}` }, chip),
+        j.note ? h("span", { class: "inbox-note" }, j.note) : null),
+      reviewable && c ? h("details", { class: "sk-files" }, h("summary", {}, `What came: ${plural(c.files.length, "file")}`),
+        h("ol", {}, c.files.map((n) => h("li", { dir: "auto" }, n)))) : null,
+      sk.picking === j.id ? skCandidates(j) : null),
+    h("div", { class: "inbox-actions" }, actions));
+}
+
+function renderSoulseek() {
+  const d = sk.data;
+  const body = $("#soulseek-body");
+  const close = h("button", { class: "btn", type: "button", "data-close": true }, "Close");
+  if (!d.enabled || !d.configured) {
+    setKids(body,
+      h("p", { class: "mb-lead" }, "Connect your slskd to find music on Soulseek. It's in Account → Connections → Soulseek (slskd)."),
+      h("button", { class: "btn primary", type: "button", onclick: () => {
+        closeDialog($("#soulseek-dialog")); openAccount(); setConnectionsOpen(true);
+      } }, "Open Connections"));
+    setKids($("#soulseek-foot"), h("span", { class: "spacer" }), close);
+    return;
+  }
+  const form = h("form", { class: "sk-search" },
+    h("span", { class: "bang-chip" }, icon("slskd"), "slskd"),
+    h("input", { type: "search", name: "q", placeholder: "Artist and album (* is a wildcard)", "aria-label": "Search Soulseek",
+      autocomplete: "off", spellcheck: "false", enterkeyhint: "search" }),
+    h("button", { class: "btn primary", type: "submit" }, "Search"));
+  form.addEventListener("submit", (e) => { e.preventDefault(); skSearch(form.q.value, ""); });
+  setKids(body,
+    !d.inbox.folder ? h("p", { class: "org-warn" }, "Set up the inbox first: Soulseek downloads arrive there (Inbox button in the top bar).") : null,
+    d.check?.ok && !d.check.shared_folders ? shareWarning() : null,
+    form,
+    d.jobs.length ? h("div", { class: "inbox-list sk-list" }, d.jobs.map(skItem))
+      : h("p", { class: "hint" }, "Type !slskd in the search bar (or use Find in slskd on an album). Codetta picks the best copy, downloads it into your inbox, and asks you before it joins your library."));
+  setKids($("#soulseek-foot"),
+    d.blocked ? h("button", { class: "link-btn", type: "button", onclick: async () => {
+      if (await ask({ title: "Clear the blocklist?", message: `${plural(d.blocked, "folder")} you turned down can be offered again.`, confirmLabel: "Clear" })) {
+        skAction("DELETE", "/api/slskd/blocklist");
+      }
+    } }, `Clear blocklist (${d.blocked})`) : null,
+    h("span", { class: "spacer" }), close);
+  if (sk.focus) {
+    const el = body.querySelector(`[data-job="${CSS.escape(sk.focus)}"]`);
+    if (el) { el.classList.add("focus"); el.scrollIntoView({ block: "nearest" }); }
+    sk.focus = null;
+  }
+}
+
 // ---- Notifications: the bell -------------------------------------------------------------------------
 //
 // Background news (the inbox finished, an album filed itself, an update is out).
 // New ones pop out of the bell for a few seconds; the panel keeps the list.
 
 const notif = { lastId: null, items: [], unread: 0, timer: null };
-const notifIcon = (kind) => icon(kind === "inbox" ? "inbox" : kind === "update" ? "spark" : "check");
+const notifIcon = (kind) => icon(kind === "inbox" ? "inbox" : kind === "update" ? "spark" : kind === "soulseek" ? "slskd" : "check");
 
 const relTime = (secs) => {
   const d = Math.max(0, Date.now() / 1000 - secs);
@@ -3295,6 +3684,7 @@ function runNotifAction(n) {
   closeNotifications();
   const a = n.action || {};
   if (a.open === "inbox") openInbox();
+  else if (a.open === "soulseek") openSoulseek(a.job || null);
   else if (a.open === "account") openAccount();
   else if (a.open === "news") openNews();
   else if (a.open === "folder" && a.path != null) navigate(a.path);
@@ -3704,6 +4094,7 @@ function bindEvents() {
   let filterTimer = null;
   els.filter.addEventListener("input", () => {
     clearTimeout(filterTimer); // redraw once typing pauses, not on every keystroke
+    if (takeBang() || sk.bang || els.filter.value.startsWith("!")) return; // a Soulseek search, not a filter
     if (isSearch()) {
       // While searching, the box *is* the search: re-run it as you type.
       filterTimer = setTimeout(() => {
@@ -3722,11 +4113,24 @@ function bindEvents() {
     }, 120);
   });
   els.filter.addEventListener("keydown", (e) => {
+    if (sk.bang) {
+      if (e.key === "Enter") { e.preventDefault(); skSearch(els.filter.value); }
+      else if (e.key === "Backspace" && !els.filter.value) { e.preventDefault(); setBang(false); }
+      else if (e.key === "Escape") { els.filter.value = ""; setBang(false); }
+      return;
+    }
+    if (e.key === "Enter" && /^!(slskd|soulseek)$/i.test(els.filter.value.trim())) {
+      e.preventDefault();
+      els.filter.value += " ";
+      takeBang();
+      return;
+    }
     if (e.key !== "Enter") return;
     const q = els.filter.value.trim();
     if (q && !isSearch()) { e.preventDefault(); clearTimeout(filterTimer); navigate(SEARCH + q); }
   });
   els.filter.addEventListener("search", () => { // the ✕ in the search box
+    if (sk.bang && !els.filter.value) { setBang(false); return; }
     if (isSearch() && !els.filter.value) navigate("");
   });
 
@@ -3766,7 +4170,7 @@ function bindEvents() {
   $("#apply-go").addEventListener("click", doApply);
 
   // All dialogs: close buttons and backdrop clicks.
-  for (const dialog of [els.applyDialog, els.manageDialog, els.filterDialog, $("#mb-dialog"), $("#organize-dialog"), $("#inbox-dialog"), $("#news-dialog")]) {
+  for (const dialog of [els.applyDialog, els.manageDialog, els.filterDialog, $("#mb-dialog"), $("#organize-dialog"), $("#inbox-dialog"), $("#soulseek-dialog"), $("#news-dialog")]) {
     dialog.addEventListener("click", (e) => {
       if (e.target.closest("[data-close]") || e.target === dialog) closeDialog(dialog);
     });
@@ -3979,6 +4383,9 @@ async function boot() {
   $("#welcome-form").addEventListener("submit", submitWelcome);
   $("#conn-toggle").addEventListener("click", () => setConnectionsOpen($("#conn-body").hidden));
   $("#inbox-btn").addEventListener("click", openInbox);
+  $("#bang-chip").append(icon("slskd"), "slskd");
+  $("#bang-chip").addEventListener("click", (e) => { e.preventDefault(); setBang(false); els.filter.focus(); });
+  $("#soulseek-dialog").addEventListener("close", () => clearTimeout(sk.timer));
   $("#notif-btn").addEventListener("click", (e) => {
     e.stopPropagation();
     if ($("#notif-panel").hidden) openNotifications(); else closeNotifications();
@@ -4113,6 +4520,7 @@ async function startApp() {
     state.placeholders = fields.placeholders;
     $("#tag-keys").replaceChildren(...fields.fields.map((f) => h("option", { value: f.key }, f.label)));
     showStatus(status);
+    loadSlskd().then(() => renderFolderHead());
   } catch (err) {
     toast(`Can't reach the Codetta server: ${err.message}`, "error");
   }

@@ -39,6 +39,9 @@ switch in the app, which is handy if you manage everything from your compose fil
 | `CODETTA_ACOUSTID` | chosen in the app | `on`/`off`: **Identify by sound** in the MusicBrainz match. Codetta fingerprints each track on your server with Chromaprint's `fpcalc` (included in the Docker image) and sends only that short code and the track length to [AcoustID](https://acoustid.org). Needs the MusicBrainz connection too. |
 | `CODETTA_ACOUSTID_KEY` | Codetta's key | Use your own AcoustID application key instead of the one built into Codetta. |
 | `CODETTA_FPCALC` | found on `PATH` | Path to `fpcalc`, if you run Codetta outside Docker (install it with `apt install libchromaprint-tools` or `brew install chromaprint`). |
+| `CODETTA_SLSKD` | chosen in the app | `on`/`off`: **Soulseek through slskd**: search and download from Soulseek with your own [slskd](https://github.com/slskd/slskd). Searches go to your slskd, which asks other Soulseek users. Downloads must land in Codetta's inbox, so mount slskd's downloads folder at `/inbox`. |
+| `CODETTA_SLSKD_URL` | set in the app | slskd's address as Codetta sees it, e.g. `http://slskd:5030` (same Docker network) or `http://192.168.1.50:5030`. Locks the field in the app. |
+| `CODETTA_SLSKD_API_KEY` | set in the app | An API key from slskd's settings (`web → authentication → api_keys`, 16+ characters). Saved keys live in `slskd.json` in the config folder, readable by Codetta only, and are never sent back to the browser. |
 | `CODETTA_LYRICS_LOOKUP` | chosen in the app | `on`/`off`: **Find lyrics** in the editor. Pressing it asks [lrclib.net](https://lrclib.net) for that one track (artist, title, album and length only). |
 | `CODETTA_UPDATE_CHECK` | chosen in the app | `on`/`off`: twice a day, ask GitHub whether a newer release exists. Nothing about you or your library is sent. |
 

@@ -2026,3 +2026,86 @@ body:has(.now-playing:not([hidden])) .browser { padding-bottom: 120px; }
 .inbox-mount-help strong { color: var(--text); }
 .inbox-mount-help pre { margin: 2px 0; font-family: var(--mono); font-size: 12px; color: var(--text); white-space: pre-wrap; }
 .inbox-chip.downloading { background: var(--accent-soft); color: var(--spot); animation: pulse 1.6s ease-in-out infinite; }
+
+/* ---- Soulseek (slskd): the !slskd chip, Find in slskd, the Soulseek sheet ------------------------- */
+
+.bang-chip {
+  --sk-a: #1f7ae0; --sk-b: #4cc0ff;
+  display: inline-flex; align-items: center; gap: 4px; flex: none; height: 22px; padding: 0 8px 0 6px;
+  border: 0; border-radius: 999px; cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; letter-spacing: 0.01em;
+  color: #fff; background: linear-gradient(115deg, var(--sk-a), var(--sk-b));
+  animation: chip-in 220ms var(--ease-out);
+}
+.bang-chip[hidden] { display: none; }
+.bang-chip .sk-logo { width: 13px; height: 13px; }
+.bang-chip .sk-vane { fill: #fff; }
+.bang-chip .sk-quill { stroke: #fff; }
+.search.banged > svg { display: none; }
+.search.banged:focus-within { box-shadow: 0 0 0 2px var(--sk-focus, #1f7ae0); }
+@keyframes chip-in { from { transform: scale(0.6); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .bang-chip { animation: none; } }
+
+.sk-logo { fill: none; }
+.sk-logo .sk-vane { fill: #2b8ff0; }
+.sk-logo .sk-quill { fill: none; stroke: #1559b8; stroke-width: 1.6; stroke-linecap: round; }
+[data-theme="dark"] .sk-logo .sk-quill { stroke: #7cc4ff; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .sk-logo .sk-quill { stroke: #7cc4ff; } }
+
+/* Find in slskd: the MusicBrainz button's twin, in slskd's blues */
+.sk-find { --mb-plum: #1f7ae0; --mb-orange: #4cc0ff; }
+.sk-find .sk-logo { width: 16px; height: 16px; }
+.sk-find:hover { box-shadow: 0 0 16px -2px rgba(31, 122, 224, 0.45), 0 0 22px -4px rgba(76, 192, 255, 0.35); }
+.mb-find.in-actions:has(+ .sk-find.in-actions) { margin-right: 0; }
+.mb-find.phone-only:has(+ .sk-find.in-actions:not(.phone-only)) { margin-right: 0; }
+
+.sk-search { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; padding: 0 0 0 8px;
+  border: 1px solid var(--field-line); border-radius: 8px; background: var(--surface); }
+.sk-search:focus-within { box-shadow: 0 0 0 2px #1f7ae0; }
+.sk-search .bang-chip { cursor: default; animation: none; }
+.sk-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); height: 38px; }
+.sk-search .btn { border-radius: 0 7px 7px 0; height: 40px; margin: -1px -1px -1px 0; }
+.sk-thumb { display: grid; place-items: center; }
+.sk-thumb .sk-logo { width: 26px; height: 26px; }
+.sk-item.focus { background: color-mix(in oklab, #1f7ae0 7%, transparent); }
+.sk-progress { height: 4px; margin: 8px 0 2px; border-radius: 2px; background: var(--hover); overflow: hidden; max-width: 360px; }
+.sk-progress span { display: block; height: 100%; border-radius: 2px; background: linear-gradient(90deg, #1f7ae0, #4cc0ff); transition: width 600ms ease; }
+.inbox-chip.searching, .inbox-chip.downloading, .inbox-chip.fetched { background: color-mix(in oklab, #1f7ae0 13%, transparent); color: #1f6fd0; }
+.inbox-chip.searching { animation: pulse 1.2s ease-in-out infinite; }
+.sk-files { margin-top: 6px; font-size: 12px; color: var(--muted); }
+.sk-files summary { cursor: pointer; min-height: 28px; display: flex; align-items: center; }
+.sk-files ol { margin: 4px 0 0; padding-left: 20px; max-height: 180px; overflow: auto; }
+.sk-cands { list-style: none; margin: 10px 0 0; padding: 0; border-top: 1px solid var(--rule); }
+.sk-cands li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--rule); }
+.sk-cands li.current { opacity: 0.65; }
+.sk-cand-text { display: flex; flex-direction: column; min-width: 0; font-size: 13px; }
+.sk-cand-text strong { overflow-wrap: anywhere; }
+.sk-cand-text span { color: var(--muted); font-size: 12px; }
+.inbox-links { display: inline-flex; gap: 14px; }
+
+.sk-warn { display: flex; flex-direction: column; gap: 3px; margin: 0 0 14px; padding: 10px 12px; border-radius: 8px;
+  font-size: 13px; color: var(--text); background: var(--warning-soft); border-left: 3px solid var(--warning); text-align: left; }
+.sk-warn strong { color: var(--warning); }
+.sk-warn.soft { margin-top: 4px; }
+.sk-settings { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--rule); display: flex; flex-direction: column; gap: 10px; }
+.sk-head { display: flex; align-items: center; gap: 6px; margin: 0; }
+.sk-head .sk-logo { width: 16px; height: 16px; }
+.sk-fields { display: flex; flex-direction: column; gap: 10px; text-align: left; }
+.sk-fields .hint code { font-size: 12px; }
+.sk-check { display: flex; flex-direction: column; gap: 6px; }
+.sk-check p { margin: 0; }
+.sk-ok { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--success); }
+.sk-ok svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; flex: none; }
+@media (max-width: 760px) {
+  .sk-search input { font-size: 16px; }
+  .sk-cands li .btn.small { height: 40px; }
+  .bang-chip { height: 26px; }
+}
+.search input:focus { box-shadow: none; border-color: transparent; }
+.sk-item { grid-template-columns: 56px minmax(0, 1fr); align-items: start; }
+.sk-item .inbox-actions { grid-column: 2; justify-content: flex-start; }
+@media (max-width: 760px) {
+  /* Searching Soulseek: the bar takes the room of the tools it doesn't need. */
+  .topbar-actions:has(.search.banged) > .icon-btn:not(#notif-btn):not(#account-btn) { display: none; }
+  .sk-item { grid-template-columns: 48px minmax(0, 1fr); }
+  .sk-item .inbox-actions { grid-column: 1 / -1; }
+}

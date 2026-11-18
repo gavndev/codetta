@@ -64,6 +64,8 @@ class Group:
     recordings: dict[str, list[str]] = field(default_factory=dict)  # from Identify by sound
     note: str = ""
     dest: str = ""  # where it was filed (a library folder)
+    source: str = ""  # the Soulseek job that brought it ("" = it just appeared)
+    upgrade: str = ""  # a library folder it replaces when filed (Find in slskd on an album)
     updated: float = 0.0
 
 

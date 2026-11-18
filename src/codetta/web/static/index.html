@@ -84,6 +84,7 @@
       <div class="topbar-actions">
         <label class="search">
           <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg>
+          <button class="bang-chip" id="bang-chip" type="button" hidden aria-label="Soulseek search is on. Tap to turn it off" title="Searching Soulseek. Tap (or Backspace) to search your library again"></button>
           <input id="filter" type="search" dir="auto" placeholder="Filter this folder" autocomplete="off" spellcheck="false" aria-label="Filter this folder, or press Enter to search your whole library">
         </label>
         <button class="icon-btn" id="inbox-btn" type="button" aria-label="Inbox: new music to file" title="Inbox: new music to file">
@@ -291,6 +292,7 @@
         <div id="conn-body" hidden>
           <p class="hint conn-intro" id="conn-intro"></p>
           <div id="conn-list"></div>
+          <div id="slskd-box"></div>
         </div>
       </section>
       <form id="password-form" class="password-form">
@@ -337,6 +339,18 @@
     </div>
     <div class="sheet-body" id="organize-body"></div>
     <div class="sheet-foot" id="organize-foot"></div>
+  </dialog>
+
+  <!-- Soulseek requests through slskd (drawn by app.js) -->
+  <dialog class="sheet wide" id="soulseek-dialog" aria-labelledby="soulseek-title">
+    <div class="sheet-head">
+      <h2 id="soulseek-title">Soulseek</h2>
+      <button class="icon-btn" type="button" data-close aria-label="Close">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body" id="soulseek-body"></div>
+    <div class="sheet-foot" id="soulseek-foot"></div>
   </dialog>
 
   <!-- Inbox: new music waiting to be filed (drawn by app.js) -->
