@@ -2,6 +2,12 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
+## Unreleased (0.7.1)
+
+- **Frosted glass:** sheets, menus, notifications, toasts, the selection bar and the now-playing pill float on frosted glass, with the page blurred softly behind sheets (solid panels where blur isn't available or "reduce transparency" is on).
+- **Fresher motion:** one quick, springy curve everywhere. Sheets settle in, toasts and menus pop, buttons give a little when pressed, folders lift on hover, the first rows ripple in when you change pages, and covers settle into place. The Control Center opens with the same quick motion as the other sheets. "Reduce motion" is respected.
+- Rounder buttons and badges, to match.
+
 ## 0.7.0 (2026-11-18)
 
 - **Library health** (Level Up #4): a card on the Library page ("23 things to look at") opens one list of what's worth fixing across your whole library: albums that show up split in your player (album name, album artist or year spelled differently, features without an album artist), missing tracks, the same track number twice, missing disc numbers, no cover or a small one, missing basic tags, the same album in two folders, the same song twice, unreadable files, and MP3s inside a FLAC album. It reads Codetta's search index, so checking thousands of albums takes under a second and no music file is opened. Obvious fixes are one tap ("Use “Kehlani” as the album artist", "Number from file names", "Number from disc folders"), with a preview first and one undo in Activity; everything else opens the album, Find in MusicBrainz or (if connected) Find in slskd. Ignore anything you're happy with, and switch any check off under **Checks**. Library health is optional as a whole: a short setup step asks whether you want it (handy to leave off if your library is named exactly the way you want it), and **Account → Library health** switches it on or off any time. Off means no card and nothing is checked.

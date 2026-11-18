@@ -2517,3 +2517,12 @@ dialog.sheet[open]::backdrop { animation: fade-in 320ms ease both; }
 .mb-find { border-radius: 10px; }
 .mb-find-inner { border-radius: 8.5px; }
 .inbox-chip, .badge { border-radius: 6px; }
+
+/* Control Center: the same quick, simple motion as the other sheets (inbox, loadouts), still anchored at the profile picture. */
+dialog.cc[open] .cc-panel { animation: glass-in 380ms var(--spring) both; }
+dialog.cc.closing .cc-panel { animation: glass-out 180ms var(--ease-in) forwards; }
+dialog.cc[open]::backdrop { animation: fade-in 320ms ease both; }
+dialog.cc.closing::backdrop { animation: fade-out 180ms ease forwards; }
+@media (prefers-reduced-motion: reduce) {
+  dialog.cc[open] .cc-panel, dialog.cc.closing .cc-panel { animation-duration: 1ms !important; }
+}
