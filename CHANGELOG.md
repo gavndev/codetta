@@ -2,7 +2,7 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
-## Unreleased (0.5.0)
+## 0.5.0 (2026-11-18)
 
 - **Import inbox** (Level Up #2): pick the folder new music lands in (downloads, rips). Codetta groups it into albums (disc folders join their album; loose tracks are one item each), finds each on MusicBrainz (by tags, then by sound if AcoustID is on), and files it into your library: MusicBrainz tags + your Organize pattern, each an undoable activity entry. Confident matches show "Ready to file" (or file themselves if you allow it); the rest wait for a review in the familiar match dialog. Albums already in your library are never overwritten. Inbox button in the top bar with a count; optional check every 15 minutes (off by default so idle disks can sleep). The inbox can be a folder outside your music folder: mount your downloads (e.g. slskd's) at `/inbox` (or set `CODETTA_INBOX_DIR`); files are copied across, checked, then removed from the downloads folder. Albums that are still arriving wait until their files have been still for 2 minutes.
 - **Easier setup:** after creating your account, a few short steps: online features, how your folders should be named, and where new music arrives. Each is skippable and changeable later. Existing installs see only the new steps, once.
