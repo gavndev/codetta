@@ -2230,7 +2230,8 @@ function connectionRow(c, checked, onchange) {
       h("span", { class: "switch-title" }, c.name),
       h("span", { class: "switch-sub" }, c.summary),
       h("span", { class: "conn-sends" }, h("b", {}, "Sends: "), c.sends, h("span", { class: "conn-hosts" }, ` → ${c.hosts.join(", ")}`)),
-      c.locked_by ? h("span", { class: "conn-lock" }, `Set on the server by ${c.locked_by}.`) : null),
+      c.locked_by ? h("span", { class: "conn-lock" }, `Set on the server by ${c.locked_by}.`) : null,
+      c.unavailable ? h("span", { class: "conn-lock" }, c.unavailable) : null),
     input);
 }
 
@@ -2319,6 +2320,8 @@ const mb = {
   release: null, // chosen release id
   proposal: null, // /api/musicbrainz/preview response
   pairs: {}, // path -> track id ("" = leave this file alone), only the user's own picks
+  recordings: {}, // path -> recording IDs heard by Identify by sound
+  sound: null, // the last /api/musicbrainz/identify summary
   fields: null, // Set of tag names, or null for the server's default set
   mode: "overwrite",
   cover: "missing",
@@ -2340,7 +2343,7 @@ async function openMusicBrainz() {
   Object.assign(mb, {
     target: mbTarget(), query: { album: "", artist: "", link: "" }, results: null, error: null,
     release: null, proposal: null, pairs: {}, fields: null, mode: "overwrite", cover: "missing",
-    openGroups: new Set(), openFiles: new Set(),
+    openGroups: new Set(), openFiles: new Set(), recordings: {}, sound: null,
   });
   openDialog($("#mb-dialog"));
   mbSearch({});
@@ -2359,6 +2362,26 @@ async function mbSearch(extra) {
     if (!extra.release) Object.assign(mb.query, { album: res.query.album, artist: res.query.artist });
     // A pasted link names exactly one release: go straight to the review.
     if (extra.release && res.candidates.length === 1) { mbPick(res.candidates[0].id); return; }
+  } catch (err) {
+    if (token !== mb.token) return;
+    mb.error = err.message;
+  }
+  mb.busy = false;
+  renderMbSearch();
+}
+
+/** Identify by sound: fingerprint the files on the server, ask AcoustID what they are. */
+async function mbIdentify() {
+  const token = ++mb.token;
+  mb.busy = "sound";
+  mb.error = null;
+  renderMbSearch();
+  try {
+    const res = await api("POST", "/api/musicbrainz/identify", mb.target.body);
+    if (token !== mb.token) return;
+    mb.results = res;
+    mb.recordings = res.recordings;
+    mb.sound = { identified: res.identified, total: res.total, files: res.files };
   } catch (err) {
     if (token !== mb.token) return;
     mb.error = err.message;
@@ -2401,12 +2424,15 @@ function renderMbSearch() {
   };
   const res = mb.results;
   let list;
-  if (mb.busy) list = h("p", { class: "loading" }, "Asking MusicBrainz…");
+  if (mb.busy === "sound") list = h("p", { class: "loading" }, "Listening to your tracks, then asking AcoustID… (a few seconds per track)");
+  else if (mb.busy) list = h("p", { class: "loading" }, "Asking MusicBrainz…");
   else if (mb.error) list = h("div", { class: "error-box" }, mb.error);
   else if (res && !res.candidates.length) {
     list = h("p", { class: "mb-empty" }, res.query.album || res.query.artist
       ? "No releases found. Try fewer words, or paste the release link from musicbrainz.org."
-      : "These tracks have no album or artist yet. Type what to search for above.");
+      : connectionOn("acoustid")
+        ? "These tracks have no album or artist yet. Type what to search for, or identify them by sound."
+        : "These tracks have no album or artist yet. Type what to search for above.");
   } else if (res) {
     list = h("div", { class: "mb-cands", role: "list" }, res.candidates.map((c) => h("button", {
       type: "button", class: "mb-cand", role: "listitem", onclick: () => mbPick(c.id),
@@ -2416,13 +2442,24 @@ function renderMbSearch() {
         h("span", { class: "mb-cand-title", dir: "auto" }, c.title, c.disambiguation ? h("span", { class: "mb-dis" }, ` (${c.disambiguation})`) : null),
         h("span", { class: "mb-cand-artist", dir: "auto" }, c.artist),
         h("span", { class: "mb-cand-meta" }, mbMeta(c)),
+        c.heard != null ? h("span", { class: "mb-heard" }, `${c.heard} of your ${plural(res.total, "track")} ${c.heard === 1 ? "is" : "are"} on it`) : null,
         c.current ? h("span", { class: "mb-current" }, h("span", { class: "badge" }, "Your files use this release")) : null),
       h("span", { class: "mb-cand-side" },
         h("span", { class: `mb-score ${c.score >= 85 ? "good" : c.score >= 60 ? "ok" : "low"}`, title: "How well this release fits these files" }, `${c.score}%`),
         h("span", { class: "mb-chev" }, icon("chevron"))))));
   }
+  const sound = mb.sound;
+  const unknown = sound ? sound.files.filter((f) => f.status !== "identified") : [];
+  const soundBox = connectionOn("acoustid") ? h("div", { class: "mb-sound" },
+    h("div", { class: "mb-sound-text" },
+      h("strong", {}, "Identify by sound"),
+      h("span", {}, sound
+        ? `Recognised ${sound.identified} of ${plural(sound.total, "track")}.${unknown.length ? ` Not recognised: ${unknown.slice(0, 3).map((f) => relativeToFolder(f.path)).join(", ")}${unknown.length > 3 ? ` +${unknown.length - 3} more` : ""}.` : ""}`
+        : "Works even on untagged files. Codetta fingerprints each track here and sends only that code to AcoustID.")),
+    h("button", { class: "btn", type: "button", disabled: !!mb.busy, onclick: mbIdentify }, sound ? "Listen again" : "Identify")) : null;
   setKids(body,
     h("p", { class: "mb-lead" }, `Find the release for ${mb.target.label}. Pick the exact edition (year, country, format), then review every change before it's written.`),
+    soundBox,
     h("form", { class: "mb-search", onsubmit: search },
       h("label", { class: "field" }, h("span", { class: "field-label" }, "Album"), album),
       h("label", { class: "field" }, h("span", { class: "field-label" }, "Artist"), artist),
@@ -2451,6 +2488,7 @@ function mbBody(extra = {}) {
   return {
     ...mb.target.body, release: mb.release, mode: mb.mode, cover: mb.cover,
     pairs: Object.fromEntries(Object.entries(mb.pairs).map(([p, t]) => [p, t || null])),
+    recordings: mb.recordings,
     fields: mb.fields ? [...mb.fields] : null,
     ...extra,
   };

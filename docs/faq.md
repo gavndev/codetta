@@ -18,8 +18,8 @@ tag like `vibe: chill`. Separate several values with commas to match any of them
 No. Codetta is fully offline unless you opt in. Everything, fonts included, is
 served from your own server. After you create your account, Codetta asks
 whether to stay offline or turn on online features ("connections"):
-**Match on MusicBrainz** (with cover art), **Find lyrics** (LRCLIB) and the
-**update check**. Each one says exactly what it sends and where. Change them
+**Match on MusicBrainz** (with cover art), **Identify by sound** (AcoustID),
+**Find lyrics** (LRCLIB) and the **update check**. Each one says exactly what it sends and where. Change them
 any time in **Account → Connections**, or lock them with environment variables;
 `CODETTA_OFFLINE=on` blocks them all (see [Configuration](configuration.md)).
 
@@ -35,10 +35,15 @@ until you press **Write**, and the whole match can be undone from the activity
 log. Tags are stored the way MusicBrainz Picard writes them, so Navidrome and
 other players pick up the MusicBrainz IDs.
 
-**Does Codetta identify songs by how they sound (AcoustID)?**
-Not yet. Matching uses your existing tags, file order and track lengths. That
-works for albums with at least a rough album/artist name. Completely untagged
-files need a name typed into the search first.
+**Can it recognise untagged files by how they sound?**
+Yes, with the **AcoustID** connection turned on (alongside MusicBrainz). In
+**Match on MusicBrainz…**, press **Identify**: Codetta makes a fingerprint of
+each track on your server (a short code describing the sound, never the audio
+itself) and asks AcoustID which recordings they are. Releases holding most of
+your tracks come first, and each file is paired with its exact recording, so
+wrong track numbers and missing titles don't matter. Tracks AcoustID doesn't
+know are listed, and fall back to pairing by title and length. AcoustID is
+free for non-commercial use.
 
 **Can several people use it?**
 There's one account per Codetta instance for now. You can stay signed in on as

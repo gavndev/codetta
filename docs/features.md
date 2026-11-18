@@ -91,7 +91,7 @@ covers straight from your photo library (HEIC included).
 - **Light and dark themes** that follow your device, with smooth, subtle
   animations (off when your system asks for reduced motion).
 - **Offline unless you opt in.** No CDNs, no tracking, fonts bundled. Online
-  features (MusicBrainz, lyrics, the update check) stay off until you turn them
+  features (MusicBrainz, identify by sound, lyrics, the update check) stay off until you turn them
   on, and each one tells you exactly what it sends and where.
 
 <p align="center">
@@ -124,6 +124,12 @@ and flags anything that looks off. You can choose:
 Each file shows its old → new values before anything is written, and the
 whole match is one undoable entry in the activity log. Tags are stored the way
 MusicBrainz Picard writes them.
+
+**Untagged or mystery files?** Turn on the AcoustID connection and press
+**Identify** in the match dialog. Codetta fingerprints each track on your server
+(only that short code and the length go to [AcoustID](https://acoustid.org)),
+finds the releases holding most of them, and pairs every file with its exact
+recording, whatever its name or track number says.
 
 Running your own MusicBrainz mirror? Point `CODETTA_MUSICBRAINZ_URL` at it and
 lookups stay on your network with no rate limit.

@@ -41,6 +41,14 @@ CONNECTIONS: tuple[Connection, ...] = (
         ("musicbrainz.org", "coverartarchive.org"), "MUSICBRAINZ",
     ),
     Connection(
+        "acoustid", "AcoustID: identify by sound",
+        "Recognise tracks by how they sound, even untagged ones, to find the right MusicBrainz "
+        "release. Works together with MusicBrainz.",
+        "A fingerprint of each track's sound (a short code, never the audio itself) and its length, "
+        "when you press Identify by sound.",
+        ("api.acoustid.org",), "ACOUSTID",
+    ),
+    Connection(
         "lyrics", "LRCLIB lyrics",
         "Find plain and synced lyrics for a track.",
         "The track's artist, title, album and length, when you press Find lyrics.",

@@ -19,6 +19,9 @@ Settings (environment variables):
     CODETTA_MUSICBRAINZ   "on"/"off": Match on MusicBrainz + Cover Art Archive
     CODETTA_MUSICBRAINZ_URL  a self-hosted MusicBrainz mirror, e.g. http://mb:5000
                           (no rate limit; http is allowed for this one)
+    CODETTA_ACOUSTID      "on"/"off": Identify by sound (AcoustID; needs MusicBrainz too)
+    CODETTA_ACOUSTID_KEY  your own AcoustID application key instead of Codetta's
+    CODETTA_FPCALC        path to Chromaprint's fpcalc (default: found on PATH)
     CODETTA_LYRICS_LOOKUP "on"/"off": Find lyrics (asks lrclib.net, only when pressed)
     CODETTA_UPDATE_CHECK  "on"/"off": twice-daily check for new releases on GitHub
     CODETTA_UPDATE_REPO   where to look for releases (default: gavndev/codetta)
@@ -63,6 +66,9 @@ from codetta.core.auth import (
 from codetta.core.engine import MetadataEngine, MetadataError, TrackMetadata
 from codetta.core.index import LibraryIndex, parse_query
 from codetta.core.library import Library, LibraryPathError, count_contents
+from codetta.core.acoustid import DEFAULT_KEY as ACOUSTID_KEY
+from codetta.core.acoustid import LOOKUP_URL as ACOUSTID_URL
+from codetta.core.acoustid import AcoustID, Fingerprinter, FingerprintError, find_fpcalc, rank_releases
 from codetta.core.artwork import MAX_ART_BYTES
 from codetta.core.connections import BY_ID as CONNECTION_BY_ID
 from codetta.core.connections import ConnectionStore, parse_switch
@@ -87,7 +93,7 @@ from codetta.core.musicbrainz import (
     summarize,
     track_tags,
 )
-from codetta.core.providers import LRCLib, ProviderError, TrackQuery, http_get, http_get_json
+from codetta.core.providers import LRCLib, ProviderError, TrackQuery, http_get, http_get_json, http_post_json
 from codetta.core.rawtags import read_raw
 from codetta.core.presets import (
     PLACEHOLDERS,
@@ -140,6 +146,9 @@ class Settings:
     lyrics_lookup: bool | None = None  # "Find lyrics" (asks LRCLIB only when pressed)
     musicbrainz: bool | None = None  # "Match on MusicBrainz" + Cover Art Archive
     musicbrainz_url: str | None = None  # self-hosted mirror instead of musicbrainz.org
+    acoustid: bool | None = None  # "Identify by sound" (fingerprints looked up on AcoustID)
+    acoustid_key: str | None = None  # an own application key instead of Codetta's
+    fpcalc: str | None = None  # Chromaprint's fpcalc; None = look on PATH
     update_repo: str = DEFAULT_REPO
     allowed_hosts: tuple[str, ...] = ()  # empty = answer to any host name
     allow_public_setup: bool = False  # first-run setup only from private addresses
@@ -157,6 +166,9 @@ class Settings:
             lyrics_lookup=parse_switch(env("LYRICS_LOOKUP")),
             musicbrainz=parse_switch(env("MUSICBRAINZ")),
             musicbrainz_url=(env("MUSICBRAINZ_URL") or "").strip() or None,
+            acoustid=parse_switch(env("ACOUSTID")),
+            acoustid_key=(env("ACOUSTID_KEY") or "").strip() or None,
+            fpcalc=(env("FPCALC") or "").strip() or None,
             update_repo=env("UPDATE_REPO", DEFAULT_REPO),
             allowed_hosts=tuple(h.strip() for h in (env("ALLOWED_HOSTS") or "").split(",") if h.strip()),
             allow_public_setup=(env("ALLOW_PUBLIC_SETUP") or "").strip().lower() in ("on", "true", "1", "yes"),
@@ -240,6 +252,7 @@ class SearchOut(BrowseOut):
 
 
 MAX_PATHS_PER_REQUEST = 1000  # the UI sends bigger jobs in batches
+MAX_IDENTIFY = 200  # files fingerprinted in one request (each takes a moment to decode)
 
 
 def _unique(paths: list[str]) -> list[str]:
@@ -311,6 +324,8 @@ class MBProposalIn(MBTarget):
     release: str = Field(max_length=500)
     pairs: dict[str, str | None] = Field(default={}, max_length=MAX_PATHS_PER_REQUEST)  # path -> track id (None: skip)
     fields: list[str] | None = Field(default=None, max_length=200)  # None: the default set
+    # From Identify by sound: recording IDs heard in each file (pairs files exactly).
+    recordings: dict[str, list[str]] = Field(default={}, max_length=MAX_PATHS_PER_REQUEST)
     mode: Literal["overwrite", "fill"] = "overwrite"  # fill: only tags that are empty now
     cover: Literal["missing", "all", "none"] = "missing"
 
@@ -319,13 +334,15 @@ class MBProposalIn(MBTarget):
 
 
 def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_latest_release,
-               fetch_json=None, fetch_mb=None, fetch_art=None) -> FastAPI:
+               fetch_json=None, fetch_mb=None, fetch_art=None, post_acoustid=None, run_fpcalc=None) -> FastAPI:
     """``fetch_*`` replace the network in tests: LRCLIB and MusicBrainz take
-    (url) -> parsed JSON or None, the Cover Art Archive (url) -> bytes or None."""
+    (url) -> parsed JSON or None, the Cover Art Archive (url) -> bytes or None,
+    AcoustID (form) -> parsed JSON; ``run_fpcalc`` replaces running fpcalc."""
     settings = settings or Settings.from_env()
     connections = ConnectionStore(
         settings.config_dir / "connections.json", offline=settings.offline,
-        forced={"updates": settings.update_check, "lyrics": settings.lyrics_lookup, "musicbrainz": settings.musicbrainz},
+        forced={"updates": settings.update_check, "lyrics": settings.lyrics_lookup, "musicbrainz": settings.musicbrainz,
+                "acoustid": settings.acoustid},
     )
     updates = UpdateChecker(VERSION, settings.update_repo, lambda: connections.enabled("updates"), fetch_release)
     library = Library(settings.music_dir)
@@ -348,6 +365,10 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         base=mb_mirror or MB_BASE,
         min_interval=0 if mb_mirror else 1.0,  # musicbrainz.org allows one request a second
     )
+    fpcalc_path = find_fpcalc(settings.fpcalc) or ("fpcalc" if run_fpcalc else None)
+    fingerprinter = Fingerprinter(fpcalc_path, **({"run": run_fpcalc} if run_fpcalc else {}))
+    acoustid = AcoustID(post_acoustid or (lambda form: http_post_json(ACOUSTID_URL, user_agent, form, service="AcoustID")),
+                        key=settings.acoustid_key or ACOUSTID_KEY)
     download_art = fetch_art or (lambda url: http_get(url, user_agent, accept="image/*", max_bytes=MAX_ART_BYTES,
                                                  service="the Cover Art Archive"))
 
@@ -642,6 +663,10 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
 
     def connections_out() -> dict:
         out = connections.status()
+        for c in out["connections"]:
+            if c["id"] == "acoustid" and not fingerprinter.available:
+                c["unavailable"] = ("The fingerprint tool isn't installed on this server (fpcalc, from "
+                                    "Chromaprint; it's included in the Docker image).")
         if mb_mirror:
             from urllib.parse import urlsplit
 
@@ -811,6 +836,69 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         return {"query": {"album": album, "artist": artist, "files": len(rels)}, "current": current or None,
                 "candidates": candidates}
 
+    @app.post("/api/musicbrainz/identify")
+    def mb_identify(body: MBTarget) -> dict:
+        """Recognise the files by their sound: fingerprint them here, ask AcoustID
+        which recordings they are, and offer the releases holding most of them."""
+        require_connection("musicbrainz")
+        require_connection("acoustid")
+        require_library()
+        if not fingerprinter.available:
+            raise HTTPException(503, "The fingerprint tool (fpcalc) isn't installed on this server. "
+                                     "It's included in the Docker image; elsewhere install Chromaprint.")
+        rels = mb_targets(body)
+        if len(rels) > MAX_IDENTIFY:
+            raise HTTPException(422, f"Identify by sound works on up to {MAX_IDENTIFY} tracks at a time "
+                                     "(one album). Select fewer tracks.")
+        infos, _, read_errors = mb_read(rels)
+        readable = [f.path for f in infos]
+        prints = fingerprinter.many([library.resolve(r) for r in readable])
+        ok = [(rel, fp) for rel, fp in zip(readable, prints) if not isinstance(fp, FingerprintError)]
+        try:
+            found = acoustid.lookup([fp for _, fp in ok]) if ok else []
+        except ProviderError as exc:
+            raise HTTPException(502, str(exc)) from exc
+        heard = {rel: recs for (rel, _), recs in zip(ok, found)}
+        files = []
+        for rel in rels:
+            if rel in read_errors:
+                files.append({"path": rel, "status": "error", "error": read_errors[rel]})
+                continue
+            fp = prints[readable.index(rel)]
+            if isinstance(fp, FingerprintError):
+                files.append({"path": rel, "status": "error", "error": str(fp)})
+            elif heard.get(rel):
+                top = heard[rel][0]
+                files.append({"path": rel, "status": "identified", "recording": {
+                    "id": top.id, "title": top.title, "artist": top.artist, "score": round(top.score * 100)}})
+            else:
+                files.append({"path": rel, "status": "unknown"})
+        ranked = rank_releases(heard, limit=25)
+        try:
+            found_releases = mb.releases_by_id([rid for rid, _ in ranked]) if ranked else []
+        except ProviderError as exc:
+            raise HTTPException(502, str(exc)) from exc
+        covered = dict(ranked)
+        n = len(rels)
+        candidates = []
+        for r in found_releases:
+            c = summarize(r)
+            tracks = c.get("track_count") or 0
+            fit = 1.0 if tracks == n else max(0.0, 1 - abs(tracks - n) / max(n, tracks or 1) * 2)
+            c["heard"] = covered.get(c["id"], 0)
+            c["score"] = round(100 * (0.75 * c["heard"] / max(1, n) + 0.25 * fit))
+            c["current"] = False
+            candidates.append(c)
+        candidates.sort(key=lambda c: -c["score"])
+        identified = sum(f["status"] == "identified" for f in files)
+        return {
+            "query": {"album": "", "artist": "", "files": n},
+            "identified": identified, "total": n,
+            "files": files,
+            "recordings": {rel: [r.id for r in recs[:20]] for rel, recs in heard.items() if recs},
+            "candidates": candidates[:15],
+        }
+
     def mb_proposal(body: MBProposalIn) -> tuple[dict, dict]:
         """What applying this release would change, per file. Returns (proposal, release)."""
         require_connection("musicbrainz")
@@ -825,7 +913,8 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         if not tracks:
             raise HTTPException(422, "This release has no track list on MusicBrainz yet.")
         infos, metas, errors = mb_read(rels)
-        pairs = pair_files(infos, tracks, {p: t for p, t in body.pairs.items() if p in metas})
+        heard = {p: [r for r in ids[:20] if MBID_RE.match(r)] for p, ids in body.recordings.items() if p in metas}
+        pairs = pair_files(infos, tracks, {p: t for p, t in body.pairs.items() if p in metas}, heard)
         album = album_tags(release)
         wanted = set(mb_default_fields() if body.fields is None else body.fields) & set(MB_FIELDS)
         summary = summarize(release)

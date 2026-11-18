@@ -26,6 +26,23 @@ COPY src ./src
 RUN pip --python /opt/venv/bin/python install --no-deps . \
     && find /opt/venv -name "*.dist-info" -prune -o -type d -name tests -prune -exec rm -rf {} +
 
+# Chromaprint's fpcalc for "Identify by sound": the official static build
+# (a few MB, instead of Alpine's package, which pulls in all of ffmpeg),
+# checked against the SHA-256 GitHub publishes for it.
+ARG TARGETARCH
+ARG FPCALC_VERSION=1.6.2
+RUN case "${TARGETARCH:-$(uname -m)}" in \
+      amd64|x86_64) arch=x86_64; sum=c968ad4a0821592a79b158fb2e1f46cbe0a22a0a1dbc0743c67d68e75d15d2bb ;; \
+      arm64|aarch64) arch=arm64; sum=3aa1498126ed272d805bc9d081c77965c9e1e1a0891bb112c13b56ef2ad47bad ;; \
+      *) echo "No fpcalc build for this CPU (${TARGETARCH:-$(uname -m)})" >&2; exit 1 ;; \
+    esac \
+    && name="chromaprint-fpcalc-${FPCALC_VERSION}-linux-${arch}" \
+    && python -c "import sys, urllib.request; urllib.request.urlretrieve(sys.argv[1], '/tmp/fpcalc.tgz')" \
+         "https://github.com/acoustid/chromaprint/releases/download/v${FPCALC_VERSION}/${name}.tar.gz" \
+    && echo "${sum}  /tmp/fpcalc.tgz" | sha256sum -c - \
+    && tar -xzf /tmp/fpcalc.tgz -C /tmp \
+    && install -m 755 "/tmp/${name}/fpcalc" /usr/local/bin/fpcalc
+
 # ---- Runtime -----------------------------------------------------------------------
 # Alpine keeps the image small (fits starter hardware); everything Codetta needs
 # is pure Python or has musl wheels.
@@ -54,6 +71,7 @@ RUN apk add --no-cache setpriv \
               /usr/local/bin/pip* /usr/local/bin/idle* /usr/local/bin/pydoc*
 
 COPY --from=build /opt/venv /opt/venv
+COPY --from=build /usr/local/bin/fpcalc /usr/local/bin/fpcalc
 COPY docker/entrypoint.sh /usr/local/bin/codetta-entrypoint
 COPY docker/codetta-admin.sh /usr/local/bin/codetta-admin
 RUN chmod 755 /usr/local/bin/codetta-entrypoint /usr/local/bin/codetta-admin \

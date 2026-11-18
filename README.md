@@ -119,7 +119,7 @@ so you can edit them all at once.
 </p>
 
 **Also:** **Match on MusicBrainz** for official tags, credits, IDs and cover
-art (opt-in: Codetta is fully offline unless you turn connections on), lyrics
+art, even for untagged files recognised **by sound** via AcoustID (opt-in: Codetta is fully offline unless you turn connections on), lyrics
 (plain or synced, with **Find lyrics** from LRCLIB), sort and
 classical fields, an Advanced mode with the raw tags, Tag Loadouts for turning
 loose downloads into proper releases, smart
@@ -137,12 +137,12 @@ language and script, light and dark themes. [See every feature →](docs/feature
 | Built-in sign-in | ✅ | – (local app) | – (local app) | ❌ Use a reverse proxy |
 | Edit tags by hand, one track or many | ✅ | ✅ | ➖ `beet modify` | ✅ |
 | Album art | ✅ + Cover Art Archive | ✅ + Cover Art Archive | ✅ via plugin | ✅ |
-| Match releases on MusicBrainz | ✅ Opt-in, reviewed per file | ✅ Incl. audio fingerprints | ✅ Automatic on import | ➖ Suggestions |
+| Match releases on MusicBrainz | ✅ Opt-in, incl. audio fingerprints, reviewed per file | ✅ Incl. audio fingerprints | ✅ Automatic on import | ➖ Suggestions |
 | Undo | ✅ Kept across restarts | ❌ | ❌ | ✅ Until restart |
 | Search the whole library by tag | ✅ | ➖ | ✅ Query language | ➖ Filtering |
 | Rename / organize files | ❌ By design (optional auto-organize planned) | ✅ | ✅ | ✅ Rename |
 | Play tracks | ❌ Planned | ➖ Basic player | ➖ Via external player | ✅ In the browser |
-| Plugins | ➖ Opt-in connections (MusicBrainz, LRCLIB); plugins planned | ✅ | ✅ | ❌ |
+| Plugins | ➖ Opt-in connections (MusicBrainz, AcoustID, LRCLIB); plugins planned | ✅ | ✅ | ❌ |
 | Formats | 15 file types | 20+ | Most common formats | 9 |
 | License | AGPL-3.0 | GPL-2.0 | MIT | AGPL-3.0 |
 

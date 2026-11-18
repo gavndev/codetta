@@ -35,6 +35,9 @@ switch in the app, which is handy if you manage everything from your compose fil
 | `CODETTA_OFFLINE` | `off` | Set to `on` to block every connection, whatever else is set. The app then never asks. |
 | `CODETTA_MUSICBRAINZ` | chosen in the app | `on`/`off`: **Match on MusicBrainz** for album folders (official titles, credits, dates, labels, IDs) and cover art from the Cover Art Archive. Sends the album/artist names you search for and the release IDs you pick to musicbrainz.org and coverartarchive.org. |
 | `CODETTA_MUSICBRAINZ_URL` | – | Use your own [MusicBrainz mirror](https://github.com/metabrainz/musicbrainz-docker) instead of musicbrainz.org, e.g. `http://musicbrainz:5000`. No rate limit, and lookups stay on your network (cover art still comes from the Cover Art Archive). |
+| `CODETTA_ACOUSTID` | chosen in the app | `on`/`off`: **Identify by sound** in the MusicBrainz match. Codetta fingerprints each track on your server with Chromaprint's `fpcalc` (included in the Docker image) and sends only that short code and the track length to [AcoustID](https://acoustid.org). Needs the MusicBrainz connection too. |
+| `CODETTA_ACOUSTID_KEY` | Codetta's key | Use your own AcoustID application key instead of the one built into Codetta. |
+| `CODETTA_FPCALC` | found on `PATH` | Path to `fpcalc`, if you run Codetta outside Docker (install it with `apt install libchromaprint-tools` or `brew install chromaprint`). |
 | `CODETTA_LYRICS_LOOKUP` | chosen in the app | `on`/`off`: **Find lyrics** in the editor. Pressing it asks [lrclib.net](https://lrclib.net) for that one track (artist, title, album and length only). |
 | `CODETTA_UPDATE_CHECK` | chosen in the app | `on`/`off`: twice a day, ask GitHub whether a newer release exists. Nothing about you or your library is sent. |
 

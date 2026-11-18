@@ -1704,3 +1704,11 @@ dialog.sheet.wide { width: min(760px, calc(100vw - 32px)); }
   .choice { padding: 14px; }
 }
 .mb-current { margin-top: 4px; }
+.mb-sound {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 12px 14px; margin: 0 0 14px; border: 1px solid var(--border-strong); border-radius: 10px;
+}
+.mb-sound-text { display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--muted); min-width: 0; }
+.mb-sound-text strong { color: var(--text); font-size: 14px; }
+.mb-sound .btn { flex: none; }
+.mb-heard { font-size: 12px; color: var(--success); font-weight: 500; }

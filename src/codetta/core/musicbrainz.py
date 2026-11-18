@@ -206,6 +206,15 @@ class MusicBrainz:
         releases = data.get("releases") if isinstance(data, dict) else None
         return [r for r in releases or [] if isinstance(r, dict) and MBID_RE.match(str(r.get("id", "")))]
 
+    def releases_by_id(self, ids: list[str]) -> list[dict]:
+        """Search-result summaries for up to 25 known releases, in one request."""
+        ids = [i for i in ids if MBID_RE.match(i)][:25]
+        if not ids:
+            return []
+        data = self._get("release", {"query": " OR ".join(f"reid:{i}" for i in ids), "limit": str(len(ids))})
+        releases = data.get("releases") if isinstance(data, dict) else None
+        return [r for r in releases or [] if isinstance(r, dict) and r.get("id") in ids]
+
     def release(self, mbid: str) -> dict:
         if not MBID_RE.match(mbid or ""):
             raise ProviderError("That isn't a MusicBrainz release ID.")
@@ -375,10 +384,13 @@ def _fit_notes(f: FileInfo, t: TrackRef) -> tuple[float, list[str]]:
 
 
 def pair_files(files: list[FileInfo], tracks: list[TrackRef],
-               chosen: dict[str, str | None] | None = None) -> dict[str, Pairing]:
+               chosen: dict[str, str | None] | None = None,
+               recordings: dict[str, list[str]] | None = None) -> dict[str, Pairing]:
     """Pair each file with a release track. ``chosen`` holds the user's own
-    picks (path -> track id, or None for "leave this file alone")."""
+    picks (path -> track id, or None for "leave this file alone");
+    ``recordings`` what AcoustID heard in each file (path -> recording IDs)."""
     chosen = chosen or {}
+    recordings = recordings or {}
     by_id = {t.id: t for t in tracks}
     discs = len({t.disc for t in tracks})
     result: dict[str, Pairing] = {}
@@ -391,7 +403,20 @@ def pair_files(files: list[FileInfo], tracks: list[TrackRef],
             if t:
                 taken.add(t.id)
 
-    for f in files:  # 2. disc + track number, when the title/length don't contradict it
+    for f in files:  # 2. identified by sound: the track that is that recording
+        heard = recordings.get(f.path)
+        if f.path in result or not heard:
+            continue
+        options = [t for t in tracks if t.id not in taken and (t.track.get("recording") or {}).get("id") in heard]
+        if f.duration:
+            options.sort(key=lambda t: abs((t.length or f.duration) - f.duration))
+        if options:
+            t = options[0]
+            notes = [n for n in _fit_notes(f, t)[1] if n.startswith("Length")]
+            result[f.path] = Pairing(t, "high" if not notes else "check", notes)
+            taken.add(t.id)
+
+    for f in files:  # 3. disc + track number, when the title/length don't contradict it
         if f.path in result or f.tracknumber is None:
             continue
         if discs > 1 and f.discnumber is None:
@@ -411,7 +436,7 @@ def pair_files(files: list[FileInfo], tracks: list[TrackRef],
         result[f.path] = Pairing(t, "high" if not notes else "check", notes)
         taken.add(t.id)
 
-    # 3. everything else by title and length, best pairs first.
+    # 4. everything else by title and length, best pairs first.
     left_files = [f for f in files if f.path not in result]
     left_tracks = [t for t in tracks if t.id not in taken]
     scored = sorted(((_fit_notes(f, t)[0], fi, ti) for fi, f in enumerate(left_files)

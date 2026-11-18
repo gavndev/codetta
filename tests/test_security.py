@@ -336,7 +336,7 @@ def test_connections_and_musicbrainz_routes_need_sign_in(music, tmp_path):
     with make_client(music, tmp_path, musicbrainz=True) as c:
         for method, url in [("get", "/api/connections"), ("put", "/api/connections"),
                             ("post", "/api/musicbrainz/search"), ("post", "/api/musicbrainz/preview"),
-                            ("post", "/api/musicbrainz/apply"),
+                            ("post", "/api/musicbrainz/apply"), ("post", "/api/musicbrainz/identify"),
                             ("get", "/api/musicbrainz/cover/11111111-1111-4111-8111-111111111111")]:
             assert getattr(c, method)(url).status_code == 401, url
 
@@ -350,11 +350,32 @@ def test_nothing_goes_online_on_a_fresh_install(music, tmp_path):
         raise AssertionError("network used")
 
     app = create_app(Settings(music_dir=music, config_dir=tmp_path / "config"),
-                     fetch_release=spy, fetch_json=spy, fetch_mb=spy, fetch_art=spy)
+                     fetch_release=spy, fetch_json=spy, fetch_mb=spy, fetch_art=spy, post_acoustid=spy, run_fpcalc=spy)
     with TestClient(app) as c:
         c.post("/api/auth/setup", json={"username": "listener", "password": "correct horse 1"})
         c.get("/api/update", params={"force": True})
         c.get("/api/lyrics/lookup", params={"path": "song.flac"})
         c.post("/api/musicbrainz/search", json={"folder": "", "album": "x"})
         c.get("/api/musicbrainz/cover/11111111-1111-4111-8111-111111111111")
-    assert calls == []
+        c.post("/api/musicbrainz/identify", json={"folder": ""})
+    assert calls == []  # not even fpcalc ran
+
+
+def test_fpcalc_only_ever_gets_a_resolved_library_path(music, tmp_path):
+    """The file path handed to fpcalc is absolute and inside the library, so it
+    can't be mistaken for an option or point anywhere else."""
+    argvs = []
+
+    def run(argv):
+        argvs.append(argv)
+        return '{"duration": 1, "fingerprint": "AQAA"}'
+
+    app = create_app(Settings(music_dir=music, config_dir=tmp_path / "config", musicbrainz=True, acoustid=True),
+                     run_fpcalc=run, post_acoustid=lambda form: {"status": "ok", "fingerprints": []},
+                     fetch_mb=lambda url: {"releases": []})
+    with TestClient(app) as c:
+        c.post("/api/auth/setup", json={"username": "listener", "password": "correct horse 1"})
+        assert c.post("/api/musicbrainz/identify", json={"paths": ["../../etc/passwd"]}).status_code in (400, 404, 200)
+        c.post("/api/musicbrainz/identify", json={"paths": ["song.flac"]})
+    assert len(argvs) == 1
+    assert argvs[0][-1] == str((music / "song.flac").resolve()) and argvs[0][-1].startswith("/")

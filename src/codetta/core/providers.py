@@ -93,6 +93,39 @@ def http_get(url: str, user_agent: str, *, accept: str = "application/json", max
     return data
 
 
+def http_post_json(url: str, user_agent: str, form: dict[str, str], *, service: str,
+                   max_bytes: int = MAX_RESPONSE_BYTES) -> object:
+    """POST a form (gzip-compressed, which fingerprint services accept) and parse the JSON answer."""
+    import gzip
+
+    if not url.startswith("https://"):
+        raise ProviderError("Providers must use https")
+    body = gzip.compress(urllib.parse.urlencode(form).encode())
+    req = urllib.request.Request(url, data=body, method="POST", headers={
+        "User-Agent": user_agent, "Accept": "application/json",
+        "Content-Type": "application/x-www-form-urlencoded", "Content-Encoding": "gzip",
+    })
+    try:
+        with _opener.open(req, timeout=TIMEOUT * 2) as res:  # nosec B310: fixed https provider URL
+            data = res.read(max_bytes + 1)
+    except urllib.error.HTTPError as exc:
+        try:  # AcoustID explains errors in its JSON body ("invalid API key")
+            detail = json.loads(exc.read(10_000)).get("error", {}).get("message")
+        except (ValueError, AttributeError, OSError):
+            detail = None
+        if exc.code in (429, 503):
+            raise ProviderError(f"{service.capitalize()} is busy right now. Try again in a moment.") from exc
+        raise ProviderError(f"{service.capitalize()} answered with an error ({detail or exc.code})") from exc
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        raise ProviderError(f"Couldn't reach {service}. Is the server online?") from exc
+    if len(data) > max_bytes:
+        raise ProviderError(f"{service.capitalize()} sent an unexpectedly large answer")
+    try:
+        return json.loads(data)
+    except ValueError as exc:
+        raise ProviderError(f"{service.capitalize()} sent something that isn't JSON") from exc
+
+
 def http_get_json(url: str, user_agent: str, *, max_bytes: int = MAX_RESPONSE_BYTES,
                   service: str = "the lyrics service", allow_http: bool = False) -> object:
     """GET a JSON document (None for 404)."""
