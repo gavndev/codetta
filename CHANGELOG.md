@@ -2,7 +2,7 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
-## Unreleased (0.7.1)
+## 0.7.1 (2026-11-18)
 
 - **Frosted glass:** sheets, menus, notifications, toasts, the selection bar and the now-playing pill float on frosted glass, with the page blurred softly behind sheets (solid panels where blur isn't available or "reduce transparency" is on).
 - **Fresher motion:** one quick, springy curve everywhere. Sheets settle in, toasts and menus pop, buttons give a little when pressed, folders lift on hover, the first rows ripple in when you change pages, and covers settle into place. The Control Center opens with the same quick motion as the other sheets. "Reduce motion" is respected.
