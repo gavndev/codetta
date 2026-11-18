@@ -399,3 +399,33 @@ def test_every_static_folder_ships_in_the_package():
     static = root / "src" / "codetta" / "web" / "static"
     for folder in (p for p in static.iterdir() if p.is_dir()):
         assert f"web/static/{folder.name}/*" in patterns, folder.name
+
+
+# --- In-browser player ---------------------------------------------------------------------
+
+
+def test_stream_needs_sign_in(music, tmp_path):
+    with make_client(music, tmp_path) as c:
+        assert c.get("/api/stream", params={"path": "song.flac"}).status_code == 401
+
+
+def test_stream_serves_audio_with_seeking(client, music):
+    whole = (music / "song.flac").read_bytes()
+    res = client.get("/api/stream", params={"path": "song.flac"})
+    assert res.status_code == 200 and res.content == whole
+    assert res.headers["content-type"] == "audio/flac" and res.headers["accept-ranges"] == "bytes"
+    part = client.get("/api/stream", params={"path": "song.flac"}, headers={"Range": "bytes=10-19"})
+    assert part.status_code == 206 and part.content == whole[10:20]
+
+
+@pytest.mark.parametrize("path", ["../../etc/passwd", "/etc/passwd", "missing.flac", "notes.txt", ".hidden.flac/.."])
+def test_stream_only_serves_audio_inside_the_library(client, music, path):
+    (music / "notes.txt").write_text("secret")
+    assert client.get("/api/stream", params={"path": path}).status_code in (400, 404)
+
+
+def test_stream_type_never_comes_from_the_file(client, music):
+    """A "song" that is really HTML is still sent as audio, so it can't run as a page."""
+    (music / "evil.mp3").write_text("<script>alert(1)</script>")
+    res = client.get("/api/stream", params={"path": "evil.mp3"})
+    assert res.headers["content-type"] == "audio/mpeg" and res.headers["x-content-type-options"] == "nosniff"

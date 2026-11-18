@@ -134,6 +134,17 @@ recording, whatever its name or track number says.
 Running your own MusicBrainz mirror? Point `CODETTA_MUSICBRAINZ_URL` at it and
 lookups stay on your network with no rate limit.
 
+## Quick listen
+
+Every track has a play button at the end of its row. It streams the file
+itself from your server (no conversion, nothing cached), so you can check what
+a file is before tagging it. Seeking works, as do lock-screen and headphone
+controls on phones. Formats your browser can't play (WMA, DSF, WavPack, TTA,
+Speex) don't get a button.
+
+Multi-disc albums show a **Disc 1**, **Disc 2** line between discs (with the
+disc subtitle, if any), and pointing at a track shows its number as "2/01".
+
 ## Lyrics
 
 Plain or synced (LRC) lyrics, in a roomy editor box that tells you which kind

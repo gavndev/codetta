@@ -121,6 +121,10 @@ const ICONS = {
   user: '<svg viewBox="0 0 20 20"><circle cx="10" cy="7" r="3.2"/><path d="M3.8 16.5a6.2 6.2 0 0 1 12.4 0"/></svg>',
   undo: '<svg viewBox="0 0 20 20"><path d="M7.5 5 4 8.5 7.5 12"/><path d="M4.5 8.5h7a4.5 4.5 0 0 1 0 9H9"/></svg>',
   spark: '<svg viewBox="0 0 20 20"><path d="M10 3.5 11.4 8.6 16.5 10l-5.1 1.4L10 16.5l-1.4-5.1L3.5 10l5.1-1.4z"/></svg>',
+  // A disc (drawn for Codetta): rim, label ring, spindle hole and two shine arcs.
+  disc: '<svg class="disc-icon" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7.5"/><circle cx="10" cy="10" r="2.6"/><circle cx="10" cy="10" r=".6" fill="currentColor" stroke="none"/><path d="M5.4 8.05A5 5 0 0 1 7.97 5.43"/><path d="M14.6 11.95a5 5 0 0 1-2.57 2.62"/></svg>',
+  play: '<svg viewBox="0 0 20 20"><path d="M7 5.2v9.6a.6.6 0 0 0 .9.5l7.6-4.8a.6.6 0 0 0 0-1L7.9 4.7a.6.6 0 0 0-.9.5z" fill="currentColor" stroke="none"/></svg>',
+  pause: '<svg viewBox="0 0 20 20"><rect x="5.5" y="4.5" width="3" height="11" rx="1" fill="currentColor" stroke="none"/><rect x="11.5" y="4.5" width="3" height="11" rx="1" fill="currentColor" stroke="none"/></svg>',
   // MusicBrainz's two-tone mark (drawn here: the page loads nothing from other sites).
   musicbrainz: '<svg class="mb-logo" viewBox="0 0 32 32"><path class="mb-l" d="M15.3 3.2 5.5 8.8v14.4l9.8 5.6z"/><path class="mb-r" d="M16.7 3.2l9.8 5.6v14.4l-9.8 5.6z"/><path class="mb-cut" d="M11.5 11.2c-1.8 0-3.2 1.4-3.2 3.2 0 1.2.7 2.3 1.7 2.8-.2.5-.3 1-.3 1.6 0 2.1 1.7 3.8 3.8 3.8h1.8V11.2z"/><path class="mb-cut" d="M20.5 11.2c1.8 0 3.2 1.4 3.2 3.2 0 1.2-.7 2.3-1.7 2.8.2.5.3 1 .3 1.6 0 2.1-1.7 3.8-3.8 3.8h-1.8V11.2z"/></svg>',
   paste: '<svg viewBox="0 0 20 20"><rect x="4.5" y="4" width="11" height="13" rx="2"/><path d="M8 4V3h4v1"/><path d="M7.5 9h5M7.5 12h3"/></svg>',
@@ -462,6 +466,7 @@ function prefetchFolder(path) {
 async function loadFolder(path, { keepScroll = false } = {}) {
   const token = ++state.loadToken;
   const navigating = !state.folder || path !== state.path;
+  if (navigating && player.path) stopPlayer(); // a quick listen belongs to the folder it started in
   if (state.folder && navigating) scrollMemory.set(state.path, els.browser.scrollTop);
 
   const cached = navigating ? folderCache.get(path) : null;
@@ -588,8 +593,31 @@ function matchesFilter(track) {
   return track._search.includes(q);
 }
 
+/** Multi-disc album: every track has a disc number and there are at least two. */
+const discCache = new WeakMap();
+function discInfo(f = state.folder) {
+  if (!f || f.search) return null;
+  if (discCache.has(f)) return discCache.get(f);
+  const readable = f.tracks.filter((t) => !t.error);
+  const discOf = (t) => parseInt(first(t, "discnumber"), 10);
+  const info = readable.length && readable.every((t) => Number.isInteger(discOf(t))) && new Set(readable.map(discOf)).size > 1
+    ? { discOf } : null;
+  discCache.set(f, info);
+  return info;
+}
+
 function visibleTracks() {
-  return (state.folder?.tracks || []).filter(matchesFilter);
+  const tracks = (state.folder?.tracks || []).filter(matchesFilter);
+  const discs = discInfo();
+  if (!discs) return tracks;
+  // Group by disc, then track number; files without numbers keep their place within the disc.
+  const order = new Map(tracks.map((t, i) => [t, i]));
+  const num = (t) => parseInt(first(t, "tracknumber"), 10);
+  const key = (t) => [t.error ? Infinity : discs.discOf(t), Number.isInteger(num(t)) ? num(t) : Infinity, order.get(t)];
+  return [...tracks].sort((a, b) => {
+    const [x, y] = [key(a), key(b)];
+    return x[0] - y[0] || x[1] - y[1] || x[2] - y[2];
+  });
 }
 
 function renderBrowser() {
@@ -811,7 +839,10 @@ function renderTracks() {
     h("div", { class: "col-album" }, "Album"),
     h("div", { class: "col-fmt" }, "Format"),
     h("div", { class: "col-dur" }, "Time"),
+    h("div", { class: "col-play" }),
   );
+  const discs = discInfo();
+  els.tracks.classList.toggle("multi-disc", !!discs);
 
   // A folder that is one album reads like a booklet: no column repeats a value
   // every row shares (album, album artist, format, cover).
@@ -828,55 +859,170 @@ function renderTracks() {
   els.tracks.classList.toggle("one-format", oneFormat);
   const col = (show, width) => (show ? [width] : []);
   const cols = (withAlbum) => ["44px", "40px", ...col(!oneAlbum, "48px"), "minmax(0, 2.2fr)", ...col(!sameArtist, "minmax(0, 1.4fr)"),
-    ...col(!oneAlbum && withAlbum, "minmax(0, 1.4fr)"), ...col(!oneFormat, "76px"), "60px"].join(" ");
+    ...col(!oneAlbum && withAlbum, "minmax(0, 1.4fr)"), ...col(!oneFormat, "76px"), "60px", "56px"].join(" ");
   els.tracks.style.setProperty("--cols", cols(true));
   els.tracks.style.setProperty("--cols-mid", cols(false));
 
-  const rows = tracks.map((t) => {
-    const title = first(t, "title");
-    const artist = (t.tags.artist || []).join(", ");
-    const album = first(t, "album");
-    const checkbox = h("input", {
-      type: "checkbox",
-      "aria-label": `Select ${title || t.name}`,
-      checked: state.selected.has(t.path),
-      onclick: (e) => { e.stopPropagation(); toggleSelect(t.path, e.target.checked, e.shiftKey); },
-    });
-    const row = h("div", {
-      class: `track-row${t.error ? " has-error" : ""}`,
-      tabindex: "0",
-      role: "row",
-      dataset: { path: t.path },
-      onclick: (e) => {
-        if (e.target.closest(".check-cell")) return;
-        if (state.selectMode && isPhone()) toggleSelect(t.path, !state.selected.has(t.path), false);
-        else openTrack(t);
-      },
-      onkeydown: (e) => {
-        if (e.key === "Enter") openTrack(t);
-        if (e.key === " " && e.target === row) { e.preventDefault(); checkbox.click(); }
-      },
-    },
-      h("label", { class: "check-cell", onclick: (e) => e.stopPropagation() }, checkbox),
-      h("div", { class: "col-num" }, trackNo(first(t, "tracknumber"))),
-      h("div", { class: "col-art" }, t.art
-        ? h("img", { src: artUrlFor(t), alt: "", loading: "lazy", decoding: "async", width: "40", height: "40" })
-        : h("span", { class: "art-none", title: "No album art" }, icon("note"))),
-      h("div", { class: "col-title" },
-        h("span", { class: "main" }, title || h("span", { class: "untitled" }, t.name)),
-        h("span", { class: "sub" }, t.error ? t.error
-          : oneAlbum ? (artist && artist !== albumArtist ? artist : "")
-          : [artist, album].filter(Boolean).join(" · ") || (title ? t.name : `${fmtLabel(t.format)} · No tags yet`))),
-      h("div", { class: "col-artist" }, t.error ? t.error : artist),
-      h("div", { class: "col-album" }, album),
-      h("div", { class: "col-fmt" }, t.format ? h("span", { class: "badge" }, fmtLabel(t.format)) : ""),
-      h("div", { class: "col-dur" }, fmtDuration(t.duration)),
-    );
-    state.rows.set(t.path, { row, checkbox });
-    return row;
-  });
-  els.tracks.replaceChildren(head, ...rows);
+  const out = [];
+  let lastDisc = null;
+  for (const t of tracks) {
+    const disc = discs && !t.error ? discs.discOf(t) : null;
+    if (discs && disc !== lastDisc && disc !== null) {
+      const subtitle = first(t, "discsubtitle");
+      out.push(h("div", { class: "disc-head", role: "row", dataset: { disc: String(disc) } },
+        h("span", { class: "disc-spin" }, icon("disc")),
+        h("span", { class: "disc-name" }, `Disc ${disc}`),
+        subtitle ? h("span", { class: "disc-sub", dir: "auto" }, subtitle) : null));
+      lastDisc = disc;
+    }
+    out.push(trackRow(t, { oneAlbum, albumArtist, disc }));
+  }
+  els.tracks.replaceChildren(head, ...out);
   updateRowStates();
+  syncPlayer();
+}
+
+function trackRow(t, { oneAlbum, albumArtist, disc }) {
+  const title = first(t, "title");
+  const artist = (t.tags.artist || []).join(", ");
+  const album = first(t, "album");
+  const checkbox = h("input", {
+    type: "checkbox",
+    "aria-label": `Select ${title || t.name}`,
+    checked: state.selected.has(t.path),
+    onclick: (e) => { e.stopPropagation(); toggleSelect(t.path, e.target.checked, e.shiftKey); },
+  });
+  const row = h("div", {
+    class: `track-row${t.error ? " has-error" : ""}`,
+    tabindex: "0",
+    role: "row",
+    dataset: { path: t.path },
+    onclick: (e) => {
+      if (e.target.closest(".check-cell")) return;
+      if (state.selectMode && isPhone()) toggleSelect(t.path, !state.selected.has(t.path), false);
+      else openTrack(t);
+    },
+    onkeydown: (e) => {
+      if (e.key === "Enter" && e.target === row) openTrack(t);
+      if (e.key === " " && e.target === row) { e.preventDefault(); checkbox.click(); }
+    },
+  },
+    h("label", { class: "check-cell", onclick: (e) => e.stopPropagation() }, checkbox),
+    h("div", { class: "col-num" }, disc != null
+      // Multi-disc: pointing at a row shows "2/01" (disc/track).
+      ? [h("span", { class: "num-track" }, trackNo(first(t, "tracknumber"))),
+        h("span", { class: "num-disc" }, `${disc}/${trackNo(first(t, "tracknumber"))}`)]
+      : trackNo(first(t, "tracknumber"))),
+    h("div", { class: "col-art" }, t.art
+      ? h("img", { src: artUrlFor(t), alt: "", loading: "lazy", decoding: "async", width: "40", height: "40" })
+      : h("span", { class: "art-none", title: "No album art" }, icon("note"))),
+    h("div", { class: "col-title" },
+      h("span", { class: "main" }, title || h("span", { class: "untitled" }, t.name)),
+      h("span", { class: "sub" }, t.error ? t.error
+        : oneAlbum ? (artist && artist !== albumArtist ? artist : "")
+        : [artist, album].filter(Boolean).join(" · ") || (title ? t.name : `${fmtLabel(t.format)} · No tags yet`))),
+    h("div", { class: "col-artist" }, t.error ? t.error : artist),
+    h("div", { class: "col-album" }, album),
+    h("div", { class: "col-fmt" }, t.format ? h("span", { class: "badge" }, fmtLabel(t.format)) : ""),
+    h("div", { class: "col-dur" }, fmtDuration(t.duration)),
+    h("div", { class: "col-play" }, !t.error && canPlay(t.format) ? h("button", {
+      class: "play-btn", type: "button", "aria-label": `Play ${title || t.name}`,
+      onclick: (e) => { e.stopPropagation(); togglePlay(t); },
+    }, icon("play"), h("span", { class: "play-label" }, "Play")) : null),
+  );
+  state.rows.set(t.path, { row, checkbox, track: t });
+  return row;
+}
+
+// ---- Player: a quick listen, straight from the file -------------------------------------------
+//
+// One shared <audio>, streaming /api/stream (the server sends the file as-is
+// and supports seeking). Formats the browser can't decode get no button.
+
+const STREAM_TYPES = {
+  flac: "audio/flac", mp3: "audio/mpeg", mp2: "audio/mpeg", m4a: "audio/mp4", wav: "audio/wav", aiff: "audio/aiff",
+  ogg: 'audio/ogg; codecs="vorbis"', opus: 'audio/ogg; codecs="opus"', oggflac: 'audio/ogg; codecs="flac"',
+};
+const playable = new Map();
+function canPlay(format) {
+  if (!playable.has(format)) {
+    const type = STREAM_TYPES[format];
+    playable.set(format, !!type && document.createElement("audio").canPlayType(type) !== "");
+  }
+  return playable.get(format);
+}
+
+const player = { audio: null, path: null, folder: null };
+
+function playerAudio() {
+  if (player.audio) return player.audio;
+  const a = new Audio();
+  a.preload = "none";
+  for (const ev of ["play", "pause", "ended", "emptied"]) a.addEventListener(ev, syncPlayer);
+  a.addEventListener("timeupdate", () => {
+    const row = state.rows.get(player.path)?.row;
+    if (row && a.duration) row.style.setProperty("--progress", `${(a.currentTime / a.duration) * 100}%`);
+  });
+  a.addEventListener("error", () => {
+    if (!player.path) return;
+    toast("This browser can't play that file.", "error");
+    stopPlayer();
+  });
+  player.audio = a;
+  return a;
+}
+
+async function togglePlay(t) {
+  const a = playerAudio();
+  if (player.path === t.path) {
+    if (a.paused) a.play().catch(() => {}); else a.pause();
+    return;
+  }
+  player.path = t.path;
+  player.folder = state.path;
+  a.src = `/api/stream?path=${encodeURIComponent(t.path)}`;
+  if ("mediaSession" in navigator) { // lock screen / headphone controls
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: first(t, "title") || t.name, artist: (t.tags.artist || []).join(", "), album: first(t, "album"),
+      artwork: t.art ? [{ src: artUrlFor(t), sizes: "512x512" }] : [],
+    });
+  }
+  try {
+    await a.play();
+  } catch (err) {
+    if (err.name !== "AbortError") { toast("This browser can't play that file.", "error"); stopPlayer(); }
+  }
+  syncPlayer();
+}
+
+function stopPlayer() {
+  if (!player.audio) return;
+  player.audio.pause();
+  player.audio.removeAttribute("src");
+  player.audio.load();
+  player.path = null;
+  syncPlayer();
+}
+
+/** Reflect what's playing on the rows (button, progress line, spinning disc). */
+function syncPlayer() {
+  const playing = player.audio && !player.audio.paused && !player.audio.ended;
+  let disc = null;
+  for (const [path, { row, track }] of state.rows) {
+    const current = path === player.path;
+    row.classList.toggle("is-current", current);
+    row.classList.toggle("playing", current && !!playing);
+    if (!current) row.style.removeProperty("--progress");
+    else disc = discInfo()?.discOf(track) ?? null;
+    const btn = $(".play-btn", row);
+    if (!btn) continue;
+    const on = current && playing;
+    btn.replaceChildren(icon(on ? "pause" : "play"), h("span", { class: "play-label" }, on ? "Pause" : "Play"));
+    btn.setAttribute("aria-label", `${on ? "Pause" : "Play"} ${first(track, "title") || track.name}`);
+  }
+  for (const head of els.tracks.querySelectorAll(".disc-head")) {
+    head.classList.toggle("spinning", !!playing && head.dataset.disc === String(disc));
+  }
 }
 
 function openTrack(track) {

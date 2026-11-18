@@ -252,6 +252,13 @@ class SearchOut(BrowseOut):
 
 
 MAX_PATHS_PER_REQUEST = 1000  # the UI sends bigger jobs in batches
+# Audio types for the in-browser player, by extension (only Codetta's audio files are served).
+STREAM_TYPES = {
+    ".flac": "audio/flac", ".mp3": "audio/mpeg", ".mp2": "audio/mpeg", ".m4a": "audio/mp4", ".m4b": "audio/mp4",
+    ".ogg": "audio/ogg", ".oga": "audio/ogg", ".opus": "audio/ogg", ".spx": "audio/ogg", ".wav": "audio/wav",
+    ".aif": "audio/aiff", ".aiff": "audio/aiff", ".aifc": "audio/aiff", ".wma": "audio/x-ms-wma",
+    ".wv": "audio/x-wavpack", ".dsf": "audio/x-dsf", ".tta": "audio/x-tta",
+}
 MAX_IDENTIFY = 200  # files fingerprinted in one request (each takes a moment to decode)
 
 
@@ -740,6 +747,19 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     def get_track(path: str = Query(..., description="File, relative to the music folder")):
         require_library()
         return to_out(path, engine.load_metadata(library.resolve(path)))
+
+    @app.get("/api/stream", responses={200: {"content": {"audio/*": {}}}, 206: {"description": "Part of the file"}})
+    def stream(path: str = Query(..., description="File, relative to the music folder")):
+        """The audio file itself, for the in-browser player. Supports seeking
+        (HTTP range requests); nothing is converted or cached."""
+        require_library()
+        target = library.resolve(path)
+        mime = STREAM_TYPES.get(target.suffix.lower())
+        if mime is None or not target.is_file():
+            raise HTTPException(404, "No such audio file")
+        # The type comes from Codetta's own list (always audio/*), never from the file.
+        return FileResponse(target, media_type=mime, content_disposition_type="inline",
+                            headers={"Cache-Control": "private, max-age=3600"})
 
     @app.get("/api/lyrics/lookup")
     def lyrics_lookup(path: str = Query(..., description="File, relative to the music folder")) -> dict:

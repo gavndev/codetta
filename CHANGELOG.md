@@ -2,6 +2,11 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
+## Unreleased (0.5.0)
+
+- **Play a track** from the list: a play button at the end of every row (it grows to "Play" when you point at it). Plays the file straight from your server, with seeking and lock-screen/headphone controls, and a thin progress line under the row. Nothing is converted or cached; formats your browser can't play (WMA, DSF, WavPack…) get no button. Playback stops when you open another folder.
+- **Multi-disc albums** read like a streaming service: a "Disc 2" line (with the disc subtitle) between discs, tracks grouped by disc, and pointing at a row shows "2/01". The disc icon spins when you point at it, and slowly while that disc is playing.
+
 ## 0.4.1 (2026-11-18)
 
 - The dashboard icons (`/static/icons/`) are now included in the Docker image (0.4.0 left them out).

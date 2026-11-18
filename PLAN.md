@@ -74,10 +74,14 @@ Codetta on its own never touches the internet. Online features are "connections"
 - [x] **Task 9.8:** Identify by sound (`src/codetta/core/acoustid.py`): AcoustID connection (needs MusicBrainz), Chromaprint `fpcalc` fingerprints computed on the server (4 at a time, cached per file version, 60 s timeout, max 200 files per request), batched gzip lookups (`batch=1`, 20 per request, 3/s), releases ranked by how many files they hold (one `reid:` MusicBrainz search for their summaries), files paired by recording ID before track numbers. Official static `fpcalc` 1.6.2 in the Docker image (SHA-256 checked; CI runs it). Tests in `tests/test_acoustid.py`.
 - [x] **Task 9.7:** Tests with a fake MusicBrainz (never the internet) in `tests/test_musicbrainz.py` + `tests/test_connections.py` ✓, security tests ✓, docs (configuration, features, FAQ) ✓, CHANGELOG ✓. Tried on the real library by the user; released as v0.4.0. Later: Last.fm as a connection; submitting fingerprints back to AcoustID (needs a per-user key).
 
+## Phase 10: Listening and discs (v0.5)
+- [x] **Task 10.1:** Play button on every row (`GET /api/stream`, Starlette range requests, type from Codetta's own list; `canPlayType` hides it for unplayable formats; Media Session metadata; stops on folder change). Security tests for sign-in, traversal, non-audio and content type.
+- [x] **Task 10.2:** Multi-disc albums: tracks grouped by disc with a "Disc N" separator (+ disc subtitle), hover shows "disc/track", disc icon (drawn for Codetta, not icons8, which needs attribution) spins on hover and while its disc plays.
+
 ## Phase 6: Data sources, listening, organizing (roadmap)
 - [ ] **Task 6.1:** (→ Phase 9) MusicBrainz integration: match a file or folder to a MusicBrainz release/recording and offer its "official" metadata (titles, artists, dates, label, catalog number, MBIDs, cover art), previewed before writing like loadouts. Also feeds smart suggestions.
 - [ ] **Task 6.2:** Last.fm integration: genre tags (top tags), similar artists and listener counts as another suggestion source (user supplies their own API key).
-- [ ] **Task 6.3:** In-browser preview player: play a track from the list or editor (HTML `<audio>` streaming the file with range requests, signed-in only), to confirm what a file is before tagging it.
+- [x] **Task 6.3:** (v0.5) In-browser preview player: play a track from the list or editor (HTML `<audio>` streaming the file with range requests, signed-in only), to confirm what a file is before tagging it.
 - [ ] **Task 6.4:** Auto-organize toggle: optionally move newly added folders into `Artist/Album/NN - Title` from their tags (preview first, undoable, never touches existing folders unless asked).
 - [ ] **Task 6.5 (major):** slskd integration: search slskd from Codetta, queue downloads, then tag (MusicBrainz/loadouts), organize and add them to the library in one flow.
 
