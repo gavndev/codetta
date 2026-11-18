@@ -406,7 +406,8 @@ class SoulseekStore:
     def add_job(self, query: str, upgrade: str = "") -> Job:
         with self.lock:
             now = time.time()
-            job = Job(id=uuid.uuid4().hex, query=query, created=now, updated=now, moved=now, upgrade=upgrade)
+            job = Job(id=str(uuid.uuid4()),  # slskd wants a standard GUID (with dashes)
+                       query=query, created=now, updated=now, moved=now, upgrade=upgrade)
             self.jobs[job.id] = job
             # Forget the oldest finished jobs.
             done = sorted((j for j in self.jobs.values() if j.status not in ACTIVE + (ARRIVED,)), key=lambda j: j.updated)

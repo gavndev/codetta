@@ -1,6 +1,7 @@
 """Soulseek through slskd: ranking, the job flow and the API client, against a fake slskd."""
 
 import json
+import re
 import stat
 
 import pytest
@@ -49,6 +50,8 @@ class FakeSlskd:
         if path == "/options":
             return 200, json.dumps({"directories": {"downloads": "/app/downloads"}}).encode()
         if method == "POST" and path == "/searches":
+            if not re.fullmatch(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", str(data.get("id"))):
+                return 400, b'"The JSON value could not be converted to System.Nullable`1[System.Guid]. Path: $.id"'
             self.searches[data["id"]] = {"text": data["searchText"], "done": False}
             return 200, b"{}"
         if path.startswith("/searches/"):

@@ -82,11 +82,14 @@
       <a class="brand" href="#/" aria-label="Codetta — library home"><span class="wordmark" aria-hidden="true">codetta<span class="spot-dot"></span></span><span class="brand-icon" aria-hidden="true">c</span></a>
       <nav class="crumbs" id="crumbs" aria-label="Folder path"></nav>
       <div class="topbar-actions">
+        <div class="search-wrap" id="search-wrap">
         <label class="search">
           <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg>
           <button class="bang-chip" id="bang-chip" type="button" hidden aria-label="Soulseek search is on. Tap to turn it off" title="Searching Soulseek. Tap (or Backspace) to search your library again"></button>
           <input id="filter" type="search" dir="auto" placeholder="Filter this folder" autocomplete="off" spellcheck="false" aria-label="Filter this folder, or press Enter to search your whole library">
         </label>
+        <button class="search-cancel" id="search-cancel" type="button" tabindex="-1">Cancel</button>
+        </div>
         <button class="icon-btn" id="inbox-btn" type="button" aria-label="Inbox: new music to file" title="Inbox: new music to file">
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 11.5 5.6 5a1.5 1.5 0 0 1 1.4-1h6a1.5 1.5 0 0 1 1.4 1l2.1 6.5v3A1.5 1.5 0 0 1 15 16H5a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M3.5 11.5h3.5l1 2h4l1-2h3.5"/></svg>
           <span class="badge-count" id="inbox-count" hidden></span>

@@ -166,7 +166,7 @@ in your library are never overwritten.
 If you run [slskd](https://github.com/slskd/slskd), turn on the **Soulseek
 (slskd)** connection and give Codetta slskd's address and an API key. Then:
 
-- type `!slskd` and a space in the search bar: it turns into a little
+- type `!slskd` in the search bar: it turns into a little
   **slskd** chip, and whatever you type next (say `T-Pain Epiphany`) goes to
   Soulseek when you press Enter. `*` works as a wildcard for names Soulseek
   filters (`*-Pain Epiphany`). Backspace on an empty box turns the chip off.

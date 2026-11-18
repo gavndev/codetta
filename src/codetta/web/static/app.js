@@ -129,6 +129,7 @@ const ICONS = {
   // MusicBrainz's two-tone mark (drawn here: the page loads nothing from other sites).
   musicbrainz: '<svg class="mb-logo" viewBox="0 0 32 32"><path class="mb-l" d="M15.3 3.2 5.5 8.8v14.4l9.8 5.6z"/><path class="mb-r" d="M16.7 3.2l9.8 5.6v14.4l-9.8 5.6z"/><path class="mb-cut" d="M11.5 11.2c-1.8 0-3.2 1.4-3.2 3.2 0 1.2.7 2.3 1.7 2.8-.2.5-.3 1-.3 1.6 0 2.1 1.7 3.8 3.8 3.8h1.8V11.2z"/><path class="mb-cut" d="M20.5 11.2c1.8 0 3.2 1.4 3.2 3.2 0 1.2-.7 2.3-1.7 2.8.2.5.3 1 .3 1.6 0 2.1-1.7 3.8-3.8 3.8h-1.8V11.2z"/></svg>',
   slskd: '<svg class="sk-logo" viewBox="0 0 20 20"><path class="sk-vane" d="M18 2c-6.2.3-10.6 3.8-11.7 9.6l3-.7-1.7 2c3.5.4 6.3-1.2 7.6-4l-2.3.3 2.8-2C16.6 5.5 17.3 3.8 18 2z"/><path class="sk-quill" d="M14.5 5.5 3 17.5"/></svg>',
+  gear: '<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.6"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4"/><circle cx="10" cy="10" r="5.2"/></svg>',
   paste: '<svg viewBox="0 0 20 20"><rect x="4.5" y="4" width="11" height="13" rx="2"/><path d="M8 4V3h4v1"/><path d="M7.5 9h5M7.5 12h3"/></svg>',
 };
 
@@ -540,7 +541,7 @@ function showFolder(data, scrollTop) {
   }
   document.title = isSearchKey(data.path) ? `${searchQuery(data.path)} — Search — Codetta`
     : data.path ? `${data.name} — Codetta` : "Codetta";
-  if (!sk.bang) els.filter.placeholder = isSearchKey(data.path) ? "Search library" : isPhone() ? "Filter" : "Filter this folder";
+  if (!sk.bang) els.filter.placeholder = filterPlaceholder();
   renderBrowser();
   els.browser.scrollTop = scrollTop;
   updateSpot();
@@ -3251,9 +3252,11 @@ function renderInbox() {
       h("p", { class: "mb-lead" }, d.groups.length
         ? `${pending ? plural(pending, "album") + " waiting" : "All caught up"} in ${inboxLabel(d.settings.folder)}.${d.downloading ? ` ${plural(d.downloading, "album")} still arriving: Codetta waits until the download finishes.` : ""}${d.settings.auto ? " Confident matches are filed automatically." : ""}`
         : `Nothing new in ${inboxLabel(d.settings.folder)}. When an album lands there, it shows up here.`),
-      h("span", { class: "inbox-links" },
-        skReady() ? h("button", { class: "link-btn", type: "button", onclick: () => { closeDialog($("#inbox-dialog")); openSoulseek(); } }, "Soulseek") : null,
-        h("button", { class: "link-btn", type: "button", onclick: () => { inboxState.settingsOpen = true; renderInbox(); } }, "Settings"))),
+      h("div", { class: "inbox-tools" },
+        skReady() ? h("button", { class: "btn small with-icon", type: "button", onclick: () => { closeDialog($("#inbox-dialog")); openSoulseek(); } },
+          icon("slskd"), "Soulseek") : null,
+        h("button", { class: "btn small with-icon", type: "button", onclick: () => { inboxState.settingsOpen = true; renderInbox(); } },
+          icon("gear"), "Settings"))),
     d.groups.length ? h("div", { class: "inbox-list" }, d.groups.map(item)) : null);
   setKids($("#inbox-foot"),
     h("button", { class: "btn", type: "button", onclick: loadInbox }, "Check again"),
@@ -3275,7 +3278,7 @@ const SK_LABELS = {
   nothing: "Nothing found", failed: "Couldn't get it", cancelled: "Cancelled",
 };
 const SK_ACTIVE = ["searching", "downloading", "fetched"];
-const BANG = /^!(slskd|soulseek)\s/i; // the chip appears once the space after it is typed
+const BANG = /^!(slskd|soulseek)(?=\s|$)/i; // the chip appears as soon as "!slskd" is typed
 const skReady = () => connectionOn("slskd") && !!sk.data?.configured;
 const skSize = (b) => (b >= 1e9 ? `${(b / 1e9).toFixed(1)} GB` : `${Math.max(1, Math.round(b / 1e6))} MB`);
 
@@ -3285,8 +3288,8 @@ async function loadSlskd() {
 }
 
 function filterPlaceholder() {
-  if (sk.bang) return isPhone() ? "Search Soulseek" : "Search Soulseek (* is a wildcard)";
-  return isSearch() ? "Search library" : isPhone() ? "Filter" : "Filter this folder";
+  if (sk.bang) return "Search Soulseek (* is a wildcard)";
+  return isSearch() ? "Search library" : "Filter this folder";
 }
 
 /** Turn the Soulseek chip in the search bar on or off. */
@@ -3295,6 +3298,7 @@ function setBang(on, upgrade = "") {
   sk.upgrade = on ? upgrade : "";
   $("#bang-chip").hidden = !on;
   $(".topbar .search").classList.toggle("banged", on);
+  if (on) $("#search-wrap").classList.add("active");
   els.filter.placeholder = filterPlaceholder();
   els.filter.setAttribute("enterkeyhint", on ? "search" : "enter");
 }
@@ -3307,7 +3311,7 @@ function takeBang() {
     sk.hinted = true;
     return false;
   }
-  els.filter.value = els.filter.value.replace(BANG, "");
+  els.filter.value = els.filter.value.replace(BANG, "").trimStart();
   setBang(true);
   if (state.filter) { state.filter = ""; renderFolders(); renderTracks(); renderFilterChips(); }
   return true;
@@ -4094,6 +4098,7 @@ function bindEvents() {
   let filterTimer = null;
   els.filter.addEventListener("input", () => {
     clearTimeout(filterTimer); // redraw once typing pauses, not on every keystroke
+    if (sk.bang && /^\s/.test(els.filter.value)) els.filter.value = els.filter.value.trimStart(); // the space after "!slskd"
     if (takeBang() || sk.bang || els.filter.value.startsWith("!")) return; // a Soulseek search, not a filter
     if (isSearch()) {
       // While searching, the box *is* the search: re-run it as you type.
@@ -4117,12 +4122,6 @@ function bindEvents() {
       if (e.key === "Enter") { e.preventDefault(); skSearch(els.filter.value); }
       else if (e.key === "Backspace" && !els.filter.value) { e.preventDefault(); setBang(false); }
       else if (e.key === "Escape") { els.filter.value = ""; setBang(false); }
-      return;
-    }
-    if (e.key === "Enter" && /^!(slskd|soulseek)$/i.test(els.filter.value.trim())) {
-      e.preventDefault();
-      els.filter.value += " ";
-      takeBang();
       return;
     }
     if (e.key !== "Enter") return;
@@ -4384,6 +4383,22 @@ async function boot() {
   $("#conn-toggle").addEventListener("click", () => setConnectionsOpen($("#conn-body").hidden));
   $("#inbox-btn").addEventListener("click", openInbox);
   $("#bang-chip").append(icon("slskd"), "slskd");
+  // The search bar widens while you use it; on phones a Cancel button slides in (like iOS).
+  const wrap = $("#search-wrap");
+  let blurTimer = null;
+  wrap.addEventListener("focusin", () => { clearTimeout(blurTimer); wrap.classList.add("active"); });
+  wrap.addEventListener("focusout", () => {
+    blurTimer = setTimeout(() => { if (!wrap.contains(document.activeElement) && !sk.bang && !els.filter.value) wrap.classList.remove("active"); }, 120);
+  });
+  $("#search-cancel").addEventListener("pointerdown", (e) => e.preventDefault()); // keep the keyboard until the tap lands
+  $("#search-cancel").addEventListener("click", () => {
+    els.filter.value = "";
+    setBang(false);
+    if (isSearch()) navigate("");
+    else if (state.filter) { state.filter = ""; renderFolders(); renderTracks(); renderFilterChips(); }
+    els.filter.blur();
+    wrap.classList.remove("active");
+  });
   $("#bang-chip").addEventListener("click", (e) => { e.preventDefault(); setBang(false); els.filter.focus(); });
   $("#soulseek-dialog").addEventListener("close", () => clearTimeout(sk.timer));
   $("#notif-btn").addEventListener("click", (e) => {

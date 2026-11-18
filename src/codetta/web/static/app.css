@@ -254,7 +254,12 @@ h1, h2, h3, p { margin: 0; }
   border: 1px solid var(--field-line);
   color: var(--muted);
   width: 240px;
+  transition: width 320ms var(--ease-out), box-shadow 200ms ease, border-color 200ms ease;
 }
+.search-wrap { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.search-cancel { display: none; }
+/* Using the search (or searching Soulseek): it widens to make room. */
+.search-wrap.active .search { width: 380px; }
 .search input {
   border: 0;
   outline: 0;
@@ -1440,8 +1445,20 @@ dialog.sheet.closing::backdrop { animation: fade-out 150ms ease forwards; }
   .brand .wordmark { display: none; }
   .brand .brand-icon { display: grid; }
   .crumbs { order: 3; flex-basis: 100%; margin: 0 -6px; }
-  .topbar-actions { flex: 1; justify-content: flex-end; }
-  .search { flex: 1; width: auto; height: 36px; }
+  /* Row 1: logo + tools. Row 2: the search bar, full width. Row 3: where you are. */
+  .topbar-actions { display: contents; }
+  .topbar-actions > .icon-btn:first-of-type { margin-left: auto; }
+  .topbar-actions > .icon-btn { margin-left: -6px; }
+  .search-wrap { order: 2; flex: 1 1 100%; gap: 0; }
+  .search { flex: 1; width: auto; height: 42px; border-radius: 10px; padding: 0 12px; }
+  .search-wrap.active .search { width: auto; }
+  .search-cancel {
+    display: block; flex: none; max-width: 0; overflow: hidden; opacity: 0; padding: 0; margin: 0;
+    height: 44px; border: 0; background: none; color: var(--accent); font: inherit; font-size: 16px; font-weight: 500;
+    white-space: nowrap; cursor: pointer;
+    transition: max-width 320ms var(--ease-out), opacity 220ms ease, padding 320ms var(--ease-out);
+  }
+  .search-wrap.active .search-cancel { max-width: 90px; opacity: 1; padding: 0 2px 0 12px; }
   .icon-btn { width: 40px; height: 40px; }
 
   .browser { padding: 16px max(16px, env(safe-area-inset-right)) 120px max(16px, env(safe-area-inset-left)); }
@@ -2080,7 +2097,6 @@ body:has(.now-playing:not([hidden])) .browser { padding-bottom: 120px; }
 .sk-cand-text { display: flex; flex-direction: column; min-width: 0; font-size: 13px; }
 .sk-cand-text strong { overflow-wrap: anywhere; }
 .sk-cand-text span { color: var(--muted); font-size: 12px; }
-.inbox-links { display: inline-flex; gap: 14px; }
 
 .sk-warn { display: flex; flex-direction: column; gap: 3px; margin: 0 0 14px; padding: 10px 12px; border-radius: 8px;
   font-size: 13px; color: var(--text); background: var(--warning-soft); border-left: 3px solid var(--warning); text-align: left; }
@@ -2105,7 +2121,21 @@ body:has(.now-playing:not([hidden])) .browser { padding-bottom: 120px; }
 .sk-item .inbox-actions { grid-column: 2; justify-content: flex-start; }
 @media (max-width: 760px) {
   /* Searching Soulseek: the bar takes the room of the tools it doesn't need. */
-  .topbar-actions:has(.search.banged) > .icon-btn:not(#notif-btn):not(#account-btn) { display: none; }
   .sk-item { grid-template-columns: 48px minmax(0, 1fr); }
   .sk-item .inbox-actions { grid-column: 1 / -1; }
+}
+
+@media (prefers-reduced-motion: reduce) { .search, .search-cancel { transition: none !important; } }
+
+/* Inbox: its tools are proper buttons, apart from the text */
+.inbox-head { align-items: flex-start; flex-wrap: wrap; }
+.inbox-head .mb-lead { flex: 1 1 260px; margin-bottom: 0; }
+.inbox-tools { display: flex; gap: 8px; flex: none; }
+.btn.with-icon { display: inline-flex; align-items: center; gap: 6px; }
+.btn.with-icon svg { width: 15px; height: 15px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; }
+.btn.with-icon .sk-logo { stroke: none; }
+.inbox-head + .inbox-list { margin-top: 14px; }
+@media (max-width: 760px) {
+  .inbox-tools { flex: 1 1 100%; }
+  .inbox-tools .btn { flex: 1; justify-content: center; height: 44px; }
 }
