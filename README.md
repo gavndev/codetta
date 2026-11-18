@@ -22,7 +22,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/media/hero.gif" alt="Opening an album in Codetta, editing a track's genre and saving it" width="900">
+  <img src="docs/media/overview.gif" alt="A tour of Codetta: editing an album's tags, searching the library by tag, looking up an artist on MusicBrainz, a one-tap Library health fix, the player with synced lyrics, and the account panel" width="900">
 </p>
 
 <p align="center">
