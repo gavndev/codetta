@@ -15,7 +15,8 @@
   <img alt="Version 0.1.0" src="https://img.shields.io/badge/version-0.1.0-007aff">
   <a href="LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-555"></a>
   <img alt="Python 3.14" src="https://img.shields.io/badge/python-3.14-3776ab">
-  <img alt="Runs in Docker" src="https://img.shields.io/badge/docker-ready-2496ed">
+  <a href="https://github.com/gavndev/codetta/actions/workflows/ci.yml"><img alt="Tests" src="https://github.com/gavndev/codetta/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/gavndev/codetta/pkgs/container/codetta"><img alt="Docker image on ghcr.io" src="https://img.shields.io/badge/docker-ghcr.io-2496ed"></a>
   <img alt="Works great with Navidrome" src="https://img.shields.io/badge/works%20with-Navidrome-6c5ce7">
 </p>
 
@@ -38,12 +39,11 @@
 
 If you run your own music server, you know the drill: a SoundCloud download
 with no tags, an album where every track spells the artist differently, a
-folder of loose files that shows up as *Unknown Album*. Fixing it usually
-means a desktop tagger, and a trip to whichever computer has your library on it.
+folder of loose files that shows up as *Unknown Album*. I created this tool for home server users like myself who are looking for more granular control over their library. Honestly, it's my hobby project that I thought could be useful to others.
 
-Codetta lives on your server, next to your music. Open it on your laptop or
-your phone, pick a track or a whole album, fix what's wrong and hit Save. Your
-files are updated safely, and your music apps pick up the change on their next
+Codetta lives on your server, next to your music. **Open it on your laptop or
+your phone, pick a track or a whole album, fix what's wrong and hit Save.** Your
+files are updated **safely**, and your music apps pick up the change on their next
 scan.
 
 It's built with [Navidrome](https://www.navidrome.org/) and other
@@ -55,12 +55,15 @@ OpenSubsonic servers in mind. Codetta writes the tags those apps actually show
 > [how](#how-codetta-keeps-your-files-safe)), but it's young. Keep a backup of
 > your library, as you would with any tool that edits files.
 
+> **Codetta is AI-Assisted.** I understand the controversy surrounding AI usage in software. I prioritize transparency, hence the disclaimer for those who do not favor AI. This project is assisted by Claude Opus 5.5.
+
 ## Quick start
 
 On a server with [Docker](https://docs.docker.com/engine/install/):
 
 ```sh
-git clone https://github.com/gavndev/codetta.git && cd codetta
+mkdir codetta && cd codetta
+curl -fsSLO https://raw.githubusercontent.com/gavndev/codetta/main/docker-compose.yml
 cat > docker-compose.override.yml <<'EOF'
 services:
   codetta:
@@ -74,9 +77,30 @@ docker compose up -d
 ```
 
 Then open `http://<your-server>:8111` and create your account. That's it.
+The ready-made image runs on Intel/AMD and ARM (e.g. Raspberry Pi) servers.
 The [full guide](#installing) walks through each step.
 
 ## What it does
+
+### Search your whole library
+
+Type in the search box and press <kbd>Enter</kbd> to search every track you
+own. Search by tag, and combine as much as you like:
+
+| Type | Finds |
+|---|---|
+| `genre: rap, hip-hop` | tracks whose genre is Rap **or** Hip-Hop (but not "Trap") |
+| `artist: drake` | everything by Drake, including features ("Drake & Future") |
+| `genre: rap year: 2024` | both at once |
+| `night drive` | those words in the title, artist, album or file name |
+
+It ignores case and accents ("beyonce" finds "Beyoncé"). Results work like a
+folder, so you can select them and edit them all at once. You can also start a
+search from the filter button: pick a tag and a value, then **Search library**.
+
+<p align="center">
+  <img src="docs/media/search.gif" alt="Searching the library for genre synthwave or jazz, then for artist kosei, which finds Kōsei Mori" width="900">
+</p>
 
 ### Fix a whole album in one go
 
@@ -136,6 +160,9 @@ covers straight from your photo library (HEIC included).
 - **Album art everywhere.** A thumbnail on every track, and covers you can
   add, replace or remove as part of a normal save.
 - **Filter a folder by tag**, e.g. *Label: Independent*.
+- **Fast on big libraries.** Folders load one at a time, and search uses a
+  small index that Codetta keeps up to date in the background, so even tens
+  of thousands of tracks stay quick.
 - **Any language, any script.** Japanese, Hindi, Korean, Thai, Arabic, accented
   names and emoji are saved exactly as typed. Search ignores accents
   ("beyonce" finds "Beyoncé") and right-to-left names display correctly.
@@ -196,9 +223,11 @@ On most single-user servers that's `1000` and `1000`.
 
 ### 3. Get Codetta
 
+Make a folder for Codetta and download its compose file:
+
 ```sh
-git clone https://github.com/gavndev/codetta.git
-cd codetta
+mkdir codetta && cd codetta
+curl -fsSLO https://raw.githubusercontent.com/gavndev/codetta/main/docker-compose.yml
 ```
 
 ### 4. Point it at your music
@@ -224,7 +253,9 @@ Keeping your settings in this separate file means updates never overwrite them.
 docker compose up -d
 ```
 
-The first start builds the image, which takes a minute or two.
+Docker downloads the ready-made image (`ghcr.io/gavndev/codetta`), which
+works on Intel/AMD and ARM servers. On a big library, the search index takes a
+few minutes to build in the background; everything else works straight away.
 
 ### 6. Create your account
 
@@ -246,11 +277,12 @@ account menu shows what's new and the commands to run:
 
 ```sh
 cd codetta
-git pull
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
 
-Codetta never updates itself. That would mean giving it control of Docker,
+To stay on a specific version, change `latest` in `docker-compose.yml` to a
+version number such as `0.1.0`. Codetta never updates itself. That would mean giving it control of Docker,
 and with it the rest of your server. Your account, loadouts and activity log
 live in `./codetta-config` and are kept across updates.
 
@@ -273,7 +305,7 @@ All optional. Set them under `environment:` in your
 | Folder in the container | What's in it |
 |---|---|
 | `/music` | Your library. Codetta needs read-write access to edit it. |
-| `/config` | Your account, sessions, profile picture, loadouts, the activity log and previous album art kept for undo. Include it in your backups. |
+| `/config` | Your account, sessions, profile picture, loadouts, the activity log, previous album art kept for undo, and the search index (rebuilt automatically if deleted). Include it in your backups. |
 
 The provided compose file also runs the container with a read-only system
 filesystem and without the ability to gain extra privileges.
@@ -336,8 +368,8 @@ rather than in a public issue.
 | Format | Extensions | Notes |
 |---|---|---|
 | FLAC | `.flac` | Any tag name is allowed. |
-| MP3 | `.mp3` | Saved as ID3v2.4, which Navidrome and modern players read. Some older software prefers ID3v2.3. |
-| AAC / ALAC | `.m4a` | |
+| MP3 | `.mp3` | All of Codetta's fields. Saved as ID3v2.4, which Navidrome and modern players read; some older software prefers ID3v2.3. |
+| AAC / ALAC | `.m4a` | All of Codetta's fields. |
 | Ogg Vorbis | `.ogg` | Any tag name is allowed. |
 | Opus | `.opus` | Any tag name is allowed. |
 
@@ -353,6 +385,10 @@ Navidrome's extra fields, but nothing about it is Navidrome-only.
 **Does it rename or move my files?**
 No. Only tags and embedded album art change. File names and folders stay as
 they are.
+
+**How do I search for a tag that isn't in the list?**
+Any tag name in your files works, e.g. `catalognumber: ABC-123`, or a custom
+tag like `vibe: chill`. Separate several values with commas to match any of them.
 
 **Does it need internet access?**
 No. Everything, fonts included, is served from your own server. The optional
@@ -375,14 +411,24 @@ change from the activity log.
 
 - One account per Codetta instance.
 - WAV, AIFF, WMA and raw `.aac` files aren't supported.
-- Filtering by tag works within a folder, not across the whole library.
+- Custom tag names (beyond Codetta's field list) only work in FLAC, Ogg and Opus files.
 
 ## Roadmap
 
-- **MusicBrainz:** match a track or folder to a MusicBrainz release and apply
-  its official metadata, with a preview first.
-- **Library-wide search** by tag.
-- **A ready-made Docker image**, so installing doesn't need a build step.
+Ideas, roughly in order. Nothing here is promised, and suggestions are welcome.
+
+- **MusicBrainz:** match a track or folder to a MusicBrainz release and fill
+  in its official metadata (titles, credits, dates, label, IDs, cover art),
+  with a preview first.
+- **Last.fm:** genre tags, similar artists and listener counts as another
+  source of suggestions.
+- **Preview player:** listen to a track right in the browser to check it's
+  the right one before you tag it.
+- **Auto-organize (optional):** a toggle that files newly added music into
+  tidy `Artist/Album/Track` folders based on its tags.
+- **slskd integration (a big one):** find music you want through
+  [slskd](https://github.com/slskd/slskd) and have it downloaded, tagged and
+  added to your library in one go.
 
 ## What's new
 
@@ -398,7 +444,7 @@ release after it.
 ```sh
 cd codetta
 docker compose down
-docker image rm codetta:local
+docker image rm ghcr.io/gavndev/codetta
 ```
 
 Your music is never deleted. Remove the `codetta-config` folder too if you
@@ -415,6 +461,16 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 pytest
 CODETTA_MUSIC_DIR=~/some-test-music uvicorn codetta.web.app:app --reload --port 8111
+```
+
+To build the Docker image yourself instead of downloading it, add this to
+your `docker-compose.override.yml` and run `docker compose up -d --build`:
+
+```yaml
+services:
+  codetta:
+    build: .
+    image: codetta:local
 ```
 
 Always use a **copy** of some music while developing. Contributor notes are in

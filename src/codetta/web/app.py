@@ -49,6 +49,7 @@ from codetta.core.auth import (
     needs_rehash,
 )
 from codetta.core.engine import MetadataEngine, MetadataError, TrackMetadata
+from codetta.core.index import LibraryIndex, parse_query
 from codetta.core.library import Library, LibraryPathError, count_contents
 from codetta.core.presets import (
     PLACEHOLDERS,
@@ -170,6 +171,25 @@ class BrowseOut(BaseModel):
     tracks: list[TrackOut]
 
 
+class ClauseOut(BaseModel):
+    key: str
+    label: str
+    values: list[str]
+
+
+class SearchInfo(BaseModel):
+    query: str
+    words: list[str]
+    clauses: list[ClauseOut]
+    total: int  # all matches; ``tracks`` holds the first ``limit``
+    indexing: bool  # the first scan of the library is still running
+    indexed: int  # files in the index so far
+
+
+class SearchOut(BrowseOut):
+    search: SearchInfo
+
+
 MAX_PATHS_PER_REQUEST = 1000  # the UI sends bigger jobs in batches
 
 
@@ -238,6 +258,11 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     accounts = AccountStore(settings.config_dir / "auth.json", settings.username, settings.password)
     sessions = SessionStore(settings.config_dir / "sessions.json")
     limiter = LoginRateLimiter()
+
+    def describe(path: Path, rel: str) -> dict:  # what the search index stores per file
+        return to_out(rel, engine.load_metadata(path)).model_dump()
+
+    lib_index = LibraryIndex(settings.music_dir, settings.config_dir / "library-index.sqlite3", describe)
     if not settings.auth:
         log.warning("Sign-in is turned OFF (CODETTA_AUTH=off). Anyone who can reach Codetta can edit your music.")
 
@@ -253,11 +278,14 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             art_store.prune(h for rec in activity.undo_records() for h in art_hashes(rec))
         except OSError:
             pass
+        lib_index.start()  # builds/refreshes the search index in the background
         yield
+        lib_index.stop()
 
     app = FastAPI(
         title="Codetta", version=VERSION, docs_url="/docs", redoc_url=None, lifespan=lifespan
     )
+    app.state.index = lib_index
 
     # Map Codetta's errors to HTTP status codes, with a readable message.
     def _error(status: int):
@@ -550,6 +578,24 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         require_library()
         return to_out(path, engine.load_metadata(library.resolve(path)))
 
+    @app.get("/api/search", response_model=SearchOut)
+    def search(
+        q: str = Query(..., max_length=500, description='e.g. "genre: rap, hip-hop artist: drake" or plain words'),
+        limit: int = Query(500, ge=1, le=MAX_PATHS_PER_REQUEST),
+    ):
+        """Search the whole library by tag. Commas mean "or"; clauses and words must all match."""
+        require_library()
+        query = parse_query(q, lib_index.has_key)
+        tracks, total = lib_index.search(query, limit)
+        status = lib_index.status()
+        return SearchOut(
+            path="", name="Search", breadcrumbs=[Crumb(name="Library", path="")], folders=[], tracks=tracks,
+            search=SearchInfo(
+                query=q, words=query.words, total=total, indexing=not status.ready, indexed=status.files,
+                clauses=[ClauseOut(key=c.key, label=c.label, values=c.values) for c in query.clauses if c.values],
+            ),
+        )
+
     @app.patch("/api/tracks", response_model=list[UpdateResult])
     def update_tracks(body: UpdateIn):
         """Apply the same tag changes to one or more files.
@@ -578,6 +624,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
                     undo_files[r.path] = {"before": {k: b[k] for k in changed}, "after": {k: a[k] for k in changed}}
         _log_edit(activity, body.changes, results, before,
                   undo={"type": "tags", "files": undo_files} if undo_files else None)
+        lib_index.mark_dirty(r.path for r in results if r.ok)
         return results
 
     # --- Album art ---------------------------------------------------------------------
@@ -639,6 +686,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
                 results.append(UpdateResult(path=rel, ok=False, error=str(exc)))
         _log_art(activity, image is not None, art, had_art, results,
                  undo={"type": "art", "files": undo_files} if undo_files else None)
+        lib_index.mark_dirty(r.path for r in results if r.ok)
         return results
 
     @app.post("/api/activity/{entry_id}/undo")
@@ -653,6 +701,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         if activity.is_undone(entry_id):
             raise HTTPException(409, "This change has already been undone")
         outcome = undo_change(engine, library.resolve, art_store, entry["undo"])
+        lib_index.mark_dirty(r.path for r in outcome.results if r.ok)
         done = [r for r in outcome.results if r.ok]
         skipped = [r for r in outcome.results if r.skipped]
         failed = [r for r in outcome.results if not r.ok and not r.skipped]
@@ -743,6 +792,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             }
             _log_loadout(activity, loadout.name, body.mode, out,
                          undo={"type": "tags", "files": undo_files} if undo_files else None)
+            lib_index.mark_dirty(o.path for o in out if not o.error and o.applied)
         return out
 
     # --- UI ------------------------------------------------------------------------------

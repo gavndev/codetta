@@ -40,6 +40,8 @@
 - [x] **Task 4.5:** License: AGPL-3.0-or-later (`LICENSE`). Git history rewritten before publishing: author email → GitHub private noreply address, `Claude-Session` links removed from messages, server name and Tailscale IP replaced with generic examples in every revision. Original history backed up as a git bundle outside the repo.
 - [x] **Task 4.4c:** Pre-publish sweep. Dependency audit (pip-audit) and static analysis (bandit) clean; attack tests in `tests/test_attacks.py` walk every route without sign-in, try path traversal on every path endpoint, and feed script-laden tags and file names. Fixed: one request listing a file thousands of times with a huge tag could exhaust server memory (paths de-duplicated, max 1,000 files and 100,000 characters per tag value, UI batches big saves); first-run setup refused from internet addresses (`CODETTA_ALLOW_PUBLIC_SETUP`); update repo setting validated. No personal data in files, image metadata, audio tags or history.
 - [x] **Task 4.8:** Branding and README. Logo lockups with the wordmark outlined from Inter 650 (light/dark), mark and app-icon variants, social preview card, brand guide in `docs/brand/`. README rewritten: badges, quick start, feature GIFs (recorded from a made-up demo library), FAQ, What's new. Fixed along the way: the selection bar covered the editor's Undo buttons on desktop; value suggestions wrapped mid-word on phones.
+- [x] **Task 4.9:** Library-wide tag search (`src/codetta/core/index.py`): SQLite index in the config folder, built by a background thread (first scan reads every file; later scans only stat files and re-read changed ones; Codetta's own edits refresh immediately). Query syntax `genre: rap, hip-hop artist: drake` plus plain words; word-start, accent-insensitive matching. UI: Enter in the filter box (or the "Search whole library" pill, or **Search library** in the tag filter) opens results as a virtual folder (`#?q=`), editable like any folder. Tests in `tests/test_index.py`.
+- [x] **Task 4.10:** Ready-made image: `docker-compose.yml` uses `ghcr.io/gavndev/codetta`; `.github/workflows/ci.yml` (tests + image smoke test) and `release.yml` (on a `v*` tag: tests, multi-arch amd64/arm64 image to GHCR, GitHub release with notes from `CHANGELOG.md`). In-app update steps now `docker compose pull`.
 - [ ] **Task 4.6:** Publish: GitHub repo, CI (tests + image build), ready-made image, `v0.1.0` release.
 
 ## Phase 5: Rebirth (bugs and features from the review)
@@ -50,7 +52,12 @@
 - [x] **Task 5.4:** Album art is a pending change like tags: preview with "Not saved", Revert, counted on the Save buttons and listed in the change list; Save writes it to the track/selection, Save to folder to every track in the folder. Any image the browser can open (HEIC on iPhone/Safari, WebP, AVIF, GIF) is converted to JPEG; JPEG/PNG kept as-is.
 - [x] **Task 5.5:** Album-art thumbnail on every track row (placeholder when missing). Tracks report an art fingerprint, so a cover shared by an album downloads once and is cached.
 
+## Phase 6: Data sources, listening, organizing (roadmap)
+- [ ] **Task 6.1:** MusicBrainz integration: match a file or folder to a MusicBrainz release/recording and offer its "official" metadata (titles, artists, dates, label, catalog number, MBIDs, cover art), previewed before writing like loadouts. Also feeds smart suggestions.
+- [ ] **Task 6.2:** Last.fm integration: genre tags (top tags), similar artists and listener counts as another suggestion source (user supplies their own API key).
+- [ ] **Task 6.3:** In-browser preview player: play a track from the list or editor (HTML `<audio>` streaming the file with range requests, signed-in only), to confirm what a file is before tagging it.
+- [ ] **Task 6.4:** Auto-organize toggle: optionally move newly added folders into `Artist/Album/NN - Title` from their tags (preview first, undoable, never touches existing folders unless asked).
+- [ ] **Task 6.5 (major):** slskd integration: search slskd from Codetta, queue downloads, then tag (MusicBrainz/loadouts), organize and add them to the library in one flow.
+
 ## Later (ideas, not scheduled)
-- Library-wide tag search/filter, backed by a cached tag index. Folder-level filtering covers current needs.
-- MusicBrainz plugin: match a file or folder to a MusicBrainz release/recording and offer its "official" metadata (titles, artists, dates, label, catalog number, MBIDs, cover art) to append to the matched tracks, previewed before writing, like loadouts. Also feeds smart suggestions.
 - First-run welcome card after account creation: confirms the library was found and is writable, plus three quick tips.

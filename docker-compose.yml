@@ -1,18 +1,18 @@
-# Codetta — self-hosted music metadata editor.
+# Codetta: self-hosted music metadata editor.
 #
-# 1. Change the music path below to your library's folder.
-# 2. Set PUID/PGID to the user that owns your music (run `id` on the server).
-# 3. docker compose up -d   →   open http://<server>:8111 and create your account.
+# 1. Put your settings (music path, PUID/PGID) in docker-compose.override.yml,
+#    or edit the values below.
+# 2. docker compose up -d   →   open http://<server>:8111 and create your account.
+# 3. Update later with: docker compose pull && docker compose up -d
 services:
   codetta:
-    build: .
-    image: codetta:local
+    image: ghcr.io/gavndev/codetta:latest   # or pin a version, e.g. :0.1.0
     container_name: codetta
     restart: unless-stopped
     ports:
       - "8111:8111"
     environment:
-      PUID: "1000"   # user that owns your music files
+      PUID: "1000"   # user that owns your music files (ls -ln /path/to/music)
       PGID: "1000"   # its group
       # Optional: set the account here instead of the setup screen.
       # CODETTA_USERNAME: "you"
@@ -21,7 +21,7 @@ services:
       # CODETTA_AUTH: "off"
     volumes:
       - /path/to/your/music:/music     # ← your music library (read-write)
-      - ./codetta-config:/config          # account, loadouts, activity log
+      - ./codetta-config:/config       # account, loadouts, activity log, search index
     # Hardening: no privilege escalation, read-only system files.
     security_opt:
       - no-new-privileges:true

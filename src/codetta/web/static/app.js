@@ -115,6 +115,7 @@ const ICONS = {
   rows: '<svg viewBox="0 0 20 20"><path d="M4 5.5h12M4 10h12M4 14.5h12"/></svg>',
   grid: '<svg viewBox="0 0 20 20"><rect x="3.5" y="3.5" width="5" height="5" rx="1"/><rect x="11.5" y="3.5" width="5" height="5" rx="1"/><rect x="3.5" y="11.5" width="5" height="5" rx="1"/><rect x="11.5" y="11.5" width="5" height="5" rx="1"/></svg>',
   note: '<svg viewBox="0 0 20 20"><path d="M8 15.5V5l8-1.5v10"/><circle cx="6" cy="15.5" r="2"/><circle cx="14" cy="13.5" r="2"/></svg>',
+  search: '<svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg>',
   user: '<svg viewBox="0 0 20 20"><circle cx="10" cy="7" r="3.2"/><path d="M3.8 16.5a6.2 6.2 0 0 1 12.4 0"/></svg>',
   undo: '<svg viewBox="0 0 20 20"><path d="M7.5 5 4 8.5 7.5 12"/><path d="M4.5 8.5h7a4.5 4.5 0 0 1 0 9H9"/></svg>',
   spark: '<svg viewBox="0 0 20 20"><path d="M10 3.5 11.4 8.6 16.5 10l-5.1 1.4L10 16.5l-1.4-5.1L3.5 10l5.1-1.4z"/></svg>',
@@ -259,7 +260,19 @@ function applyTheme(theme) {
 
 // ---- Routing ------------------------------------------------------------------------------------
 
+// Library-wide search is shown like a folder whose "path" is SEARCH + the query.
+// Real paths can never contain a NUL character (the server refuses them), so the
+// two can't collide. Its URL is "#?q=genre%3A%20rap".
+const SEARCH = "\0";
+const isSearchKey = (key) => typeof key === "string" && key.startsWith(SEARCH);
+const isSearch = () => isSearchKey(state.path);
+const searchQuery = (key = state.path) => (isSearchKey(key) ? key.slice(1) : "");
+
 function pathFromHash(hash = location.hash) {
+  if (hash.startsWith("#?")) {
+    const q = (new URLSearchParams(hash.slice(2)).get("q") || "").trim();
+    return q ? SEARCH + q : "";
+  }
   const raw = hash.replace(/^#\/?/, "");
   try {
     return raw.split("/").filter(Boolean).map(decodeURIComponent).join("/");
@@ -269,6 +282,7 @@ function pathFromHash(hash = location.hash) {
 }
 
 function hashFor(path) {
+  if (isSearchKey(path)) return "#?q=" + encodeURIComponent(searchQuery(path));
   return "#/" + path.split("/").filter(Boolean).map(encodeURIComponent).join("/");
 }
 
@@ -299,7 +313,7 @@ async function onHistoryChange() {
 }
 
 function folderLinkPath(event) {
-  const a = event.target.closest?.('a[href^="#/"]');
+  const a = event.target.closest?.('a[href^="#/"], a[href^="#?"]');
   if (!a || !a.closest("#app")) return null;
   return pathFromHash(a.getAttribute("href"));
 }
@@ -323,7 +337,12 @@ const inflight = new Map(); // folder path -> pending /api/browse request
 
 function fetchFolder(path) {
   if (!inflight.has(path)) {
-    const req = api("GET", `/api/browse?path=${encodeURIComponent(path)}`)
+    const req = (isSearchKey(path)
+      ? api("GET", `/api/search?q=${encodeURIComponent(searchQuery(path))}`).then((data) => ({
+        ...data, path, name: "Search",
+        breadcrumbs: [{ name: "Library", path: "" }, { name: `Search: ${searchQuery(path)}`, path }],
+      }))
+      : api("GET", `/api/browse?path=${encodeURIComponent(path)}`))
       .finally(() => setTimeout(() => inflight.delete(path), 1500));
     inflight.set(path, req);
   }
@@ -399,7 +418,7 @@ function showFolder(data, scrollTop) {
     state.selected.clear();
     state.lastClicked = null;
     state.filter = "";
-    els.filter.value = "";
+    if (document.activeElement !== els.filter || !isSearchKey(data.path)) els.filter.value = searchQuery(data.path);
     state.tagFilters = [];
     state.selectMode = false;
     closeEditor(true);
@@ -409,7 +428,9 @@ function showFolder(data, scrollTop) {
     for (const p of state.selected) if (!paths.has(p)) state.selected.delete(p);
     if (state.editor) renderEditor(); // show the fresh tags
   }
-  document.title = data.path ? `${data.name} — Codetta` : "Codetta";
+  document.title = isSearchKey(data.path) ? `${searchQuery(data.path)} — Search — Codetta`
+    : data.path ? `${data.name} — Codetta` : "Codetta";
+  els.filter.placeholder = isSearchKey(data.path) ? "Search library" : "Filter this folder";
   renderBrowser();
   els.browser.scrollTop = scrollTop;
 }
@@ -490,9 +511,36 @@ function renderCrumbs() {
   els.crumbs.scrollLeft = els.crumbs.scrollWidth; // show the deepest part on phones
 }
 
+function renderSearchHead(f) {
+  const s = f.search;
+  const parts = s.clauses.map((c) => h("span", { class: "query-chip" },
+    h("b", {}, c.label), ": ", c.values.join(" or ")));
+  if (s.words.length) parts.push(h("span", { class: "query-chip" }, `“${s.words.join(" ")}”`));
+  const notes = [];
+  if (s.total > f.tracks.length) notes.push(`Showing the first ${f.tracks.length.toLocaleString()}. Add more to the search to narrow it down.`);
+  if (s.indexing) notes.push(`Still reading your library (${s.indexed.toLocaleString()} files so far), so some tracks may be missing.`);
+  els.folderHead.replaceChildren(
+    h("div", {},
+      h("h1", {}, "Search"),
+      h("p", {}, s.total ? `${plural(s.total, "track")} across your library` : "No tracks match"),
+      parts.length ? h("div", { class: "query-chips" }, parts) : null,
+      ...notes.map((n) => h("p", { class: "search-note" }, n))),
+    h("div", { class: "folder-actions" },
+      f.tracks.length && state.selectMode ? h("button", {
+        class: "btn phone-only", type: "button", onclick: toggleSelectAllVisible,
+      }, allVisibleSelected() ? "Deselect all" : "Select all") : null,
+      f.tracks.length ? h("button", {
+        class: `btn phone-only${state.selectMode ? " primary" : ""}`, type: "button",
+        "aria-pressed": String(state.selectMode), onclick: () => setSelectMode(!state.selectMode),
+      }, state.selectMode ? "Done" : "Select") : null),
+  );
+  els.tracks.classList.toggle("selecting", state.selectMode);
+}
+
 function renderFolderHead() {
   const f = state.folder;
   if (!f) return;
+  if (f.search) { renderSearchHead(f); return; }
   const counts = [];
   if (f.folders.length) counts.push(plural(f.folders.length, "folder"));
   if (f.tracks.length) counts.push(plural(f.tracks.length, "track"));
@@ -587,6 +635,14 @@ function renderTracks() {
   if (!f) return;
   const tracks = visibleTracks();
 
+  if (!f.tracks.length && f.search) {
+    els.tracks.replaceChildren();
+    els.folders.replaceChildren(h("div", { class: "empty" },
+      h("strong", {}, "Nothing found"),
+      h("span", {}, "Try fewer words, or search a tag: "),
+      h("code", {}, "genre: rap, hip-hop"), " · ", h("code", {}, "artist: drake"), " · ", h("code", {}, "year: 2024")));
+    return;
+  }
   if (!f.tracks.length) {
     els.tracks.replaceChildren();
     if (!f.folders.length) {
@@ -687,6 +743,11 @@ function renderFilterChips() {
   if (chips.length) {
     const shown = visibleTracks().length;
     chips.unshift(h("span", { class: "filter-count" }, `${shown} of ${state.folder?.tracks.length || 0}`));
+  }
+  if (state.filter && !isSearch()) {
+    chips.push(h("button", {
+      type: "button", class: "search-all", onclick: () => navigate(SEARCH + state.filter),
+    }, icon("search"), h("span", {}, "Search whole library for ", h("b", {}, `“${state.filter}”`)), h("kbd", {}, "↵")));
   }
   setKids(els.filterChips, chips);
   els.filterChips.hidden = !chips.length;
@@ -1321,7 +1382,8 @@ function updateSaveButton() {
   const covers = ed && folderPaths.every((p) => ed.paths.includes(p));
   els.editorSaveFolder.hidden = !ed || covers;
   els.editorSaveFolder.disabled = n === 0;
-  els.editorSaveFolder.textContent = n ? `Save to folder (${n})` : "Save to folder";
+  const where = isSearch() ? "Save to all results" : "Save to folder";
+  els.editorSaveFolder.textContent = n ? `${where} (${n})` : where;
   renderChangesPopover(folderPaths.length);
 }
 
@@ -1370,7 +1432,7 @@ async function saveToFolder() {
   const paths = folderTrackPaths();
   const keys = [...(ed.art ? ["__art"] : []), ...ed.changes.keys()];
   const risky = keys.filter((k) => PER_TRACK_KEYS.has(k)).map(fieldLabel);
-  const folderName = state.folder.path ? state.folder.name : "Library";
+  const folderName = isSearch() ? `results for ${searchQuery()}` : state.folder.path ? state.folder.name : "Library";
   const ok = await ask({
     title: `Save to all ${paths.length} tracks?`,
     message: keys.length === 1 ? `In “${folderName}”, only this field changes:` : `In “${folderName}”, only these ${keys.length} fields change:`,
@@ -1756,6 +1818,7 @@ function applyOptions() {
     mode: $('input[name="mode"]:checked', d).value,
   };
   if (target === "selection") body.paths = [...state.selected];
+  else if (isSearch()) body.paths = folderTrackPaths().slice(0, 1000); // "All results"
   else { body.folder = state.path; body.recursive = $("#apply-recursive").checked; }
   return { body, target };
 }
@@ -1778,6 +1841,7 @@ async function openApply(target) {
   const selRadio = $('input[name="target"][value="selection"]', d);
   selRadio.disabled = n === 0;
   $("#apply-target-sel").textContent = n ? `${plural(n, "selected track")}` : "Selected tracks";
+  $("#apply-target-all").textContent = isSearch() ? `All ${plural(folderTrackPaths().length, "result")}` : "This folder";
   $(`input[name="target"][value="${target === "selection" && n ? "selection" : "folder"}"]`, d).checked = true;
   $("#apply-recursive").checked = false;
   syncApplyUi();
@@ -2035,11 +2099,30 @@ function bindEvents() {
   let filterTimer = null;
   els.filter.addEventListener("input", () => {
     clearTimeout(filterTimer); // redraw once typing pauses, not on every keystroke
+    if (isSearch()) {
+      // While searching, the box *is* the search: re-run it as you type.
+      filterTimer = setTimeout(() => {
+        const q = els.filter.value.trim();
+        if (!q || q === searchQuery()) return;
+        history.replaceState({ path: SEARCH + q }, "", hashFor(SEARCH + q));
+        loadFolder(SEARCH + q);
+      }, 350);
+      return;
+    }
     filterTimer = setTimeout(() => {
       state.filter = els.filter.value.trim();
       renderFolders();
       renderTracks();
+      renderFilterChips();
     }, 120);
+  });
+  els.filter.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    const q = els.filter.value.trim();
+    if (q && !isSearch()) { e.preventDefault(); clearTimeout(filterTimer); navigate(SEARCH + q); }
+  });
+  els.filter.addEventListener("search", () => { // the ✕ in the search box
+    if (isSearch() && !els.filter.value) navigate("");
   });
 
   $("#editor-close").addEventListener("click", () => closeEditor());
@@ -2052,6 +2135,12 @@ function bindEvents() {
   els.editorSaveFolder.addEventListener("click", saveToFolder);
   $("#tagfilter-btn").addEventListener("click", openTagFilter);
   $("#filter-add").addEventListener("click", addTagFilter);
+  $("#filter-search").addEventListener("click", () => {
+    const key = $("#filter-key").value, value = $("#filter-value").value;
+    if (!key || !value) { toast("Pick a value to search for"); return; }
+    closeDialog(els.filterDialog);
+    navigate(`${SEARCH}${fieldLabel(key)}: ${value}`);
+  });
   els.editorForm.addEventListener("submit", (e) => { e.preventDefault(); saveEditor(); });
   // Keep "Copy tags" / "Paste" in sync when tags are copied in another tab.
   window.addEventListener("storage", (e) => {
@@ -2331,7 +2420,7 @@ async function refreshUpdate(force = false) {
   renderAbout();
 }
 
-const UPDATE_STEPS = "cd /path/to/codetta\ngit pull\ndocker compose up -d --build";
+const UPDATE_STEPS = "cd /path/to/codetta\ndocker compose pull\ndocker compose up -d";
 
 function renderAbout() {
   const u = state.update;

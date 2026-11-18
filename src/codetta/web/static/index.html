@@ -12,7 +12,7 @@
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
   <link rel="preload" href="/static/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/static/app.css?v=28">
+  <link rel="stylesheet" href="/static/app.css?v=29">
   <script src="/static/theme.js?v=1"></script>
 </head>
 <body>
@@ -51,7 +51,7 @@
       <div class="topbar-actions">
         <label class="search">
           <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg>
-          <input id="filter" type="search" dir="auto" placeholder="Filter this folder" autocomplete="off" spellcheck="false" aria-label="Filter tracks in this folder">
+          <input id="filter" type="search" dir="auto" placeholder="Filter this folder" autocomplete="off" spellcheck="false" aria-label="Filter this folder, or press Enter to search your whole library">
         </label>
         <button class="icon-btn" id="tagfilter-btn" type="button" aria-label="Filter by tag" title="Filter by tag">
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 4.5h14l-5.5 6.5v5l-3-1.5V11z"/></svg>
@@ -135,7 +135,7 @@
         <legend class="field-label">Apply to</legend>
         <div class="segmented" id="apply-target">
           <label><input type="radio" name="target" value="selection"><span id="apply-target-sel">Selected tracks</span></label>
-          <label><input type="radio" name="target" value="folder"><span>This folder</span></label>
+          <label><input type="radio" name="target" value="folder"><span id="apply-target-all">This folder</span></label>
         </div>
         <label class="check" id="apply-recursive-wrap"><input type="checkbox" id="apply-recursive"> Include subfolders (each numbered separately)</label>
       </fieldset>
@@ -165,7 +165,7 @@
       </button>
     </div>
     <div class="sheet-body">
-      <p class="hint">Show only tracks in this folder with a tag value.</p>
+      <p class="hint">Show only tracks in this folder with a tag value, or search your whole library for it.</p>
       <label class="field">
         <span class="field-label">Tag</span>
         <select id="filter-key"></select>
@@ -177,6 +177,7 @@
     </div>
     <div class="sheet-foot">
       <button class="btn" type="button" data-close>Cancel</button>
+      <button class="btn" type="button" id="filter-search">Search library</button>
       <button class="btn primary" type="button" id="filter-add">Add filter</button>
     </div>
   </dialog>
@@ -259,6 +260,6 @@
   <datalist id="tag-keys"></datalist>
   <div class="toasts" id="toasts" aria-live="polite"></div>
 
-  <script src="/static/app.js?v=27" type="module"></script>
+  <script src="/static/app.js?v=28" type="module"></script>
 </body>
 </html>

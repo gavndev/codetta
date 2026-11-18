@@ -1,0 +1,42 @@
+# Runs the tests and checks that the Docker image builds and starts.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - run: pytest -q
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build the image
+        run: docker build -t codetta:ci .
+      - name: Start it and wait until healthy
+        run: |
+          mkdir -p music config && sudo chown 1000:1000 music config
+          docker run -d --name codetta --read-only --tmpfs /tmp --security-opt no-new-privileges:true \
+            -e PUID=1000 -e PGID=1000 -v "$PWD/music:/music" -v "$PWD/config:/config" -p 8111:8111 codetta:ci
+          for i in $(seq 1 30); do
+            status=$(docker inspect -f '{{.State.Health.Status}}' codetta)
+            [ "$status" = healthy ] && break
+            sleep 2
+          done
+          docker logs codetta
+          curl -fsS http://localhost:8111/api/health
+          test "$(docker inspect -f '{{.State.Health.Status}}' codetta)" = healthy
