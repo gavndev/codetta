@@ -116,6 +116,8 @@ const ICONS = {
   grid: '<svg viewBox="0 0 20 20"><rect x="3.5" y="3.5" width="5" height="5" rx="1"/><rect x="11.5" y="3.5" width="5" height="5" rx="1"/><rect x="3.5" y="11.5" width="5" height="5" rx="1"/><rect x="11.5" y="11.5" width="5" height="5" rx="1"/></svg>',
   note: '<svg viewBox="0 0 20 20"><path d="M8 15.5V5l8-1.5v10"/><circle cx="6" cy="15.5" r="2"/><circle cx="14" cy="13.5" r="2"/></svg>',
   search: '<svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg>',
+  check: '<svg viewBox="0 0 20 20"><path d="m5 10.5 3.2 3.2L15 7"/></svg>',
+  alert: '<svg viewBox="0 0 20 20"><path d="M10 5v6.5M10 15v.01"/></svg>',
   user: '<svg viewBox="0 0 20 20"><circle cx="10" cy="7" r="3.2"/><path d="M3.8 16.5a6.2 6.2 0 0 1 12.4 0"/></svg>',
   undo: '<svg viewBox="0 0 20 20"><path d="M7.5 5 4 8.5 7.5 12"/><path d="M4.5 8.5h7a4.5 4.5 0 0 1 0 9H9"/></svg>',
   spark: '<svg viewBox="0 0 20 20"><path d="M10 3.5 11.4 8.6 16.5 10l-5.1 1.4L10 16.5l-1.4-5.1L3.5 10l5.1-1.4z"/></svg>',
@@ -210,6 +212,11 @@ const fmtDuration = (s) => {
 const first = (track, key) => (track.tags[key] || [])[0] || "";
 const FORMAT_LABELS = { wavpack: "WV", oggflac: "Ogg FLAC", speex: "SPX", wma: "WMA" };
 const fmtLabel = (format) => FORMAT_LABELS[format] || (format || "").toUpperCase();
+const runtime = (tracks) => {
+  const secs = tracks.reduce((sum, t) => sum + (t.duration || 0), 0);
+  return secs >= 60 ? `, ${Math.round(secs / 60)} min` : "";
+};
+const trackNo = (v) => { const n = (v || "").split("/")[0].trim(); return /^\d$/.test(n) ? `0${n}` : n; };
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const baseName = (path) => path.split("/").pop();
 
@@ -223,7 +230,8 @@ function relativeToFolder(path) {
 function toast(message, kind = "") {
   // While the sign-in screen is up it already explains what's wrong.
   if (kind === "error" && !$("#auth").hidden) return;
-  const el = h("div", { class: `toast ${kind}`, role: kind === "error" ? "alert" : "status" }, message);
+  const el = h("div", { class: `toast ${kind}`, role: kind === "error" ? "alert" : "status" },
+    kind === "success" ? h("span", { class: "toast-icon", "aria-hidden": "true" }, icon("check")) : null, message);
   els.toasts.append(el);
   setTimeout(() => playOut(el, "leaving", () => el.remove()), kind === "error" ? 7000 : 3500);
 }
@@ -256,9 +264,100 @@ function applyTheme(theme) {
   // Browser chrome / iOS status bar colour.
   for (const meta of document.querySelectorAll('meta[name="theme-color"]')) {
     const dark = meta.media.includes("dark");
-    const color = theme === "system" ? (dark ? "#111113" : "#f5f5f7") : theme === "dark" ? "#111113" : "#f5f5f7";
+    const color = theme === "system" ? (dark ? "#131418" : "#f7f8f8") : theme === "dark" ? "#131418" : "#f7f8f8";
     meta.content = color;
   }
+  requestAnimationFrame(refitSpot); // the spot colour is fitted to the background's contrast
+}
+
+// ---- Spot colour: each album borrows one colour from its cover -------------------------------
+
+const spotCache = new Map(); // cover hash -> [r, g, b] or null (a grey or unreadable cover)
+let spotRgb = null; // the current cover's raw colour
+
+const luminance = ([r, g, b]) => {
+  const c = [r, g, b].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+};
+const contrast = (a, b) => { const [x, y] = [luminance(a), luminance(b)].sort((m, n) => n - m); return (x + 0.05) / (y + 0.05); };
+
+function rgbToHsl([r, g, b]) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2;
+  if (max === min) return [0, 0, l];
+  const d = max - min, s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  const h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [h / 6, s, l];
+}
+function hslToRgb([h, s, l]) {
+  if (!s) return [l, l, l].map((v) => Math.round(v * 255));
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+  const f = (t) => { t = (t + 1) % 1; return t < 1 / 6 ? p + (q - p) * 6 * t : t < 1 / 2 ? q : t < 2 / 3 ? p + (q - p) * (2 / 3 - t) * 6 : p; };
+  return [f(h + 1 / 3), f(h), f(h - 1 / 3)].map((v) => Math.round(v * 255));
+}
+
+/** The cover's most characteristic colour: the strongest saturated hue, or null for grey covers. */
+function coverColour(url) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.decoding = "async";
+    img.onload = () => {
+      try {
+        const n = 32, c = document.createElement("canvas");
+        c.width = c.height = n;
+        const ctx = c.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(img, 0, 0, n, n);
+        const px = ctx.getImageData(0, 0, n, n).data;
+        const bins = Array.from({ length: 24 }, () => ({ w: 0, r: 0, g: 0, b: 0 }));
+        for (let i = 0; i < px.length; i += 4) {
+          const rgb = [px[i], px[i + 1], px[i + 2]];
+          const [h, s, l] = rgbToHsl(rgb);
+          if (l < 0.12 || l > 0.92 || s < 0.2) continue;
+          const bin = bins[Math.floor(h * 24) % 24], w = s * s;
+          bin.w += w; bin.r += rgb[0] * w; bin.g += rgb[1] * w; bin.b += rgb[2] * w;
+        }
+        const best = bins.reduce((a, b) => (b.w > a.w ? b : a));
+        resolve(best.w < 6 ? null : [best.r, best.g, best.b].map((v) => Math.round(v / best.w)));
+      } catch { resolve(null); }
+    };
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+}
+
+/** Fit a colour to the current background: saturated enough to read as colour,
+ *  dark (or light) enough for 4.5:1 text contrast. */
+function fitSpot(rgb) {
+  const bg = (getComputedStyle(document.body).backgroundColor.match(/\d+/g) || [247, 248, 248]).slice(0, 3).map(Number);
+  const dark = luminance(bg) < 0.2;
+  let [h, s, l] = rgbToHsl(rgb);
+  s = Math.min(0.85, Math.max(0.5, s));
+  l = dark ? Math.max(l, 0.55) : Math.min(l, 0.45);
+  for (let i = 0; i < 40 && contrast(hslToRgb([h, s, l]), bg) < 4.6; i++) l += dark ? 0.02 : -0.02;
+  const [r, g, b] = hslToRgb([h, s, Math.min(0.95, Math.max(0.05, l))]);
+  return `rgb(${r} ${g} ${b})`;
+}
+
+function refitSpot() {
+  const root = document.documentElement;
+  if (spotRgb) root.style.setProperty("--spot", fitSpot(spotRgb));
+  else root.style.removeProperty("--spot"); // back to the house colour
+}
+
+/** Take the spot colour from the open folder's cover (or go back to the house colour). */
+async function updateSpot() {
+  const f = state.folder;
+  const cover = !f?.search && f?.tracks.find((t) => t.art);
+  if (!cover) { spotRgb = null; refitSpot(); return; }
+  const key = cover.art.hash;
+  if (!spotCache.has(key)) {
+    const rgb = await coverColour(artUrlFor(cover));
+    if (spotCache.size > 300) spotCache.clear();
+    spotCache.set(key, rgb);
+  }
+  if (state.folder !== f) return; // moved on while the cover loaded
+  spotRgb = spotCache.get(key);
+  refitSpot();
 }
 
 // ---- Routing ------------------------------------------------------------------------------------
@@ -433,9 +532,10 @@ function showFolder(data, scrollTop) {
   }
   document.title = isSearchKey(data.path) ? `${searchQuery(data.path)} — Search — Codetta`
     : data.path ? `${data.name} — Codetta` : "Codetta";
-  els.filter.placeholder = isSearchKey(data.path) ? "Search library" : "Filter this folder";
+  els.filter.placeholder = isSearchKey(data.path) ? "Search library" : isPhone() ? "Filter" : "Filter this folder";
   renderBrowser();
   els.browser.scrollTop = scrollTop;
+  updateSpot();
 }
 
 // Lookups by path / cover, built once per folder instead of scanning every time
@@ -551,10 +651,27 @@ function renderFolderHead() {
     class: "skipped-note",
     title: "These names aren't valid UTF-8 text (often from old Windows zips), so Codetta can't show them. Renaming them fixes it.",
   }, ` · ${plural(f.skipped, "item")} with unreadable names hidden`) : null;
-  els.folderHead.replaceChildren(
-    h("div", {},
+  const coverTrack = f.tracks.find((t) => t.art && !t.error);
+  const common = (key) => {
+    const values = new Set(f.tracks.filter((t) => !t.error).map((t) => first(t, key).trim()).filter(Boolean));
+    return values.size === 1 ? [...values][0] : "";
+  };
+  const heading = coverTrack
+    // A folder of tracks with a cover reads as the album's booklet spread.
+    ? h("div", { class: "album-head" },
+      h("img", { class: "album-cover", src: artUrlFor(coverTrack), alt: "", decoding: "async", width: "168", height: "168" }),
+      h("div", {},
+        h("h1", { dir: "auto" }, common("album") || f.name),
+        h("p", { class: "album-meta" },
+          [common("albumartist") || common("artist"), common("date").slice(0, 4)].filter(Boolean).flatMap((v, i) => [i ? " · " : "", h("b", { dir: "auto" }, v)]),
+          counts.length ? [common("albumartist") || common("artist") || common("date") ? " · " : "",
+            h("span", { class: "nowrap" }, `${counts.join(" · ")}${runtime(f.tracks)}`)] : "", skippedNote),
+        common("genre") ? h("span", { class: "spot-chip", dir: "auto" }, common("genre")) : null))
+    : h("div", {},
       h("h1", {}, f.path ? f.name : "Library"),
-      h("p", {}, counts.join(" · ") || (f.skipped ? "" : "Empty folder"), skippedNote)),
+      h("p", {}, counts.join(" · ") || (f.skipped ? "" : "Empty folder"), skippedNote));
+  els.folderHead.replaceChildren(
+    heading,
     h("div", { class: "folder-actions" },
       f.folders.length ? h("div", { class: "view-toggle", role: "group", "aria-label": "Folder view" },
         ["list", "grid"].map((v) => h("button", {
@@ -680,6 +797,25 @@ function renderTracks() {
     h("div", { class: "col-dur" }, "Time"),
   );
 
+  // A folder that is one album reads like a booklet: no column repeats a value
+  // every row shares (album, album artist, format, cover).
+  const readable = f.tracks.filter((t) => !t.error);
+  const sameAll = (fn) => readable.length > 1 && readable.every((t) => fn(t) === fn(readable[0]));
+  const artistOf = (t) => (t.tags.artist || []).join(", ");
+  const oneAlbum = !f.search && sameAll((t) => first(t, "album")) && first(readable[0], "album") !== ""
+    && sameAll((t) => t.art?.hash || "");
+  const albumArtist = oneAlbum ? first(readable[0], "albumartist") || (sameAll(artistOf) ? artistOf(readable[0]) : "") : "";
+  const sameArtist = oneAlbum && albumArtist !== "" && readable.every((t) => artistOf(t) === albumArtist);
+  const oneFormat = !f.search && sameAll((t) => t.format || "");
+  els.tracks.classList.toggle("one-album", oneAlbum);
+  els.tracks.classList.toggle("same-artist", sameArtist);
+  els.tracks.classList.toggle("one-format", oneFormat);
+  const col = (show, width) => (show ? [width] : []);
+  const cols = (withAlbum) => ["44px", "40px", ...col(!oneAlbum, "48px"), "minmax(0, 2.2fr)", ...col(!sameArtist, "minmax(0, 1.4fr)"),
+    ...col(!oneAlbum && withAlbum, "minmax(0, 1.4fr)"), ...col(!oneFormat, "76px"), "60px"].join(" ");
+  els.tracks.style.setProperty("--cols", cols(true));
+  els.tracks.style.setProperty("--cols-mid", cols(false));
+
   const rows = tracks.map((t) => {
     const title = first(t, "title");
     const artist = (t.tags.artist || []).join(", ");
@@ -706,13 +842,14 @@ function renderTracks() {
       },
     },
       h("label", { class: "check-cell", onclick: (e) => e.stopPropagation() }, checkbox),
-      h("div", { class: "col-num" }, (first(t, "tracknumber").split("/")[0]) || ""),
+      h("div", { class: "col-num" }, trackNo(first(t, "tracknumber"))),
       h("div", { class: "col-art" }, t.art
         ? h("img", { src: artUrlFor(t), alt: "", loading: "lazy", decoding: "async", width: "40", height: "40" })
         : h("span", { class: "art-none", title: "No album art" }, icon("note"))),
       h("div", { class: "col-title" },
         h("span", { class: "main" }, title || h("span", { class: "untitled" }, t.name)),
         h("span", { class: "sub" }, t.error ? t.error
+          : oneAlbum ? (artist && artist !== albumArtist ? artist : "")
           : [artist, album].filter(Boolean).join(" · ") || (title ? t.name : `${fmtLabel(t.format)} · No tags yet`))),
       h("div", { class: "col-artist" }, t.error ? t.error : artist),
       h("div", { class: "col-album" }, album),
@@ -1866,7 +2003,7 @@ function renderActivity(newIds = new Set()) {
   list.replaceChildren(...activity.entries.map((e) => {
     const related = e.files.some((f) => editing.has(f));
     return h("li", { class: `act ${e.ok ? "ok" : "err"}${related ? " related" : ""}${newIds.has(e.id) ? " new" : ""}${e.undone ? " undone" : ""}` },
-      h("span", { class: "act-icon", "aria-label": e.ok ? "Succeeded" : "Failed" }, e.ok ? "✓" : "!"),
+      h("span", { class: "act-icon", role: "img", "aria-label": e.ok ? "Succeeded" : "Failed" }, icon(e.ok ? "check" : "alert")),
       h("div", { class: "act-main" },
         h("div", { class: "act-msg" }, e.message),
         e.changes.slice(0, 6).map((c) => h("div", { class: "act-change" },
@@ -2319,7 +2456,7 @@ let appStarted = false;
 function showAuth(mode, message = "") {
   authMode = mode;
   const setup = mode === "setup";
-  $("#auth-title").textContent = setup ? "Welcome to Codetta" : "Sign in to Codetta";
+  $("#auth-title").textContent = setup ? "Create your account" : "Sign in"; // the wordmark above already says Codetta
   $("#auth-sub").textContent = setup ? "Create the account that protects your music library." : message;
   $("#auth-confirm-wrap").hidden = !setup;
   $("#auth-confirm").required = setup;

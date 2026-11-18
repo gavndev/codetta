@@ -89,7 +89,7 @@ def test_ui_is_served(client):
     page = client.get("/")
     assert page.status_code == 200
     assert "<title>Codetta</title>" in page.text
-    for asset in ["/static/app.css", "/static/app.js", "/static/icon.svg", "/static/fonts/inter-latin.woff2"]:
+    for asset in ["/static/app.css", "/static/app.js", "/static/icon.svg", "/static/fonts/schibsted-grotesk.woff2"]:
         assert client.get(asset).status_code == 200, asset
 
 

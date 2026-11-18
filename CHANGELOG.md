@@ -2,6 +2,15 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+- A new look, "liner notes": Codetta now reads like the credits pages of a CD or LP booklet. New lowercase wordmark and icon, the Schibsted Grotesk typeface (bundled), booklet-white and booklet-black themes, and ink rules and hairlines instead of boxes.
+- Each album lends Codetta a colour picked from its cover (adjusted for readable contrast), used for the active track, changed fields, section heads and the logo's square, crossfading as you move between albums.
+- Album folders open as a booklet spread: large cover, album title, artist, year, track count and total runtime, and a genre chip. Columns that would repeat the same value on every row (album, artist, format, cover) are left out; phones show track numbers.
+- The editor reads like a credits sheet: labels beside values on hairlines, with the field box appearing when you point at or edit it.
+- Sign-in is a clean title page; the folder grid is a contents page; phones show one back link instead of a cramped breadcrumb.
+- Accessibility: text on coloured fills switches to dark in dark mode for readable contrast; checkmarks are drawn icons.
+
 ## 0.2.0 (2026-11-17)
 
 - 10 more formats: WAV, AIFF, DSF (DSD), TrueAudio, MP2, WavPack, WMA, M4B audiobooks, Ogg FLAC and Speex, with album art and every editor field on each. Codetta now handles 15 file types.

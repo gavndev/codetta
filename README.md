@@ -185,6 +185,7 @@ study it, change it and share it. If you run a modified version for others, you
 must share your changes under the same license.
 
 Built with [mutagen](https://github.com/quodlibet/mutagen),
-[FastAPI](https://fastapi.tiangolo.com/) and [Inter](https://rsms.me/inter/).
+[FastAPI](https://fastapi.tiangolo.com/) and the
+[Schibsted Grotesk](https://github.com/schibsted/schibsted-grotesk) typeface.
 Tag mappings follow [MusicBrainz Picard](https://picard.musicbrainz.org/docs/mappings/).
 The artists and albums in the screenshots are made up.

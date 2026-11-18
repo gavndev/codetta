@@ -4,23 +4,23 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="light dark">
-  <meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#111113" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f7f8f8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#131418" media="(prefers-color-scheme: dark)">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Codetta">
   <title>Codetta</title>
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
-  <link rel="preload" href="/static/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/static/app.css?v=34">
+  <link rel="preload" href="/static/fonts/schibsted-grotesk.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/app.css?v=42">
   <script src="/static/theme.js?v=1"></script>
 </head>
 <body>
   <!-- Sign in / first-run setup. Shown over the app; the app keeps its state underneath. -->
   <div class="auth" id="auth" hidden>
     <form class="auth-card" id="auth-form" method="post" action="#">
-      <svg class="auth-logo" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-linecap="butt" aria-hidden="true"><circle cx="16" cy="16" r="9.8" stroke-width="3.4"/><path d="M16 1v30M1 16h30" stroke-width="3.4"/></svg>
-      <h1 id="auth-title">Sign in to Codetta</h1>
+      <div class="auth-logo" aria-hidden="true"><span class="wordmark">codetta<span class="spot-dot"></span></span></div>
+      <h1 id="auth-title">Sign in</h1>
       <p class="auth-sub" id="auth-sub"></p>
       <div class="error-box" id="auth-error" role="alert" hidden></div>
       <label class="field">
@@ -47,10 +47,7 @@
 
   <div class="app" id="app" hidden>
     <header class="topbar">
-      <a class="brand" href="#/" aria-label="Codetta — library home">
-        <svg class="brand-mark" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-linecap="butt" aria-hidden="true"><circle cx="16" cy="16" r="9.8" stroke-width="3.4"/><path d="M16 1v30M1 16h30" stroke-width="3.4"/></svg>
-        <span>Codetta</span>
-      </a>
+      <a class="brand" href="#/" aria-label="Codetta — library home"><span class="wordmark" aria-hidden="true">codetta<span class="spot-dot"></span></span><span class="brand-icon" aria-hidden="true">c</span></a>
       <nav class="crumbs" id="crumbs" aria-label="Folder path"></nav>
       <div class="topbar-actions">
         <label class="search">
@@ -278,6 +275,6 @@
   <datalist id="tag-keys"></datalist>
   <div class="toasts" id="toasts" aria-live="polite"></div>
 
-  <script src="/static/app.js?v=36" type="module"></script>
+  <script src="/static/app.js?v=42" type="module"></script>
 </body>
 </html>

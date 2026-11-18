@@ -1,0 +1,613 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-18T05:48:36+00:00",
+  "title": "Design System: Codetta",
+  "extensions": {
+    "colorMeta": {
+      "house-spot": {
+        "role": "primary",
+        "displayName": "House Teal",
+        "canonical": "#0e7c74",
+        "oklch": "oklch(52.9% 0.090 187)",
+        "purpose": "Spot colour when no album cover applies (light theme).",
+        "tonalRamp": [
+          "oklch(15% 0.035 187)",
+          "oklch(26% 0.051 187)",
+          "oklch(37% 0.067 187)",
+          "oklch(48% 0.083 187)",
+          "oklch(59% 0.081 187)",
+          "oklch(70% 0.065 187)",
+          "oklch(82% 0.048 187)",
+          "oklch(95% 0.029 187)"
+        ]
+      },
+      "house-spot-dark": {
+        "role": "primary",
+        "displayName": "House Teal, Night",
+        "canonical": "#4fc3b4",
+        "oklch": "oklch(74.7% 0.107 184)",
+        "purpose": "House spot on booklet black.",
+        "tonalRamp": [
+          "oklch(15% 0.016 184)",
+          "oklch(26% 0.023 184)",
+          "oklch(37% 0.042 184)",
+          "oklch(48% 0.061 184)",
+          "oklch(59% 0.080 184)",
+          "oklch(70% 0.099 184)",
+          "oklch(82% 0.094 184)",
+          "oklch(95% 0.072 184)"
+        ]
+      },
+      "booklet-stock": {
+        "role": "neutral",
+        "displayName": "Booklet Stock",
+        "canonical": "#f7f8f8",
+        "oklch": "oklch(97.8% 0.001 197)",
+        "purpose": "Light page ground.",
+        "tonalRamp": [
+          "oklch(15% 0.000 197)",
+          "oklch(26% 0.000 197)",
+          "oklch(37% 0.000 197)",
+          "oklch(48% 0.000 197)",
+          "oklch(59% 0.000 197)",
+          "oklch(70% 0.001 197)",
+          "oklch(82% 0.001 197)",
+          "oklch(95% 0.001 197)"
+        ]
+      },
+      "sheet-white": {
+        "role": "neutral",
+        "displayName": "Sheet White",
+        "canonical": "#ffffff",
+        "oklch": "oklch(100.0% 0.000 90)",
+        "purpose": "Panels, dialogs, inputs (light).",
+        "tonalRamp": [
+          "oklch(15% 0.000 90)",
+          "oklch(26% 0.000 90)",
+          "oklch(37% 0.000 90)",
+          "oklch(48% 0.000 90)",
+          "oklch(59% 0.000 90)",
+          "oklch(70% 0.000 90)",
+          "oklch(82% 0.000 90)",
+          "oklch(95% 0.000 90)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#1b1e24",
+        "oklch": "oklch(23.5% 0.012 264)",
+        "purpose": "Text, list rules, primary button.",
+        "tonalRamp": [
+          "oklch(15% 0.011 264)",
+          "oklch(26% 0.012 264)",
+          "oklch(37% 0.010 264)",
+          "oklch(48% 0.008 264)",
+          "oklch(59% 0.005 264)",
+          "oklch(70% 0.003 264)",
+          "oklch(82% 0.002 264)",
+          "oklch(95% 0.002 264)"
+        ]
+      },
+      "muted-ink": {
+        "role": "neutral",
+        "displayName": "Muted Ink",
+        "canonical": "#59606d",
+        "oklch": "oklch(48.8% 0.023 263)",
+        "purpose": "Secondary text and labels.",
+        "tonalRamp": [
+          "oklch(15% 0.010 263)",
+          "oklch(26% 0.014 263)",
+          "oklch(37% 0.018 263)",
+          "oklch(48% 0.022 263)",
+          "oklch(59% 0.019 263)",
+          "oklch(70% 0.015 263)",
+          "oklch(82% 0.011 263)",
+          "oklch(95% 0.006 263)"
+        ]
+      },
+      "faint-ink": {
+        "role": "neutral",
+        "displayName": "Faint Ink",
+        "canonical": "#6f7581",
+        "oklch": "oklch(56.1% 0.020 264)",
+        "purpose": "Placeholders, timestamps, paths.",
+        "tonalRamp": [
+          "oklch(15% 0.007 264)",
+          "oklch(26% 0.010 264)",
+          "oklch(37% 0.014 264)",
+          "oklch(48% 0.017 264)",
+          "oklch(59% 0.019 264)",
+          "oklch(70% 0.015 264)",
+          "oklch(82% 0.012 264)",
+          "oklch(95% 0.008 264)"
+        ]
+      },
+      "field-line": {
+        "role": "neutral",
+        "displayName": "Field Line",
+        "canonical": "#8b919b",
+        "oklch": "oklch(65.5% 0.016 261)",
+        "purpose": "3:1 input and button borders.",
+        "tonalRamp": [
+          "oklch(15% 0.003 261)",
+          "oklch(26% 0.006 261)",
+          "oklch(37% 0.009 261)",
+          "oklch(48% 0.012 261)",
+          "oklch(59% 0.015 261)",
+          "oklch(70% 0.015 261)",
+          "oklch(82% 0.012 261)",
+          "oklch(95% 0.009 261)"
+        ]
+      },
+      "danger": {
+        "role": "status",
+        "displayName": "Danger Red",
+        "canonical": "#c4291c",
+        "oklch": "oklch(53.5% 0.193 30)",
+        "purpose": "Errors, removals.",
+        "tonalRamp": [
+          "oklch(15% 0.074 30)",
+          "oklch(26% 0.108 30)",
+          "oklch(37% 0.142 30)",
+          "oklch(48% 0.176 30)",
+          "oklch(59% 0.175 30)",
+          "oklch(70% 0.142 30)",
+          "oklch(82% 0.105 30)",
+          "oklch(95% 0.065 30)"
+        ]
+      },
+      "success": {
+        "role": "status",
+        "displayName": "Success Green",
+        "canonical": "#1f7a3a",
+        "oklch": "oklch(51.2% 0.129 149)",
+        "purpose": "Activity success.",
+        "tonalRamp": [
+          "oklch(15% 0.054 149)",
+          "oklch(26% 0.077 149)",
+          "oklch(37% 0.100 149)",
+          "oklch(48% 0.122 149)",
+          "oklch(59% 0.113 149)",
+          "oklch(70% 0.090 149)",
+          "oklch(82% 0.065 149)",
+          "oklch(95% 0.039 149)"
+        ]
+      },
+      "warning": {
+        "role": "status",
+        "displayName": "Warning Amber",
+        "canonical": "#9c4f00",
+        "oklch": "oklch(51.2% 0.127 55)",
+        "purpose": "Hints, banners.",
+        "tonalRamp": [
+          "oklch(15% 0.053 55)",
+          "oklch(26% 0.075 55)",
+          "oklch(37% 0.098 55)",
+          "oklch(48% 0.120 55)",
+          "oklch(59% 0.111 55)",
+          "oklch(70% 0.089 55)",
+          "oklch(82% 0.064 55)",
+          "oklch(95% 0.038 55)"
+        ]
+      },
+      "booklet-black": {
+        "role": "neutral",
+        "displayName": "Booklet Black",
+        "canonical": "#131418",
+        "oklch": "oklch(19.2% 0.008 274)",
+        "purpose": "Dark page ground.",
+        "tonalRamp": [
+          "oklch(15% 0.008 274)",
+          "oklch(26% 0.007 274)",
+          "oklch(37% 0.006 274)",
+          "oklch(48% 0.004 274)",
+          "oklch(59% 0.003 274)",
+          "oklch(70% 0.002 274)",
+          "oklch(82% 0.001 274)",
+          "oklch(95% 0.001 274)"
+        ]
+      },
+      "sheet-dark": {
+        "role": "neutral",
+        "displayName": "Sheet Dark",
+        "canonical": "#1a1c21",
+        "oklch": "oklch(22.7% 0.010 268)",
+        "purpose": "Dark panels and inputs.",
+        "tonalRamp": [
+          "oklch(15% 0.009 268)",
+          "oklch(26% 0.010 268)",
+          "oklch(37% 0.008 268)",
+          "oklch(48% 0.006 268)",
+          "oklch(59% 0.004 268)",
+          "oklch(70% 0.002 268)",
+          "oklch(82% 0.002 268)",
+          "oklch(95% 0.002 268)"
+        ]
+      },
+      "sheet-raised-dark": {
+        "role": "neutral",
+        "displayName": "Sheet Raised Dark",
+        "canonical": "#23252b",
+        "oklch": "oklch(26.5% 0.012 271)",
+        "purpose": "Dark popovers and selection bar.",
+        "tonalRamp": [
+          "oklch(15% 0.009 271)",
+          "oklch(26% 0.011 271)",
+          "oklch(37% 0.010 271)",
+          "oklch(48% 0.008 271)",
+          "oklch(59% 0.006 271)",
+          "oklch(70% 0.004 271)",
+          "oklch(82% 0.002 271)",
+          "oklch(95% 0.002 271)"
+        ]
+      },
+      "ink-dark": {
+        "role": "neutral",
+        "displayName": "Ink, Night",
+        "canonical": "#f0f0ec",
+        "oklch": "oklch(95.4% 0.005 106)",
+        "purpose": "Dark theme text (warm off-white).",
+        "tonalRamp": [
+          "oklch(15% 0.001 106)",
+          "oklch(26% 0.001 106)",
+          "oklch(37% 0.001 106)",
+          "oklch(48% 0.001 106)",
+          "oklch(59% 0.002 106)",
+          "oklch(70% 0.003 106)",
+          "oklch(82% 0.004 106)",
+          "oklch(95% 0.005 106)"
+        ]
+      },
+      "muted-ink-dark": {
+        "role": "neutral",
+        "displayName": "Muted Ink, Night",
+        "canonical": "#a4a9b4",
+        "oklch": "oklch(73.4% 0.017 266)",
+        "purpose": "Dark secondary text.",
+        "tonalRamp": [
+          "oklch(15% 0.003 266)",
+          "oklch(26% 0.004 266)",
+          "oklch(37% 0.007 266)",
+          "oklch(48% 0.010 266)",
+          "oklch(59% 0.013 266)",
+          "oklch(70% 0.016 266)",
+          "oklch(82% 0.015 266)",
+          "oklch(95% 0.011 266)"
+        ]
+      },
+      "faint-ink-dark": {
+        "role": "neutral",
+        "displayName": "Faint Ink, Night",
+        "canonical": "#8a909b",
+        "oklch": "oklch(65.2% 0.018 263)",
+        "purpose": "Dark tertiary text.",
+        "tonalRamp": [
+          "oklch(15% 0.003 263)",
+          "oklch(26% 0.007 263)",
+          "oklch(37% 0.010 263)",
+          "oklch(48% 0.013 263)",
+          "oklch(59% 0.016 263)",
+          "oklch(70% 0.016 263)",
+          "oklch(82% 0.013 263)",
+          "oklch(95% 0.009 263)"
+        ]
+      },
+      "field-line-dark": {
+        "role": "neutral",
+        "displayName": "Field Line, Night",
+        "canonical": "#6e737d",
+        "oklch": "oklch(55.5% 0.017 264)",
+        "purpose": "Dark input borders.",
+        "tonalRamp": [
+          "oklch(15% 0.006 264)",
+          "oklch(26% 0.009 264)",
+          "oklch(37% 0.012 264)",
+          "oklch(48% 0.015 264)",
+          "oklch(59% 0.016 264)",
+          "oklch(70% 0.013 264)",
+          "oklch(82% 0.010 264)",
+          "oklch(95% 0.006 264)"
+        ]
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "rgba(27, 30, 36, 0.1)",
+        "purpose": "1px lines between credit entries, rows and editor groups (10% ink)."
+      },
+      "hairline-dark": {
+        "role": "neutral",
+        "displayName": "Hairline, Night",
+        "canonical": "rgba(240, 240, 236, 0.1)",
+        "purpose": "Dark-theme hairline."
+      },
+      "spot": {
+        "role": "primary",
+        "displayName": "The Spot (dynamic)",
+        "canonical": "var(--spot)",
+        "purpose": "Per-album colour from cover art: coverColour() picks the strongest saturated hue bin, fitSpot() fits it to >=4.6:1 text contrast on the current background, refitSpot() reruns on theme change (app.js:297-358). Registered via @property, crossfades 700ms. --accent/--accent-soft(13%)/--selected(10%) derive via color-mix in oklab.",
+        "runtime": true
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Album title in the booklet-spread header; 30px on phones."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Folder and library titles; 30px on phones."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Editor track title (2-line clamp)."
+      },
+      "section-head": {
+        "displayName": "Section head",
+        "purpose": "Editor group heads, set in the spot colour."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Everything else; 15px on phones; inputs 16px on phones."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Credit-sheet field labels, sub-lines, table head (600)."
+      },
+      "track-number": {
+        "displayName": "Track number",
+        "purpose": "The only tabular figures in the system: zero-padded track numbers."
+      },
+      "wordmark": {
+        "displayName": "Wordmark",
+        "purpose": "Lowercase codetta; 56px / -0.045em on sign-in."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "Raw tag names, tag keys, update steps."
+      }
+    },
+    "themes": {
+      "light": {
+        "--bg": "#f7f8f8",
+        "--surface": "#ffffff",
+        "--text": "#1b1e24",
+        "--muted": "#59606d",
+        "--faint": "#6f7581",
+        "--field-line": "#8b919b",
+        "--house-spot": "#0e7c74"
+      },
+      "dark": {
+        "--bg": "#131418",
+        "--surface": "#1a1c21",
+        "--surface-raised": "#23252b",
+        "--text": "#f0f0ec",
+        "--muted": "#a4a9b4",
+        "--faint": "#8a909b",
+        "--field-line": "#6e737d",
+        "--house-spot": "#4fc3b4"
+      },
+      "mechanism": "Light on :root; dark under @media (prefers-color-scheme: dark) :root:not([data-theme=light]) and :root[data-theme=dark] (app.css:33-128)."
+    },
+    "shadows": [
+      {
+        "name": "cover",
+        "value": "0 1px 2px rgba(0,0,0,0.12), 0 10px 24px -10px rgba(0,0,0,0.35)",
+        "purpose": "Album-header cover only."
+      },
+      {
+        "name": "ambient",
+        "value": "0 1px 2px rgba(27,30,36,0.05), 0 10px 28px rgba(27,30,36,0.07)",
+        "purpose": "--shadow: toasts, editor art square."
+      },
+      {
+        "name": "lifted",
+        "value": "0 24px 64px rgba(27,30,36,0.18)",
+        "purpose": "--shadow-lg: dialogs, selection bar, popovers (dark: rgba(0,0,0,0.6))."
+      },
+      {
+        "name": "segment",
+        "value": "0 1px 3px rgba(0,0,0,0.12)",
+        "purpose": "Selected segment in toggles."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Entrances and state changes."
+      },
+      {
+        "name": "ease-in",
+        "value": "cubic-bezier(0.4, 0, 1, 1)",
+        "purpose": "Exits (panel, dialogs, sheets, toasts)."
+      },
+      {
+        "name": "dur-fast",
+        "value": "120ms",
+        "purpose": "Hover/colour/border transitions."
+      },
+      {
+        "name": "dur",
+        "value": "200ms",
+        "purpose": "Dialogs, popovers, chips, toasts."
+      },
+      {
+        "name": "dur-slow",
+        "value": "260ms",
+        "purpose": "Folder navigation slide, editor panel, sign-in card."
+      },
+      {
+        "name": "sheet",
+        "value": "340ms in / 240ms out",
+        "purpose": "Phone editor and dialog sheets from the bottom."
+      },
+      {
+        "name": "spot-crossfade",
+        "value": "700ms ease-out on --spot",
+        "purpose": "Signature: album colour crossfade between folders."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "animation/transition none",
+        "purpose": "All motion off under prefers-reduced-motion (app.css:139, 1414)."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "phone",
+        "value": "760px"
+      },
+      {
+        "name": "medium",
+        "value": "1180px"
+      }
+    ],
+    "focus": {
+      "value": "outline: 2px solid var(--accent); outline-offset: 2px",
+      "purpose": "Visible focus in the spot colour everywhere."
+    }
+  },
+  "components": [
+    {
+      "name": "Primary Button (ink)",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Save / Sign in: solid ink on stock; hover mixes in the spot.",
+      "html": "<button class=\"ds-btn-primary\">Save to 5 tracks</button>",
+      "css": ".ds-btn-primary{display:inline-flex;align-items:center;justify-content:center;height:34px;padding:0 14px;border-radius:6px;border:1px solid var(--text,#1b1e24);background:var(--text,#1b1e24);color:var(--bg,#f7f8f8);font:600 14px/1 'Schibsted Grotesk',system-ui,sans-serif;cursor:pointer;transition:background-color 120ms ease,transform 120ms ease}.ds-btn-primary:hover{background:color-mix(in oklab,var(--text,#1b1e24) 84%,var(--spot,#0e7c74))}.ds-btn-primary:active{transform:scale(.97)}.ds-btn-primary:focus-visible{outline:2px solid var(--spot,#0e7c74);outline-offset:2px}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Copy, Replace, Apply loadout: sheet surface with a 3:1 field-line border.",
+      "html": "<button class=\"ds-btn\">Apply loadout…</button>",
+      "css": ".ds-btn{display:inline-flex;align-items:center;justify-content:center;height:34px;padding:0 14px;border-radius:6px;border:1px solid var(--field-line,#8b919b);background:var(--surface,#fff);color:var(--text,#1b1e24);font:600 14px/1 'Schibsted Grotesk',system-ui,sans-serif;cursor:pointer;transition:background-color 120ms ease,transform 120ms ease}.ds-btn:hover{background:var(--hover,rgba(27,30,36,.04))}.ds-btn:active{background:var(--pressed,rgba(27,30,36,.07));transform:scale(.97)}.ds-btn:focus-visible{outline:2px solid var(--spot,#0e7c74);outline-offset:2px}"
+    },
+    {
+      "name": "Credit-line Field",
+      "kind": "input",
+      "refersTo": "credit-line-field",
+      "description": "Editor/sign-in field: label column, value on a hairline; boxes in spot on focus; spot underline when changed.",
+      "html": "<label class=\"ds-credit\"><span>Album artist</span><input value=\"Nightfall Collective\"></label><label class=\"ds-credit is-changed\"><span>Genre <em>changed</em></span><input value=\"Synthwave\"></label>",
+      "css": ".ds-credit{display:grid;grid-template-columns:116px minmax(0,1fr);column-gap:14px;align-items:center;padding:3px 0;font:400 14px/1.45 'Schibsted Grotesk',system-ui,sans-serif;color:var(--text,#1b1e24)}.ds-credit span{font-size:12px;font-weight:500;color:var(--muted,#59606d)}.ds-credit em{display:block;font-style:normal;font-size:11px;font-weight:600;color:var(--spot,#0e7c74)}.ds-credit input{height:36px;padding:0 0 0 2px;border:1px solid transparent;border-bottom-color:var(--field-line,#8b919b);border-radius:0;background:transparent;color:inherit;font:inherit;outline:none;transition:border-color 120ms ease,box-shadow 120ms ease}.ds-credit input:hover{border-bottom-color:var(--text,#1b1e24)}.ds-credit input:focus{border-color:var(--spot,#0e7c74);border-radius:4px;background:var(--input-bg,#fff);padding-left:10px;box-shadow:0 0 0 3px color-mix(in oklab,var(--spot,#0e7c74) 13%,transparent)}.ds-credit.is-changed input{border-color:var(--spot,#0e7c74);box-shadow:inset 0 -2px 0 var(--spot,#0e7c74)}"
+    },
+    {
+      "name": "Filter Field",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "Top-bar filter: 6px corners, field-line border, spot ring on focus.",
+      "html": "<label class=\"ds-search\"><svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\"><circle cx=\"11\" cy=\"11\" r=\"7\"/><path d=\"m20 20-3.5-3.5\"/></svg><input placeholder=\"Filter this folder\"></label>",
+      "css": ".ds-search{display:flex;align-items:center;gap:6px;height:34px;width:240px;padding:0 10px;border-radius:6px;background:var(--surface,#fff);border:1px solid var(--field-line,#8b919b);color:var(--muted,#59606d);transition:box-shadow 120ms ease}.ds-search input{border:0;outline:0;background:transparent;width:100%;color:var(--text,#1b1e24);font:400 14px 'Schibsted Grotesk',system-ui,sans-serif}.ds-search input::placeholder{color:var(--faint,#6f7581)}.ds-search:focus-within{box-shadow:0 0 0 2px var(--spot,#0e7c74)}"
+    },
+    {
+      "name": "Genre Chip",
+      "kind": "chip",
+      "refersTo": "genre-chip",
+      "description": "Album header chip in the album's spot; shown when every track shares one genre.",
+      "html": "<span class=\"ds-spot-chip\">Synthwave</span>",
+      "css": ".ds-spot-chip{display:inline-block;padding:3px 10px;border-radius:4px;background:color-mix(in oklab,var(--spot,#0e7c74) 13%,transparent);color:var(--spot,#0e7c74);font:700 13px/1.45 'Schibsted Grotesk',system-ui,sans-serif}"
+    },
+    {
+      "name": "Track List",
+      "kind": "custom",
+      "refersTo": "track-row",
+      "description": "Ink rule over hairline rows; tabular track numbers; the edited row turns spot.",
+      "html": "<div class=\"ds-tracks\"><div class=\"ds-row\"><b>01</b><span>Neon Arcade</span><i>3:52</i></div><div class=\"ds-row is-editing\"><b>02</b><span>Night Drive</span><i>4:11</i></div><div class=\"ds-row\"><b>03</b><span>Static Hearts</span><i>2:42</i></div></div>",
+      "css": ".ds-tracks{border-top:1.5px solid var(--text,#1b1e24);font:400 14px/1.45 'Schibsted Grotesk',system-ui,sans-serif;color:var(--text,#1b1e24)}.ds-row{display:grid;grid-template-columns:44px minmax(0,1fr) 60px;align-items:center;min-height:48px;border-bottom:1px solid var(--rule,rgba(27,30,36,.1));transition:background-color 120ms ease;cursor:pointer}.ds-row>*{padding:0 8px}.ds-row b{font-weight:600;font-variant-numeric:tabular-nums;color:var(--muted,#59606d);text-align:right}.ds-row span{font-weight:600}.ds-row i{font-style:normal;color:var(--muted,#59606d);text-align:right}.ds-row:hover{background:var(--hover,rgba(27,30,36,.04))}.ds-row.is-editing{background:color-mix(in oklab,var(--spot,#0e7c74) 13%,transparent)}.ds-row.is-editing b,.ds-row.is-editing span{color:var(--spot,#0e7c74)}"
+    },
+    {
+      "name": "Album Spread Header",
+      "kind": "custom",
+      "refersTo": "album-cover",
+      "description": "Booklet spread: 200px square cover beside a 52px heavy title, meta line and genre chip.",
+      "html": "<div class=\"ds-album\"><div class=\"ds-cover\"></div><div><h1>Midnight Tapes</h1><p><b>Nightfall Collective</b> · <b>2024</b> · 8 tracks, 28 min</p><span class=\"ds-chip\">Synthwave</span></div></div>",
+      "css": ".ds-album{display:grid;grid-template-columns:200px minmax(0,1fr);gap:32px;align-items:end;font-family:'Schibsted Grotesk',system-ui,sans-serif;color:var(--text,#1b1e24)}.ds-cover{width:200px;height:200px;border-radius:2px;background:linear-gradient(160deg,#2a1f4f,#4a2a6a 55%,#140f24);box-shadow:0 1px 2px rgba(0,0,0,.12),0 10px 24px -10px rgba(0,0,0,.35)}.ds-album h1{margin:0;font-size:52px;font-weight:800;line-height:1.04;letter-spacing:-.035em}.ds-album p{margin:8px 0 0;font-size:15px;color:var(--muted,#59606d)}.ds-album p b{color:var(--text,#1b1e24);font-weight:600}.ds-chip{display:inline-block;margin-top:12px;padding:3px 10px;border-radius:4px;background:color-mix(in oklab,var(--spot,#5a3a8a) 13%,transparent);color:var(--spot,#5a3a8a);font-weight:700;font-size:13px}"
+    },
+    {
+      "name": "Wordmark",
+      "kind": "nav",
+      "refersTo": "wordmark",
+      "description": "Lowercase codetta, 800, tight, with a square full stop in the spot colour.",
+      "html": "<a class=\"ds-wordmark\" href=\"#\">codetta<span></span></a>",
+      "css": ".ds-wordmark{font:800 21px/1 'Schibsted Grotesk',system-ui,sans-serif;letter-spacing:-.035em;color:var(--text,#1b1e24);text-decoration:none}.ds-wordmark span{display:inline-block;width:.29em;height:.29em;margin-left:.06em;background:var(--spot,#0e7c74);transition:background-color 700ms cubic-bezier(.22,1,.36,1)}.ds-wordmark:focus-visible{outline:2px solid var(--spot,#0e7c74);outline-offset:2px;border-radius:6px}"
+    },
+    {
+      "name": "Contents-page Folder Entry",
+      "kind": "card",
+      "refersTo": "track-row",
+      "description": "Grid view: folders as ruled entries under a 1.5px ink rule, rule turns spot on hover.",
+      "html": "<div class=\"ds-contents\"><a href=\"#\">Midnight Tapes (2024)</a><a href=\"#\">Paper Lanterns</a></div>",
+      "css": ".ds-contents{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:4px 28px}.ds-contents a{display:flex;align-items:center;min-height:64px;padding:12px 2px;border-top:1.5px solid var(--text,#1b1e24);font:700 16px 'Schibsted Grotesk',system-ui,sans-serif;letter-spacing:-.01em;color:var(--text,#1b1e24);text-decoration:none;transition:background-color 120ms ease,border-color 120ms ease}.ds-contents a:hover{background:var(--hover,rgba(27,30,36,.04));border-color:var(--spot,#0e7c74)}.ds-contents a:focus-visible{outline:2px solid var(--spot,#0e7c74);outline-offset:2px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Liner Notes",
+    "overview": "Codetta reads like the credits pages of a beautifully made CD or LP booklet: every track gets the credits page it deserves. The ground is booklet stock (near-white, faintly cool) or booklet black, the type is ink in one display-grade grotesque, and structure comes from rules rather than boxes: a 1.5px ink rule opens each list, hairlines separate entries, and editable fields sit on a hairline like a printed credit line until touched. It is an operating tool, dense and calm, with the music's own artwork as the only full colour on screen.\n\nThe one moving part of the identity is the spot colour. Each album lends the interface a single colour lifted from its cover art, fitted for text contrast against the current theme, and crossfaded when you move between albums. It marks the active track, changed fields, the editor's section heads, the album's genre chip, links, focus and selection. The library, search results and coverless folders fall back to the house spot (teal). Everything else is ink, stock and grey.\n\nIt refuses the category default of a grey dashboard with one fixed blue accent and a boxed data table. It is not dark-and-nerdy, cute or corporate; confidence comes from exact, quiet typesetting, not decoration.",
+    "keyCharacteristics": [
+      "One typeface (Schibsted Grotesk), heavy and tight for titles, regular for credits.",
+      "Rules, not boxes: 1.5px ink rule over every list, 1px hairlines between entries.",
+      "One spot colour per album from its cover; house teal when there is none.",
+      "Album art is the only full colour; covers are square (2–3px corners).",
+      "A folder that is one album becomes a booklet spread: 200px cover beside a 52px title, with repeating columns dropped.",
+      "Light and dark themes are equals; the spot is refitted on every theme change."
+    ],
+    "rules": [
+      {
+        "name": "The One Borrowed Colour Rule",
+        "body": "The only chromatic UI colour on screen is the open album's spot (or house teal). Never add a second brand accent, a fixed blue, or decorative colour; album art supplies the rest.",
+        "section": "colors"
+      },
+      {
+        "name": "The Fitted Spot Rule",
+        "body": "Any colour taken from artwork must pass through `fitSpot()` before it touches text: 4.6:1 against the current background, refitted when the theme changes. Never paint raw cover colour onto UI.",
+        "section": "colors"
+      },
+      {
+        "name": "The Ink Button Rule",
+        "body": "The primary action (Save, Sign in) is solid ink on stock, not the spot. The spot marks state and identity; ink marks commitment.",
+        "section": "colors"
+      },
+      {
+        "name": "The Tabular Track Number Rule",
+        "body": "Tabular figures are used only for track numbers (\"01\"–\"99\", zero-padded, weight 600, app.css:482). Times, counts, versions and sizes keep the font's default figures (`font-variant-numeric: normal`).",
+        "section": "typography"
+      },
+      {
+        "name": "The Heavy-and-Tight Rule",
+        "body": "Any title 19px and up is weight 800 with negative tracking (−0.02em to −0.045em). Body and credits never go below 400 or get tracked.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Page Rule",
+        "body": "Nothing in the reading flow (rows, folders, headers, fields) carries a shadow. If it's on the page, it's ruled; if it floats, it may lift.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Ink Rule",
+        "body": "Every list starts under a 1.5px ink rule and separates its entries with 1px hairlines. Never box a list in a bordered card.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "Do derive every chromatic UI colour from `--spot` (`--accent`, `--accent-soft`, `--selected` via `color-mix`), and let the house teal stand in when there is no cover.",
+      "Do open every list with a 1.5px ink rule and separate entries with 1px hairlines.",
+      "Do set titles in Schibsted Grotesk 800 with negative tracking, and reserve tabular figures for track numbers.",
+      "Do drop columns that would repeat the same value on every row of a single album.",
+      "Do keep primary actions solid ink, 6px corners, and say what will happen (\"Save to 5 tracks\").",
+      "Do use the motion tokens (120 / 200 / 260ms, ease-out in, ease-in out); phone sheets slide 340ms; the spot crossfades 700ms; all of it stops under `prefers-reduced-motion`.",
+      "Do keep 16px inputs and 44px touch targets on phones, and honour safe-area insets.",
+      "Do bundle every font and icon; no CDNs, no inline scripts or handler attributes (CSP)."
+    ],
+    "donts": [
+      "Don't add a second accent, a fixed brand blue, gradients or decorative colour; album art is the only full colour.",
+      "Don't use raw cover colour for text or UI without `fitSpot()`.",
+      "Don't box lists or rows in bordered cards, or put shadows on anything in the reading flow.",
+      "Don't round covers or the logo's square beyond 2–3px.",
+      "Don't extend the floating layer's softer corners (10–16px) to page-level surfaces.",
+      "Don't add uppercase tracked section labels, kicker lines above titles, or text-glyph icons; use inline SVG. (Format codes such as FLAC in the small badge are data, not labels.)"
+    ]
+  }
+}

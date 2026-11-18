@@ -60,6 +60,9 @@
 - [x] **Task 7.4:** Lyrics: plain and synced (LRC text) in one `lyrics` field with a tall editor and LRC detection hint; stored as Vorbis LYRICS, ID3 USLT (empty description), MP4 ©lyr, APE Lyrics, ASF WM/Lyrics. Never split on ";". Not indexed for search. Activity summaries shortened to 160 chars (undo keeps full values). Binary ID3 SYLT not written (LRC text is what Navidrome reads).
 - [x] **Task 7.5:** Find lyrics from LRCLIB (`src/codetta/core/providers.py`, `GET /api/lyrics/lookup`): only on button press, sends artist/title/album/duration, exact match then duration-checked search, https-only, 8 s timeout, 2 MB cap, in-memory cache; preview in the editor, "Use synced/plain" stages a normal change. `CODETTA_LYRICS_LOOKUP=off`. Provider shape is the seed for plugins (MusicBrainz/Last.fm next, then a small SDK). Tests with a fake service in `tests/test_providers.py`.
 
+## Phase 8: Identity redesign
+- [x] **Task 8.1:** Product context (`PRODUCT.md`) and a full visual redesign with Impeccable: direction "Liner Notes" (CD/LP booklet credits) chosen on the decision page (seed:5675e23ec6ca6e2a). New wordmark/icon, Schibsted Grotesk, per-album spot colour from cover art, album booklet header, single-album column dropping, credits-sheet editor, booklet sign-in, contents-page grid. Finish review: fix (8 material fixes) → ship. Design system recorded in `DESIGN.md` + `.impeccable/design.json`; README media re-recorded.
+
 ## Phase 6: Data sources, listening, organizing (roadmap)
 - [ ] **Task 6.1:** MusicBrainz integration: match a file or folder to a MusicBrainz release/recording and offer its "official" metadata (titles, artists, dates, label, catalog number, MBIDs, cover art), previewed before writing like loadouts. Also feeds smart suggestions.
 - [ ] **Task 6.2:** Last.fm integration: genre tags (top tags), similar artists and listener counts as another suggestion source (user supplies their own API key).

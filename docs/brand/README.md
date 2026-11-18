@@ -1,50 +1,62 @@
 # Codetta brand
 
-Sleek, minimal, clean and fluid. Codetta should feel like a native app, not like a web page.
+Codetta reads like the credits pages of a well-made CD or LP booklet: booklet
+stock and ink, one strong grotesque, hairline rules, and one spot colour per
+album taken from its cover.
 
 ## Logo
 
 | File | Use it on |
 |---|---|
-| `logo-light.svg` | Light backgrounds (mark + wordmark, ink `#1d1d1f`) |
-| `logo-dark.svg` | Dark backgrounds (mark + wordmark, `#f5f5f7`) |
-| `mark-black.svg` / `mark-white.svg` | Where the name is already shown, or space is tight |
-| `app-icon.svg` | App-icon style: white mark on a rounded blue square |
+| `logo-light.svg` | Light backgrounds: lowercase **codetta** in ink with the square spot |
+| `logo-dark.svg` | Dark backgrounds |
+| `mark.svg` / `app-icon.svg` | Favicon and app icon: the spot square with a knocked-out lowercase c |
 | `social-preview.png` | GitHub social preview / link cards (1280 × 640) |
 
-**The mark** is the musical *coda* sign (a circle crossed by two lines), drawn flat:
-a 32-unit grid, circle radius 9.8, stroke 3.4, square ends. A codetta is a short
-coda, the little passage that tidies up the end of a piece.
+**The wordmark** is "codetta" in Schibsted Grotesk at weight 800, tracked
+tight (−3.5%), followed by a small square "full stop" sized from the x-height.
+In the app the square takes the open album's spot colour; everywhere else it
+is the house teal. Text is converted to outlines in the SVG files.
 
-**The wordmark** is "Codetta" in Inter at weight 650 with slightly tight tracking
-(−1.5%), converted to outlines so it looks the same everywhere. The mark is
-1.6 × the cap height, with a gap of about a third of the font size.
-
-Keep clear space of at least half the mark's width around the logo. Don't
-stretch, outline, rotate, recolour (beyond ink/white/blue), or add effects.
+Keep clear space of at least the square's width × 2 around the logo. Don't
+stretch, outline, recolour the letters, or round the square.
 
 ## Colour
 
 | Role | Light | Dark |
 |---|---|---|
-| Background | `#f5f5f7` | `#111113` |
-| Text / ink | `#1d1d1f` | `#f5f5f7` |
-| Accent (buttons, links, focus) | `#007aff` | `#0a84ff` |
+| Ground (booklet stock) | `#f7f8f8` | `#131418` |
+| Ink | `#1b1e24` | `#f0f0ec` |
+| Muted text | `#59606d` | `#a4a9b4` |
+| House spot | `#0e7c74` | `#4fc3b4` |
 
-The logo itself is always monochrome. Blue is for interaction, used sparingly.
+**The spot colour.** Each album lends Codetta one colour, picked from its cover
+(the strongest saturated hue) and adjusted until text in it passes 4.5:1
+contrast on the current background. It marks the active track, changed fields,
+section heads, the genre chip, links and focus, and crossfades as you move
+between albums. Albums without a cover, the library and search use the house
+spot. Album art is the only other full colour on screen.
 
 ## Type
 
-[Inter](https://rsms.me/inter/) for everything (bundled in the app). Headings
-semibold with slightly tight tracking; body text regular, 15–16 px.
+[Schibsted Grotesk](https://github.com/schibsted/schibsted-grotesk) (SIL Open
+Font License), bundled with the app. Titles heavy (800) and tight; credits and
+body regular. Track numbers use tabular figures ("01"); times use the default
+figures.
+
+## Shape and rules
+
+Covers and thumbnails are square (2–3px). Controls have small 6px corners. A
+1.5px ink rule opens each list, hairlines separate entries, and fields sit on a
+hairline like a credits line until you edit them.
 
 ## Motion
 
-Quick and quiet: 120–340 ms, ease-out on the way in, ease-in on the way out.
-Things slide and fade from where they came from. All motion turns off when the
-system asks for reduced motion.
+Quick and quiet: 120–340 ms, ease-out in, ease-in out. The one signature moment
+is the spot colour crossfading (700 ms) when you open an album. All motion
+turns off with the system's reduced-motion setting.
 
 ## Voice
 
-Plain, friendly and precise. Say what will happen ("Save to 5 tracks"), not
-what the code does. No jargon where an everyday word works.
+Plain, friendly and precise. Say what will happen ("Save to 5 tracks"), not what
+the code does.
