@@ -1102,6 +1102,7 @@ function currentValues(key) {
 function splitValue(key, text) {
   const value = text.trim();
   if (!value) return [];
+  if (key === "lyrics") return [value]; // lyrics often contain ";", never split them
   const split = state.fieldMap.get(key)?.multi || state.editor?.model.get(key)?.multiValued;
   return split ? value.split(";").map((v) => v.trim()).filter(Boolean) : [value];
 }
@@ -1269,6 +1270,7 @@ function listParts(key, values) {
 
 const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 const EMOJI = /\p{Extended_Pictographic}/u;
+const LRC_LINE = /^\s*\[\d{1,3}:\d{2}(?:[.:]\d{1,3})?\]/;
 const DATE_OK = /^\d{4}(-\d{2}(-\d{2})?)?$/;
 
 /** Turn "October 23, 2026" or "2026/10/23" into "2026-10-23", if unambiguous. */
@@ -1304,6 +1306,11 @@ function suggestDate(text) {
 function fieldHint(field, value) {
   const v = value.trim();
   if (!v) return null;
+  if (field.key === "lyrics") {
+    const all = v.split("\n").filter((l) => l.trim());
+    const synced = all.filter((l) => LRC_LINE.test(l)).length;
+    return { text: synced >= Math.max(2, all.length / 2) ? `Synced lyrics (LRC) · ${plural(synced, "timed line")}` : `Plain lyrics · ${plural(all.length, "line")}` };
+  }
   if (field.key === "date" || field.key === "originaldate") {
     if (DATE_OK.test(v)) return null;
     const fix = suggestDate(v);
@@ -1323,7 +1330,7 @@ function fieldEl(field, model) {
   const m = model.get(key) || { value: "", mixed: false, present: false, multiValued: false };
   const id = `f-${key}`;
   const change = ed.changes.get(key);
-  const isLong = key === "comment";
+  const isLong = key === "comment" || key === "lyrics";
 
   const flag = h("span", { class: "flag" });
   const hintEl = h("div", { class: "field-hint", hidden: true });
@@ -1331,7 +1338,7 @@ function fieldEl(field, model) {
   const hasSuggestions = !isLong && folderSuggestions(key).some((sg) => sg.value !== m.value || m.mixed);
   const wrap = h("div", { class: "field", dataset: { key } });
   const input = isLong
-    ? h("textarea", { id, rows: "3", dir: "auto", spellcheck: "true" })
+    ? h("textarea", { id, rows: key === "lyrics" ? "10" : "3", dir: "auto", spellcheck: "true", class: key === "lyrics" ? "lyrics-input" : null })
     : h("input", { id, type: "text", dir: "auto", spellcheck: "false", autocapitalize: "off", inputmode: ["tracknumber", "discnumber", "bpm"].includes(key) ? "numeric" : null });
   input.value = change ? change.value : m.value;
 
@@ -1493,7 +1500,7 @@ function renderChangesPopover(folderCount) {
 }
 
 // Tags that are normally different on every track of an album.
-const PER_TRACK_KEYS = new Set(["title", "tracknumber", "isrc", "comment", "bpm"]);
+const PER_TRACK_KEYS = new Set(["title", "tracknumber", "isrc", "comment", "bpm", "lyrics"]);
 
 async function saveToFolder() {
   const ed = state.editor;

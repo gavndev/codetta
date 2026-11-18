@@ -193,3 +193,22 @@ def test_undo_redo_messages_stay_readable(client):
         entry = latest(client)
         assert entry["message"] == f"{expected} “{original['message']}”"
     assert tags(client, "Album/01.flac")["title"] == ["Changed"]  # ended on a redo
+
+
+
+def test_long_values_are_shortened_in_the_log_but_undo_restores_them(tmp_path):
+    import shutil
+    from codetta.web.app import ACTIVITY_VALUE_CHARS
+    from tests.conftest import FIXTURES_DIR
+    (tmp_path / "music").mkdir()
+    shutil.copy2(FIXTURES_DIR / "sample.flac", tmp_path / "music" / "a.flac")
+    lyrics = "\n".join(f"[00:{i:02d}.00] line number {i}" for i in range(60))
+    with TestClient(create_app(Settings(music_dir=tmp_path / "music", config_dir=tmp_path / "config"))) as c:
+        c.post("/api/auth/setup", json={"username": "owner", "password": "correct horse 1"})
+        c.patch("/api/tracks", json={"paths": ["a.flac"], "changes": {"lyrics": lyrics}})
+        c.patch("/api/tracks", json={"paths": ["a.flac"], "changes": {"lyrics": "short"}})
+        data = c.get("/api/activity").json()
+        entry = (data["entries"] if isinstance(data, dict) else data)[0]
+        assert len(entry["changes"][0]["old"]) <= ACTIVITY_VALUE_CHARS and "\n" not in entry["changes"][0]["old"]
+        assert c.post(f"/api/activity/{entry['id']}/undo").json()["undone"]
+        assert c.get("/api/track", params={"path": "a.flac"}).json()["tags"]["lyrics"] == [lyrics]

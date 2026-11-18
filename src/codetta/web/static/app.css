@@ -1486,3 +1486,6 @@ dialog.sheet.closing::backdrop { animation: fade-out 150ms ease forwards; }
   body:has(.editor:not([hidden])) .toasts { left: calc((100% - 500px) / 2); }
   body:has(.editor:not([hidden])) .selection-bar { max-width: calc(100vw - 500px - 24px); }
 }
+
+/* Lyrics: a comfortable box for long (and synced) text. */
+.lyrics-input { min-height: 220px; line-height: 1.55; resize: vertical; font-variant-numeric: tabular-nums; }

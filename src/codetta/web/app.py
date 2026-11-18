@@ -871,8 +871,12 @@ def _name(rel: str) -> str:
     return rel.rsplit("/", 1)[-1]
 
 
+ACTIVITY_VALUE_CHARS = 160  # long values (lyrics) are shortened in the log; undo keeps the full text
+
+
 def _join(values: list[str]) -> str:
-    return "; ".join(values)
+    text = " ".join("; ".join(values).split())  # one line
+    return text if len(text) <= ACTIVITY_VALUE_CHARS else text[: ACTIVITY_VALUE_CHARS - 1].rstrip() + "…"
 
 
 def _log_edit(activity: ActivityLog, changes: dict, results: list[UpdateResult], before: dict, undo: dict | None = None) -> None:

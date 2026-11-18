@@ -496,3 +496,31 @@ def test_movement_number_and_total_are_independent_in_id3(engine, fixture_copy):
     engine.update_tags(path, {"movementtotal": None})
     tags = engine.load_metadata(path).tags
     assert tags["movement"] == ["3"] and "movementtotal" not in tags
+
+
+# --- Lyrics (0.2) ----------------------------------------------------------------------------------
+
+LRC = "[00:12.00] First line; with a semicolon\n[00:15.50] Second line, ünïcödé 夜\n[00:19.20] Third line"
+
+
+@pytest.mark.parametrize("name", SAMPLE_FILES)
+def test_lyrics_round_trip_exactly(engine, fixture_copy, name):
+    path = fixture_copy(name)
+    engine.update_tags(path, {"lyrics": LRC})
+    assert engine.load_metadata(path).tags["lyrics"] == [LRC]
+    engine.update_tags(path, {"lyrics": None})
+    assert "lyrics" not in engine.load_metadata(path).tags
+
+
+def test_lyrics_use_standard_storage(engine, fixture_copy):
+    import mutagen
+    from mutagen.id3 import ID3
+    from mutagen.mp4 import MP4
+
+    paths = {n: fixture_copy(n) for n in ("sample.mp3", "sample.m4a", "sample.wma", "sample.flac")}
+    for p in paths.values():
+        engine.update_tags(p, {"lyrics": LRC})
+    assert ID3(paths["sample.mp3"]).getall("USLT")[0].text == LRC
+    assert MP4(paths["sample.m4a"])["\xa9lyr"] == [LRC]
+    assert str(mutagen.File(paths["sample.wma"]).tags["WM/Lyrics"][0]) == LRC
+    assert mutagen.File(paths["sample.flac"])["LYRICS"] == [LRC]

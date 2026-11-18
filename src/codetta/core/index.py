@@ -57,7 +57,7 @@ MAX_QUERY_CHARS = 500
 FREE_TEXT_KEYS = ("title", "artist", "album", "albumartist")
 
 # Not worth searching, and often large: fingerprints, IDs, loudness data.
-_SKIP_KEY = re.compile(r"^(acoustid_|musicbrainz_|replaygain_|itunnorm|itunsmpb|isrc$|barcode$|tidal_|spotify_|discogs_|deezer_|qobuz_|.*_id$|.*fingerprint)")
+_SKIP_KEY = re.compile(r"^(lyrics$|unsyncedlyrics$|acoustid_|musicbrainz_|replaygain_|itunnorm|itunsmpb|isrc$|barcode$|tidal_|spotify_|discogs_|deezer_|qobuz_|.*_id$|.*fingerprint)")
 # Searchable, but not worth an index entry: sort names and credits repeat the real names.
 _DUPLICATE_KEY = re.compile(r"^(.*sort|.*_credit|.*sortorder)$")
 MAX_INDEXED_VALUE = 300  # longer values (lyrics, essays in comments) aren't searchable

@@ -22,7 +22,7 @@ from mutagen.apev2 import is_valid_apev2_key
 from mutagen.asf import ASFBoolAttribute, ASFUnicodeAttribute
 from mutagen.easyid3 import EasyID3
 from mutagen.easymp4 import EasyMP4Tags
-from mutagen.id3 import COMM, MVIN, TIPL
+from mutagen.id3 import COMM, MVIN, TIPL, USLT
 
 # Formats grouped by how they store tags. Each family shares one mapping.
 VORBIS_FORMATS = frozenset({"flac", "ogg", "opus", "oggflac", "speex"})  # free-form comments
@@ -101,6 +101,7 @@ FIELDS: tuple[Field, ...] = (
     Field("movement", "Movement number", "Classical"),
     Field("movementtotal", "Movement count", "Classical"),
     Field("showmovement", "Show movement (1 = yes)", "Classical"),
+    Field("lyrics", "Lyrics", "Lyrics"),  # plain text or synced LRC ("[01:23.45] line")
     Field("subtitle", "Subtitle", "More"),
     Field("mood", "Mood", "More", multi=True),
     Field("bpm", "BPM", "More"),
@@ -256,6 +257,7 @@ _ASF_NAMES = {
     "composersort": "WM/ComposerSortOrder",
     "work": "WM/Work",
     "subtitle": "WM/SubTitle",
+    "lyrics": "WM/Lyrics",
 }
 _FROM_ASF = {v.lower(): k for k, v in _ASF_NAMES.items()}
 # Technical attributes written by encoders: never shown or edited as tags.
@@ -425,6 +427,33 @@ def _register_id3_credit(key: str, role: str) -> None:
 
 
 _register_id3_comment()
+
+
+def _register_id3_lyrics() -> None:
+    """``lyrics`` -> the USLT frame with an empty description (what Picard,
+    Navidrome and most players use; synced LRC text works here too)."""
+
+    def keys(id3):
+        return [k for k in id3.keys() if k.startswith("USLT:") and id3[k].desc == ""]
+
+    def get(id3, key):
+        values = [id3[k].text for k in keys(id3) if id3[k].text]
+        if not values:
+            raise KeyError(key)
+        return values
+
+    def delete(id3, key):
+        for k in keys(id3):
+            del id3[k]
+
+    def set_(id3, key, value):
+        delete(id3, key)
+        id3.add(USLT(encoding=3, lang="eng", desc="", text="\n".join(value)))
+
+    EasyID3.RegisterKey("lyrics", get, set_, delete)
+
+
+_register_id3_lyrics()
 for _key, _role in {
     "engineer": "engineer",
     "mixer": "mix",
@@ -438,6 +467,7 @@ for _key, _role in {
 
 EasyMP4Tags.RegisterTextKey("composer", "\xa9wrt")
 EasyMP4Tags.RegisterTextKey("work", "\xa9wrk")
+EasyMP4Tags.RegisterTextKey("lyrics", "\xa9lyr")
 EasyMP4Tags.RegisterTextKey("movementname", "\xa9mvn")
 EasyMP4Tags.RegisterIntKey("movement", "\xa9mvi", min_value=0, max_value=65535)
 EasyMP4Tags.RegisterIntKey("movementtotal", "\xa9mvc", min_value=0, max_value=65535)
