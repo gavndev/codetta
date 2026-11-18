@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-18T05:48:36+00:00",
+  "generatedAt": "2026-11-18T05:54:36+00:00",
   "title": "Design System: Codetta",
   "extensions": {
     "colorMeta": {
@@ -328,6 +328,15 @@
         "canonical": "var(--spot)",
         "purpose": "Per-album colour from cover art: coverColour() picks the strongest saturated hue bin, fitSpot() fits it to >=4.6:1 text contrast on the current background, refitSpot() reruns on theme change (app.js:297-358). Registered via @property, crossfades 700ms. --accent/--accent-soft(13%)/--selected(10%) derive via color-mix in oklab.",
         "runtime": true
+      },
+      "on-color": {
+        "role": "neutral",
+        "displayName": "On Colour",
+        "canonical": "var(--on-color)",
+        "light": "#ffffff",
+        "dark": "#131418",
+        "purpose": "Text, ticks and icons on the spot or status colours (art badge, phone brand icon, checked and indeterminate ticks, activity icons, destructive fill). White in light; booklet black in dark because the dark spot and status colours are fitted light. --on-accent aliases it (app.css:68, 97, 126, 139).",
+        "runtime": true
       }
     },
     "typographyMeta": {
@@ -376,7 +385,8 @@
         "--muted": "#59606d",
         "--faint": "#6f7581",
         "--field-line": "#8b919b",
-        "--house-spot": "#0e7c74"
+        "--house-spot": "#0e7c74",
+        "--on-color": "#ffffff"
       },
       "dark": {
         "--bg": "#131418",
@@ -386,7 +396,8 @@
         "--muted": "#a4a9b4",
         "--faint": "#8a909b",
         "--field-line": "#6e737d",
-        "--house-spot": "#4fc3b4"
+        "--house-spot": "#4fc3b4",
+        "--on-color": "#131418"
       },
       "mechanism": "Light on :root; dark under @media (prefers-color-scheme: dark) :root:not([data-theme=light]) and :root[data-theme=dark] (app.css:33-128)."
     },
@@ -487,6 +498,14 @@
       "css": ".ds-btn{display:inline-flex;align-items:center;justify-content:center;height:34px;padding:0 14px;border-radius:6px;border:1px solid var(--field-line,#8b919b);background:var(--surface,#fff);color:var(--text,#1b1e24);font:600 14px/1 'Schibsted Grotesk',system-ui,sans-serif;cursor:pointer;transition:background-color 120ms ease,transform 120ms ease}.ds-btn:hover{background:var(--hover,rgba(27,30,36,.04))}.ds-btn:active{background:var(--pressed,rgba(27,30,36,.07));transform:scale(.97)}.ds-btn:focus-visible{outline:2px solid var(--spot,#0e7c74);outline-offset:2px}"
     },
     {
+      "name": "Destructive Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Confirm-delete action: danger fill with --on-color text (white in light, booklet black in dark).",
+      "html": "<button class=\"ds-btn-danger\">Remove cover</button>",
+      "css": ".ds-btn-danger{display:inline-flex;align-items:center;justify-content:center;height:34px;padding:0 14px;border-radius:6px;border:1px solid transparent;background:var(--danger,#c4291c);color:var(--on-color,#fff);font:600 14px/1 'Schibsted Grotesk',system-ui,sans-serif;cursor:pointer;transition:filter 120ms ease,transform 120ms ease}.ds-btn-danger:hover{filter:brightness(1.08)}.ds-btn-danger:active{transform:scale(.97)}.ds-btn-danger:focus-visible{outline:2px solid var(--spot,#0e7c74);outline-offset:2px}"
+    },
+    {
       "name": "Credit-line Field",
       "kind": "input",
       "refersTo": "credit-line-field",
@@ -545,7 +564,7 @@
   ],
   "narrative": {
     "northStar": "Liner Notes",
-    "overview": "Codetta reads like the credits pages of a beautifully made CD or LP booklet: every track gets the credits page it deserves. The ground is booklet stock (near-white, faintly cool) or booklet black, the type is ink in one display-grade grotesque, and structure comes from rules rather than boxes: a 1.5px ink rule opens each list, hairlines separate entries, and editable fields sit on a hairline like a printed credit line until touched. It is an operating tool, dense and calm, with the music's own artwork as the only full colour on screen.\n\nThe one moving part of the identity is the spot colour. Each album lends the interface a single colour lifted from its cover art, fitted for text contrast against the current theme, and crossfaded when you move between albums. It marks the active track, changed fields, the editor's section heads, the album's genre chip, links, focus and selection. The library, search results and coverless folders fall back to the house spot (teal). Everything else is ink, stock and grey.\n\nIt refuses the category default of a grey dashboard with one fixed blue accent and a boxed data table. It is not dark-and-nerdy, cute or corporate; confidence comes from exact, quiet typesetting, not decoration.",
+    "overview": "**Creative North Star: \"Liner Notes\"**\n\nCodetta reads like the credits pages of a beautifully made CD or LP booklet: every track gets the credits page it deserves. The ground is booklet stock (near-white, faintly cool) or booklet black, the type is ink in one display-grade grotesque, and structure comes from rules rather than boxes: a 1.5px ink rule opens each list, hairlines separate entries, and editable fields sit on a hairline like a printed credit line until touched. It is an operating tool, dense and calm, with the music's own artwork as the only full colour on screen.\n\nThe one moving part of the identity is the spot colour. Each album lends the interface a single colour lifted from its cover art, fitted for text contrast against the current theme, and crossfaded when you move between albums. It marks the active track, changed fields, the editor's section heads, the album's genre chip, links, focus and selection. The library, search results and coverless folders fall back to the house spot (teal). Everything else is ink, stock and grey.\n\nIt refuses the category default of a grey dashboard with one fixed blue accent and a boxed data table. It is not dark-and-nerdy, cute or corporate; confidence comes from exact, quiet typesetting, not decoration.",
     "keyCharacteristics": [
       "One typeface (Schibsted Grotesk), heavy and tight for titles, regular for credits.",
       "Rules, not boxes: 1.5px ink rule over every list, 1px hairlines between entries.",
