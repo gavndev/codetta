@@ -386,3 +386,16 @@ def test_dashboard_icons_load_without_sign_in(client, name):
     """Dashboards (Homepage, Homarr...) fetch the icon without a session."""
     client.cookies.clear()
     assert client.get(f"/static/icons/{name}").status_code == 200
+
+
+def test_every_static_folder_ships_in_the_package():
+    """Each folder under web/static must be listed in pyproject's package-data,
+    or the Docker image silently leaves it out (0.4.0's dashboard icons)."""
+    import tomllib
+    from pathlib import Path
+
+    root = Path(__file__).parent.parent
+    patterns = tomllib.loads((root / "pyproject.toml").read_text())["tool"]["setuptools"]["package-data"]["codetta"]
+    static = root / "src" / "codetta" / "web" / "static"
+    for folder in (p for p in static.iterdir() if p.is_dir()):
+        assert f"web/static/{folder.name}/*" in patterns, folder.name

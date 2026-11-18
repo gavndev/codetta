@@ -2,6 +2,10 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.4.1 (2026-11-18)
+
+- The dashboard icons (`/static/icons/`) are now included in the Docker image (0.4.0 left them out).
+
 ## 0.4.0 (2026-11-18)
 
 - **Offline unless you opt in.** Online features are now *connections*, all off until you choose. After creating your account (or on first start after upgrading) a welcome card asks: stay offline, or turn on online features, with a switch for each one saying exactly what it sends and where. Change them any time in **Account → Connections**. `CODETTA_MUSICBRAINZ`, `CODETTA_LYRICS_LOOKUP` and `CODETTA_UPDATE_CHECK` (`on`/`off`) lock a switch from your compose file; `CODETTA_OFFLINE=on` blocks them all.

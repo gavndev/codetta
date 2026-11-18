@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "codetta"
-version = "0.4.0"
+version = "0.4.1"
 description = "Self-hosted music metadata editor for homelab audio libraries"
 license = "AGPL-3.0-or-later"
 license-files = ["LICENSE"]
@@ -25,7 +25,7 @@ dev = [
 where = ["src"]
 
 [tool.setuptools.package-data]
-codetta = ["web/static/*", "web/static/fonts/*"]
+codetta = ["web/static/*", "web/static/fonts/*", "web/static/icons/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
