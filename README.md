@@ -194,7 +194,7 @@ light and dark themes. [See every feature →](docs/features.md)
 
 ✅ yes · ➖ partly or with extra setup · ❌ no
 
-**Codetta takes your music from scattered files to a well-organized library in one place.** It covers the whole trip (find, import, match, fix, and file) right from your browser, and you can see and approve each step along the way. No terminal or desktop install is needed, and nothing changes without you seeing it first.
+**Codetta takes your music from scattered files to a well-organized library in one place.** It covers the whole trip (import, match, fix, and file) right from your browser, and you can see and approve each step along the way. No terminal or desktop install is needed, and nothing changes without you seeing it first.
 
 <sub>Compared in November 2026 from each project's documentation. Spotted something out of date? Please [open an issue](https://github.com/gavndev/codetta/issues).</sub>
 
