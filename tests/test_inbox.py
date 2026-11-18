@@ -293,5 +293,5 @@ def test_albums_still_downloading_wait(tmp_path, music):
 def test_inbox_path_cannot_escape(make_client):
     c = make_client()
     assert c.put("/api/inbox/settings", json={"folder": "@inbox/../../etc"}).status_code == 400
-    assert c.put("/api/inbox/settings", json={"folder": "@nowhere"}).status_code == 400
+    assert c.put("/api/inbox/settings", json={"folder": "@nowhere"}).status_code in (400, 422)
     assert c.get("/api/track", params={"path": "@inbox/../../../etc/passwd"}).status_code == 400

@@ -78,6 +78,10 @@ def safe_name(text: str, limit: int = MAX_COMPONENT_BYTES) -> str:
     text = text.strip().rstrip(".").strip()  # Windows drops trailing dots and spaces
     if text.startswith("."):
         text = "_" + text[1:]  # never a hidden file
+    if text.startswith("@"):
+        # "@inbox" / "@replaced" are Codetta's own folder shortcuts: a tag (say, from a
+        # downloaded file) must never steer files there. A full-width ＠ looks the same.
+        text = "\uff20" + text[1:]
     raw = text.encode("utf-8")
     if len(raw) > limit:
         text = raw[:limit].decode("utf-8", "ignore").rstrip(" .")

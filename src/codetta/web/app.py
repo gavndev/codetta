@@ -84,6 +84,8 @@ from codetta.core.inbox import (
     WAITING,
     InboxStore,
 )
+from codetta.core.inbox import signature as inbox_signature
+from codetta.core.library import INBOX as INBOX_ALIAS
 from codetta.core.library import Library, LibraryPathError, TooManyFilesError, audio_files, count_contents
 from codetta.core.organize import (
     DEFAULT_PATTERN,
@@ -1698,6 +1700,8 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     def put_inbox_settings(body: InboxSettingsIn) -> dict:
         require_library()
         folder = body.folder.strip().strip("/")
+        if folder.startswith("@") and folder != INBOX_ALIAS and not folder.startswith(INBOX_ALIAS + "/"):
+            raise HTTPException(422, "The inbox can be your downloads folder or a folder in your music folder.")
         if not folder:
             raise HTTPException(422, "Choose your downloads folder, or a folder inside your music folder (not the whole library).")
         if not library.resolve(folder).is_dir():
@@ -1774,10 +1778,16 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             return None
         best = None
         for g in inbox.sync(library):
-            if g.status == FILED:
-                continue
+            if g.status == FILED or (g.source and g.source != job.id):
+                continue  # filed already, or another request's download
             hit = len(names & {p.rsplit("/", 1)[-1] for p in g.paths})
-            if hit >= max(1, int(len(names) * 0.8)) and (best is None or hit > best[0]):
+            # Most of what was asked for, and most of what's there (an older album that happens
+            # to share names like "01.flac" must never be taken for it: blocklisting deletes it).
+            if hit < max(1, int(len(names) * 0.8)) or hit < int(len(g.paths) * 0.8):
+                continue
+            if inbox_signature(library, g.paths)[1] < job.created - 60:
+                continue  # these files were there before the request
+            if best is None or hit > best[0]:
                 best = (hit, g.key)
         if best is None:
             return None

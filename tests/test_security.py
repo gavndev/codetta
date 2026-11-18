@@ -451,3 +451,73 @@ def test_organize_tags_cannot_move_files_out_of_the_library(client, music, tmp_p
     assert res["moved"] == 1
     dst = (music / res["results"][0]["dst"]).resolve()
     assert dst.is_file() and dst.is_relative_to(music.resolve())
+
+
+# --- Downloaded files (Soulseek) are untrusted: their tags can't steer files --------------
+
+
+@pytest.mark.parametrize("artist", ["@replaced", "@inbox", "@inbox/../..", ".."])
+def test_tags_cant_send_organize_into_codettas_own_folders(client, music, tmp_path, artist):
+    from codetta.core.engine import MetadataEngine
+    MetadataEngine().update_tags(music / "song.flac", {"albumartist": artist, "album": "X", "title": "t"})
+    moves = client.post("/api/organize/preview", json={"paths": ["song.flac"]}).json()["moves"]
+    dst = moves[0]["dst"]
+    assert not dst.startswith("@") and ".." not in dst.split("/"), dst
+    assert client.post("/api/organize/apply", json={"paths": ["song.flac"]}).json()["failed"] == 0
+    assert not (tmp_path / "config" / "replaced").exists()
+    assert (music / dst).is_file()
+
+
+def test_inbox_cant_be_pointed_at_replaced_albums(client, tmp_path):
+    (tmp_path / "config" / "replaced").mkdir(parents=True)
+    r = client.put("/api/inbox/settings", json={"folder": "@replaced"})
+    assert r.status_code == 422
+
+
+def test_inbox_scan_has_a_limit(tmp_path, monkeypatch):
+    from codetta.core import inbox
+    from codetta.core.library import Library
+    root = tmp_path / "m"
+    for i in range(30):
+        (root / "in" / f"empty{i:02}").mkdir(parents=True)
+    (root / "in" / "zz" ).mkdir()
+    (root / "in" / "zz" / "a.flac").write_bytes(b"x")
+    monkeypatch.setattr(inbox, "MAX_SCAN_FOLDERS", 10)
+    assert inbox.find_groups(Library(root), "in") == []  # stopped before reaching it
+    monkeypatch.setattr(inbox, "MAX_SCAN_FOLDERS", 5000)
+    assert inbox.find_groups(Library(root), "in") == [("in/zz", ["in/zz/a.flac"])]
+
+
+def test_soulseek_download_never_claims_an_older_album_with_the_same_file_names(music, tmp_path):
+    """Blocklisting deletes the download from the inbox, so it must be the right folder."""
+    import time
+    from tests.test_inbox import ALBUM_DIR  # noqa: F401
+    from tests.test_musicbrainz import FakeMB
+    from tests.test_soulseek_api import DownloadingSlskd, wait_for
+    src = tmp_path / "src"
+    src.mkdir()
+    for n in ("01.flac", "02.flac"):
+        shutil.copy2(FIXTURES_DIR / "sample.flac", src / n)
+    downloads = tmp_path / "downloads"
+    old = downloads / "My Own Rip"  # already in the inbox: shares "01.flac", "02.flac", but has more
+    old.mkdir(parents=True)
+    for n in ("01.flac", "02.flac", "03.flac", "04.flac", "05.flac"):
+        shutil.copy2(FIXTURES_DIR / "sample.flac", old / n)
+    fake = DownloadingSlskd(src, downloads)
+    fake.dl = tmp_path / "elsewhere"  # slskd "downloads" somewhere Codetta doesn't see
+    fake.dl.mkdir()
+    app = create_app(Settings(music_dir=music, config_dir=tmp_path / "config", inbox_dir=downloads,
+                              inbox_settle_seconds=0, slskd_poll_seconds=0.02),
+                     fetch_mb=FakeMB(), fetch_art=lambda url: None, slskd_request=fake)
+    with TestClient(app) as c:
+        c.post("/api/auth/setup", json={"username": "listener", "password": "correct horse 1"})
+        c.put("/api/connections", json={"enabled": {"slskd": True}})
+        c.put("/api/slskd/settings", json={"url": "slskd:5030", "api_key": "secret"})
+        c.put("/api/inbox/settings", json={"folder": "@inbox"})
+        job = c.post("/api/slskd/search", json={"query": "Coda Tester Fixture Album"}).json()["job"]
+        job = wait_for(c, job["id"], lambda j: j["status"] == "fetched")
+        time.sleep(0.3)
+        job = wait_for(c, job["id"], lambda j: True)
+        assert job["status"] == "fetched" and job["inbox"] is None  # still waiting: not "My Own Rip"
+        assert c.post(f"/api/slskd/jobs/{job['id']}/next", json={"block": True}).status_code == 200
+        assert all((old / f"0{i}.flac").exists() for i in range(1, 6))

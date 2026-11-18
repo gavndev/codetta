@@ -40,6 +40,7 @@ ERROR = "error"
 
 DISC_FOLDER = re.compile(r"^(cd|disc|disk)[\s_.-]*\d+\b", re.IGNORECASE)
 MAX_GROUPS = 500
+MAX_SCAN_FOLDERS = 5000  # one look at the inbox never walks more folders than this (e.g. a symlink to "/")
 SETTLE_SECONDS = 120  # an album is looked up once its files have been still this long
 
 
@@ -76,7 +77,7 @@ def find_groups(library: Library, inbox: str, limit: int = MAX_GROUPS) -> list[t
     groups: dict[str, list[str]] = {}
     pending = [inbox]
     seen = 0
-    while pending and len(groups) <= limit:
+    while pending and len(groups) <= limit and seen < MAX_SCAN_FOLDERS:
         listing = library.list_folder(pending.pop(0))
         seen += 1
         if listing.files and listing.path == inbox:
