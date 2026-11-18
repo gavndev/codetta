@@ -15,7 +15,7 @@ from codetta.web.app import Settings, create_app
 from tests.conftest import FIXTURES_DIR
 
 # Routes anyone may call without signing in.
-PUBLIC = {("GET", "/"), ("GET", "/api/health"), ("GET", "/api/auth/status"),
+PUBLIC = {("GET", "/"), ("GET", "/api/health"), ("GET", "/api/changelog"), ("GET", "/api/auth/status"),
           ("POST", "/api/auth/setup"), ("POST", "/api/auth/login"), ("POST", "/api/auth/logout"),
           ("POST", "/api/auth/password")}  # checks the session itself (tested below)
 

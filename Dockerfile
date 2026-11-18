@@ -73,6 +73,7 @@ RUN apk add --no-cache setpriv \
 COPY --from=build /opt/venv /opt/venv
 COPY --from=build /usr/local/bin/fpcalc /usr/local/bin/fpcalc
 COPY docker/entrypoint.sh /usr/local/bin/codetta-entrypoint
+COPY CHANGELOG.md /opt/codetta/CHANGELOG.md
 COPY docker/codetta-admin.sh /usr/local/bin/codetta-admin
 RUN chmod 755 /usr/local/bin/codetta-entrypoint /usr/local/bin/codetta-admin \
     && mkdir -p /music /config

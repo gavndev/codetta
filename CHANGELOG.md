@@ -4,9 +4,15 @@ All notable changes to Codetta. Versions follow [Semantic Versioning](https://se
 
 ## Unreleased (0.5.0)
 
+- **Import inbox** (Level Up #2): pick the folder new music lands in (downloads, rips). Codetta groups it into albums (disc folders join their album; loose tracks are one item each), finds each on MusicBrainz (by tags, then by sound if AcoustID is on), and files it into your library: MusicBrainz tags + your Organize pattern, each an undoable activity entry. Confident matches show "Ready to file" (or file themselves if you allow it); the rest wait for a review in the familiar match dialog. Albums already in your library are never overwritten. Inbox button in the top bar with a count; optional check every 15 minutes (off by default so idle disks can sleep).
+- **Easier setup:** after creating your account, a few short steps: online features, how your folders should be named, and where new music arrives. Each is skippable and changeable later. Existing installs see only the new steps, once.
+- **What's new:** this changelog in the app. It pops up once after setup and after each update, and there's a "What's new" link in the footer, in Account, and on the sign-in screen.
+- **Now playing:** a pill grows out of a circle at the bottom of the screen while a track plays: cover (turning like a record), title, artist, time, play/pause, stop, and a thin line you can drag to seek. Music keeps playing while you browse; tap the title to jump back to its album.
+- **Fixed:** an album's genre chip only showed the first genre when genres were separated with ";". It now lists every genre, separated by commas, however the file separates them (";", ",", "|" or separate values).
+
 - **Organize** (Level Up #1): rename and move files into folders from their tags with a pattern like `{albumartist|artist}/{album}[ ({year})]/{disctrack} {title}`. Presets, one-tap tag buttons and a live example; a preview of every move before anything happens. Names are made safe for any filesystem or network share, nothing is ever overwritten (conflicts are listed instead), lyrics files and the album's cover, booklet and scans move along, and emptied folders are tidied away. One undoable entry in the activity log. Files without artist/album tags are flagged before they'd land in "Unknown Artist".
 
-- **Play a track** from the list: a play button at the end of every row (it grows to "Play" when you point at it). Plays the file straight from your server, with seeking and lock-screen/headphone controls, and a thin progress line under the row. Nothing is converted or cached; formats your browser can't play (WMA, DSF, WavPack…) get no button. Playback stops when you open another folder.
+- **Play a track** from the list: a play button at the end of every row (it grows to "Play" when you point at it). Plays the file straight from your server, with seeking and lock-screen/headphone controls. Nothing is converted or cached; formats your browser can't play (WMA, DSF, WavPack…) get no button.
 - **Multi-disc albums** read like a streaming service: a "Disc 2" line (with the disc subtitle) between discs, tracks grouped by disc, and pointing at a row shows "2/01". The disc icon spins when you point at it, and slowly while that disc is playing.
 
 ## 0.4.1 (2026-11-18)

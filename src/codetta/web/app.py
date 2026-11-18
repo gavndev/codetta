@@ -65,6 +65,20 @@ from codetta.core.auth import (
 )
 from codetta.core.engine import MetadataEngine, MetadataError, TrackMetadata
 from codetta.core.index import LibraryIndex, parse_query
+from codetta.core import changelog
+from codetta.core.onboarding import OnboardingStore
+from codetta.core.inbox import (
+    ERROR as INBOX_ERROR,
+    FILED,
+    LOCAL,
+    MATCHING,
+    NO_MATCH,
+    READY,
+    REVIEW,
+    SKIPPED,
+    WAITING,
+    InboxStore,
+)
 from codetta.core.library import Library, LibraryPathError, TooManyFilesError, audio_files, count_contents
 from codetta.core.organize import (
     DEFAULT_PATTERN,
@@ -333,6 +347,19 @@ class OrganizeIn(BaseModel):
     pattern: str | None = Field(default=None, max_length=400)  # None: the saved pattern
 
 
+class InboxSettingsIn(BaseModel):
+    folder: str = Field(max_length=1000)
+    auto: bool = False
+    organize: bool = True
+    watch: bool = False
+
+
+class InboxActionIn(BaseModel):
+    key: str = Field(max_length=2000)
+    release: str | None = Field(default=None, max_length=500)  # file with this release instead of the found one
+    recordings: dict[str, list[str]] = Field(default={}, max_length=MAX_PATHS_PER_REQUEST)
+
+
 class PatternIn(BaseModel):
     pattern: str = Field(max_length=400)
 
@@ -424,7 +451,10 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         except OSError:
             pass
         lib_index.start()  # builds/refreshes the search index in the background
+        watcher = threading.Thread(target=app.state.inbox_watch, name="codetta-inbox-watch", daemon=True)
+        watcher.start()  # sleeps; only looks at the inbox if "check every 15 minutes" is on
         yield
+        inbox_wake.set()
         lib_index.stop()
 
     app = FastAPI(
@@ -449,7 +479,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
 
     # Everything needs a signed-in session except the page shell, its static
     # files, the sign-in endpoints themselves, and the health check.
-    PUBLIC_PATHS = {"/", "/api/health"}
+    PUBLIC_PATHS = {"/", "/api/health", "/api/changelog"}  # the changelog is the public CHANGELOG.md
     PUBLIC_PREFIXES = ("/static/", "/api/auth/")
 
     @app.middleware("http")
@@ -480,6 +510,11 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             raise HTTPException(
                 429, f"Too many attempts. Try again in {wait} seconds.", headers={"Retry-After": str(wait)}
             )
+
+    @app.get("/api/changelog")
+    def get_changelog() -> dict:
+        """What's new in each version (also shown on the sign-in screen)."""
+        return {"current": VERSION, "versions": changelog.load()}
 
     @app.get("/api/health", include_in_schema=False)
     def health() -> dict:
@@ -1316,7 +1351,215 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         return {
             "moved": len(ok), "failed": len(failed), "extras": len(moved) - len(ok),
             "results": [{"src": r.src, "dst": r.dst, "ok": r.ok, "error": r.error} for r in results],
+            # Not attempted: the name is taken (maybe a duplicate) or the file couldn't be read.
+            "held": [{"src": m.src, "dst": m.dst, "reason": m.reason} for m in moves if m.status in ("conflict", "error")],
         }
+
+    # --- First-run setup -----------------------------------------------------------------
+
+    onboarding = OnboardingStore(settings.config_dir / "onboarding.json")
+
+    @app.get("/api/onboarding")
+    def get_onboarding() -> dict:
+        """Setup steps still to show (new installs: all; after an update: only new ones)."""
+        steps = []
+        if connections.needs_choice:
+            steps.append("connections")
+        steps += [s for s in ("organize", "inbox") if s not in onboarding.done]
+        return {"steps": steps}
+
+    @app.post("/api/onboarding/{step}")
+    def finish_onboarding_step(step: str) -> dict:
+        if step == "connections":
+            return get_onboarding()  # finished by saving the connections
+        try:
+            onboarding.mark(step)
+        except ValueError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        except OSError as exc:
+            raise HTTPException(500, f"Could not save to the config folder: {exc}") from exc
+        return get_onboarding()
+
+    # --- Import inbox ------------------------------------------------------------------
+
+    inbox = InboxStore(settings.config_dir / "inbox.json")
+    inbox_worker: dict = {"thread": None}
+    inbox_wake = threading.Event()
+
+    def inbox_tags(paths: list[str]) -> tuple[str, str]:
+        infos, _, _ = mb_read(paths[:50])
+        return (most_common(f.album for f in infos),
+                most_common(f.albumartist or f.artist for f in infos))
+
+    def inbox_match(key: str) -> None:
+        g = inbox.update(key, status=MATCHING, note="")
+        if g is None:
+            return
+        title, artist = inbox_tags(g.paths)
+        if not connections.enabled("musicbrainz"):
+            inbox.update(key, status=LOCAL, title=title, artist=artist,
+                         note="Online lookups are off, so this files by its own tags.")
+            return
+        try:
+            found = mb_search(MBSearchIn(paths=g.paths)) if (title or artist) else {"candidates": []}
+            cands, recordings = found["candidates"], {}
+            sound = connections.enabled("acoustid") and fingerprinter.available and len(g.paths) <= MAX_IDENTIFY
+            if sound and (not cands or cands[0]["score"] < 85):
+                heard = mb_identify(MBTarget(paths=g.paths))
+                if heard["candidates"] and (not cands or heard["candidates"][0]["score"] >= cands[0]["score"]):
+                    cands, recordings = heard["candidates"], heard["recordings"]
+            if not cands:
+                inbox.update(key, status=NO_MATCH, title=title, artist=artist,
+                             note="Not found on MusicBrainz. Review it to search by hand, or file it by its own tags.")
+                return
+            best = cands[0]
+            proposal = mb_preview(MBProposalIn(paths=g.paths, release=best["id"], recordings=recordings))
+            files = [f for f in proposal["files"] if not f["error"]]
+            exact = (all(f["track"] and f["confidence"] == "high" for f in files)
+                     and best.get("track_count") == len(files) and best["score"] >= 85)
+            inbox.update(key, status=READY if exact else REVIEW, title=best["title"], artist=best["artist"],
+                         release=best, score=best["score"], recordings=recordings,
+                         note="" if exact else "Check the match: not every track lines up for certain.")
+            if exact and inbox.settings.auto:
+                inbox_file(key)
+        except HTTPException as exc:
+            inbox.update(key, status=INBOX_ERROR, title=title, artist=artist, note=str(exc.detail))
+
+    def inbox_file(key: str, release: str | None = None, recordings: dict | None = None) -> dict:
+        g = inbox.groups.get(key)
+        if g is None:
+            raise HTTPException(404, "That album is no longer in the inbox")
+        release = release or (g.release or {}).get("id")
+        notes, moved_to = [], None
+        if release:
+            res = mb_apply(MBProposalIn(paths=g.paths, release=release, recordings=recordings or g.recordings))
+            if res["failed"]:
+                notes.append(f"{res['failed']} track(s) couldn't be tagged")
+        if inbox.settings.organize:
+            org = organize_apply(OrganizeIn(paths=g.paths))
+            ok = [r for r in org["results"] if r["ok"]]
+            if ok:
+                moved_to = ok[0]["dst"].rsplit("/", 1)[0]
+            stuck = org["failed"] + len(org["held"])
+            if stuck:
+                notes.append(f"{stuck} file(s) couldn't move: a file with that name is already in your library (a duplicate?)")
+        status = FILED if not notes else INBOX_ERROR
+        inbox.update(key, status=status, dest=moved_to or "",
+                     note="; ".join(notes) or (f"Filed in {moved_to}" if moved_to else "Tagged"),
+                     release=g.release if not release or (g.release or {}).get("id") == release else {"id": release})
+        return {"status": status, "moved_to": moved_to, "note": "; ".join(notes)}
+
+    def inbox_run() -> None:
+        while True:
+            with inbox.lock:
+                nxt = next((g.key for g in inbox.groups.values() if g.status == WAITING), None)
+            if nxt is None:
+                return
+            try:
+                inbox_match(nxt)
+            except Exception as exc:  # never let one album stop the queue
+                log.warning("Inbox: couldn't look up %s: %s", nxt, exc)
+                inbox.update(nxt, status=INBOX_ERROR, note="Something went wrong looking this up")
+
+    def inbox_start() -> None:
+        t = inbox_worker["thread"]
+        if t is None or not t.is_alive():
+            inbox_worker["thread"] = threading.Thread(target=inbox_run, name="codetta-inbox", daemon=True)
+            inbox_worker["thread"].start()
+
+    def inbox_watch() -> None:
+        while not inbox_wake.wait(15 * 60):
+            if inbox.settings.watch and inbox.settings.folder and library.exists():
+                try:
+                    inbox.sync(library)
+                    inbox_start()
+                except (OSError, LibraryPathError) as exc:
+                    log.warning("Inbox check failed: %s", exc)
+
+    app.state.inbox_watch = inbox_watch  # started in lifespan
+
+    def inbox_out() -> dict:
+        with inbox.lock:
+            groups = sorted(inbox.groups.values(), key=lambda g: (g.status == FILED, -g.updated if g.status == FILED else 0, g.key))
+            counts = {}
+            for g in groups:
+                counts[g.status] = counts.get(g.status, 0) + 1
+            folder = inbox.settings.folder
+            running = bool(inbox_worker["thread"] and inbox_worker["thread"].is_alive())
+            return {
+                "settings": {"folder": folder, "auto": inbox.settings.auto, "organize": inbox.settings.organize,
+                             "watch": inbox.settings.watch},
+                "folder_exists": bool(folder) and library.resolve(folder).is_dir(),
+                "online": connections.enabled("musicbrainz"),
+                "running": running, "counts": counts,
+                "groups": [{"key": g.key, "files": len(g.paths), "paths": g.paths[:1000], "status": g.status,
+                            "title": g.title, "artist": g.artist, "release": g.release, "score": g.score,
+                            "recordings": g.recordings, "note": g.note, "dest": g.dest} for g in groups],
+            }
+
+    @app.get("/api/inbox")
+    def get_inbox() -> dict:
+        """The inbox: re-read its folder and look up anything new (in the background)."""
+        require_library()
+        if inbox.settings.folder:
+            try:
+                inbox.sync(library)
+            except (OSError, LibraryPathError) as exc:
+                raise HTTPException(500, f"Couldn't read the inbox folder: {exc}") from exc
+            inbox_start()
+        return inbox_out()
+
+    @app.put("/api/inbox/settings")
+    def put_inbox_settings(body: InboxSettingsIn) -> dict:
+        require_library()
+        folder = body.folder.strip().strip("/")
+        if not folder:
+            raise HTTPException(422, "Choose a folder inside your music folder (not the whole library).")
+        if not library.resolve(folder).is_dir():
+            raise HTTPException(422, f"There's no folder called “{folder}” in your music folder.")
+        with inbox.lock:
+            if folder != inbox.settings.folder:
+                inbox.groups.clear()
+            inbox.settings.folder, inbox.settings.auto = folder, body.auto
+            inbox.settings.organize, inbox.settings.watch = body.organize, body.watch
+            try:
+                inbox.save()
+            except OSError as exc:
+                raise HTTPException(500, f"Could not save to the config folder: {exc}") from exc
+        return get_inbox()
+
+    @app.post("/api/inbox/accept")
+    def inbox_file_route(body: InboxActionIn) -> dict:
+        """File one album: write its MusicBrainz tags (if matched) and organize it into the library."""
+        require_library()
+        release = None
+        if body.release:
+            release = parse_release_id(body.release)
+            if not release:
+                raise HTTPException(422, "That isn't a MusicBrainz release.")
+        result = inbox_file(body.key, release, body.recordings or None)
+        return {**result, "inbox": inbox_out()}
+
+    @app.post("/api/inbox/accept-ready")
+    def inbox_file_ready() -> dict:
+        """File every confident match in one go."""
+        require_library()
+        keys = [g.key for g in list(inbox.groups.values()) if g.status == READY]
+        filed = sum(inbox_file(k)["status"] == FILED for k in keys)
+        return {"filed": filed, "total": len(keys), "inbox": inbox_out()}
+
+    @app.post("/api/inbox/skip")
+    def inbox_skip(body: InboxActionIn) -> dict:
+        if inbox.update(body.key, status=SKIPPED, note="Skipped: left where it is") is None:
+            raise HTTPException(404, "That album is no longer in the inbox")
+        return inbox_out()
+
+    @app.post("/api/inbox/rematch")
+    def inbox_rematch(body: InboxActionIn) -> dict:
+        if inbox.update(body.key, status=WAITING, note="", release=None, score=None) is None:
+            raise HTTPException(404, "That album is no longer in the inbox")
+        inbox_start()
+        return inbox_out()
 
     @app.post("/api/activity/{entry_id}/undo")
     def undo(entry_id: int) -> dict:

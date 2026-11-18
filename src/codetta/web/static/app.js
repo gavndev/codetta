@@ -223,7 +223,7 @@ const runtime = (tracks) => {
   return secs >= 60 ? `, ${Math.round(secs / 60)} min` : "";
 };
 const trackNo = (v) => { const n = (v || "").split("/")[0].trim(); return /^\d$/.test(n) ? `0${n}` : n; };
-const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+const plural = (n, word, many = `${word}s`) => `${n} ${n === 1 ? word : many}`;
 const baseName = (path) => path.split("/").pop();
 
 function relativeToFolder(path) {
@@ -466,7 +466,6 @@ function prefetchFolder(path) {
 async function loadFolder(path, { keepScroll = false } = {}) {
   const token = ++state.loadToken;
   const navigating = !state.folder || path !== state.path;
-  if (navigating && player.path) stopPlayer(); // a quick listen belongs to the folder it started in
   if (state.folder && navigating) scrollMemory.set(state.path, els.browser.scrollTop);
 
   const cached = navigating ? folderCache.get(path) : null;
@@ -695,6 +694,20 @@ function renderFolderHead() {
     const values = new Set(f.tracks.filter((t) => !t.error).map((t) => first(t, key).trim()).filter(Boolean));
     return values.size === 1 ? [...values][0] : "";
   };
+  // Every genre the album shares, however the file separates them (separate values,
+  // ";", "," or "|"), shown in one chip as "Trap, Hip-Hop, New Jazz".
+  const genres = (() => {
+    const listOf = (t) => {
+      const seen = new Map();
+      for (const g of (t.tags.genre || []).flatMap((v) => v.split(/[;,|]/))) {
+        const name = g.trim();
+        if (name && !seen.has(name.toLowerCase())) seen.set(name.toLowerCase(), name);
+      }
+      return [...seen.values()].join(", ");
+    };
+    const set = new Set(f.tracks.filter((t) => !t.error).map(listOf).filter(Boolean));
+    return set.size === 1 ? [...set][0] : "";
+  })();
   const canMatch = f.tracks.length && state.status?.musicbrainz;
   const heading = coverTrack
     // A folder of tracks with a cover reads as the album's booklet spread.
@@ -706,8 +719,8 @@ function renderFolderHead() {
           [common("albumartist") || common("artist"), common("date").slice(0, 4)].filter(Boolean).flatMap((v, i) => [i ? " · " : "", h("b", { dir: "auto" }, v)]),
           counts.length ? [common("albumartist") || common("artist") || common("date") ? " · " : "",
             h("span", { class: "nowrap" }, `${counts.join(" · ")}${runtime(f.tracks)}`)] : "", skippedNote),
-        common("genre") || canMatch ? h("div", { class: "album-chips" },
-          common("genre") ? h("span", { class: "spot-chip", dir: "auto" }, common("genre")) : null,
+        genres || canMatch ? h("div", { class: "album-chips" },
+          genres ? h("span", { class: "spot-chip", dir: "auto" }, genres) : null,
           canMatch ? mbFindButton("beside-genre") : null) : null))
     : h("div", {},
       h("h1", {}, f.path ? f.name : "Library"),
@@ -956,17 +969,16 @@ function canPlay(format) {
   return playable.get(format);
 }
 
-const player = { audio: null, path: null, folder: null };
+const player = { audio: null, path: null, folder: null, track: null, seeking: false };
 
 function playerAudio() {
   if (player.audio) return player.audio;
   const a = new Audio();
   a.preload = "none";
   for (const ev of ["play", "pause", "ended", "emptied"]) a.addEventListener(ev, syncPlayer);
-  a.addEventListener("timeupdate", () => {
-    const row = state.rows.get(player.path)?.row;
-    if (row && a.duration) row.style.setProperty("--progress", `${(a.currentTime / a.duration) * 100}%`);
-  });
+  a.addEventListener("timeupdate", npProgress);
+  a.addEventListener("loadedmetadata", npProgress);
+  a.addEventListener("ended", stopPlayer);
   a.addEventListener("error", () => {
     if (!player.path) return;
     toast("This browser can't play that file.", "error");
@@ -984,12 +996,16 @@ async function togglePlay(t) {
   }
   player.path = t.path;
   player.folder = state.path;
+  player.track = t;
   a.src = `/api/stream?path=${encodeURIComponent(t.path)}`;
   if ("mediaSession" in navigator) { // lock screen / headphone controls
     navigator.mediaSession.metadata = new MediaMetadata({
       title: first(t, "title") || t.name, artist: (t.tags.artist || []).join(", "), album: first(t, "album"),
       artwork: t.art ? [{ src: artUrlFor(t), sizes: "512x512" }] : [],
     });
+    navigator.mediaSession.setActionHandler("play", () => a.play());
+    navigator.mediaSession.setActionHandler("pause", () => a.pause());
+    navigator.mediaSession.setActionHandler("seekto", (d) => { if (d.seekTime != null) a.currentTime = d.seekTime; });
   }
   try {
     await a.play();
@@ -1005,6 +1021,7 @@ function stopPlayer() {
   player.audio.removeAttribute("src");
   player.audio.load();
   player.path = null;
+  player.track = null;
   syncPlayer();
 }
 
@@ -1016,8 +1033,7 @@ function syncPlayer() {
     const current = path === player.path;
     row.classList.toggle("is-current", current);
     row.classList.toggle("playing", current && !!playing);
-    if (!current) row.style.removeProperty("--progress");
-    else disc = discInfo()?.discOf(track) ?? null;
+    if (current) disc = discInfo()?.discOf(track) ?? null;
     const btn = $(".play-btn", row);
     if (!btn) continue;
     const on = current && playing;
@@ -1025,8 +1041,74 @@ function syncPlayer() {
     btn.setAttribute("aria-label", `${on ? "Pause" : "Play"} ${first(track, "title") || track.name}`);
   }
   for (const head of els.tracks.querySelectorAll(".disc-head")) {
-    head.classList.toggle("spinning", !!playing && head.dataset.disc === String(disc));
+    head.classList.toggle("spinning", !!playing && head.dataset.disc === String(disc) && player.folder === state.path);
   }
+  npRender(!!playing);
+}
+
+// ---- Now playing: a pill that grows out of a circle at the bottom centre ----------------------------
+
+const np = { built: false, els: {} };
+
+function npBuild() {
+  if (np.built) return;
+  const box = $("#now-playing");
+  const e = np.els;
+  e.art = h("span", { class: "np-art", "aria-hidden": "true" });
+  e.title = h("span", { class: "np-title", dir: "auto" });
+  e.artist = h("span", { class: "np-artist", dir: "auto" });
+  e.info = h("button", { class: "np-info", type: "button", title: "Go to this album",
+    onclick: () => { if (player.folder != null) navigate(player.folder); } }, e.title, e.artist);
+  e.time = h("span", { class: "np-time" });
+  e.play = h("button", { class: "np-play", type: "button", onclick: () => player.track && togglePlay(player.track) });
+  e.close = h("button", { class: "np-close", type: "button", "aria-label": "Stop", title: "Stop", onclick: stopPlayer }, icon("close"));
+  e.seek = h("input", { class: "np-seek", type: "range", min: "0", max: "1000", value: "0", step: "1", "aria-label": "Position in the track" });
+  e.seek.addEventListener("input", () => {
+    player.seeking = true;
+    const a = player.audio;
+    if (a?.duration) e.time.textContent = `${fmtDuration((e.seek.value / 1000) * a.duration)} / ${fmtDuration(a.duration)}`;
+  });
+  e.seek.addEventListener("change", () => {
+    const a = player.audio;
+    if (a?.duration) a.currentTime = (e.seek.value / 1000) * a.duration;
+    player.seeking = false;
+  });
+  box.replaceChildren(h("div", { class: "np-inner" }, e.art, e.info, e.time, e.play, e.close), e.seek);
+  box.setAttribute("role", "region");
+  box.setAttribute("aria-label", "Now playing");
+  np.built = true;
+}
+
+function npRender(playing) {
+  const box = $("#now-playing");
+  const t = player.track;
+  if (!t) {
+    if (!box.hidden && !box.classList.contains("np-leave")) playOut(box, "np-leave", () => { box.hidden = true; });
+    return;
+  }
+  npBuild();
+  const e = np.els;
+  e.title.textContent = first(t, "title") || t.name;
+  e.artist.textContent = (t.tags.artist || []).join(", ") || first(t, "album");
+  setKids(e.art, t.art ? h("img", { src: artUrlFor(t), alt: "" }) : icon("note"));
+  setKids(e.play, icon(playing ? "pause" : "play"));
+  e.play.setAttribute("aria-label", playing ? "Pause" : "Play");
+  box.classList.toggle("is-playing", playing);
+  if (box.hidden) {
+    box.classList.remove("np-leave");
+    box.hidden = false;
+    replay(box, "np-enter");
+  }
+  npProgress();
+}
+
+function npProgress() {
+  const a = player.audio;
+  if (!np.built || !a || player.seeking) return;
+  const d = a.duration;
+  np.els.seek.value = d ? String(Math.round((a.currentTime / d) * 1000)) : "0";
+  np.els.seek.style.setProperty("--pos", d ? `${(a.currentTime / d) * 100}%` : "0%");
+  np.els.time.textContent = d ? `${fmtDuration(a.currentTime)} / ${fmtDuration(d)}` : "";
 }
 
 function openTrack(track) {
@@ -2429,12 +2511,12 @@ async function submitWelcome(e) {
   go.disabled = true;
   try {
     state.connections = await api("PUT", "/api/connections", { enabled });
-    $("#welcome").hidden = true;
     applyConnections();
     if (connectionOn("updates")) refreshUpdate();
     toast(state.connections.offline
       ? "Codetta will stay offline. You can change this in Account → Connections."
       : "Online features are on. Change them any time in Account → Connections.", "success");
+    nextSetupStep();
   } catch (err) {
     $("#welcome-error").textContent = err.message;
     $("#welcome-error").hidden = false;
@@ -2517,13 +2599,19 @@ function mbTarget() {
 
 async function openMusicBrainz() {
   if (!(await confirmDiscard())) return;
+  openMusicBrainzFor(mbTarget());
+}
+
+/** Open the match dialog for any set of files; ``release`` jumps straight to its review. */
+function openMusicBrainzFor(target, { release = null, recordings = {}, onWritten = null } = {}) {
   Object.assign(mb, {
-    target: mbTarget(), query: { album: "", artist: "", link: "" }, results: null, error: null,
+    target, query: { album: "", artist: "", link: "" }, results: null, error: null,
     release: null, proposal: null, pairs: {}, fields: null, mode: "overwrite", cover: "missing",
-    openGroups: new Set(), openFiles: new Set(), recordings: {}, sound: null,
+    openGroups: new Set(), openFiles: new Set(), recordings: recordings || {}, sound: null, onWritten,
   });
   openDialog($("#mb-dialog"));
-  mbSearch({});
+  if (release) mbPick(release);
+  else mbSearch({});
 }
 
 async function mbSearch(extra) {
@@ -2836,6 +2924,7 @@ async function mbApply() {
     if (failed.length) toast(`Tagged ${plural(res.updated, "track")}; ${failed.length} failed: ${failed[0].error}`, "error");
     else toast(`Tagged ${plural(res.updated, "track")} from MusicBrainz. Undo is in the activity log.`, "success");
     if (res.cover_error) toast(`Cover art wasn't added: ${res.cover_error}`, "error");
+    if (mb.onWritten) { const done = mb.onWritten; mb.onWritten = null; done(mb.release); }
     refreshActivity();
     folderCache.clear();
     await loadFolder(state.path, { keepScroll: true });
@@ -2843,6 +2932,306 @@ async function mbApply() {
     toast(err.message, "error");
     mbPreview(0);
   }
+}
+
+// ---- First-run setup: a few plain steps, each skippable ------------------------------------------------
+//
+// New installs see every step after creating the account; existing installs see
+// only the steps added since (once). Then "What's new".
+
+const setup = { steps: [], index: 0, total: 0 };
+
+async function runSetup() {
+  await loadConnections();
+  let steps = [];
+  try { steps = (await api("GET", "/api/onboarding")).steps; } catch { /* carry on */ }
+  setup.steps = steps;
+  setup.total = steps.length;
+  setup.index = 0;
+  nextSetupStep();
+}
+
+function nextSetupStep() {
+  const step = setup.steps[setup.index++];
+  if (!step) {
+    $("#welcome").hidden = true;
+    afterSetup();
+    return;
+  }
+  $("#welcome").hidden = false;
+  if (step === "connections") {
+    $("#setup-step").hidden = true;
+    $("#welcome-form").hidden = false;
+    showWelcome();
+  } else {
+    $("#welcome-form").hidden = true;
+    $("#setup-step").hidden = false;
+    renderSetupStep(step);
+  }
+}
+
+const stepCount = () => (setup.total > 1 ? h("p", { class: "setup-count" }, `Step ${setup.index} of ${setup.total}`) : null);
+const setupLogo = () => h("div", { class: "auth-logo", "aria-hidden": "true" },
+  h("span", { class: "wordmark" }, "codetta", h("span", { class: "spot-dot" })));
+
+async function finishStep(step) {
+  try { await api("POST", `/api/onboarding/${step}`); } catch { /* shown again next time: harmless */ }
+  nextSetupStep();
+}
+
+async function renderSetupStep(step) {
+  const form = $("#setup-step");
+  form.onsubmit = null;
+  if (step === "organize") {
+    let settings;
+    try { settings = await api("GET", "/api/organize/settings"); } catch { finishStep(step); return; }
+    const examples = await Promise.all(settings.presets.map((p) => api("POST", "/api/organize/example", { pattern: p.pattern }).catch(() => null)));
+    let chosen = settings.presets.some((p) => p.pattern === settings.pattern) ? settings.pattern : settings.presets[0].pattern;
+    setKids(form, setupLogo(), stepCount(),
+      h("h1", {}, "How should your folders be named?"),
+      h("p", { class: "auth-sub" }, "When you organize a folder, or file new music from your inbox, Codetta renames and moves the files using a pattern. Pick the one you like. You can change it any time, and nothing moves until you say so."),
+      h("fieldset", { class: "choices" }, settings.presets.map((p, i) => h("label", { class: "choice" },
+        h("input", { type: "radio", name: "setup-pattern", value: p.pattern, checked: p.pattern === chosen,
+          onchange: () => { chosen = p.pattern; } }),
+        h("span", { class: "choice-body" },
+          h("span", { class: "choice-title" }, p.name),
+          examples[i]?.ok ? h("code", { class: "choice-code", dir: "auto" }, examples[i].single) : null)))),
+      h("button", { class: "btn primary auth-submit", type: "submit" }, "Use this pattern"),
+      h("button", { class: "link-btn setup-skip", type: "button", onclick: () => finishStep(step) }, "Skip for now"));
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      try { await api("PUT", "/api/organize/settings", { pattern: chosen }); } catch (err) { toast(err.message, "error"); return; }
+      finishStep(step);
+    };
+  } else if (step === "inbox") {
+    let root = { folders: [] };
+    try { root = await api("GET", "/api/browse?path="); } catch { /* no library yet */ }
+    setKids(form, setupLogo(), stepCount(),
+      h("h1", {}, "Where does new music arrive?"),
+      h("p", { class: "auth-sub" }, "Pick the folder your downloads or rips land in. Codetta treats it as an inbox: it finds each new album, and files it into your library with your folder pattern. Nothing moves until you say so (unless you allow it below)."),
+      inboxSettingsFields({ folder: "", auto: false, watch: false }, root.folders),
+      h("button", { class: "btn primary auth-submit", type: "submit", id: "setup-inbox-go", disabled: true }, "Use this folder"),
+      h("button", { class: "link-btn setup-skip", type: "button", onclick: () => finishStep(step) }, "Not now"),
+      h("p", { class: "auth-foot" }, "You can set this up or change it later from the Inbox button in the top bar."));
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      try { await api("PUT", "/api/inbox/settings", readInboxFields(form)); } catch (err) { toast(err.message, "error"); return; }
+      $("#inbox-btn").hidden = false;
+      finishStep(step);
+    };
+  }
+}
+
+/** The inbox's settings fields (used in setup and in the Inbox screen). */
+function inboxSettingsFields(s, folders) {
+  const select = h("select", { name: "inbox-folder", "aria-label": "Inbox folder" },
+    h("option", { value: "" }, folders.length ? "Choose a folder…" : "No folders in your library yet"),
+    folders.map((f) => h("option", { value: f.path, selected: f.path === s.folder }, f.name)));
+  select.addEventListener("change", () => {
+    const go = select.form?.querySelector("[type=submit]");
+    if (go) go.disabled = !select.value;
+  });
+  return h("div", { class: "inbox-fields" },
+    h("label", { class: "field" }, h("span", { class: "field-label" }, "Inbox folder"), select),
+    !connectionOn("musicbrainz") ? h("p", { class: "hint" }, "Online lookups are off, so albums are filed by their own tags. Turn on MusicBrainz in Account → Connections to match them automatically.") : null,
+    h("label", { class: "switch-row" },
+      h("span", { class: "switch-text" },
+        h("span", { class: "switch-title" }, "File confident matches automatically"),
+        h("span", { class: "switch-sub" }, "When every track lines up with a MusicBrainz release, tag and file it without asking. Everything else waits for you.")),
+      h("input", { type: "checkbox", role: "switch", name: "inbox-auto", checked: s.auto })),
+    h("label", { class: "switch-row" },
+      h("span", { class: "switch-text" },
+        h("span", { class: "switch-title" }, "Check for new music every 15 minutes"),
+        h("span", { class: "switch-sub" }, "Off: Codetta only looks when you open the Inbox (so idle disks can sleep).")),
+      h("input", { type: "checkbox", role: "switch", name: "inbox-watch", checked: s.watch })));
+}
+
+function readInboxFields(root) {
+  return {
+    folder: $('[name="inbox-folder"]', root).value,
+    auto: $('[name="inbox-auto"]', root).checked,
+    watch: $('[name="inbox-watch"]', root).checked,
+    organize: true,
+  };
+}
+
+function afterSetup() {
+  refreshInboxBadge();
+  let seen = null;
+  try { seen = localStorage.getItem("codetta-seen-version"); } catch { /* private mode */ }
+  if (seen !== state.auth?.version) openNews({ latestOnly: true });
+}
+
+// ---- What's new (the changelog) ---------------------------------------------------------------------
+
+let newsData = null;
+
+/** Changelog text -> nodes: **bold**, `code` and https links; everything else stays plain text. */
+function mdInline(text) {
+  const out = [];
+  const re = /\*\*([^*]+)\*\*|`([^`]+)`|\[([^\]]+)\]\((https:\/\/[^)\s]+)\)/g;
+  let last = 0;
+  for (const m of text.matchAll(re)) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    if (m[1]) out.push(h("strong", {}, m[1]));
+    else if (m[2]) out.push(h("code", {}, m[2]));
+    else out.push(h("a", { href: m[4], target: "_blank", rel: "noopener noreferrer" }, m[3]));
+    last = m.index + m[0].length;
+  }
+  out.push(text.slice(last));
+  return out;
+}
+
+async function openNews({ latestOnly = false } = {}) {
+  try { newsData = newsData || await api("GET", "/api/changelog"); } catch (err) { toast(err.message, "error"); return; }
+  const versions = newsData.versions;
+  const section = (v) => h("section", { class: "news-version" },
+    h("h3", {}, v.unreleased ? `Coming in ${v.version}` : `Version ${v.version}`,
+      v.date ? h("span", { class: "news-date" }, new Date(`${v.date}T12:00:00`).toLocaleDateString([], { day: "numeric", month: "long", year: "numeric" })) : null),
+    h("ul", {}, v.items.map((item) => h("li", {}, mdInline(item)))));
+  const body = $("#news-body");
+  const renderAll = () => setKids(body, versions.map(section));
+  if (!versions.length) setKids(body, h("p", { class: "hint" }, "The changelog isn't available on this server."));
+  else if (latestOnly && versions.length > 1) {
+    setKids(body, section(versions[0]),
+      h("button", { class: "link-btn news-more", type: "button", onclick: renderAll }, "Show earlier versions"));
+  } else renderAll();
+  try { localStorage.setItem("codetta-seen-version", newsData.current); } catch { /* private mode */ }
+  openDialog($("#news-dialog"));
+}
+
+// ---- Inbox: new music waiting to be filed -------------------------------------------------------------
+
+const inboxState = { data: null, timer: null, settingsOpen: false };
+const INBOX_LABELS = {
+  waiting: "Waiting", matching: "Looking up…", ready: "Ready to file", review: "Needs a look", nomatch: "Not found",
+  local: "Files by its tags", filed: "Filed", skipped: "Skipped", error: "Problem",
+};
+const inboxPending = (d) => (d?.groups || []).filter((g) => !["filed", "skipped"].includes(g.status)).length;
+
+async function refreshInboxBadge(data = null) {
+  try { data = data || await api("GET", "/api/inbox"); } catch { return; }
+  inboxState.data = data;
+  const n = inboxPending(data);
+  $("#inbox-btn").hidden = !data.settings.folder;
+  $("#inbox-count").hidden = !n;
+  $("#inbox-count").textContent = n > 99 ? "99+" : String(n);
+}
+
+async function openInbox() {
+  openDialog($("#inbox-dialog"));
+  setKids($("#inbox-body"), h("p", { class: "loading" }, "Looking in your inbox…"));
+  setKids($("#inbox-foot"));
+  await loadInbox();
+}
+
+async function loadInbox() {
+  clearTimeout(inboxState.timer);
+  try {
+    inboxState.data = await api("GET", "/api/inbox");
+  } catch (err) {
+    setKids($("#inbox-body"), h("div", { class: "error-box" }, err.message));
+    return;
+  }
+  renderInbox();
+  // Keep it fresh while lookups run and the sheet is open.
+  if (inboxState.data.running && $("#inbox-dialog").open) inboxState.timer = setTimeout(loadInbox, 1500);
+}
+
+async function inboxAction(url, body, done) {
+  try {
+    const res = await api("POST", url, body);
+    inboxState.data = res.inbox || res;
+    if (done) done(res);
+    renderInbox();
+    folderCache.clear();
+    refreshActivity();
+    if (inboxState.data.running) inboxState.timer = setTimeout(loadInbox, 1500);
+  } catch (err) {
+    toast(err.message, "error");
+  }
+}
+
+function reviewInboxGroup(g) {
+  closeDialog($("#inbox-dialog"));
+  openMusicBrainzFor({ body: { paths: g.paths }, label: `“${g.title || g.key.split("/").pop()}”` }, {
+    release: g.release?.id, recordings: g.recordings,
+    onWritten: (release) => inboxAction("/api/inbox/accept", { key: g.key, release }, (res) => {
+      toast(res.moved_to ? `Filed in ${res.moved_to}` : "Tagged", res.status === "filed" ? "success" : "error");
+    }),
+  });
+}
+
+function renderInbox() {
+  const d = inboxState.data;
+  const body = $("#inbox-body");
+  refreshInboxBadge(d);
+  if (!d.settings.folder || !d.folder_exists || inboxState.settingsOpen) {
+    api("GET", "/api/browse?path=").catch(() => ({ folders: [] })).then((root) => {
+      const form = h("form", { class: "inbox-settings" },
+        h("p", { class: "mb-lead" }, d.settings.folder && !d.folder_exists
+          ? `The inbox folder “${d.settings.folder}” isn't there any more. Choose another.`
+          : "Pick the folder new music lands in (downloads, rips). Codetta finds each album and files it into your library with your folder pattern."),
+        inboxSettingsFields(d.settings, root.folders),
+        h("div", { class: "inbox-settings-actions" },
+          d.settings.folder && d.folder_exists ? h("button", { class: "btn", type: "button", onclick: () => { inboxState.settingsOpen = false; renderInbox(); } }, "Cancel") : null,
+          h("button", { class: "btn primary", type: "submit", disabled: !d.settings.folder }, "Save")));
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        try {
+          inboxState.data = await api("PUT", "/api/inbox/settings", readInboxFields(form));
+          inboxState.settingsOpen = false;
+          renderInbox();
+          if (inboxState.data.running) inboxState.timer = setTimeout(loadInbox, 1500);
+        } catch (err) { toast(err.message, "error"); }
+      });
+      setKids(body, form);
+      setKids($("#inbox-foot"), h("span", { class: "spacer" }), h("button", { class: "btn", type: "button", "data-close": true }, "Close"));
+    });
+    return;
+  }
+  const ready = d.groups.filter((g) => g.status === "ready");
+  const pending = inboxPending(d);
+  const item = (g) => {
+    const name = g.title || g.key.split("/").pop();
+    const actions = [];
+    const btn = (label, onclick, primary = false) => h("button", { class: `btn small${primary ? " primary" : ""}`, type: "button", onclick }, label);
+    const accept = () => inboxAction("/api/inbox/accept", { key: g.key }, (res) =>
+      toast(res.status === "filed" ? `Filed in ${res.moved_to || "your library"}` : res.note, res.status === "filed" ? "success" : "error"));
+    if (g.status === "ready") actions.push(btn("File", accept, true), btn("Review", () => reviewInboxGroup(g)));
+    else if (g.status === "review") actions.push(btn("Review", () => reviewInboxGroup(g), true), btn("File with this match", accept));
+    else if (g.status === "nomatch") actions.push(btn("Search", () => reviewInboxGroup(g), true), btn("File by its tags", accept));
+    else if (g.status === "local") actions.push(btn("File", accept, true));
+    else if (g.status === "error") actions.push(btn("Try again", () => inboxAction("/api/inbox/rematch", { key: g.key })), d.online ? btn("Review", () => reviewInboxGroup(g)) : null);
+    else if (g.status === "skipped") actions.push(btn("Look again", () => inboxAction("/api/inbox/rematch", { key: g.key })));
+    else if (g.status === "filed" && g.dest) actions.push(btn("Open", () => { closeDialog($("#inbox-dialog")); navigate(g.dest); }));
+    if (["ready", "review", "nomatch", "local", "error"].includes(g.status)) {
+      actions.push(h("button", { class: "link-btn inbox-skip", type: "button", onclick: () => inboxAction("/api/inbox/skip", { key: g.key }) }, "Skip"));
+    }
+    const rel = g.release;
+    return h("div", { class: `inbox-item ${g.status}` },
+      rel?.id && d.online ? mbThumb(rel.id) : h("span", { class: "mb-thumb mb-noart", "aria-hidden": "true" }, icon("note")),
+      h("div", { class: "inbox-main" },
+        h("div", { class: "inbox-title", dir: "auto" }, name, g.artist ? h("span", { class: "inbox-artist" }, ` · ${g.artist}`) : null),
+        h("div", { class: "mb-cand-meta" }, [rel ? mbMeta(rel) : "", `${plural(g.files, "file")} in ${g.key}`].filter(Boolean).join(" · ")),
+        h("div", { class: "inbox-status" },
+          h("span", { class: `inbox-chip ${g.status}` }, INBOX_LABELS[g.status] || g.status, g.score != null && g.status !== "filed" ? ` · ${g.score}%` : ""),
+          g.note ? h("span", { class: "inbox-note" }, g.note) : null)),
+      h("div", { class: "inbox-actions" }, actions));
+  };
+  setKids(body,
+    h("div", { class: "inbox-head" },
+      h("p", { class: "mb-lead" }, d.groups.length
+        ? `${pending ? plural(pending, "album") + " waiting" : "All caught up"} in “${d.settings.folder}”.${d.settings.auto ? " Confident matches are filed automatically." : ""}`
+        : `Nothing new in “${d.settings.folder}”. Drop an album folder in there and open the Inbox again.`),
+      h("button", { class: "link-btn", type: "button", onclick: () => { inboxState.settingsOpen = true; renderInbox(); } }, "Settings")),
+    d.groups.length ? h("div", { class: "inbox-list" }, d.groups.map(item)) : null);
+  setKids($("#inbox-foot"),
+    h("button", { class: "btn", type: "button", onclick: loadInbox }, "Check again"),
+    h("span", { class: "spacer" }),
+    ready.length ? h("button", { class: "btn primary", type: "button", onclick: () => inboxAction("/api/inbox/accept-ready", {}, (res) =>
+      toast(`Filed ${plural(res.filed, "album")}${res.filed < res.total ? ` (${res.total - res.filed} need a look)` : ""}`, "success")) },
+      `File ${plural(ready.length, "confident match", "confident matches")}`) : h("button", { class: "btn", type: "button", "data-close": true }, "Close"));
 }
 
 // ---- Organize: rename and move files from a pattern -------------------------------------------------
@@ -3248,7 +3637,7 @@ function bindEvents() {
   $("#apply-go").addEventListener("click", doApply);
 
   // All dialogs: close buttons and backdrop clicks.
-  for (const dialog of [els.applyDialog, els.manageDialog, els.filterDialog, $("#mb-dialog"), $("#organize-dialog")]) {
+  for (const dialog of [els.applyDialog, els.manageDialog, els.filterDialog, $("#mb-dialog"), $("#organize-dialog"), $("#inbox-dialog"), $("#news-dialog")]) {
     dialog.addEventListener("click", (e) => {
       if (e.target.closest("[data-close]") || e.target === dialog) closeDialog(dialog);
     });
@@ -3460,6 +3849,8 @@ async function boot() {
   $("#auth-form").addEventListener("submit", submitAuth);
   $("#welcome-form").addEventListener("submit", submitWelcome);
   $("#conn-toggle").addEventListener("click", () => setConnectionsOpen($("#conn-body").hidden));
+  $("#inbox-btn").addEventListener("click", openInbox);
+  document.addEventListener("click", (e) => { if (e.target.closest("[data-news]")) openNews(); });
   for (const r of document.querySelectorAll('input[name="welcome-mode"]')) r.addEventListener("change", welcomeModeChanged);
   $("#account-btn").addEventListener("click", openAccount);
   $("#password-form").addEventListener("submit", changePassword);
@@ -3587,8 +3978,8 @@ async function startApp() {
   } catch (err) {
     toast(`Can't reach the Codetta server: ${err.message}`, "error");
   }
-  // First run (or first start after upgrading): offline, or opt in?
-  if ((await loadConnections())?.needs_choice) showWelcome();
+  // First run (or first start after an update that adds a setup step).
+  runSetup();
   await loadFolder(pathFromHash());
   refreshActivity();
   startActivityPolling();

@@ -12,7 +12,7 @@
   <link rel="icon" href="/static/icon.svg?v=3" type="image/svg+xml"> <!-- bump ?v= when the icon changes: browsers cache favicons hard -->
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=3">
   <link rel="preload" href="/static/fonts/schibsted-grotesk.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/static/app.css?v=49">
+  <link rel="stylesheet" href="/static/app.css?v=50">
   <script src="/static/theme.js?v=1"></script>
 </head>
 <body>
@@ -42,6 +42,7 @@
         <a class="credit-link" href="https://github.com/gavndev/codetta" target="_blank" rel="noopener noreferrer" title="Codetta on GitHub" aria-label="Codetta on GitHub"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a>
         <span>Made with <span class="credit-heart" role="img" aria-label="love">♥︎</span></span>
         <span class="credit-version" data-version></span>
+        <button class="credit-news" type="button" data-news>What's new</button>
       </footer>
   </div>
 
@@ -72,6 +73,8 @@
       <button class="btn primary auth-submit" id="welcome-go" type="submit" disabled>Continue</button>
       <p class="auth-foot">It's your choice, and you can change it any time in Account → Connections.</p>
     </form>
+    <!-- Later setup steps (folder names, downloads inbox), drawn by app.js -->
+    <form class="auth-card welcome-card" id="setup-step" method="post" action="#" hidden></form>
   </div>
 
   <div class="app" id="app" hidden>
@@ -83,6 +86,10 @@
           <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg>
           <input id="filter" type="search" dir="auto" placeholder="Filter this folder" autocomplete="off" spellcheck="false" aria-label="Filter this folder, or press Enter to search your whole library">
         </label>
+        <button class="icon-btn" id="inbox-btn" type="button" aria-label="Inbox: new music to file" title="Inbox: new music to file" hidden>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 11.5 5.6 5a1.5 1.5 0 0 1 1.4-1h6a1.5 1.5 0 0 1 1.4 1l2.1 6.5v3A1.5 1.5 0 0 1 15 16H5a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M3.5 11.5h3.5l1 2h4l1-2h3.5"/></svg>
+          <span class="badge-count" id="inbox-count" hidden></span>
+        </button>
         <button class="icon-btn" id="tagfilter-btn" type="button" aria-label="Filter by tag" title="Filter by tag">
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 4.5h14l-5.5 6.5v5l-3-1.5V11z"/></svg>
         </button>
@@ -107,6 +114,7 @@
         <a class="credit-link" href="https://github.com/gavndev/codetta" target="_blank" rel="noopener noreferrer" title="Codetta on GitHub" aria-label="Codetta on GitHub"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a>
         <span>Made with <span class="credit-heart" role="img" aria-label="love">♥︎</span></span>
         <span class="credit-version" data-version></span>
+        <button class="credit-news" type="button" data-news>What's new</button>
       </footer>
       </main>
 
@@ -254,6 +262,7 @@
           <h3 id="about-title" class="field-label">Codetta</h3>
           <span class="badge" id="about-version"></span>
           <button class="btn small" type="button" id="check-updates">Check for updates</button>
+          <button class="btn small" type="button" data-news>What's new</button>
         </div>
         <p class="about-status" id="update-status" aria-live="polite"></p>
         <div class="update-box" id="update-box" hidden></div>
@@ -326,6 +335,33 @@
     <div class="sheet-foot" id="organize-foot"></div>
   </dialog>
 
+  <!-- Inbox: new music waiting to be filed (drawn by app.js) -->
+  <dialog class="sheet wide" id="inbox-dialog" aria-labelledby="inbox-title">
+    <div class="sheet-head">
+      <h2 id="inbox-title">Inbox</h2>
+      <button class="icon-btn" type="button" data-close aria-label="Close">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body" id="inbox-body"></div>
+    <div class="sheet-foot" id="inbox-foot"></div>
+  </dialog>
+
+  <!-- What's new (the changelog) -->
+  <dialog class="sheet" id="news-dialog" aria-labelledby="news-title">
+    <div class="sheet-head">
+      <h2 id="news-title">What's new</h2>
+      <button class="icon-btn" type="button" data-close aria-label="Close">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body" id="news-body"></div>
+    <div class="sheet-foot"><span class="spacer"></span><button class="btn primary" type="button" data-close>Got it</button></div>
+  </dialog>
+
+  <!-- Now playing: a pill that grows from the bottom centre while something plays (drawn by app.js) -->
+  <div class="now-playing" id="now-playing" hidden></div>
+
   <!-- Manage loadouts -->
   <dialog class="sheet" id="manage-dialog" aria-labelledby="manage-title">
     <div class="sheet-head">
@@ -341,6 +377,6 @@
   <datalist id="tag-keys"></datalist>
   <div class="toasts" id="toasts" aria-live="polite"></div>
 
-  <script src="/static/app.js?v=49" type="module"></script>
+  <script src="/static/app.js?v=50" type="module"></script>
 </body>
 </html>
