@@ -121,6 +121,8 @@ const ICONS = {
   user: '<svg viewBox="0 0 20 20"><circle cx="10" cy="7" r="3.2"/><path d="M3.8 16.5a6.2 6.2 0 0 1 12.4 0"/></svg>',
   undo: '<svg viewBox="0 0 20 20"><path d="M7.5 5 4 8.5 7.5 12"/><path d="M4.5 8.5h7a4.5 4.5 0 0 1 0 9H9"/></svg>',
   spark: '<svg viewBox="0 0 20 20"><path d="M10 3.5 11.4 8.6 16.5 10l-5.1 1.4L10 16.5l-1.4-5.1L3.5 10l5.1-1.4z"/></svg>',
+  // MusicBrainz's two-tone mark (drawn here: the page loads nothing from other sites).
+  musicbrainz: '<svg class="mb-logo" viewBox="0 0 32 32"><path class="mb-l" d="M15.3 3.2 5.5 8.8v14.4l9.8 5.6z"/><path class="mb-r" d="M16.7 3.2l9.8 5.6v14.4l-9.8 5.6z"/><path class="mb-cut" d="M11.5 11.2c-1.8 0-3.2 1.4-3.2 3.2 0 1.2.7 2.3 1.7 2.8-.2.5-.3 1-.3 1.6 0 2.1 1.7 3.8 3.8 3.8h1.8V11.2z"/><path class="mb-cut" d="M20.5 11.2c1.8 0 3.2 1.4 3.2 3.2 0 1.2-.7 2.3-1.7 2.8.2.5.3 1 .3 1.6 0 2.1-1.7 3.8-3.8 3.8h-1.8V11.2z"/></svg>',
   paste: '<svg viewBox="0 0 20 20"><rect x="4.5" y="4" width="11" height="13" rx="2"/><path d="M8 4V3h4v1"/><path d="M7.5 9h5M7.5 12h3"/></svg>',
 };
 
@@ -640,22 +642,12 @@ function renderSearchHead(f) {
   els.tracks.classList.toggle("selecting", state.selectMode);
 }
 
-/** MusicBrainz's two-tone mark (drawn here: the page loads nothing from other sites). */
-function mbLogo() {
-  const t = document.createElement("template");
-  t.innerHTML = '<svg class="mb-logo" viewBox="0 0 32 32" aria-hidden="true">'
-    + '<path class="mb-l" d="M15.3 3.2 5.5 8.8v14.4l9.8 5.6z"/><path class="mb-r" d="M16.7 3.2l9.8 5.6v14.4l-9.8 5.6z"/>'
-    + '<path class="mb-cut" d="M11.5 11.2c-1.8 0-3.2 1.4-3.2 3.2 0 1.2.7 2.3 1.7 2.8-.2.5-.3 1-.3 1.6 0 2.1 1.7 3.8 3.8 3.8h1.8V11.2z"/>'
-    + '<path class="mb-cut" d="M20.5 11.2c1.8 0 3.2 1.4 3.2 3.2 0 1.2-.7 2.3-1.7 2.8.2.5.3 1 .3 1.6 0 2.1-1.7 3.8-3.8 3.8h-1.8V11.2z"/></svg>';
-  return t.content.firstChild;
-}
-
 /** "Find in MusicBrainz" ("Find" on phones), shown when the MusicBrainz connection is on. */
 function mbFindButton(where) {
   return h("button", {
     class: `mb-find ${where}`, type: "button", onclick: openMusicBrainz,
     "aria-label": "Find in MusicBrainz", title: "Find this album on MusicBrainz and review its tags before writing them",
-  }, h("span", { class: "mb-find-inner" }, mbLogo(),
+  }, h("span", { class: "mb-find-inner" }, icon("musicbrainz"),
     h("span", { class: "mb-find-long" }, "Find in MusicBrainz"), h("span", { class: "mb-find-short" }, "Find")));
 }
 
