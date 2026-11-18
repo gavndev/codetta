@@ -51,6 +51,7 @@ from codetta.core.auth import (
 from codetta.core.engine import MetadataEngine, MetadataError, TrackMetadata
 from codetta.core.index import LibraryIndex, parse_query
 from codetta.core.library import Library, LibraryPathError, count_contents
+from codetta.core.rawtags import read_raw
 from codetta.core.presets import (
     PLACEHOLDERS,
     FileResult,
@@ -580,6 +581,12 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     def get_track(path: str = Query(..., description="File, relative to the music folder")):
         require_library()
         return to_out(path, engine.load_metadata(library.resolve(path)))
+
+    @app.get("/api/track/raw")
+    def get_track_raw(path: str = Query(..., description="File, relative to the music folder")) -> dict:
+        """Advanced mode: every stored field exactly as the file has it (read-only)."""
+        require_library()
+        return read_raw(engine, library.resolve(path))
 
     @app.get("/api/search", response_model=SearchOut)
     def search(

@@ -1200,6 +1200,34 @@ dialog::backdrop { background: var(--backdrop); }
 .avatar-img { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; display: block; box-shadow: 0 0 0 1px var(--border-strong); }
 #account-btn.has-avatar:hover .avatar-img { box-shadow: 0 0 0 2px var(--accent-soft); }
 .about { margin-bottom: 14px; }
+
+/* ---- Advanced mode switch and raw tags ---------------------------------------------- */
+
+.advanced { margin: 0 0 16px; padding: 12px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.switch-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; cursor: pointer; min-height: 44px; }
+.switch-text { display: flex; flex-direction: column; gap: 2px; }
+.switch-title { font-weight: 600; color: var(--text); }
+.switch-sub { font-size: 12px; color: var(--muted); }
+input[role="switch"] {
+  appearance: none; -webkit-appearance: none; flex: none; position: relative; margin: 0;
+  width: 44px; height: 26px; border-radius: 13px; background: var(--border-strong); cursor: pointer;
+  transition: background-color var(--dur) ease;
+}
+input[role="switch"]::after {
+  content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25); transition: transform var(--dur) var(--ease-out);
+}
+input[role="switch"]:checked { background: #34c759; }
+input[role="switch"]:checked::after { transform: translateX(18px); }
+input[role="switch"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.raw-system { font-size: 12px; color: var(--muted); margin: 2px 0 8px; }
+.raw-list { padding-bottom: 6px; }
+.raw-row { display: grid; grid-template-columns: minmax(90px, 38%) 1fr; gap: 10px; padding: 6px 0; border-top: 1px solid var(--border); font-size: 13px; }
+.raw-name { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.raw-value { overflow-wrap: anywhere; white-space: pre-wrap; unicode-bidi: plaintext; }
+.raw-picture .raw-value, .raw-binary .raw-value { color: var(--muted); font-style: italic; }
+.raw-more { color: var(--faint); font-style: normal; }
 .about-head { display: flex; align-items: center; gap: 8px; }
 .about-head h3 { margin: 0; font-size: 15px; line-height: 22px; font-weight: 650; color: var(--text); text-transform: none; letter-spacing: 0; }
 .about-head .btn { margin-left: auto; }

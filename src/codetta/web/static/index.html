@@ -12,7 +12,7 @@
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
   <link rel="preload" href="/static/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/static/app.css?v=30">
+  <link rel="stylesheet" href="/static/app.css?v=31">
   <script src="/static/theme.js?v=1"></script>
 </head>
 <body>
@@ -232,6 +232,15 @@
         <p class="about-status" id="update-status" aria-live="polite"></p>
         <div class="update-box" id="update-box" hidden></div>
       </section>
+      <section class="advanced" aria-label="Advanced">
+        <label class="switch-row">
+          <span class="switch-text">
+            <span class="switch-title">Advanced mode</span>
+            <span class="switch-sub">Show raw tags in the editor, exactly as each file stores them.</span>
+          </span>
+          <input type="checkbox" role="switch" id="advanced-toggle">
+        </label>
+      </section>
       <form id="password-form" class="password-form">
         <input type="text" name="username" id="pw-username" autocomplete="username" hidden>
         <h3 class="field-label">Change password</h3>
@@ -269,6 +278,6 @@
   <datalist id="tag-keys"></datalist>
   <div class="toasts" id="toasts" aria-live="polite"></div>
 
-  <script src="/static/app.js?v=32" type="module"></script>
+  <script src="/static/app.js?v=33" type="module"></script>
 </body>
 </html>

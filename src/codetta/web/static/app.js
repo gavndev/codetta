@@ -172,6 +172,7 @@ const state = {
   tagFilters: [],         // [{ key, value }] — value "" means "has no value"
   selectMode: false,      // phones: selection circles only show after tapping "Select"
   clipboard: loadClipboard(), // copied tags: { tags: {key: [values]}, from }
+  advanced: (() => { try { return localStorage.getItem("codetta-advanced") === "1"; } catch { return false; } })(),
   loadToken: 0,
 };
 
@@ -1021,9 +1022,52 @@ function renderEditor() {
   }
 
   parts.push(addTagEl(model));
+  if (state.advanced && tracks.length === 1) parts.push(rawTagsEl(tracks[0]));
   setKids(els.editorForm, parts);
   renderToolbar();
   updateSaveButton();
+}
+
+// ---- Advanced mode: raw tags ----------------------------------------------------------------------
+
+const rawCache = new Map(); // "path|mtime" -> /api/track/raw response
+let rawOpen = false; // keep the section open while moving between tracks
+
+function rawTagsEl(track) {
+  const list = h("div", { class: "raw-list" });
+  const details = h("details", { class: "group raw-group", open: rawOpen },
+    h("summary", {}, h("span", {}, "Raw tags", h("span", { class: "count" }, "as stored in the file"))), list);
+  const key = `${track.path}|${track.mtime}`;
+  const show = (data) => {
+    setKids(list,
+      h("p", { class: "raw-system" }, data.system),
+      data.entries.length ? data.entries.map((e) => h("div", { class: `raw-row raw-${e.kind}` },
+        h("code", { class: "raw-name", dir: "ltr" }, e.name),
+        h("span", { class: "raw-value", dir: "auto" }, e.value,
+          e.length ? h("span", { class: "raw-more" }, ` (${e.length.toLocaleString()} characters)`) : null)))
+        : h("p", { class: "hint" }, "This file has no tags."));
+  };
+  const load = async () => {
+    if (rawCache.has(key)) { show(rawCache.get(key)); return; }
+    setKids(list, h("p", { class: "loading" }, "Reading the file…"));
+    try {
+      const data = await api("GET", `/api/track/raw?path=${encodeURIComponent(track.path)}`);
+      if (rawCache.size > 200) rawCache.clear();
+      rawCache.set(key, data);
+      show(data);
+    } catch (err) {
+      setKids(list, h("p", { class: "error-box" }, err.message));
+    }
+  };
+  details.addEventListener("toggle", () => { rawOpen = details.open; if (details.open) load(); });
+  if (rawOpen) load();
+  return details;
+}
+
+function setAdvanced(on) {
+  state.advanced = on;
+  try { localStorage.setItem("codetta-advanced", on ? "1" : "0"); } catch { /* per-browser preference only */ }
+  if (state.editor) renderEditor();
 }
 
 // ---- Editor toolbar: copy & paste tags ---------------------------------------------------------
@@ -2176,6 +2220,9 @@ function bindEvents() {
   $("#sel-edit").addEventListener("click", () => openEditor([...state.selected]));
   $("#sel-loadout").addEventListener("click", () => openApply("selection"));
   $("#manage-btn").addEventListener("click", openManage);
+  const adv = $("#advanced-toggle");
+  adv.checked = state.advanced;
+  adv.addEventListener("change", () => { setAdvanced(adv.checked); toast(adv.checked ? "Advanced mode on" : "Advanced mode off"); });
 
   // Apply dialog
   const d = els.applyDialog;
