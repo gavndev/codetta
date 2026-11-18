@@ -640,6 +640,25 @@ function renderSearchHead(f) {
   els.tracks.classList.toggle("selecting", state.selectMode);
 }
 
+/** MusicBrainz's two-tone mark (drawn here: the page loads nothing from other sites). */
+function mbLogo() {
+  const t = document.createElement("template");
+  t.innerHTML = '<svg class="mb-logo" viewBox="0 0 32 32" aria-hidden="true">'
+    + '<path class="mb-l" d="M15.3 3.2 5.5 8.8v14.4l9.8 5.6z"/><path class="mb-r" d="M16.7 3.2l9.8 5.6v14.4l-9.8 5.6z"/>'
+    + '<path class="mb-cut" d="M11.5 11.2c-1.8 0-3.2 1.4-3.2 3.2 0 1.2.7 2.3 1.7 2.8-.2.5-.3 1-.3 1.6 0 2.1 1.7 3.8 3.8 3.8h1.8V11.2z"/>'
+    + '<path class="mb-cut" d="M20.5 11.2c1.8 0 3.2 1.4 3.2 3.2 0 1.2-.7 2.3-1.7 2.8.2.5.3 1 .3 1.6 0 2.1-1.7 3.8-3.8 3.8h-1.8V11.2z"/></svg>';
+  return t.content.firstChild;
+}
+
+/** "Find in MusicBrainz" ("Find" on phones), shown when the MusicBrainz connection is on. */
+function mbFindButton(where) {
+  return h("button", {
+    class: `mb-find ${where}`, type: "button", onclick: openMusicBrainz,
+    "aria-label": "Find in MusicBrainz", title: "Find this album on MusicBrainz and review its tags before writing them",
+  }, h("span", { class: "mb-find-inner" }, mbLogo(),
+    h("span", { class: "mb-find-long" }, "Find in MusicBrainz"), h("span", { class: "mb-find-short" }, "Find")));
+}
+
 function renderFolderHead() {
   const f = state.folder;
   if (!f) return;
@@ -656,6 +675,7 @@ function renderFolderHead() {
     const values = new Set(f.tracks.filter((t) => !t.error).map((t) => first(t, key).trim()).filter(Boolean));
     return values.size === 1 ? [...values][0] : "";
   };
+  const canMatch = f.tracks.length && state.status?.musicbrainz;
   const heading = coverTrack
     // A folder of tracks with a cover reads as the album's booklet spread.
     ? h("div", { class: "album-head" },
@@ -666,7 +686,9 @@ function renderFolderHead() {
           [common("albumartist") || common("artist"), common("date").slice(0, 4)].filter(Boolean).flatMap((v, i) => [i ? " · " : "", h("b", { dir: "auto" }, v)]),
           counts.length ? [common("albumartist") || common("artist") || common("date") ? " · " : "",
             h("span", { class: "nowrap" }, `${counts.join(" · ")}${runtime(f.tracks)}`)] : "", skippedNote),
-        common("genre") ? h("span", { class: "spot-chip", dir: "auto" }, common("genre")) : null))
+        common("genre") || canMatch ? h("div", { class: "album-chips" },
+          common("genre") ? h("span", { class: "spot-chip", dir: "auto" }, common("genre")) : null,
+          canMatch ? mbFindButton("beside-genre") : null) : null))
     : h("div", {},
       h("h1", {}, f.path ? f.name : "Library"),
       h("p", {}, counts.join(" · ") || (f.skipped ? "" : "Empty folder"), skippedNote));
@@ -680,10 +702,8 @@ function renderFolderHead() {
           "aria-pressed": String(folderView() === v),
           onclick: () => setFolderView(v),
         }, icon(v === "list" ? "rows" : "grid")))) : null,
-      f.tracks.length && state.status?.musicbrainz ? h("button", {
-        class: "btn", type: "button", onclick: openMusicBrainz,
-        title: "Find this album on MusicBrainz and review its tags before writing them",
-      }, "Match on MusicBrainz…") : null,
+      // Phones (and folders without a cover): first in the action row, on the left.
+      canMatch ? mbFindButton(coverTrack ? "in-actions phone-only" : "in-actions") : null,
       f.tracks.length || f.folders.length ? h("button", {
         class: "btn", type: "button", onclick: () => openApply("folder"),
       }, "Apply loadout…") : null,
