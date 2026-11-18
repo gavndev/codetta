@@ -1,16 +1,35 @@
 <p align="center">
-  <img src="src/codetta/web/static/icon.svg" width="64" height="64" alt="Codetta logo">
-</p>
-
-<h1 align="center">Codetta</h1>
-
-<p align="center">
-  A clean, self-hosted metadata editor for your music library.<br>
-  Fix tags on FLAC, MP3, M4A, OGG and Opus files from any browser, including your phone.
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/logo-dark.svg">
+    <img src="docs/brand/logo-light.svg" alt="Codetta" height="64">
+  </picture>
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/editor-dark.png" alt="Codetta editing an album in dark mode" width="900">
+  <strong>Clean, self-hosted tag editing for your music library.</strong><br>
+  Fix the tags on your FLAC, MP3, M4A, OGG and Opus files from any browser, including your phone.
+</p>
+
+<p align="center">
+  <img alt="Status: alpha" src="https://img.shields.io/badge/status-alpha-f59e0b">
+  <img alt="Version 0.1.0" src="https://img.shields.io/badge/version-0.1.0-007aff">
+  <a href="LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-555"></a>
+  <img alt="Python 3.14" src="https://img.shields.io/badge/python-3.14-3776ab">
+  <img alt="Runs in Docker" src="https://img.shields.io/badge/docker-ready-2496ed">
+  <img alt="Works great with Navidrome" src="https://img.shields.io/badge/works%20with-Navidrome-6c5ce7">
+</p>
+
+<p align="center">
+  <img src="docs/media/hero.gif" alt="Opening an album in Codetta, editing a track's genre and saving it" width="900">
+</p>
+
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#what-it-does">What it does</a> ·
+  <a href="#installing">Installing</a> ·
+  <a href="#settings">Settings</a> ·
+  <a href="#faq">FAQ</a> ·
+  <a href="#whats-new">What's new</a>
 </p>
 
 ---
@@ -18,107 +37,162 @@
 ## Why Codetta?
 
 If you run your own music server, you know the drill: a SoundCloud download
-with no tags, an album where one track says "OCTOBER EP" and the other says
-"OCTOBER EP - 1PSYCH3", a folder of loose files that shows up in Navidrome as
-*Unknown Album*. Fixing that usually means a desktop tagger and a trip to the
-computer that has your library on it.
+with no tags, an album where every track spells the artist differently, a
+folder of loose files that shows up as *Unknown Album*. Fixing it usually
+means a desktop tagger, and a trip to whichever computer has your library on it.
 
-Codetta runs next to your music on your server. Open it on your laptop or your
-phone, pick a track or a whole album, fix what's wrong, and save. Your files
-are updated in place, safely, and your streaming apps pick up the changes on
-their next scan.
+Codetta lives on your server, next to your music. Open it on your laptop or
+your phone, pick a track or a whole album, fix what's wrong and hit Save. Your
+files are updated safely, and your music apps pick up the change on their next
+scan.
 
 It's built with [Navidrome](https://www.navidrome.org/) and other
-OpenSubsonic servers in mind: Codetta writes the tags those apps actually show
+OpenSubsonic servers in mind. Codetta writes the tags those apps actually show
 (credits, mood, label, release type, multiple artists), in the same places
 [MusicBrainz Picard](https://picard.musicbrainz.org/) does.
 
-## Features
+> **Codetta is alpha software.** It's careful with your files (see
+> [how](#how-codetta-keeps-your-files-safe)), but it's young. Keep a backup of
+> your library, as you would with any tool that edits files.
 
-- **Edit one track or a whole album.** Select several tracks and change only
-  the fields you need. Fields that differ between tracks show as
-  *Multiple values* and are left alone unless you change them.
-- **Save to folder.** Changed a genre on one track? Apply just that change to
-  every track in the album.
-- **Smart suggestions.** Album-level fields suggest values that other tracks
-  in the same folder already use, and Track suggests the file's position
-  (`2/6`). One tap fills the field; nothing saves until you say so.
-- **Copy & paste tags** between tracks and folders.
-- **Album art.** See every track's cover at a glance, and add, replace or
-  remove covers for one track, a selection or the whole album in one save,
-  straight from your phone's photo library if you like.
-- **Tag Loadouts.** Saved sets of tags with placeholders such as
-  `{filename_title}`, `{folder}` and `{track}/{tracktotal}` that turn loose
-  downloads into properly tagged singles or albums. You always see a preview
-  before anything is written.
-- **Filter a folder by tag**, e.g. *Label: Independent*.
-- **Activity log with undo.** Every change is recorded with its old and new
-  values. Changed your mind? Undo it straight from the log, even for a whole
-  album, and redo if you change it back. Files you edited again since are
-  left alone.
-- **Sign-in** with a hashed password, 30-day sessions and lockout after
-  repeated wrong guesses.
-- **Any language, any script.** Japanese, Hindi, Korean, Thai, Arabic,
-  Tagalog, accented names and emoji are all saved exactly as typed. Search
-  ignores accents ("beyonce" finds "Beyoncé"), right-to-left names display
-  correctly, and names like "Tyler, The Creator" are never flagged.
-- **Light and dark themes** that follow your device, smooth animations,
-  and a layout made for phones. Works offline: fonts are bundled.
+## Quick start
+
+On a server with [Docker](https://docs.docker.com/engine/install/):
+
+```sh
+git clone https://github.com/gavndev/codetta.git && cd codetta
+cat > docker-compose.override.yml <<'EOF'
+services:
+  codetta:
+    environment:
+      PUID: "1000"   # the user that owns your music (ls -ln /path/to/music)
+      PGID: "1000"
+    volumes:
+      - /path/to/your/music:/music
+EOF
+docker compose up -d
+```
+
+Then open `http://<your-server>:8111` and create your account. That's it.
+The [full guide](#installing) walks through each step.
+
+## What it does
+
+### Fix a whole album in one go
+
+Fill in the album details once, drop in a cover, and **Save to folder** applies
+exactly those changes to every track. You see the full list of changes before
+anything is written.
 
 <p align="center">
-  <img src="docs/screenshots/phone-album.png" alt="Album view on an iPhone" width="260">
-  &nbsp;
-  <img src="docs/screenshots/phone-editor.png" alt="Editing a track on an iPhone" width="260">
+  <img src="docs/media/fix-an-album.gif" alt="Filling in album, album artist, date, genre and cover art on one track, then saving them to all five tracks in the folder" width="900">
 </p>
 
+### Turn loose downloads into proper releases
+
+**Tag Loadouts** are saved sets of tags with placeholders like
+`{filename_title}`, `{folder}` and `{track}/{tracktotal}`. Apply one to a file,
+a selection or a folder, and loose downloads become properly tagged singles or
+albums. You always get a preview first, and you choose whether to only fill
+empty tags or overwrite them.
+
 <p align="center">
-  <img src="docs/screenshots/loadout-preview.png" alt="Previewing a Tag Loadout on a folder of loose downloads" width="900">
+  <img src="docs/media/loadouts.gif" alt="Previewing the Single loadout on a folder of loose downloads, then applying it to five files" width="900">
+</p>
+
+### Undo anything
+
+Every change lands in the activity log with its old and new values. Changed
+your mind? Undo it right from the log, even across a whole album, and redo it
+if you change it back. Files that were edited again since are left alone,
+never overwritten.
+
+<p align="center">
+  <img src="docs/media/undo.gif" alt="Changing the genre of ten tracks at once, then undoing all ten from the activity log" width="900">
+</p>
+
+### Made for your phone too
+
+Codetta is designed for iPhone and Android as much as for desktop: big touch
+targets, a full-screen editor sheet, **Select** mode like the Photos app, and
+covers straight from your photo library (HEIC included).
+
+<p align="center">
+  <img src="docs/media/phone.gif" alt="Opening an album on a phone, editing a genre and saving" width="260">
+  &nbsp;
+  <img src="docs/screenshots/phone-album.png" alt="Album view on a phone" width="260">
+  &nbsp;
+  <img src="docs/screenshots/phone-editor.png" alt="Track editor on a phone" width="260">
+</p>
+
+### And the rest
+
+- **Edit one track or many.** Select several tracks and change only the fields
+  you need. Fields that differ show as *Multiple values* and are left alone
+  unless you touch them.
+- **Smart suggestions.** Album-level fields suggest values the other tracks in
+  the folder already use, and Track suggests the file's position (`2/6`).
+- **Copy & paste tags** between tracks and folders.
+- **Album art everywhere.** A thumbnail on every track, and covers you can
+  add, replace or remove as part of a normal save.
+- **Filter a folder by tag**, e.g. *Label: Independent*.
+- **Any language, any script.** Japanese, Hindi, Korean, Thai, Arabic, accented
+  names and emoji are saved exactly as typed. Search ignores accents
+  ("beyonce" finds "Beyoncé") and right-to-left names display correctly.
+- **Light and dark themes** that follow your device, with smooth, subtle
+  animations (off when your system asks for reduced motion).
+- **Works offline.** No CDNs, no tracking, fonts bundled. The only thing Codetta
+  ever sends out is an optional check for new versions.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/editor-dark.png">
+    <img src="docs/screenshots/editor-light.png" alt="Codetta's track editor next to an album" width="900">
+  </picture>
 </p>
 
 ## How Codetta keeps your files safe
 
-Your music library matters, so Codetta is careful with it:
+Your library matters, so Codetta is careful with it:
 
-- **Changes never touch the original until they're verified.** Codetta writes
-  each change to a temporary copy, reads it back to check that every tag
-  saved correctly, and only then swaps it in, in a single atomic step. If
-  anything goes wrong (a full disk, a crash, a power cut), the original file
-  is left exactly as it was.
-- **Nothing else changes.** Tags you didn't edit, embedded album art, file
-  permissions and ownership are preserved. Symlinks are followed, not
-  replaced, and hard-linked copies (for example, a torrent that's still
-  seeding) keep their original bytes.
-- **Codetta only writes when you ask it to.** Browsing never modifies a file.
-  Saving, *Save to folder*, applying a loadout and changing album art are the
-  only actions that write, and the bulk ones ask you to confirm first.
-- **It's tested.** Around 400 automated tests cover every format, including
-  corrupt, truncated and mislabelled files, unicode, read-only folders and
-  interrupted writes.
+- **The original is never touched until the change is verified.** Each save
+  goes to a temporary copy, which is read back to check that every tag landed
+  correctly, then swapped in with a single atomic step. If anything goes wrong
+  (a full disk, a crash, a power cut), the original file is left exactly as it
+  was.
+- **Nothing else changes.** Tags you didn't edit, embedded art, permissions
+  and ownership are preserved. Symlinks are followed, not replaced, and
+  hard-linked copies (say, a torrent that's still seeding) keep their
+  original bytes.
+- **Codetta only writes when you ask.** Browsing never modifies a file. Bulk
+  actions ask you to confirm first, and everything can be undone.
+- **It doesn't rename, move or delete files.** Only tags and embedded art
+  change.
+- **It's tested.** Over 500 automated tests cover every format, including
+  corrupt, truncated and mislabelled files, every script and emoji, read-only
+  folders, interrupted writes, simultaneous saves and attack attempts.
 
-That said, it's still your library: **keep a backup**, as you would with any
-tool that edits files.
+## Installing
 
-## Installing with Docker
-
-You'll need a server with [Docker](https://docs.docker.com/engine/install/)
-and Docker Compose, and your music in a folder on that server.
+You need a server with [Docker](https://docs.docker.com/engine/install/) and
+Docker Compose, and your music in a folder on that server.
 
 ### 1. Back up your library
 
-If you don't already have a backup of your music folder, make one now. Codetta
-is careful, but a backup protects you from the one thing no software can:
+If you don't have a backup of your music yet, make one now. Codetta is
+careful, but a backup protects you from the one thing no software can:
 editing the wrong album.
 
 ### 2. Find the user that owns your music
 
 Codetta runs as a normal user (never root), so the files it edits keep their
-owner and your other apps can still read them. On the server, run:
+owner and your other apps can still read them:
 
 ```sh
-ls -ln /path/to/your/music | head -3   # the 3rd and 4th columns are the user and group IDs
+ls -ln /path/to/your/music | head -3   # 3rd and 4th columns: user and group ID
 ```
 
-On most single-user servers this is `1000` and `1000`.
+On most single-user servers that's `1000` and `1000`.
 
 ### 3. Get Codetta
 
@@ -129,8 +203,8 @@ cd codetta
 
 ### 4. Point it at your music
 
-Create a file called `docker-compose.override.yml` next to
-`docker-compose.yml`, with your own path and IDs:
+Create `docker-compose.override.yml` next to `docker-compose.yml`, with your
+own path and IDs:
 
 ```yaml
 services:
@@ -142,8 +216,7 @@ services:
       - /path/to/your/music:/music
 ```
 
-Keeping your settings in this separate file means updating Codetta later never
-overwrites them.
+Keeping your settings in this separate file means updates never overwrite them.
 
 ### 5. Start it
 
@@ -151,29 +224,25 @@ overwrites them.
 docker compose up -d
 ```
 
-Docker builds the image the first time, which takes a minute or two.
+The first start builds the image, which takes a minute or two.
 
-### 6. Create your account straight away
+### 6. Create your account
 
-Open `http://<your-server>:8111`. The first visit shows **Welcome to Codetta**,
-where you choose a username and a password (at least 8 characters).
-
-Do this as soon as Codetta is running: until an account exists, anyone who can
-reach the page could create one.
+Open `http://<your-server>:8111` and choose a username and password (at least
+8 characters). Do this right away. For safety, the setup screen only works
+from your home network, Tailscale or the server itself.
 
 ### 7. Try it on one album first
 
 Pick an album you know well, make a small change, and check it in your music
-player after its next library scan. Once you're happy, it's ready for the
-rest of your library.
+app after its next library scan. Happy? Then it's ready for the rest of your
+library.
 
 ## Updating
 
-Your version number is shown on the sign-in screen and in the account menu
-(the person icon). When a new release is out, a dot appears on that icon and
-the account menu shows what's new and the commands to run. Codetta never
-updates itself: that would require giving it control over Docker, and with
-it, the rest of your server.
+Your version is shown on the sign-in screen and in the account menu (the
+person icon). When a new release is out, a dot appears on that icon, and the
+account menu shows what's new and the commands to run:
 
 ```sh
 cd codetta
@@ -181,8 +250,9 @@ git pull
 docker compose up -d --build
 ```
 
-Your account, loadouts and activity log live in `./codetta-config` and are kept
-across updates.
+Codetta never updates itself. That would mean giving it control of Docker,
+and with it the rest of your server. Your account, loadouts and activity log
+live in `./codetta-config` and are kept across updates.
 
 ## Settings
 
@@ -195,15 +265,15 @@ All optional. Set them under `environment:` in your
 | `CODETTA_PORT` | `8111` | The port inside the container. To use a different port on your server, change the `ports:` mapping instead. |
 | `CODETTA_USERNAME` + `CODETTA_PASSWORD` | – | Create the account from here instead of the setup screen. The password can then only be changed here. |
 | `CODETTA_AUTH` | `on` | Set to `off` to disable sign-in. **Only** do this if a reverse proxy in front of Codetta already requires a login. |
-| `CODETTA_UPDATE_CHECK` | `on` | Twice a day, Codetta asks GitHub whether a newer release exists, and shows a dot on the account icon if so. Only the request itself is sent (no information about you or your library). Set to `off` to disable. |
-| `CODETTA_ALLOW_PUBLIC_SETUP` | `off` | The first-run setup screen only works from home networks, Tailscale and the server itself, so nobody on the internet can claim a fresh install. Set to `on` only if you must set up over the internet. |
-| `CODETTA_ALLOWED_HOSTS` | – | Optional comma-separated host names Codetta answers to (e.g. `music-server,192.168.1.50`). Requests for any other name are refused, which blocks DNS-rebinding attacks. Recommended if Codetta is reachable from more than your own devices. |
-| `FORWARDED_ALLOW_IPS` | `127.0.0.1` | If you use a reverse proxy, set this to its IP so login lockouts see each visitor's real address. |
+| `CODETTA_UPDATE_CHECK` | `on` | Twice a day, asks GitHub whether a newer release exists. Nothing about you or your library is sent. Set to `off` to disable. |
+| `CODETTA_ALLOW_PUBLIC_SETUP` | `off` | The setup screen only works from home networks, Tailscale and the server itself, so nobody on the internet can claim a fresh install. Set to `on` only if you must set up over the internet. |
+| `CODETTA_ALLOWED_HOSTS` | – | Comma-separated host names Codetta answers to (e.g. `music-server,192.168.1.50`). Other names are refused, which blocks DNS-rebinding attacks. Recommended if more than your own devices can reach Codetta. |
+| `FORWARDED_ALLOW_IPS` | `127.0.0.1` | Behind a reverse proxy, set this to the proxy's IP so login lockouts see each visitor's real address. |
 
 | Folder in the container | What's in it |
 |---|---|
 | `/music` | Your library. Codetta needs read-write access to edit it. |
-| `/config` | Your account, sign-in sessions, profile picture (`avatars/`), loadouts, the activity log (`activity.jsonl`) and previous album art kept for undo (`undo-art/`). Include it in your backups. |
+| `/config` | Your account, sessions, profile picture, loadouts, the activity log and previous album art kept for undo. Include it in your backups. |
 
 The provided compose file also runs the container with a read-only system
 filesystem and without the ability to gain extra privileges.
@@ -211,25 +281,19 @@ filesystem and without the ability to gain extra privileges.
 ## Signing in
 
 - Each browser stays signed in for 30 days.
-- The person icon in the top bar lets you change your password or sign out.
-  Changing the password signs out your other devices.
+- The person icon in the top bar lets you set a profile picture, change your
+  password or sign out. Changing the password signs out your other devices.
 - After 5 wrong passwords, that device has to wait before trying again
   (30 seconds, doubling each time, up to 15 minutes).
 
-### Resetting your password
-
-From the server:
+**Forgot your password?** Reset it from the server:
 
 ```sh
 docker exec -it codetta codetta-admin set-password
 ```
 
 You'll be asked for a new password, and every device is signed out. To sign
-out every device without changing the password:
-
-```sh
-docker exec -it codetta codetta-admin sign-out-all
-```
+out every device without changing the password, use `codetta-admin sign-out-all`.
 
 ## Remote access and HTTPS
 
@@ -254,16 +318,18 @@ address:
 
 ## Security
 
-- Every page and API call requires signing in, except the sign-in screen itself and a health check.
-- A fresh install can only be set up from your home network, Tailscale or the server itself, never from the internet.
+- Every page and API call requires signing in, except the sign-in screen and a health check.
+- A fresh install can only be set up from your home network, Tailscale or the server itself.
 - Passwords are hashed with scrypt; sessions are random tokens stored only as hashes; repeated wrong passwords are locked out.
 - Changes must come from Codetta's own page (cross-site requests are refused), request sizes are capped, and every response carries a strict Content Security Policy.
 - Album art from your files is only ever shown as an image, so a malicious file can't run code in your browser.
 - The container runs as your user, with a read-only system filesystem and no extra privileges.
-- Codetta only touches files inside the music folder. Symlinks *you* put in that folder (e.g. to music on another disk) are followed; nothing in Codetta can create links, upload new files or delete tracks.
-- Requests are bounded: at most 1,000 files and 100,000 characters per tag value per request, and the same file listed twice is only edited once.
+- Codetta only touches files inside the music folder. Symlinks *you* put there (e.g. to music on another disk) are followed; nothing in Codetta can create links, upload new files or delete tracks.
+- Requests are bounded: at most 1,000 files and 100,000 characters per tag value per request, and a file listed twice is only edited once.
 
-Found a security problem? Please report it privately rather than in a public issue.
+Found a security problem? Please report it privately through
+[GitHub's security advisories](https://github.com/gavndev/codetta/security/advisories/new)
+rather than in a public issue.
 
 ## Supported formats
 
@@ -278,17 +344,54 @@ Found a security problem? Please report it privately rather than in a public iss
 Codetta detects the real format from each file's contents, so a mislabelled
 file still opens correctly.
 
+## FAQ
+
+**Does it work with Jellyfin, Plex or other players?**
+Yes. Codetta writes standard tags that any player reads. It's tuned for
+Navidrome's extra fields, but nothing about it is Navidrome-only.
+
+**Does it rename or move my files?**
+No. Only tags and embedded album art change. File names and folders stay as
+they are.
+
+**Does it need internet access?**
+No. Everything, fonts included, is served from your own server. The optional
+update check is the only outgoing request, and you can turn it off.
+
+**Can several people use it?**
+There's one account per Codetta instance for now. You can stay signed in on as
+many devices as you like.
+
+**My music app doesn't show the change yet.**
+Most servers only notice changes on their next library scan. Start a scan in
+your music app, or wait for the scheduled one.
+
+**What if something goes wrong during a save?**
+The original file is only replaced after the edited copy has been checked, so
+an interrupted save leaves the original as it was. You can also undo any
+change from the activity log.
+
 ## Known limitations
 
-- One account per Codetta instance (no separate users yet).
+- One account per Codetta instance.
 - WAV, AIFF, WMA and raw `.aac` files aren't supported.
 - Filtering by tag works within a folder, not across the whole library.
 
 ## Roadmap
 
-- **MusicBrainz:** match a track or folder to a MusicBrainz release and
-  apply its official metadata, with a preview first.
-- Library-wide tag search.
+- **MusicBrainz:** match a track or folder to a MusicBrainz release and apply
+  its official metadata, with a preview first.
+- **Library-wide search** by tag.
+- **A ready-made Docker image**, so installing doesn't need a build step.
+
+## What's new
+
+### 0.1.0 (first release, alpha)
+
+The first public version: editing for five formats, Save to folder, album art,
+Tag Loadouts, undo and redo, sign-in, phone support and a hardened Docker
+setup. See [**CHANGELOG.md**](CHANGELOG.md) for the full list and every
+release after it.
 
 ## Removing Codetta
 
@@ -305,7 +408,7 @@ don't want to keep your account, loadouts and activity log.
 
 Codetta is a [FastAPI](https://fastapi.tiangolo.com/) app using
 [mutagen](https://mutagen.readthedocs.io/) for tags, with a plain
-HTML/CSS/JavaScript front end (no build step).
+HTML/CSS/JavaScript front end (no framework, no build step).
 
 ```sh
 python3 -m venv .venv && source .venv/bin/activate
@@ -314,8 +417,9 @@ pytest
 CODETTA_MUSIC_DIR=~/some-test-music uvicorn codetta.web.app:app --reload --port 8111
 ```
 
-Use a **copy** of some music while developing. Contributor notes are in
-[`CLAUDE.md`](CLAUDE.md) and the roadmap in [`PLAN.md`](PLAN.md).
+Always use a **copy** of some music while developing. Contributor notes are in
+[`CLAUDE.md`](CLAUDE.md), the plan in [`PLAN.md`](PLAN.md), and logo files and
+colours in [`docs/brand`](docs/brand).
 
 ## License
 
@@ -330,3 +434,4 @@ make your changes available to them under the same license.
 - [FastAPI](https://fastapi.tiangolo.com/) and [Uvicorn](https://www.uvicorn.org/).
 - [Inter](https://rsms.me/inter/) by Rasmus Andersson, under the SIL Open Font License.
 - Tag mappings follow [MusicBrainz Picard](https://picard.musicbrainz.org/docs/mappings/)'s conventions.
+- The artists and albums in the screenshots are made up.

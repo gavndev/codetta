@@ -752,14 +752,17 @@ dialog.confirm .change-list li { display: grid; grid-template-columns: 110px min
   background: var(--surface-raised);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-lg);
+  min-width: min(260px, calc(100vw - 32px)); /* half-width fields (Genre, Disc) stay readable on phones */
 }
+.row-2 > :last-child .suggest { left: auto; } /* right-hand column: grow leftwards, stay on screen */
 .suggest-head { display: flex; align-items: center; gap: 5px; padding: 4px 8px 2px; font-size: 11px; font-weight: 600; color: var(--muted); }
 .suggest-head svg { width: 11px; height: 11px; fill: var(--accent); stroke: none; }
 .suggest-item {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 2px 12px;
   width: 100%;
   min-height: 34px;
   padding: 6px 8px;
@@ -769,7 +772,7 @@ dialog.confirm .change-list li { display: grid; grid-template-columns: 110px min
   text-align: left;
 }
 .suggest-item:hover, .suggest-item.active { background: var(--accent-soft); }
-.suggest-value { font-weight: 500; overflow-wrap: anywhere; }
+.suggest-value { font-weight: 500; overflow-wrap: break-word; min-width: 0; }
 .suggest-note { font-size: 11px; color: var(--faint); white-space: nowrap; flex: none; }
 .field-label .flag.changed { color: var(--accent); }
 .field-label .flag.removed { color: var(--danger); }
@@ -1382,4 +1385,9 @@ dialog.sheet.closing::backdrop { animation: fade-out 150ms ease forwards; }
 
 @media (min-width: 761px) {
   .editor-close { order: 0; }
+  /* With the editor open, centre the selection bar and toasts over the track list,
+     so they never cover the editor (e.g. the activity log's Undo buttons). */
+  body:has(.editor:not([hidden])) .selection-bar,
+  body:has(.editor:not([hidden])) .toasts { left: calc((100% - 500px) / 2); }
+  body:has(.editor:not([hidden])) .selection-bar { max-width: calc(100vw - 500px - 24px); }
 }

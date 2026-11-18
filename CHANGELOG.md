@@ -23,3 +23,7 @@ First release.
 - Simultaneous saves to the same file (two devices, a double-tap) can no longer lose an edit.
 - Security hardening: strict Content Security Policy and security headers, cross-site request protection, request size limits, album art only ever served as an image, stronger password hashing (upgraded automatically at sign-in), optional `CODETTA_ALLOWED_HOSTS`.
 - Docker image that runs as your user, with a health check and read-only filesystem.
+- First-run setup only works from home networks, Tailscale or the server itself (`CODETTA_ALLOW_PUBLIC_SETUP` to override), so nobody on the internet can claim a fresh install.
+- Requests are bounded (at most 1,000 files and 100,000 characters per tag value), and a file listed twice in one request is edited once. Big Save to folder jobs are sent in batches automatically.
+- On desktop, the selection bar and notifications no longer cover the editor's activity log when the editor is open.
+- On phones, value suggestions for half-width fields (Genre, Disc) are wide enough to read.
