@@ -85,6 +85,7 @@ MAX_PATHS = 1000
 MAX_DETAIL = 12
 
 _FEAT = re.compile(r"\s+(?:feat\.?|ft\.?|featuring|with|x|&|,|/|;|\+|vs\.?)\s+|\s*[,;/]\s*", re.IGNORECASE)
+EDITION_RE = re.compile(r"\s*[\(\[][^)\]]*(?:deluxe|edition|remaster|version|expanded|bonus|explicit|clean)[^)\]]*[\)\]]", re.IGNORECASE)
 _LEADING_NUMBER = re.compile(r"^\s*(?:(\d{1,2})[-.])?(\d{1,3})(?=[\s._-])")
 
 

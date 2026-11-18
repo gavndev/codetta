@@ -254,9 +254,13 @@ h1, h2, h3, p { margin: 0; }
   border: 1px solid var(--field-line);
   color: var(--muted);
   width: 240px;
-  transition: width 320ms var(--ease-out), box-shadow 200ms ease, border-color 200ms ease;
+  /* Opens wider while in use and settles back when you leave it (a soft spring, both ways). */
+  transition: width 420ms cubic-bezier(0.32, 0.72, 0, 1), box-shadow 200ms ease, border-color 200ms ease,
+              background-color 200ms ease;
 }
-.search-wrap { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.search-wrap { display: flex; align-items: center; gap: 8px; min-width: 0; position: relative; }
+.search > svg { transition: transform 300ms cubic-bezier(0.32, 0.72, 0, 1), opacity 200ms ease; }
+.search-wrap.active .search > svg { transform: scale(1.08); }
 .search-cancel { display: none; }
 /* Using the search (or searching Soulseek): it widens to make room. */
 .search-wrap.active .search { width: 380px; }
@@ -2203,3 +2207,89 @@ body:has(.now-playing:not([hidden])) .browser { padding-bottom: 120px; }
   .health-chip { min-height: 36px; }
   .health-card { min-height: 60px; }
 }
+
+
+/* ---- Bangs: the chip per service, and the suggestions under the search bar ------------------------ */
+
+.bang-chip.bang-mb { background: linear-gradient(115deg, #ba478f, #eb743b); }
+.bang-chip.bang-mb .mb-logo { width: 13px; height: 13px; }
+.bang-chip.bang-mb .mb-logo .mb-l, .bang-chip.bang-mb .mb-logo .mb-r { fill: #fff; }
+.bang-chip.bang-mb .mb-logo .mb-cut { fill: #ba478f; opacity: 1; }
+.search.banged:has(.bang-mb):focus-within { box-shadow: 0 0 0 2px #ba478f; }
+.bang-suggest {
+  position: absolute; top: calc(100% + 8px); left: 0; right: 0; z-index: 30; min-width: 300px; padding: 6px;
+  background: var(--surface-raised); border: 1px solid var(--border-strong); border-radius: 14px; box-shadow: var(--shadow-lg);
+  transform-origin: 50% -8px;
+}
+.bang-suggest.opening { animation: bang-open 260ms cubic-bezier(0.32, 0.72, 0, 1) both; }
+.bang-suggest.closing { animation: bang-close 160ms ease-in both; }
+@keyframes bang-open { from { opacity: 0; transform: translateY(-6px) scale(0.96); } }
+@keyframes bang-close { to { opacity: 0; transform: translateY(-4px) scale(0.97); } }
+.bang-suggest-head { margin: 4px 8px 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--faint); }
+.bang-suggest-item {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%;
+  min-height: 44px; padding: 6px 8px; border: 0; border-radius: 10px; background: none; color: var(--text);
+  font: inherit; font-size: 13px; text-align: left; cursor: pointer;
+}
+.bang-suggest-item:hover, .bang-suggest-item:focus-visible { background: var(--hover); outline: none; }
+.bang-suggest-item .bang-chip { animation: none; cursor: inherit; }
+.bang-suggest-about { color: var(--muted); }
+.bang-suggest-item kbd { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--faint); }
+@media (max-width: 760px) {
+  .bang-suggest { min-width: 0; right: 0; }
+  .bang-suggest-item kbd { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bang-suggest.opening, .bang-suggest.closing { animation: none; }
+  .search, .search > svg { transition: none !important; }
+}
+
+/* ---- Explore MusicBrainz: search results, artists, releases ---------------------------------------- */
+
+.mbx { display: flex; flex-direction: column; gap: 26px; }
+.mbx-h { font-size: 13px; font-weight: 750; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
+.mbx-h span { color: var(--faint); font-variant-numeric: tabular-nums; }
+.mbx-source { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--faint); margin-top: 8px; }
+.mbx-source .mb-logo { width: 13px; height: 13px; }
+.mbx-artists { display: flex; flex-direction: column; border-top: 1.5px solid var(--text); }
+.mbx-artist { display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 8px 4px; border-bottom: 1px solid var(--rule);
+  color: var(--text); text-decoration: none; }
+.mbx-artist:hover { background: var(--hover); }
+.mbx-artist > svg { width: 16px; height: 16px; margin-left: auto; fill: none; stroke: var(--faint); stroke-width: 1.8; flex: none; }
+.mbx-avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; flex: none;
+  background: linear-gradient(135deg, color-mix(in oklab, #ba478f 30%, var(--surface)), color-mix(in oklab, #eb743b 30%, var(--surface)));
+  font-weight: 800; font-size: 17px; }
+.mbx-artist-text { display: flex; flex-direction: column; min-width: 0; }
+.mbx-artist-text strong { font-weight: 650; overflow-wrap: anywhere; }
+.mbx-meta, .mbx-dis { color: var(--muted); font-size: 13px; font-weight: 400; }
+.mbx-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 18px 14px; }
+.mbx-card { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.mbx-card a { color: inherit; text-decoration: none; }
+.mbx-card a:hover strong { text-decoration: underline; }
+.mbx-cover { width: 100%; height: auto; aspect-ratio: 1; object-fit: cover; border-radius: 6px; background: var(--surface);
+  box-shadow: 0 1px 0 var(--border); display: block; }
+.mbx-noart { display: grid; place-items: center; color: var(--faint); }
+.mbx-noart svg { width: 28%; height: 28%; fill: none; stroke: currentColor; stroke-width: 1.4; }
+.mbx-card-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; font-size: 13px; }
+.mbx-card-text strong { font-size: 14px; font-weight: 650; overflow-wrap: anywhere; }
+.mbx-card-text > span { color: var(--muted); overflow-wrap: anywhere; }
+.mbx-owned { display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; width: fit-content; padding: 1px 8px 1px 6px;
+  border-radius: 999px; font-size: 11.5px; font-weight: 650; text-decoration: none;
+  background: color-mix(in oklab, var(--success) 14%, transparent); color: var(--success); }
+.mbx-owned svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2.2; }
+.mbx-links { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-size: 13px; }
+.mbx-links a { color: var(--accent); }
+.mbx-tracks { list-style: none; margin: 0; padding: 0; border-top: 1.5px solid var(--text); }
+.mbx-track { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 10px; align-items: baseline; min-height: 46px;
+  padding: 12px 4px; border-bottom: 1px solid var(--rule); }
+.mbx-n { color: var(--faint); font-variant-numeric: tabular-nums; text-align: right; }
+.mbx-t { overflow-wrap: anywhere; }
+.mbx-len { color: var(--muted); font-variant-numeric: tabular-nums; }
+.mbx-disc { padding: 16px 4px 6px; font-size: 12px; font-weight: 750; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+@media (max-width: 760px) {
+  .mbx-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mbx-artist { min-height: 64px; }
+}
+.folders.mbx-host { display: block; border-top: 0; }
+.folder-actions a.btn { display: inline-flex; align-items: center; text-decoration: none; color: var(--text); }
+.folder-actions a.btn.primary { color: var(--bg); }

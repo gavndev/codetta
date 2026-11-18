@@ -226,10 +226,121 @@ class MusicBrainz:
         return data
 
 
-def cover_url(mbid: str, size: int | None = 1200, base: str = CAA_BASE) -> str:
+    # --- Exploring (the !mb bang): artists and their releases, not tied to any files ---
+
+    def search_artists(self, text: str, limit: int = 8) -> list[dict]:
+        data = self._get("artist", {"query": _lucene(text), "limit": str(limit)})
+        items = data.get("artists") if isinstance(data, dict) else None
+        return [a for a in items or [] if isinstance(a, dict) and MBID_RE.match(str(a.get("id", "")))]
+
+    def search_release_groups(self, text: str, limit: int = 15) -> list[dict]:
+        data = self._get("release-group", {"query": _lucene(text), "limit": str(limit)})
+        items = data.get("release-groups") if isinstance(data, dict) else None
+        return [g for g in items or [] if isinstance(g, dict) and MBID_RE.match(str(g.get("id", "")))]
+
+    def artist(self, mbid: str) -> dict:
+        if not MBID_RE.match(mbid or ""):
+            raise ProviderError("That isn't a MusicBrainz artist ID.")
+        data = self._get(f"artist/{mbid}", {"inc": "url-rels+genres"})
+        if not isinstance(data, dict):
+            raise ProviderError("MusicBrainz doesn't have that artist.")
+        return data
+
+    def artist_release_groups(self, mbid: str) -> list[dict]:
+        """The artist's albums, EPs and singles (up to 100), oldest first."""
+        data = self._get("release-group", {"artist": mbid, "limit": "100", "type": "album|ep|single"})
+        items = data.get("release-groups") if isinstance(data, dict) else None
+        groups = [g for g in items or [] if isinstance(g, dict) and MBID_RE.match(str(g.get("id", "")))]
+        return sorted(groups, key=lambda g: (g.get("first-release-date") or "9999", g.get("title") or ""))
+
+    def release_group(self, mbid: str) -> dict:
+        if not MBID_RE.match(mbid or ""):
+            raise ProviderError("That isn't a MusicBrainz release group ID.")
+        data = self._get(f"release-group/{mbid}", {"inc": "releases+artist-credits+genres"})
+        if not isinstance(data, dict):
+            raise ProviderError("MusicBrainz doesn't have that release.")
+        return data
+
+    def release_tracks_summary(self, mbid: str) -> dict:
+        """A release with its tracklist and labels (lighter than ``release``)."""
+        if not MBID_RE.match(mbid or ""):
+            raise ProviderError("That isn't a MusicBrainz release ID.")
+        data = self._get(f"release/{mbid}", {"inc": "recordings+labels+artist-credits+media"})
+        if not isinstance(data, dict):
+            raise ProviderError("MusicBrainz doesn't have that release.")
+        return data
+
+
+def cover_url(mbid: str, size: int | None = 1200, base: str = CAA_BASE, kind: str = "release") -> str:
     if not MBID_RE.match(mbid or ""):
         raise ProviderError("That isn't a MusicBrainz release ID.")
-    return f"{base}/release/{mbid}/front" + (f"-{size}" if size else "")
+    if kind not in ("release", "release-group"):
+        raise ProviderError("Unknown cover kind.")
+    return f"{base}/{kind}/{mbid}/front" + (f"-{size}" if size else "")
+
+
+# --- Exploring: plain summaries for the page ------------------------------------------------
+
+_SAFE_LINK = re.compile(r"^https?://[^\s<>\"']+$")
+LINK_TYPES = {"official homepage": "Website", "wikipedia": "Wikipedia", "wikidata": "Wikidata",
+              "bandcamp": "Bandcamp", "discogs": "Discogs", "allmusic": "AllMusic", "last.fm": "Last.fm",
+              "soundcloud": "SoundCloud", "youtube": "YouTube", "streaming": "Streaming",
+              "free streaming": "Streaming", "social network": "Social"}
+
+
+def _year(date: str | None) -> str:
+    return (date or "")[:4]
+
+
+def artist_summary(a: dict) -> dict:
+    life = a.get("life-span") or {}
+    area = (a.get("area") or {}).get("name") or ""
+    return {"id": a.get("id"), "name": a.get("name") or "", "type": a.get("type") or "",
+            "country": a.get("country") or "", "area": area, "disambiguation": a.get("disambiguation") or "",
+            "begin": _year(life.get("begin")), "end": _year(life.get("end")), "ended": bool(life.get("ended")),
+            "score": a.get("score")}
+
+
+def group_summary(g: dict) -> dict:
+    credit = g.get("artist-credit")
+    first = next((c.get("artist") or {} for c in credit or [] if isinstance(c, dict)), {})
+    return {"id": g.get("id"), "title": g.get("title") or "", "artist": credit_string(credit) if credit else "",
+            "artist_id": first.get("id") or "", "type": g.get("primary-type") or "",
+            "secondary": [t for t in g.get("secondary-types") or [] if isinstance(t, str)],
+            "year": _year(g.get("first-release-date")), "date": g.get("first-release-date") or "",
+            "score": g.get("score")}
+
+
+def artist_links(a: dict) -> list[dict]:
+    out, seen = [], set()
+    for rel in a.get("relations") or []:
+        url = ((rel or {}).get("url") or {}).get("resource") or ""
+        label = LINK_TYPES.get((rel or {}).get("type") or "")
+        if label and _SAFE_LINK.match(url) and url not in seen:
+            seen.add(url)
+            out.append({"label": label, "url": url})
+    return out[:10]
+
+
+def pick_release(group: dict) -> dict | None:
+    """The edition to show for a release group: the earliest official one."""
+    rels = [r for r in group.get("releases") or [] if isinstance(r, dict) and MBID_RE.match(str(r.get("id", "")))]
+    official = [r for r in rels if (r.get("status") or "").lower() == "official"] or rels
+    return min(official, key=lambda r: r.get("date") or "9999") if official else None
+
+
+def tracklist(rel: dict) -> list[dict]:
+    out = []
+    discs = [m for m in rel.get("media") or [] if isinstance(m, dict)]
+    for disc_no, m in enumerate(discs, 1):
+        for t in m.get("tracks") or []:
+            if not isinstance(t, dict):
+                continue
+            length = t.get("length") or (t.get("recording") or {}).get("length")
+            out.append({"disc": disc_no, "discs": len(discs), "number": t.get("number") or str(t.get("position") or ""),
+                        "title": t.get("title") or "", "length": round(length / 1000) if isinstance(length, int) else None,
+                        "artist": credit_string(t.get("artist-credit")) if t.get("artist-credit") else ""})
+    return out
 
 
 # --- Turning a release into something readable -------------------------------------------

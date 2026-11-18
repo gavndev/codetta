@@ -377,10 +377,21 @@ async function updateSpot() {
 // two can't collide. Its URL is "#?q=genre%3A%20rap".
 const SEARCH = "\0";
 const isSearchKey = (key) => typeof key === "string" && key.startsWith(SEARCH);
+// MusicBrainz pages (the !mb bang) are "paths" too: MBX + "search:<q>" | "artist:<id>" | "rg:<id>".
+// URLs: "#mb?q=…", "#mb/artist/<id>", "#mb/rg/<id>".
+const MBX = "\x01";
+const isMbKey = (key) => typeof key === "string" && key.startsWith(MBX);
+const mbKey = (key) => { const [kind, ...rest] = key.slice(1).split(":"); return { kind, value: rest.join(":") }; };
 const isSearch = () => isSearchKey(state.path);
 const searchQuery = (key = state.path) => (isSearchKey(key) ? key.slice(1) : "");
 
 function pathFromHash(hash = location.hash) {
+  if (hash.startsWith("#mb?")) {
+    const q = (new URLSearchParams(hash.slice(4)).get("q") || "").trim();
+    return q ? MBX + "search:" + q : "";
+  }
+  const m = /^#mb\/(artist|rg)\/([0-9a-f-]{36})$/i.exec(hash);
+  if (m) return MBX + m[1].toLowerCase() + ":" + m[2].toLowerCase();
   if (hash.startsWith("#?")) {
     const q = (new URLSearchParams(hash.slice(2)).get("q") || "").trim();
     return q ? SEARCH + q : "";
@@ -395,6 +406,10 @@ function pathFromHash(hash = location.hash) {
 
 function hashFor(path) {
   if (isSearchKey(path)) return "#?q=" + encodeURIComponent(searchQuery(path));
+  if (isMbKey(path)) {
+    const { kind, value } = mbKey(path);
+    return kind === "search" ? "#mb?q=" + encodeURIComponent(value) : `#mb/${kind}/${value}`;
+  }
   return "#/" + path.split("/").filter(Boolean).map(encodeURIComponent).join("/");
 }
 
@@ -425,7 +440,7 @@ async function onHistoryChange() {
 }
 
 function folderLinkPath(event) {
-  const a = event.target.closest?.('a[href^="#/"], a[href^="#?"]');
+  const a = event.target.closest?.('a[href^="#/"], a[href^="#?"], a[href^="#mb"]');
   if (!a || !a.closest("#app")) return null;
   return pathFromHash(a.getAttribute("href"));
 }
@@ -447,9 +462,22 @@ function rememberFolder(data) {
 
 const inflight = new Map(); // folder path -> pending /api/browse request
 
+function fetchMb(path) {
+  const { kind, value } = mbKey(path);
+  const crumbs = [{ name: "Library", path: "" }];
+  const wrap = (mb, name, extra = []) => ({ path, name, breadcrumbs: [...crumbs, ...extra, { name, path }],
+    folders: [], tracks: [], skipped: 0, mb: { kind, ...mb } });
+  if (kind === "search") {
+    return api("GET", `/api/mb/search?q=${encodeURIComponent(value)}`).then((d) => wrap(d, `MusicBrainz: ${value}`));
+  }
+  if (kind === "artist") return api("GET", `/api/mb/artist/${value}`).then((d) => wrap(d, d.name));
+  return api("GET", `/api/mb/release-group/${value}`).then((d) => wrap(d, d.title,
+    d.artist_id ? [{ name: d.artist, path: MBX + "artist:" + d.artist_id }] : []));
+}
+
 function fetchFolder(path) {
   if (!inflight.has(path)) {
-    const req = (isSearchKey(path)
+    const req = (isMbKey(path) ? fetchMb(path) : isSearchKey(path)
       ? api("GET", `/api/search?q=${encodeURIComponent(searchQuery(path))}`).then((data) => ({
         ...data, path, name: "Search",
         breadcrumbs: [{ name: "Library", path: "" }, { name: `Search: ${searchQuery(path)}`, path }],
@@ -463,6 +491,7 @@ function fetchFolder(path) {
 
 /** Start loading a folder as soon as a finger touches its link (or the mouse hovers it). */
 function prefetchFolder(path) {
+  if (isMbKey(path)) return; // MusicBrainz allows one request a second: only fetch what's opened
   if (path == null || folderCache.has(path) || inflight.has(path)) return;
   fetchFolder(path).then(rememberFolder, () => { /* ignore; the real visit will report errors */ });
 }
@@ -540,9 +569,9 @@ function showFolder(data, scrollTop) {
     for (const p of state.selected) if (!paths.has(p)) state.selected.delete(p);
     if (state.editor) renderEditor(); // show the fresh tags
   }
-  document.title = isSearchKey(data.path) ? `${searchQuery(data.path)} — Search — Codetta`
+  document.title = data.mb ? `${data.name} — Codetta` : isSearchKey(data.path) ? `${searchQuery(data.path)} — Search — Codetta`
     : data.path ? `${data.name} — Codetta` : "Codetta";
-  if (!sk.bang) els.filter.placeholder = filterPlaceholder();
+  if (!bang.kind) els.filter.placeholder = filterPlaceholder();
   renderBrowser();
   els.browser.scrollTop = scrollTop;
   updateSpot();
@@ -682,10 +711,126 @@ function mbFindButton(where) {
     h("span", { class: "mb-find-long" }, "Find in MusicBrainz"), h("span", { class: "mb-find-short" }, "Find")));
 }
 
+// ---- Explore MusicBrainz (the !mb bang): search results, artists, releases ---------------------------
+
+const mbLink = (key, ...kids) => h("a", { href: hashFor(MBX + key) }, ...kids);
+const mbGroupCover = (id) => {
+  const img = h("img", { class: "mbx-cover", src: `/api/musicbrainz/cover/${id}?size=250&kind=release-group`, alt: "",
+    loading: "lazy", decoding: "async", width: "160", height: "160" });
+  img.addEventListener("error", () => img.replaceWith(h("span", { class: "mbx-cover mbx-noart", "aria-hidden": "true" }, icon("note"))), { once: true });
+  return img;
+};
+const mbGroupKind = (g) => [g.type, ...(g.secondary || [])].filter(Boolean).join(" · ");
+const fmtLen = (s) => (s == null ? "" : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`);
+const lifeText = (a) => (a.begin || a.end ? `${a.begin || "?"}${a.ended || a.end ? `–${a.end || "?"}` : "–"}` : "");
+
+function mbOwnedBadge(folder) {
+  return folder == null ? null : h("a", { class: "mbx-owned", href: hashFor(folder), title: `In your library: ${folder}` }, icon("check"), "In your library");
+}
+
+function mbGroupCard(g, showArtist = true) {
+  return h("div", { class: "mbx-card" },
+    mbLink(`rg:${g.id}`, mbGroupCover(g.id)),
+    h("div", { class: "mbx-card-text" },
+      mbLink(`rg:${g.id}`, h("strong", { dir: "auto" }, g.title)),
+      showArtist && g.artist ? h("span", { dir: "auto" }, g.artist_id ? mbLink(`artist:${g.artist_id}`, g.artist) : g.artist) : null,
+      h("span", { class: "mbx-meta" }, [g.year, mbGroupKind(g)].filter(Boolean).join(" · ")),
+      mbOwnedBadge(g.in_library)));
+}
+
+function mbArtistRow(a) {
+  return h("a", { class: "mbx-artist", href: hashFor(MBX + "artist:" + a.id) },
+    h("span", { class: "mbx-avatar", "aria-hidden": "true" }, (a.name || "?").slice(0, 1).toUpperCase()),
+    h("span", { class: "mbx-artist-text" },
+      h("strong", { dir: "auto" }, a.name, a.disambiguation ? h("span", { class: "mbx-dis" }, ` (${a.disambiguation})`) : null),
+      h("span", { class: "mbx-meta" }, [a.type, a.area || a.country, lifeText(a)].filter(Boolean).join(" · "))),
+    icon("chevron"));
+}
+
+function renderMbHead(f) {
+  const d = f.mb;
+  const source = h("p", { class: "mbx-source" }, icon("musicbrainz"), "From MusicBrainz, the open music encyclopedia");
+  if (d.kind === "search") {
+    setKids(els.folderHead, h("div", {}, h("h1", {}, d.query),
+      h("p", {}, `${plural(d.artists.length, "artist")} and ${plural(d.releases.length, "release")} on MusicBrainz`), source));
+  } else if (d.kind === "artist") {
+    setKids(els.folderHead, h("div", {},
+      h("h1", { dir: "auto" }, d.name),
+      h("p", { class: "album-meta" }, [d.type, d.area || d.country, lifeText(d), d.disambiguation].filter(Boolean).join(" · ")),
+      d.genres.length ? h("div", { class: "album-chips" }, h("span", { class: "spot-chip" }, d.genres.join(", "))) : null,
+      d.links.length ? h("div", { class: "mbx-links" }, d.links.map((l) =>
+        h("a", { href: l.url, target: "_blank", rel: "noopener noreferrer" }, l.label))) : null,
+      source),
+    h("div", { class: "folder-actions" },
+      h("a", { class: "btn", href: `https://musicbrainz.org/artist/${d.id}`, target: "_blank", rel: "noopener noreferrer" }, "View on MusicBrainz")));
+  } else {
+    const r = d.release;
+    setKids(els.folderHead,
+      h("div", { class: "album-head" },
+        (() => { const c = mbGroupCover(d.id); c.classList.add("album-cover"); return c; })(),
+        h("div", {},
+          h("h1", { dir: "auto" }, d.title),
+          h("p", { class: "album-meta" },
+            d.artist_id ? mbLink(`artist:${d.artist_id}`, h("b", { dir: "auto" }, d.artist)) : h("b", {}, d.artist),
+            [d.year, mbGroupKind(d), r?.label, r?.catno, r?.format].filter(Boolean).map((x) => ` · ${x}`).join("")),
+          h("div", { class: "album-chips" },
+            d.genres.length ? h("span", { class: "spot-chip" }, d.genres.join(", ")) : null,
+            mbOwnedBadge(d.in_library)),
+          d.editions > 1 ? h("p", { class: "mbx-source" }, `Showing the first official edition of ${d.editions}.`) : null)),
+      h("div", { class: "folder-actions" },
+        d.in_library != null ? h("button", { class: "btn primary", type: "button", onclick: () => navigate(d.in_library) }, "Open in library") : null,
+        skReady() ? h("button", { class: "mb-find sk-find in-actions", type: "button", onclick: () => {
+          els.filter.value = [d.artist, d.title].filter(Boolean).join(" ");
+          setBang("slskd", d.in_library || "");
+          els.filter.focus();
+        } }, h("span", { class: "mb-find-inner" }, icon("slskd"), h("span", { class: "mb-find-long" }, "Find in slskd"), h("span", { class: "mb-find-short" }, "Find"))) : null,
+        h("a", { class: "btn", href: `https://musicbrainz.org/release-group/${d.id}`, target: "_blank", rel: "noopener noreferrer" }, "View on MusicBrainz")));
+  }
+  els.tracks.classList.remove("selecting");
+}
+
+function renderMbBody(f) {
+  const d = f.mb;
+  els.folders.classList.remove("as-list");
+  if (d.kind === "search") {
+    setKids(els.folders, h("div", { class: "mbx" },
+      d.artists.length ? h("section", {}, h("h2", { class: "mbx-h" }, "Artists"), h("div", { class: "mbx-artists" }, d.artists.map(mbArtistRow))) : null,
+      d.releases.length ? h("section", {}, h("h2", { class: "mbx-h" }, "Releases"), h("div", { class: "mbx-grid" }, d.releases.map((g) => mbGroupCard(g)))) : null,
+      !d.artists.length && !d.releases.length ? h("div", { class: "empty" }, h("strong", {}, "Nothing on MusicBrainz"), h("span", {}, "Try fewer or different words.")) : null));
+  } else if (d.kind === "artist") {
+    const sections = [["Albums", (g) => g.type === "Album" && !g.secondary.length], ["EPs", (g) => g.type === "EP" && !g.secondary.length],
+      ["Singles", (g) => g.type === "Single" && !g.secondary.length], ["Compilations, live and more", (g) => g.secondary.length > 0]];
+    const owned = d.groups.filter((g) => g.in_library != null).length;
+    setKids(els.folders, h("div", { class: "mbx" },
+      owned ? h("p", { class: "mbx-source" }, `You have ${owned} of these in your library.`) : null,
+      sections.map(([title, test]) => {
+        const items = d.groups.filter(test);
+        return items.length ? h("section", {}, h("h2", { class: "mbx-h" }, title, h("span", {}, ` ${items.length}`)),
+          h("div", { class: "mbx-grid" }, items.map((g) => mbGroupCard(g, false)))) : null;
+      }),
+      !d.groups.length ? h("div", { class: "empty" }, h("strong", {}, "No albums, EPs or singles listed"), h("span", {}, "MusicBrainz may not have them yet.")) : null));
+  } else {
+    const tracks = d.release?.tracks || [];
+    const multi = tracks.some((t) => t.discs > 1);
+    let disc = 0;
+    setKids(els.folders, h("div", { class: "mbx" },
+      tracks.length ? h("ol", { class: "mbx-tracks" }, tracks.flatMap((t) => {
+        const head = multi && t.disc !== disc ? h("li", { class: "mbx-disc" }, `Disc ${t.disc}`) : null;
+        disc = t.disc;
+        return [head, h("li", { class: "mbx-track" },
+          h("span", { class: "mbx-n" }, t.number),
+          h("span", { class: "mbx-t", dir: "auto" }, t.title, t.artist && t.artist !== d.artist ? h("span", { class: "mbx-dis" }, ` · ${t.artist}`) : null),
+          h("span", { class: "mbx-len" }, fmtLen(t.length)))];
+      })) : h("div", { class: "empty" }, h("strong", {}, "No tracklist on MusicBrainz yet"))));
+  }
+}
+
 function renderFolderHead() {
   const f = state.folder;
   if (!f) return;
+  updateHealthSlot(); // only on the Library page itself
   if (f.search) { renderSearchHead(f); return; }
+  if (f.mb) { renderMbHead(f); return; }
   const counts = [];
   if (f.folders.length) counts.push(plural(f.folders.length, "folder"));
   if (f.tracks.length) counts.push(plural(f.tracks.length, "track"));
@@ -761,7 +906,6 @@ function renderFolderHead() {
       }, state.selectMode ? "Done" : "Select") : null),
   );
   els.tracks.classList.toggle("selecting", state.selectMode);
-  updateHealthSlot();
 }
 
 const isPhone = () => window.matchMedia("(max-width: 760px)").matches;
@@ -806,6 +950,8 @@ function folderSummary(f) {
 }
 
 function renderFolders() {
+  els.folders.classList.toggle("mbx-host", !!state.folder?.mb);
+  if (state.folder?.mb) { renderMbBody(state.folder); return; }
   const q = fold(state.filter);
   const folders = (state.folder?.folders || []).filter((f) => !q || fold(f.name).includes(q));
   const list = folderView() === "list";
@@ -822,6 +968,7 @@ function renderTracks() {
   state.rows.clear();
   const f = state.folder;
   if (!f) return;
+  if (f.mb) { els.tracks.replaceChildren(); return; }
   const tracks = visibleTracks();
 
   if (!f.tracks.length && f.search) {
@@ -3294,13 +3441,12 @@ function renderInbox() {
 // Codetta downloads the best copy into the inbox, and the Soulseek sheet asks
 // whether to keep it (or blocklist it and try the next one).
 
-const sk = { data: null, timer: null, focus: null, bang: false, upgrade: "", picking: null, hinted: false };
+const sk = { data: null, timer: null, focus: null, picking: null };
 const SK_LABELS = {
   searching: "Searching", downloading: "Downloading", fetched: "Downloaded", arrived: "Matching", imported: "Imported",
   nothing: "Nothing found", failed: "Couldn't get it", cancelled: "Cancelled",
 };
 const SK_ACTIVE = ["searching", "downloading", "fetched"];
-const BANG = /^!(slskd|soulseek)(?=\s|$)/i; // the chip appears as soon as "!slskd" is typed
 const skReady = () => connectionOn("slskd") && !!sk.data?.configured;
 /** "about 3 min left" from seconds (null: not known yet). */
 const etaText = (s) => (s == null ? "" : s < 60 ? "less than a minute left" : s < 3600 ? `about ${Math.round(s / 60)} min left`
@@ -3322,37 +3468,95 @@ async function loadSlskd() {
   return sk.data;
 }
 
+// ---- Bangs: "!mb", "!slskd" in the search bar ------------------------------------------------------
+//
+// Typing a bang turns it into a chip; what you type next goes to that service
+// instead of your library. Each bang is offered only while its connection is on.
+
+const bang = { kind: null, upgrade: "", hinted: new Set() };
+const BANGS = {
+  mb: {
+    names: ["mb", "musicbrainz"], label: "MusicBrainz", icon: "musicbrainz", about: "Artists and releases on MusicBrainz",
+    placeholder: "Search MusicBrainz: artists, albums", available: () => connectionOn("musicbrainz"),
+    missing: "MusicBrainz isn't on. Turn it on in Account → Connections.",
+    run: (q) => { const query = q.trim(); if (!query) return; els.filter.value = ""; setBang(false); els.filter.blur(); navigate(MBX + "search:" + query); },
+  },
+  slskd: {
+    names: ["slskd", "soulseek"], label: "slskd", icon: "slskd", about: "Look for music on Soulseek",
+    placeholder: "Search Soulseek (* is a wildcard)", available: () => skReady(),
+    missing: "Soulseek isn't connected. Set it up in Account → Connections.",
+    run: (q) => skSearch(q),
+  },
+};
+const BANG_RE = /^!([a-z]+)(?=\s|$)/i; // the chip appears as soon as the bang's name is typed
+const bangKind = (name) => Object.keys(BANGS).find((k) => BANGS[k].names.includes(name.toLowerCase())) || null;
+
 function filterPlaceholder() {
-  if (sk.bang) return "Search Soulseek (* is a wildcard)";
-  return isSearch() ? "Search library" : "Filter this folder";
+  if (bang.kind) return BANGS[bang.kind].placeholder;
+  return isSearch() ? "Search library" : "Search anything";
 }
 
-/** Turn the Soulseek chip in the search bar on or off. */
-function setBang(on, upgrade = "") {
-  sk.bang = on;
-  sk.upgrade = on ? upgrade : "";
-  $("#bang-chip").hidden = !on;
-  $(".topbar .search").classList.toggle("banged", on);
-  if (on) $("#search-wrap").classList.add("active");
+/** Turn a bang's chip on (by kind) or off (null/false). ``true`` means slskd (Find in slskd). */
+function setBang(kind, upgrade = "") {
+  if (kind === true) kind = "slskd";
+  bang.kind = kind || null;
+  bang.upgrade = bang.kind ? upgrade : "";
+  const chip = $("#bang-chip");
+  chip.hidden = !bang.kind;
+  if (bang.kind) {
+    const b = BANGS[bang.kind];
+    chip.className = `bang-chip bang-${bang.kind}`;
+    chip.replaceChildren(icon(b.icon), b.label);
+    chip.setAttribute("aria-label", `${b.about} is on. Tap to turn it off`);
+  }
+  $(".topbar .search").classList.toggle("banged", !!bang.kind);
+  if (bang.kind) $("#search-wrap").classList.add("active");
   els.filter.placeholder = filterPlaceholder();
-  els.filter.setAttribute("enterkeyhint", on ? "search" : "enter");
+  els.filter.setAttribute("enterkeyhint", bang.kind ? "search" : "enter");
+  renderBangSuggestions();
 }
 
-/** Typing "!slskd " in the search bar: true if the bang was taken. */
+/** Typing "!mb" or "!slskd" in the search bar: true if a bang was taken. */
 function takeBang() {
-  if (sk.bang || !BANG.test(els.filter.value)) return false;
-  if (!connectionOn("slskd")) {
-    if (!sk.hinted) toast("Soulseek isn't connected. Turn it on in Account → Connections.");
-    sk.hinted = true;
+  const m = BANG_RE.exec(els.filter.value);
+  if (bang.kind || !m) return false;
+  const kind = bangKind(m[1]);
+  if (!kind) return false;
+  if (!BANGS[kind].available()) {
+    if (!bang.hinted.has(kind)) toast(BANGS[kind].missing);
+    bang.hinted.add(kind);
     return false;
   }
-  els.filter.value = els.filter.value.replace(BANG, "").trimStart();
-  setBang(true);
+  els.filter.value = els.filter.value.slice(m[0].length).trimStart();
+  setBang(kind);
   if (state.filter) { state.filter = ""; renderFolders(); renderTracks(); renderFilterChips(); }
   return true;
 }
 
-async function skSearch(query, upgrade = sk.upgrade) {
+/** Under the search bar: the bangs you can use (on focus, or while typing "!..."). */
+function renderBangSuggestions() {
+  const box = $("#bang-suggest");
+  const value = els.filter.value;
+  const focused = document.activeElement === els.filter;
+  const typed = value.startsWith("!") ? value.slice(1).toLowerCase() : null;
+  const items = Object.entries(BANGS).filter(([, b]) => b.available())
+    .filter(([, b]) => typed === null || b.names.some((n) => n.startsWith(typed)));
+  const show = focused && !bang.kind && items.length && (value === "" || typed !== null);
+  if (!show) {
+    if (!box.hidden && !box.classList.contains("closing")) playOut(box, "closing", () => { box.hidden = true; });
+    return;
+  }
+  setKids(box, h("p", { class: "bang-suggest-head" }, "Search somewhere else"),
+    items.map(([kind, b]) => h("button", { class: "bang-suggest-item", type: "button", role: "option",
+      onpointerdown: (e) => e.preventDefault(), // keep the keyboard open
+      onclick: () => { els.filter.value = els.filter.value.startsWith("!") ? "" : els.filter.value; setBang(kind); els.filter.focus(); } },
+    h("span", { class: `bang-chip bang-${kind}` }, icon(b.icon), b.label),
+    h("span", { class: "bang-suggest-about" }, b.about),
+    h("kbd", {}, `!${b.names[0]}`))));
+  if (box.hidden) { box.classList.remove("closing"); box.hidden = false; replay(box, "opening"); }
+}
+
+async function skSearch(query, upgrade = bang.upgrade) {
   query = query.trim();
   if (!query) return;
   try {
@@ -4328,8 +4532,9 @@ function bindEvents() {
   let filterTimer = null;
   els.filter.addEventListener("input", () => {
     clearTimeout(filterTimer); // redraw once typing pauses, not on every keystroke
-    if (sk.bang && /^\s/.test(els.filter.value)) els.filter.value = els.filter.value.trimStart(); // the space after "!slskd"
-    if (takeBang() || sk.bang || els.filter.value.startsWith("!")) return; // a Soulseek search, not a filter
+    if (bang.kind && /^\s/.test(els.filter.value)) els.filter.value = els.filter.value.trimStart(); // the space after "!mb"
+    renderBangSuggestions();
+    if (takeBang() || bang.kind || els.filter.value.startsWith("!")) return; // a bang search, not a filter
     if (isSearch()) {
       // While searching, the box *is* the search: re-run it as you type.
       filterTimer = setTimeout(() => {
@@ -4348,8 +4553,8 @@ function bindEvents() {
     }, 120);
   });
   els.filter.addEventListener("keydown", (e) => {
-    if (sk.bang) {
-      if (e.key === "Enter") { e.preventDefault(); skSearch(els.filter.value); }
+    if (bang.kind) {
+      if (e.key === "Enter") { e.preventDefault(); BANGS[bang.kind].run(els.filter.value); }
       else if (e.key === "Backspace" && !els.filter.value) { e.preventDefault(); setBang(false); }
       else if (e.key === "Escape") { els.filter.value = ""; setBang(false); }
       return;
@@ -4359,7 +4564,7 @@ function bindEvents() {
     if (q && !isSearch()) { e.preventDefault(); clearTimeout(filterTimer); navigate(SEARCH + q); }
   });
   els.filter.addEventListener("search", () => { // the ✕ in the search box
-    if (sk.bang && !els.filter.value) { setBang(false); return; }
+    if (bang.kind && !els.filter.value) { setBang(false); return; }
     if (isSearch() && !els.filter.value) navigate("");
   });
 
@@ -4622,13 +4827,15 @@ async function boot() {
   $("#welcome-form").addEventListener("submit", submitWelcome);
   $("#conn-toggle").addEventListener("click", () => setConnectionsOpen($("#conn-body").hidden));
   $("#inbox-btn").addEventListener("click", openInbox);
-  $("#bang-chip").append(icon("slskd"), "slskd");
   // The search bar widens while you use it; on phones a Cancel button slides in (like iOS).
   const wrap = $("#search-wrap");
   let blurTimer = null;
-  wrap.addEventListener("focusin", () => { clearTimeout(blurTimer); wrap.classList.add("active"); });
+  wrap.addEventListener("focusin", () => { clearTimeout(blurTimer); wrap.classList.add("active"); renderBangSuggestions(); });
   wrap.addEventListener("focusout", () => {
-    blurTimer = setTimeout(() => { if (!wrap.contains(document.activeElement) && !sk.bang && !els.filter.value) wrap.classList.remove("active"); }, 120);
+    blurTimer = setTimeout(() => {
+      renderBangSuggestions();
+      if (!wrap.contains(document.activeElement) && !bang.kind && !els.filter.value) wrap.classList.remove("active");
+    }, 120);
   });
   $("#search-cancel").addEventListener("pointerdown", (e) => e.preventDefault()); // keep the keyboard until the tap lands
   $("#search-cancel").addEventListener("click", () => {
