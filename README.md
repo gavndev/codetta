@@ -118,7 +118,9 @@ so you can edit them all at once.
   <img src="docs/screenshots/phone-editor.png" alt="Track editor on a phone" width="240">
 </p>
 
-**Also:** Tag Loadouts for turning loose downloads into proper releases, smart
+**Also:** lyrics (plain or synced, with **Find lyrics** from LRCLIB), sort and
+classical fields, an Advanced mode with the raw tags, Tag Loadouts for turning
+loose downloads into proper releases, smart
 suggestions from the rest of the album, copy & paste tags, every field
 Navidrome shows (credits, mood, label, release type, multiple artists), any
 language and script, light and dark themes. [See every feature →](docs/features.md)

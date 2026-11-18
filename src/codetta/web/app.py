@@ -13,6 +13,7 @@ Settings (environment variables):
                      that already handles it (default: on)
     CODETTA_UPDATE_CHECK  "off" stops the twice-daily check for new releases on GitHub
     CODETTA_UPDATE_REPO   where to look for releases (default: gavndev/codetta)
+    CODETTA_LYRICS_LOOKUP "off" hides "Find lyrics" (which asks lrclib.net, only when pressed)
     CODETTA_ALLOW_PUBLIC_SETUP  "on" lets the first-run setup screen be used from a
                           public (internet) address; by default only home networks,
                           Tailscale and this machine can create the account
@@ -51,6 +52,7 @@ from codetta.core.auth import (
 from codetta.core.engine import MetadataEngine, MetadataError, TrackMetadata
 from codetta.core.index import LibraryIndex, parse_query
 from codetta.core.library import Library, LibraryPathError, count_contents
+from codetta.core.providers import LRCLib, ProviderError, TrackQuery, http_get_json
 from codetta.core.rawtags import read_raw
 from codetta.core.presets import (
     PLACEHOLDERS,
@@ -97,6 +99,7 @@ class Settings:
     username: str | None = None  # from CODETTA_USERNAME (with password: overrides setup)
     password: str | None = None
     update_check: bool = False  # on by default via from_env; off for tests/embedding
+    lyrics_lookup: bool = True  # "Find lyrics" button (asks LRCLIB only when pressed)
     update_repo: str = DEFAULT_REPO
     allowed_hosts: tuple[str, ...] = ()  # empty = answer to any host name
     allow_public_setup: bool = False  # first-run setup only from private addresses
@@ -110,6 +113,7 @@ class Settings:
             username=env("USERNAME"),
             password=env("PASSWORD"),
             update_check=env("UPDATE_CHECK", "on").strip().lower() not in ("off", "false", "0", "no"),
+            lyrics_lookup=env("LYRICS_LOOKUP", "on").strip().lower() not in ("off", "false", "0", "no"),
             update_repo=env("UPDATE_REPO", DEFAULT_REPO),
             allowed_hosts=tuple(h.strip() for h in (env("ALLOWED_HOSTS") or "").split(",") if h.strip()),
             allow_public_setup=(env("ALLOW_PUBLIC_SETUP") or "").strip().lower() in ("on", "true", "1", "yes"),
@@ -248,7 +252,8 @@ class ApplyResultOut(BaseModel):
 # --- App ----------------------------------------------------------------------------
 
 
-def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_latest_release) -> FastAPI:
+def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_latest_release,
+               fetch_json=None) -> FastAPI:
     settings = settings or Settings.from_env()
     updates = UpdateChecker(VERSION, settings.update_repo, settings.update_check, fetch_release)
     library = Library(settings.music_dir)
@@ -260,6 +265,8 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     accounts = AccountStore(settings.config_dir / "auth.json", settings.username, settings.password)
     sessions = SessionStore(settings.config_dir / "sessions.json")
     limiter = LoginRateLimiter()
+    user_agent = f"Codetta/{VERSION} (https://github.com/gavndev/codetta)"
+    lrclib = LRCLib(fetch_json or (lambda url: http_get_json(url, user_agent)))
 
     def describe(path: Path, rel: str) -> dict:  # what the search index stores per file
         return to_out(rel, engine.load_metadata(path)).model_dump()
@@ -544,6 +551,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             "music_dir": str(library.root),
             "music_dir_found": library.exists(),
             "music_dir_writable": library.exists() and os.access(library.root, os.W_OK),
+            "lyrics_lookup": settings.lyrics_lookup,
         }
 
     @app.get("/api/fields")
@@ -581,6 +589,25 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     def get_track(path: str = Query(..., description="File, relative to the music folder")):
         require_library()
         return to_out(path, engine.load_metadata(library.resolve(path)))
+
+    @app.get("/api/lyrics/lookup")
+    def lyrics_lookup(path: str = Query(..., description="File, relative to the music folder")) -> dict:
+        """Look up lyrics for a track on LRCLIB (sends artist, title, album and length only).
+        Returns a suggestion; nothing is written."""
+        if not settings.lyrics_lookup:
+            raise HTTPException(403, "Lyrics lookup is turned off (CODETTA_LYRICS_LOOKUP=off).")
+        require_library()
+        meta = engine.load_metadata(library.resolve(path))
+        first = lambda key: (meta.tags.get(key) or [""])[0].strip()  # noqa: E731
+        artist = first("artist") or first("albumartist")
+        title = first("title")
+        if not artist or not title:
+            raise HTTPException(422, "Add the artist and title first, so the right song can be found.")
+        try:
+            result = lrclib.lyrics(TrackQuery(artist=artist, title=title, album=first("album"), duration=meta.duration))
+        except ProviderError as exc:
+            raise HTTPException(502, str(exc)) from exc
+        return {"found": result is not None, "result": result.to_dict() if result else None}
 
     @app.get("/api/track/raw")
     def get_track_raw(path: str = Query(..., description="File, relative to the music folder")) -> dict:

@@ -1309,7 +1309,7 @@ function fieldHint(field, value) {
   if (field.key === "lyrics") {
     const all = v.split("\n").filter((l) => l.trim());
     const synced = all.filter((l) => LRC_LINE.test(l)).length;
-    return { text: synced >= Math.max(2, all.length / 2) ? `Synced lyrics (LRC) · ${plural(synced, "timed line")}` : `Plain lyrics · ${plural(all.length, "line")}` };
+    return { text: synced >= Math.max(2, all.length / 2) ? `Synced lyrics (LRC) · ${plural(synced, "timed line")}` : `Plain lyrics · ${plural(all.length, "line")}`, info: true };
   }
   if (field.key === "date" || field.key === "originaldate") {
     if (DATE_OK.test(v)) return null;
@@ -1357,6 +1357,7 @@ function fieldEl(field, model) {
     clearBtn.hidden = c ? c.remove : !m.present;
     const hint = fieldHint(field, input.value);
     hintEl.hidden = !hint;
+    hintEl.classList.toggle("is-info", !!hint?.info); // facts, not warnings: shown in grey
     if (hint) {
       setKids(hintEl, h("span", {}, hint.text), hint.fix ? h("button", {
         class: "link-btn", type: "button",
@@ -1409,8 +1410,58 @@ function fieldEl(field, model) {
     hintEl,
   );
   if (!isLong) attachSuggestions(input, key, suggestBox);
+  if (key === "lyrics" && ed.paths.length === 1 && state.status?.lyrics_lookup) wrap.append(lyricsLookupEl(ed.paths[0], input));
   refresh();
   return wrap;
+}
+
+// ---- Lyrics lookup (LRCLIB) ----------------------------------------------------------------------
+
+/** "Find lyrics": asks LRCLIB (only when pressed) and offers the result as a pending change. */
+function lyricsLookupEl(path, input) {
+  const panel = h("div", { class: "lyrics-found", hidden: true, "aria-live": "polite" });
+  const button = h("button", { type: "button", class: "btn small" }, icon("search"), "Find lyrics");
+  const use = (text) => {
+    input.value = text;
+    input.dispatchEvent(new Event("input", { bubbles: true })); // becomes a normal, unsaved change
+    panel.hidden = true;
+    toast("Lyrics added. Review them, then Save.");
+  };
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    const label = button.lastChild;
+    label.textContent = "Searching…";
+    try {
+      const res = await api("GET", `/api/lyrics/lookup?path=${encodeURIComponent(path)}`);
+      const r = res.result;
+      if (!res.found) {
+        setKids(panel, h("p", { class: "hint" }, "No lyrics found on LRCLIB for this track."));
+      } else if (r.instrumental && !r.synced && !r.plain) {
+        setKids(panel, h("p", { class: "hint" }, "LRCLIB lists this track as instrumental."));
+      } else {
+        const text = r.synced || r.plain;
+        const lines = text.split("\n");
+        setKids(panel,
+          h("div", { class: "lyrics-found-head" },
+            h("strong", {}, r.synced ? "Synced lyrics found" : "Lyrics found"),
+            h("span", {}, ` on ${r.provider} · ${[r.artist, r.title].filter(Boolean).join(" — ")}${r.duration ? ` · ${fmtDuration(r.duration)}` : ""}`)),
+          h("pre", { class: "lyrics-preview", dir: "auto" }, lines.slice(0, 8).join("\n") + (lines.length > 8 ? `\n… ${lines.length - 8} more lines` : "")),
+          h("div", { class: "lyrics-found-actions" },
+            r.synced ? h("button", { type: "button", class: "btn small primary", onclick: () => use(r.synced) }, "Use synced") : null,
+            r.plain ? h("button", { type: "button", class: `btn small${r.synced ? "" : " primary"}`, onclick: () => use(r.plain) }, r.synced ? "Use plain" : "Use these lyrics") : null,
+            h("button", { type: "button", class: "btn small", onclick: () => { panel.hidden = true; } }, "Dismiss")));
+      }
+      panel.hidden = false;
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      button.disabled = false;
+      label.textContent = "Find lyrics";
+    }
+  });
+  return h("div", { class: "lyrics-lookup" },
+    h("div", { class: "lyrics-lookup-row" }, button, h("span", { class: "hint" }, "Looks up this track on lrclib.net")),
+    panel);
 }
 
 function tracksCount() {
@@ -2136,6 +2187,7 @@ function renderManageForm(loadout) {
 // ---- Status banner -------------------------------------------------------------------------------------------
 
 function showStatus(status) {
+  state.status = status;
   if (!status.music_dir_found) {
     els.banner.replaceChildren(
       h("strong", {}, "Music folder not found"),

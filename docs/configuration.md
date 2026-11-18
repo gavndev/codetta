@@ -13,6 +13,7 @@ All optional. Set them under `environment:` in your
 | `CODETTA_PORT` | `8111` | The port inside the container. To use a different port on your server, change the `ports:` mapping instead. |
 | `CODETTA_USERNAME` + `CODETTA_PASSWORD` | – | Create the account from here instead of the setup screen. The password can then only be changed here. |
 | `CODETTA_AUTH` | `on` | Set to `off` to disable sign-in. **Only** do this if a reverse proxy in front of Codetta already requires a login. |
+| `CODETTA_LYRICS_LOOKUP` | `on` | Shows **Find lyrics** in the editor. Pressing it asks [lrclib.net](https://lrclib.net) for that one track (artist, title, album and length only); nothing is sent otherwise. Set to `off` to hide the button. |
 | `CODETTA_UPDATE_CHECK` | `on` | Twice a day, asks GitHub whether a newer release exists. Nothing about you or your library is sent. Set to `off` to disable. |
 | `CODETTA_ALLOW_PUBLIC_SETUP` | `off` | The setup screen only works from home networks, Tailscale and the server itself, so nobody on the internet can claim a fresh install. Set to `on` only if you must set up over the internet. |
 | `CODETTA_ALLOWED_HOSTS` | – | Comma-separated host names Codetta answers to (e.g. `music-server,192.168.1.50`). Other names are refused, which blocks DNS-rebinding attacks. Recommended if more than your own devices can reach Codetta. |

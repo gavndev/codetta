@@ -90,8 +90,9 @@ covers straight from your photo library (HEIC included).
   ("beyonce" finds "Beyoncé") and right-to-left names display correctly.
 - **Light and dark themes** that follow your device, with smooth, subtle
   animations (off when your system asks for reduced motion).
-- **Works offline.** No CDNs, no tracking, fonts bundled. The only thing Codetta
-  ever sends out is an optional check for new versions.
+- **Works offline.** No CDNs, no tracking, fonts bundled. The only things Codetta
+  ever sends out are an optional check for new versions and, when you press
+  **Find lyrics**, one lookup on lrclib.net.
 
 <p align="center">
   <picture>
@@ -99,6 +100,25 @@ covers straight from your photo library (HEIC included).
     <img src="screenshots/editor-light.png" alt="Codetta's track editor next to an album" width="900">
   </picture>
 </p>
+
+## Lyrics
+
+Plain or synced (LRC) lyrics, in a roomy editor box that tells you which kind
+you have. **Find lyrics** looks the track up on [LRCLIB](https://lrclib.net), a
+free, open lyrics database, and shows a preview; choose synced or plain, review,
+then Save. Navidrome and most players read synced lyrics straight from the tag.
+
+## Advanced mode
+
+Turn on **Advanced mode** in the account menu to see a **Raw tags** section in
+the editor: every field exactly as the file stores it (ID3 frames, MP4 atoms,
+Vorbis comments, APEv2 items, WMA attributes and embedded pictures).
+
+## Sorting and classical music
+
+Sort names (title, artist, album, album artist, composer) and classical fields
+(work, movement, movement number and count, show movement) are stored where
+MusicBrainz Picard puts them, so players that understand them pick them up.
 
 ## How Codetta keeps your files safe
 

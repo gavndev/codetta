@@ -15,8 +15,11 @@ Any tag name in your files works, e.g. `catalognumber: ABC-123`, or a custom
 tag like `vibe: chill`. Separate several values with commas to match any of them.
 
 **Does it need internet access?**
-No. Everything, fonts included, is served from your own server. The optional
-update check is the only outgoing request, and you can turn it off.
+No. Everything, fonts included, is served from your own server. Codetta only
+contacts the internet for two optional things: the twice-daily update check,
+and **Find lyrics**, which asks lrclib.net for one track (artist, title, album
+and length) only when you press it. Both can be turned off (see
+[Configuration](configuration.md)).
 
 **Can several people use it?**
 There's one account per Codetta instance for now. You can stay signed in on as

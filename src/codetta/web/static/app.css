@@ -1489,3 +1489,18 @@ dialog.sheet.closing::backdrop { animation: fade-out 150ms ease forwards; }
 
 /* Lyrics: a comfortable box for long (and synced) text. */
 .lyrics-input { min-height: 220px; line-height: 1.55; resize: vertical; font-variant-numeric: tabular-nums; }
+.lyrics-lookup { margin-top: 8px; }
+.lyrics-lookup-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.lyrics-lookup-row .btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; margin-right: 4px; }
+.lyrics-found {
+  margin-top: 10px; padding: 12px; border-radius: 12px;
+  background: var(--accent-soft); border: 1px solid var(--border); animation: pop-in var(--dur) var(--ease-out);
+}
+.lyrics-found-head { font-size: 13px; margin-bottom: 8px; }
+.lyrics-found-head span { color: var(--muted); }
+.lyrics-preview {
+  margin: 0 0 10px; padding: 10px; border-radius: 8px; background: var(--surface); max-height: 180px; overflow: auto;
+  font: 13px/1.5 inherit; font-family: inherit; white-space: pre-wrap; unicode-bidi: plaintext;
+}
+.lyrics-found-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.field-hint.is-info { color: var(--muted); }
