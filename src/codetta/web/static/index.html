@@ -12,7 +12,7 @@
   <link rel="icon" href="/static/icon.svg?v=3" type="image/svg+xml"> <!-- bump ?v= when the icon changes: browsers cache favicons hard -->
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=3">
   <link rel="preload" href="/static/fonts/schibsted-grotesk.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/static/app.css?v=54">
+  <link rel="stylesheet" href="/static/app.css?v=55">
   <script src="/static/theme.js?v=1"></script>
 </head>
 <body>
@@ -247,15 +247,10 @@
   </dialog>
 
   <!-- Account -->
-  <dialog class="sheet small" id="account-dialog" aria-labelledby="account-title">
-    <div class="sheet-head">
-      <h2 id="account-title">Account</h2>
-      <button class="icon-btn" type="button" data-close aria-label="Close">
-        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg>
-      </button>
-    </div>
-    <div class="sheet-body">
-      <section class="profile" aria-label="Profile">
+  <dialog class="cc" id="account-dialog" aria-labelledby="account-title">
+    <div class="cc-panel">
+      <h2 id="account-title" class="visually-hidden">Account</h2>
+      <section class="cc-tile profile" aria-label="Profile">
         <button class="avatar-lg" type="button" id="profile-avatar" aria-label="Change profile picture" title="Change profile picture"></button>
         <div class="profile-info">
           <div class="profile-sub">Signed in as</div>
@@ -267,7 +262,15 @@
         </div>
         <input type="file" id="avatar-file" accept="image/*,.heic,.heif" hidden>
       </section>
-      <section class="about" aria-labelledby="about-title">
+
+      <div class="cc-grid" role="group" aria-label="Quick settings">
+        <button class="cc-toggle" type="button" id="cc-theme"><span class="cc-ico" id="cc-theme-icon"></span><span class="cc-label">Theme</span><span class="cc-state" id="cc-theme-state"></span></button>
+        <label class="cc-toggle"><input type="checkbox" role="switch" id="health-toggle" checked><span class="cc-ico" id="cc-health-icon"></span><span class="cc-label">Library health</span><span class="cc-state cc-onoff"></span></label>
+        <label class="cc-toggle"><input type="checkbox" role="switch" id="advanced-toggle"><span class="cc-ico" id="cc-advanced-icon"></span><span class="cc-label">Advanced</span><span class="cc-state cc-onoff"></span></label>
+        <button class="cc-toggle" type="button" id="cc-notif"><span class="cc-ico" id="cc-notif-icon"></span><span class="cc-label">Alerts</span><span class="cc-state" id="cc-notif-state"></span></button>
+      </div>
+
+      <section class="cc-tile about" aria-labelledby="about-title">
         <div class="about-head">
           <h3 id="about-title" class="field-label">Codetta</h3>
           <span class="badge" id="about-version"></span>
@@ -277,23 +280,8 @@
         <p class="about-status" id="update-status" aria-live="polite"></p>
         <div class="update-box" id="update-box" hidden></div>
       </section>
-      <section class="advanced" aria-label="Advanced">
-        <label class="switch-row">
-          <span class="switch-text">
-            <span class="switch-title">Library health</span>
-            <span class="switch-sub">A card on the Library page listing things worth fixing across your library. Off: nothing is checked.</span>
-          </span>
-          <input type="checkbox" role="switch" id="health-toggle" checked>
-        </label>
-        <label class="switch-row">
-          <span class="switch-text">
-            <span class="switch-title">Advanced mode</span>
-            <span class="switch-sub">Show raw tags in the editor, exactly as each file stores them.</span>
-          </span>
-          <input type="checkbox" role="switch" id="advanced-toggle">
-        </label>
-      </section>
-      <section class="connections" aria-labelledby="conn-title">
+
+      <section class="cc-tile connections" aria-labelledby="conn-title">
         <button class="conn-toggle" id="conn-toggle" type="button" aria-expanded="false" aria-controls="conn-body">
           <span class="switch-text">
             <span id="conn-title" class="switch-title">Connections</span>
@@ -307,25 +295,34 @@
           <div id="slskd-box"></div>
         </div>
       </section>
-      <form id="password-form" class="password-form">
-        <input type="text" name="username" id="pw-username" autocomplete="username" hidden>
-        <h3 class="field-label">Change password</h3>
-        <div class="error-box" id="pw-error" role="alert" hidden></div>
-        <label class="field"><span class="field-label">Current password</span>
-          <input id="pw-current" type="password" autocomplete="current-password" required></label>
-        <label class="field"><span class="field-label">New password</span>
-          <input id="pw-new" type="password" autocomplete="new-password" minlength="8" required></label>
-        <label class="field"><span class="field-label">Repeat new password</span>
-          <input id="pw-confirm" type="password" autocomplete="new-password" minlength="8" required></label>
-        <p class="hint">Changing it signs out your other devices.</p>
-        <button class="btn" type="submit" id="pw-save">Change password</button>
-      </form>
-      <p class="hint" id="pw-env-note" hidden>The password is set by the <code>CODETTA_PASSWORD</code> environment variable, so it can only be changed there.</p>
-    </div>
-    <div class="sheet-foot">
-      <button class="btn danger" type="button" id="sign-out">Sign out</button>
-      <span class="spacer"></span>
-      <button class="btn primary" type="button" data-close>Done</button>
+
+      <section class="cc-tile password" id="pw-tile">
+        <button class="conn-toggle" id="pw-toggle" type="button" aria-expanded="false" aria-controls="password-form">
+          <span class="switch-text">
+            <span class="switch-title">Password</span>
+            <span class="switch-sub">Change it (signs out your other devices)</span>
+          </span>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg>
+        </button>
+        <form id="password-form" class="password-form" hidden>
+          <input type="text" name="username" id="pw-username" autocomplete="username" hidden>
+          <div class="error-box" id="pw-error" role="alert" hidden></div>
+          <label class="field"><span class="field-label">Current password</span>
+            <input id="pw-current" type="password" autocomplete="current-password" required></label>
+          <label class="field"><span class="field-label">New password</span>
+            <input id="pw-new" type="password" autocomplete="new-password" minlength="8" required></label>
+          <label class="field"><span class="field-label">Repeat new password</span>
+            <input id="pw-confirm" type="password" autocomplete="new-password" minlength="8" required></label>
+          <button class="btn" type="submit" id="pw-save">Change password</button>
+        </form>
+        <p class="hint" id="pw-env-note" hidden>The password is set by the <code>CODETTA_PASSWORD</code> environment variable, so it can only be changed there.</p>
+      </section>
+
+      <div class="cc-foot">
+        <button class="btn danger" type="button" id="sign-out">Sign out</button>
+        <span class="spacer"></span>
+        <button class="btn primary" type="button" data-close>Done</button>
+      </div>
     </div>
   </dialog>
 
@@ -423,6 +420,6 @@
   <datalist id="tag-keys"></datalist>
   <div class="toasts" id="toasts" aria-live="polite"></div>
 
-  <script src="/static/app.js?v=55" type="module"></script>
+  <script src="/static/app.js?v=56" type="module"></script>
 </body>
 </html>

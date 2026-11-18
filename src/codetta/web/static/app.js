@@ -130,6 +130,8 @@ const ICONS = {
   musicbrainz: '<svg class="mb-logo" viewBox="0 0 32 32"><path class="mb-l" d="M15.3 3.2 5.5 8.8v14.4l9.8 5.6z"/><path class="mb-r" d="M16.7 3.2l9.8 5.6v14.4l-9.8 5.6z"/><path class="mb-cut" d="M11.5 11.2c-1.8 0-3.2 1.4-3.2 3.2 0 1.2.7 2.3 1.7 2.8-.2.5-.3 1-.3 1.6 0 2.1 1.7 3.8 3.8 3.8h1.8V11.2z"/><path class="mb-cut" d="M20.5 11.2c1.8 0 3.2 1.4 3.2 3.2 0 1.2-.7 2.3-1.7 2.8.2.5.3 1 .3 1.6 0 2.1-1.7 3.8-3.8 3.8h-1.8V11.2z"/></svg>',
   slskd: '<svg class="sk-logo" viewBox="0 0 20 20"><path class="sk-vane" d="M18 2c-6.2.3-10.6 3.8-11.7 9.6l3-.7-1.7 2c3.5.4 6.3-1.2 7.6-4l-2.3.3 2.8-2C16.6 5.5 17.3 3.8 18 2z"/><path class="sk-quill" d="M14.5 5.5 3 17.5"/></svg>',
   gear: '<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.6"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4"/><circle cx="10" cy="10" r="5.2"/></svg>',
+  code: '<svg viewBox="0 0 20 20"><path d="M7 6 3 10l4 4M13 6l4 4-4 4"/></svg>',
+  bell: '<svg viewBox="0 0 20 20"><path d="M5.5 13.5V9a4.5 4.5 0 0 1 9 0v4.5l1.5 2h-12z"/><path d="M8.5 17.5a1.6 1.6 0 0 0 3 0"/></svg>',
   pulse: '<svg viewBox="0 0 20 20"><path d="M2.5 10.5h3.5l2-5 3.5 9 2-4.5h4"/></svg>',
   paste: '<svg viewBox="0 0 20 20"><rect x="4.5" y="4" width="11" height="13" rx="2"/><path d="M8 4V3h4v1"/><path d="M7.5 9h5M7.5 12h3"/></svg>',
 };
@@ -4594,6 +4596,10 @@ function bindEvents() {
   $("#sel-edit").addEventListener("click", () => openEditor([...state.selected]));
   $("#sel-loadout").addEventListener("click", () => openApply("selection"));
   $("#manage-btn").addEventListener("click", openManage);
+  $("#cc-theme").addEventListener("click", () => { $("#theme-btn").click(); syncAccountTiles(); });
+  $("#cc-notif").addEventListener("click", () => { closeDialog($("#account-dialog")); setTimeout(() => openNotifications(), 200); });
+  $("#pw-toggle").addEventListener("click", () => setPasswordOpen($("#password-form").hidden));
+  window.addEventListener("resize", () => { if ($("#account-dialog").open) placeAccount(); });
   const healthToggle = $("#health-toggle");
   healthToggle.addEventListener("change", async () => {
     healthToggle.disabled = true;
@@ -4775,6 +4781,43 @@ async function removeAvatar() {
   }
 }
 
+// ---- Account: a Control Center that grows out of your profile picture -------------------------------
+
+/** Put the panel under the profile picture and aim its grow animation at the picture's centre. */
+function placeAccount() {
+  const d = $("#account-dialog");
+  const r = $("#account-btn").getBoundingClientRect();
+  const phone = isPhone();
+  const gutter = phone ? 8 : 12;
+  const width = phone ? window.innerWidth - 2 * gutter : Math.min(420, window.innerWidth - 2 * gutter);
+  const right = phone ? gutter : Math.max(gutter, window.innerWidth - r.right);
+  const top = Math.round(r.bottom + 10);
+  const left = window.innerWidth - right - width;
+  d.style.setProperty("--cc-top", `${top}px`);
+  d.style.setProperty("--cc-right", `${right}px`);
+  d.style.setProperty("--cc-width", `${width}px`);
+  d.style.setProperty("--cc-ox", `${Math.round(r.left + r.width / 2 - left)}px`);
+  d.style.setProperty("--cc-oy", `${Math.round(r.top + r.height / 2 - top)}px`);
+}
+
+function syncAccountTiles() {
+  const theme = getTheme();
+  setKids($("#cc-theme-icon"), icon(THEME_ICON[theme]));
+  $("#cc-theme-state").textContent = { system: "Automatic", light: "Light", dark: "Dark" }[theme];
+  if (!$("#cc-health-icon").firstChild) $("#cc-health-icon").append(icon("pulse"));
+  if (!$("#cc-advanced-icon").firstChild) $("#cc-advanced-icon").append(icon("code"));
+  if (!$("#cc-notif-icon").firstChild) $("#cc-notif-icon").append(icon("bell"));
+  $("#cc-notif-state").textContent = notif.unread ? `${notif.unread} new` : "All read";
+  $("#cc-notif").classList.toggle("on", !!notif.unread);
+}
+
+function setPasswordOpen(open) {
+  $("#pw-toggle").setAttribute("aria-expanded", String(open));
+  $("#password-form").hidden = !open;
+  $("#pw-tile").classList.toggle("open", open);
+  if (open) setTimeout(() => $("#pw-current").focus(), 50);
+}
+
 function openAccount() {
   renderAvatar();
   renderAbout();
@@ -4790,9 +4833,13 @@ function openAccount() {
   $("#sign-out").hidden = !signedIn;
   $("#account-name").textContent = a.username || "";
   $("#pw-username").value = a.username || "";
-  $("#password-form").hidden = !signedIn || !!a.managed_by_env;
+  $("#pw-tile").hidden = !signedIn;
+  $("#pw-toggle").hidden = !!a.managed_by_env;
+  setPasswordOpen(false);
   $("#pw-env-note").hidden = !signedIn || !a.managed_by_env;
   $("#pw-error").hidden = true;
+  syncAccountTiles();
+  placeAccount();
   openDialog($("#account-dialog"));
 }
 

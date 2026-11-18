@@ -2293,3 +2293,66 @@ body:has(.now-playing:not([hidden])) .browser { padding-bottom: 120px; }
 .folders.mbx-host { display: block; border-top: 0; }
 .folder-actions a.btn { display: inline-flex; align-items: center; text-decoration: none; color: var(--text); }
 .folder-actions a.btn.primary { color: var(--bg); }
+
+
+/* ---- Account as a Control Center: grows out of the profile picture ------------------------------- */
+
+.visually-hidden { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+dialog.cc {
+  position: fixed; inset: auto; top: var(--cc-top, 64px); right: var(--cc-right, 12px); left: auto; margin: 0;
+  width: var(--cc-width, 420px); max-width: none; max-height: calc(100dvh - var(--cc-top, 64px) - 12px);
+  padding: 0; border: 0; background: transparent; overflow: visible; color: var(--text);
+}
+dialog.cc::backdrop { background: rgba(0, 0, 0, 0.16); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+dialog.cc[open]::backdrop { animation: cc-fade 300ms ease both; }
+dialog.cc.closing::backdrop { animation: cc-fade 200ms ease reverse both; }
+@keyframes cc-fade { from { opacity: 0; } }
+.cc-panel {
+  max-height: inherit; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 10px;
+  padding: 12px; border-radius: 28px;
+  background: color-mix(in oklab, var(--surface-raised) 80%, transparent);
+  -webkit-backdrop-filter: saturate(180%) blur(30px); backdrop-filter: saturate(180%) blur(30px);
+  border: 1px solid color-mix(in oklab, var(--border-strong) 60%, transparent);
+  box-shadow: 0 30px 70px -18px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.08);
+  transform-origin: var(--cc-ox, 90%) var(--cc-oy, -20px);
+}
+dialog.cc[open] .cc-panel { animation: cc-in 520ms cubic-bezier(0.32, 0.72, 0, 1) both; }
+dialog.cc.closing .cc-panel { animation: cc-out 240ms cubic-bezier(0.4, 0, 1, 1) both; }
+@keyframes cc-in { 0% { opacity: 0; transform: scale(0.06); border-radius: 50%; } 35% { opacity: 1; } 100% { transform: none; } }
+@keyframes cc-out { to { opacity: 0; transform: scale(0.06); border-radius: 50%; } }
+@media (prefers-reduced-motion: reduce) {
+  dialog.cc[open] .cc-panel, dialog.cc.closing .cc-panel { animation: cc-fade 150ms ease both; }
+}
+.cc-tile { margin: 0; padding: 12px 14px; border: 0; border-radius: 20px; background: color-mix(in oklab, var(--text) 5.5%, transparent); }
+.cc-tile.profile { display: flex; align-items: center; gap: 14px; }
+.cc-tile .about-head { flex-wrap: wrap; }
+.cc-tile .conn-toggle { padding: 0; min-height: 40px; }
+.cc-tile.connections, .cc-tile.password { border-top: 0; }
+.cc-tile .password-form { margin-top: 10px; border-top: 0; padding-top: 0; }
+.cc-tile.password.open .conn-toggle svg { transform: rotate(90deg); }
+.cc-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.cc-toggle {
+  position: relative; display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 6px;
+  min-height: 92px; padding: 12px 11px; border: 0; border-radius: 20px; background: color-mix(in oklab, var(--text) 5.5%, transparent);
+  color: var(--text); font: inherit; text-align: left; cursor: pointer;
+  transition: background-color 250ms ease, transform 220ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.cc-toggle:hover { background: color-mix(in oklab, var(--text) 9%, transparent); }
+.cc-toggle:active { transform: scale(0.94); }
+.cc-toggle input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.cc-toggle:has(input:focus-visible), .cc-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cc-ico { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%;
+  background: color-mix(in oklab, var(--text) 10%, transparent); transition: background-color 250ms ease, color 250ms ease; }
+.cc-ico svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.cc-label { font-size: 12.5px; font-weight: 650; line-height: 1.15; }
+.cc-state { margin-top: -4px; font-size: 11.5px; color: var(--muted); }
+.cc-toggle:has(input:checked) .cc-ico, .cc-toggle.on .cc-ico { background: var(--accent); color: var(--on-color, #fff); }
+.cc-onoff::after { content: "Off"; }
+.cc-toggle:has(input:checked) .cc-onoff::after { content: "On"; }
+.cc-foot { display: flex; align-items: center; gap: 8px; padding: 2px 2px 0; }
+@media (max-width: 760px) {
+  .cc-panel { border-radius: 26px; }
+  .cc-toggle { min-height: 100px; padding: 11px 9px; }
+  .cc-label { font-size: 12px; }
+  .cc-foot .btn { height: 44px; }
+}
