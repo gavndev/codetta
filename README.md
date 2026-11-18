@@ -12,7 +12,7 @@
 
 <p align="center">
   <img alt="Status: alpha" src="https://img.shields.io/badge/status-alpha-f59e0b">
-  <img alt="Version 0.1.1" src="https://img.shields.io/badge/version-0.1.1-007aff">
+  <img alt="Version 0.2.0" src="https://img.shields.io/badge/version-0.2.0-007aff">
   <a href="LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-555"></a>
   <img alt="Python 3.14" src="https://img.shields.io/badge/python-3.14-3776ab">
   <a href="https://github.com/gavndev/codetta/actions/workflows/ci.yml"><img alt="Tests" src="https://github.com/gavndev/codetta/actions/workflows/ci.yml/badge.svg"></a>
@@ -172,6 +172,8 @@ well alongside Picard or beets.
 
 ## What's new
 
+**0.2.0:** 10 more formats (WAV, AIFF, DSF, WMA, WavPack and more), lyrics with
+**Find lyrics**, sort and classical fields, and an Advanced mode with raw tags.
 **0.1.1:** a quiet footer with a GitHub link and the version, a comparison with
 similar tools, and a shorter README with separate docs.
 **0.1.0:** the first public alpha. All changes are in the [changelog](CHANGELOG.md).
