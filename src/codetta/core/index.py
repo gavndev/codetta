@@ -216,6 +216,7 @@ class LibraryIndex:
         self.describe = describe
         self.rescan_seconds = rescan_seconds
         self._lock = threading.Lock()  # guards the connection
+        self.version = 0  # goes up whenever a file is added, changed or removed (for caches)
         self._dirty: set[str] = set()
         self._dirty_lock = threading.Lock()
         self._stop = threading.Event()
@@ -296,6 +297,8 @@ class LibraryIndex:
                 cur.executemany("INSERT INTO tags(key, file, value) VALUES (?,?,?)",
                                 [(self._key_id(cur, k), file_id, "\x1f".join(v)) for k, v in merged.items()])
             self.db.commit()
+            if rows:
+                self.version += 1
 
     def _remove(self, rels: Iterable[str]) -> None:
         rels = list(rels)
@@ -308,6 +311,7 @@ class LibraryIndex:
                     self.db.execute("DELETE FROM tags WHERE file=?", (row[0],))
                     self.db.execute("DELETE FROM files WHERE id=?", (row[0],))
             self.db.commit()
+            self.version += 1
 
     def _read(self, rel: str, st: os.stat_result) -> tuple[str, int, int, dict]:
         try:
@@ -449,6 +453,23 @@ class LibraryIndex:
         with self._lock:
             files = self.db.execute("SELECT COUNT(*) FROM files").fetchone()[0]
         return IndexStatus(ready=self._ready, scanning=self._scanning, files=files, seen=self._seen)
+
+    def all_tracks(self) -> list[tuple[str, dict]]:
+        """Every indexed track (path, details), in path order. ~5,000 tracks take
+        about a tenth of a second: no file is opened."""
+        with self._lock:
+            rows = self.db.execute("SELECT path, track FROM files ORDER BY path").fetchall()
+        return [(p, _unpack(t)) for p, t in rows]
+
+    def paths_with_any(self, keys: Iterable[str]) -> set[str]:
+        """Files that have at least one of these tags (by name, any case)."""
+        with self._lock:
+            ids = [self._key_ids[k] for k in {k.lower() for k in keys} if k in self._key_ids]
+            if not ids:
+                return set()
+            q = ("SELECT DISTINCT f.path FROM files f JOIN tags t ON t.file = f.id WHERE t.key IN ("
+                 + ",".join("?" * len(ids)) + ")")
+            return {p for (p,) in self.db.execute(q, ids)}
 
     def has_key(self, key: str) -> bool:
         with self._lock:

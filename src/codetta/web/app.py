@@ -67,6 +67,10 @@ from codetta.core.auth import (
     needs_rehash,
 )
 from codetta.core.engine import MetadataEngine, MetadataError, TrackMetadata
+from codetta.core.health import CATEGORIES as HEALTH_CATEGORIES
+from codetta.core.health import CHECKS as HEALTH_CHECKS
+from codetta.core.health import MB_RELEASE_KEYS, HealthStore, folder_has_image
+from codetta.core.health import run as health_run
 from codetta.core.index import LibraryIndex, parse_query
 from codetta.core import changelog
 from codetta.core.notifications import Notifications
@@ -420,6 +424,15 @@ class SlskdNextIn(BaseModel):
 class SlskdImportIn(BaseModel):
     release: str | None = Field(default=None, max_length=500)  # file with this release instead of the found one
     recordings: dict[str, list[str]] = Field(default={}, max_length=MAX_PATHS_PER_REQUEST)
+
+
+class HealthSettingsIn(BaseModel):
+    disabled: list[str] = Field(default=[], max_length=100)  # check ids switched off
+
+
+class HealthIssueIn(BaseModel):
+    id: str = Field(min_length=1, max_length=40)
+    ignore: bool = True
 
 
 class SlskdPickIn(BaseModel):
@@ -2062,6 +2075,125 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             soulseek_store.blocked.clear()
             soulseek_store.save()
         return soulseek_out()
+
+    # --- Library health -------------------------------------------------------------------------
+
+    health_store = HealthStore(settings.config_dir / "health.json")
+    health_cache: dict = {"key": None, "data": None, "at": 0.0, "fixed": {}}
+    health_lock = threading.Lock()
+
+    def health_data() -> dict:
+        """Every issue, recomputed when the index changes (or after 10 minutes, for cover files)."""
+        with health_lock:
+            key = lib_index.version
+            if health_cache["key"] != key or time.time() - health_cache["at"] > 600:
+                inbox_folder = inbox.settings.folder
+                skip = [inbox_folder] if inbox_folder and not inbox_folder.startswith("@") else []
+                health_cache["data"] = health_run(lib_index.all_tracks(), folder_has_image(library.resolve),
+                                                  lib_index.paths_with_any(MB_RELEASE_KEYS), skip)
+                health_cache.update(key=key, at=time.time())
+            return health_cache["data"]
+
+    def health_public(issue: dict) -> dict:
+        """What the page needs: never the file lists or the planned changes themselves."""
+        fix = issue.get("fix")
+        return {k: v for k, v in issue.items() if k not in ("paths", "fix")} | {
+            "fix": {"label": fix["label"], "summary": fix["summary"]} if fix else None}
+
+    def health_visible() -> tuple[dict, list[dict], list[dict]]:
+        data = health_data()
+        fixed = {i for i, v in health_cache["fixed"].items() if v == lib_index.version}
+        shown, ignored = [], []
+        for issue in data["issues"]:
+            if issue["check"] in health_store.disabled or issue["id"] in fixed:
+                continue
+            (ignored if issue["id"] in health_store.ignored else shown).append(issue)
+        return data, shown, ignored
+
+    @app.get("/api/library-health")
+    def get_health() -> dict:
+        """Library health: things worth fixing, found from the search index."""
+        require_library()
+        data, shown, ignored = health_visible()
+        return {
+            "indexing": not lib_index.status().ready,
+            "albums": data["albums"], "tracks": data["tracks"],
+            "unmatched": data["unmatched"] if connections.enabled("musicbrainz") else None,
+            "count": len(shown),
+            "categories": [{"id": c, "label": label, "count": sum(i["category"] == c for i in shown)}
+                           for c, label in HEALTH_CATEGORIES.items()],
+            "checks": [{"id": c.id, "category": c.category, "label": c.label, "about": c.about,
+                        "enabled": c.id not in health_store.disabled} for c in HEALTH_CHECKS],
+            "issues": [health_public(i) for i in shown],
+            "ignored": [health_public(i) for i in ignored],
+        }
+
+    @app.get("/api/library-health/summary")
+    def get_health_summary() -> dict:
+        """Just the count (for the card on the Library page)."""
+        require_library()
+        _, shown, _ = health_visible()
+        return {"count": len(shown), "indexing": not lib_index.status().ready}
+
+    @app.put("/api/library-health/settings")
+    def put_health_settings(body: HealthSettingsIn) -> dict:
+        known = {c.id for c in HEALTH_CHECKS}
+        with health_store.lock:
+            health_store.disabled = {c for c in body.disabled if c in known}
+        try:
+            health_store.save()
+        except OSError as exc:
+            raise HTTPException(500, f"Could not save to the config folder: {exc}") from exc
+        return get_health()
+
+    @app.post("/api/library-health/ignore")
+    def health_ignore(body: HealthIssueIn) -> dict:
+        with health_store.lock:
+            (health_store.ignored.add if body.ignore else health_store.ignored.discard)(body.id)
+        try:
+            health_store.save()
+        except OSError as exc:
+            raise HTTPException(500, f"Could not save to the config folder: {exc}") from exc
+        return get_health()
+
+    @app.post("/api/library-health/fix")
+    def health_fix(body: HealthIssueIn) -> dict:
+        """Apply an issue's one-tap fix: ordinary safe tag writes, one undoable activity entry."""
+        require_library()
+        issue = next((i for i in health_data()["issues"] if i["id"] == body.id), None)
+        if issue is None:
+            raise HTTPException(404, "That issue is gone (fixed already?)")
+        fix = issue.get("fix")
+        if not fix:
+            raise HTTPException(409, "This one needs a look by hand.")
+        version = lib_index.version
+        done, failed, undo_files = [], [], {}
+        for rel, changes in fix["per_file"].items():
+            try:
+                target = library.resolve(rel)
+                before = engine.load_metadata(target).tags
+                after = engine.update_tags(target, changes).tags
+                keys = {k.lower() for k in changes}
+                diff = [k for k in keys if before.get(k, []) != after.get(k, [])]
+                if diff:
+                    undo_files[rel] = {"before": {k: before.get(k, []) for k in diff},
+                                       "after": {k: after.get(k, []) for k in diff}}
+                done.append(rel)
+            except (MetadataError, LibraryPathError, OSError) as exc:
+                failed.append({"path": rel, "error": str(exc)})
+        keys = sorted({k for c in fix["per_file"].values() for k in c})
+        news = {k: {c.get(k) for c in fix["per_file"].values() if k in c} for k in keys}
+        activity.add(
+            "edit", f"Library health: {fix['summary']}" if not failed else
+            f"Library health: fixed {len(done)} of {len(done) + len(failed)} tracks", ok=not failed,
+            files=done + [f["path"] for f in failed],
+            changes=[{"key": k, "old": "", "new": news[k].pop() if len(news[k]) == 1 else "various"} for k in keys],
+            errors=failed, undo={"type": "tags", "files": undo_files} if undo_files else None,
+        )
+        lib_index.mark_dirty(done)
+        if not failed:
+            health_cache["fixed"][issue["id"]] = version  # hidden until the index has the new tags
+        return {"fixed": len(done), "failed": len(failed), "errors": failed[:20], "health": get_health()}
 
     @app.post("/api/activity/{entry_id}/undo")
     def undo(entry_id: int) -> dict:

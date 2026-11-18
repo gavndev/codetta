@@ -85,7 +85,7 @@ Close the gaps with Picard and beets while staying light: every feature previews
 - [x] **Task 11.2b: Notifications.** (`src/codetta/core/notifications.py`, `/api/notifications`): bell + panel + pop-ups that grow out of the bell; inbox rounds, auto-filed albums, new versions. Each browser remembers what it has shown.
 - [ ] **Task 11.3: Batch matching.** Match many albums at once in the background (within MusicBrainz's rate limit), review the uncertain ones later from any device.
 - [ ] **Task 11.4: Edition preferences.** Preferred countries, formats (digital vs CD), release types and original vs release dates, used when ranking candidates.
-- [ ] **Task 11.5: Library health.** One page of fixable problems: no cover, no MusicBrainz IDs, mixed album artists, inconsistent disc/track numbers, duplicates, missing tracks.
+- [x] **Task 11.5: Library health.** (`src/codetta/core/health.py`, `/api/library-health/*`, tests in `tests/test_health.py`; card on the Library page, a switch per check, one-tap fixes with one undo) One page of fixable problems: no cover, no MusicBrainz IDs, mixed album artists, inconsistent disc/track numbers, duplicates, missing tracks.
 - [ ] **Task 11.6: Refresh from MusicBrainz.** Re-check albums that already have MusicBrainz IDs and offer the corrections made since (like beets' mbsync).
 - [ ] **Task 11.7: ReplayGain.** Volume levelling via a small static tool (like fpcalc), opt-in. (Last.fm dropped: it's ending free API access.)
 

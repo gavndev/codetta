@@ -120,6 +120,13 @@ file before anything is written. Untagged files are recognised by sound.
 `{albumartist}/{album} ({year})/{disctrack} {title}`. You see every move
 first, nothing is ever overwritten, and the whole thing can be undone.
 
+### Keep it healthy
+
+A card on the Library page lists what's worth fixing across the whole library:
+albums your player shows split in two, missing tracks, missing or tiny covers,
+missing tags, duplicates, MP3s inside a FLAC album. Obvious fixes are one tap
+(with a preview and undo); switch off any check you don't care about.
+
 ### Bring in new music
 
 Point Codetta at your downloads folder. It groups what's there into albums,
@@ -209,7 +216,6 @@ light and dark themes. [See every feature →](docs/features.md)
 ## Roadmap
 
 - **Batch matching:** match many albums at once in the background, review the uncertain ones later.
-- **Library health:** one page of fixable problems (no cover, no MusicBrainz IDs, duplicates, missing tracks).
 - **Edition preferences:** your preferred country, format (digital or CD) and release type when matching.
 - **Refresh from MusicBrainz:** pick up corrections made since an album was matched.
 - **ReplayGain:** volume levelling, opt-in.

@@ -130,6 +130,7 @@ const ICONS = {
   musicbrainz: '<svg class="mb-logo" viewBox="0 0 32 32"><path class="mb-l" d="M15.3 3.2 5.5 8.8v14.4l9.8 5.6z"/><path class="mb-r" d="M16.7 3.2l9.8 5.6v14.4l-9.8 5.6z"/><path class="mb-cut" d="M11.5 11.2c-1.8 0-3.2 1.4-3.2 3.2 0 1.2.7 2.3 1.7 2.8-.2.5-.3 1-.3 1.6 0 2.1 1.7 3.8 3.8 3.8h1.8V11.2z"/><path class="mb-cut" d="M20.5 11.2c1.8 0 3.2 1.4 3.2 3.2 0 1.2-.7 2.3-1.7 2.8.2.5.3 1 .3 1.6 0 2.1-1.7 3.8-3.8 3.8h-1.8V11.2z"/></svg>',
   slskd: '<svg class="sk-logo" viewBox="0 0 20 20"><path class="sk-vane" d="M18 2c-6.2.3-10.6 3.8-11.7 9.6l3-.7-1.7 2c3.5.4 6.3-1.2 7.6-4l-2.3.3 2.8-2C16.6 5.5 17.3 3.8 18 2z"/><path class="sk-quill" d="M14.5 5.5 3 17.5"/></svg>',
   gear: '<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.6"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4"/><circle cx="10" cy="10" r="5.2"/></svg>',
+  pulse: '<svg viewBox="0 0 20 20"><path d="M2.5 10.5h3.5l2-5 3.5 9 2-4.5h4"/></svg>',
   paste: '<svg viewBox="0 0 20 20"><rect x="4.5" y="4" width="11" height="13" rx="2"/><path d="M8 4V3h4v1"/><path d="M7.5 9h5M7.5 12h3"/></svg>',
 };
 
@@ -760,6 +761,7 @@ function renderFolderHead() {
       }, state.selectMode ? "Done" : "Select") : null),
   );
   els.tracks.classList.toggle("selecting", state.selectMode);
+  updateHealthSlot();
 }
 
 const isPhone = () => window.matchMedia("(max-width: 760px)").matches;
@@ -3659,6 +3661,169 @@ function renderSoulseek() {
   }
 }
 
+// ---- Library health -----------------------------------------------------------------------------------
+//
+// A card on the Library page ("23 things to look at"), opening a sheet with
+// every issue the checks found, one-tap fixes where they're obvious, and a
+// switch for each check.
+
+const health = { summary: null, at: 0, data: null, filter: "all", view: "issues", busy: false };
+const HEALTH_ICON = { splits: "rows", tracks: "disc", covers: "note", tags: "alert" };
+
+async function updateHealthSlot(force = false) {
+  const slot = $("#health-slot");
+  const atRoot = state.folder && !state.folder.search && state.path === "";
+  if (!atRoot) { slot.hidden = true; return; }
+  if (force || !health.summary || Date.now() - health.at > 30000) {
+    try { health.summary = await api("GET", "/api/library-health/summary"); health.at = Date.now(); } catch { slot.hidden = true; return; }
+  }
+  const s = health.summary;
+  const sub = s.indexing && !s.count ? "Reading your library…"
+    : s.count ? `${plural(s.count, "thing")} to look at` : "All good";
+  setKids(slot, h("button", { class: `health-card${s.count ? " has-issues" : ""}`, type: "button", onclick: () => openHealth() },
+    h("span", { class: "health-card-icon" }, icon("pulse")),
+    h("span", { class: "health-card-text" }, h("strong", {}, "Library health"), h("span", {}, sub)),
+    s.count ? h("span", { class: "health-card-count" }, String(s.count > 999 ? "999+" : s.count)) : null,
+    icon("chevron")));
+  slot.hidden = false;
+}
+
+async function openHealth(view = "issues") {
+  health.view = view;
+  openDialog($("#health-dialog"));
+  if (!health.data) setKids($("#health-body"), h("p", { class: "loading" }, "Checking your library…"));
+  await loadHealth();
+}
+
+async function loadHealth() {
+  try {
+    health.data = await api("GET", "/api/library-health");
+  } catch (err) {
+    setKids($("#health-body"), h("div", { class: "error-box" }, err.message));
+    return;
+  }
+  renderHealth();
+}
+
+function afterHealthChange(data) {
+  health.data = data;
+  health.summary = { count: data.count, indexing: data.indexing };
+  health.at = Date.now();
+  updateHealthSlot();
+  renderHealth();
+}
+
+async function healthFix(issue) {
+  const ok = await ask({ title: `${issue.fix.label}?`, message: `${issue.fix.summary} in “${issue.album}”. Activity can undo it.`,
+    confirmLabel: "Fix" });
+  if (!ok) return;
+  try {
+    const res = await api("POST", "/api/library-health/fix", { id: issue.id });
+    toast(res.failed ? `Fixed ${res.fixed}, ${res.failed} couldn't be changed` : "Fixed", res.failed ? "error" : "success");
+    folderCache.clear();
+    refreshActivity();
+    afterHealthChange(res.health);
+  } catch (err) { toast(err.message, "error"); }
+}
+
+async function healthIgnore(issue, ignore = true) {
+  try { afterHealthChange(await api("POST", "/api/library-health/ignore", { id: issue.id, ignore })); } catch (err) { toast(err.message, "error"); }
+}
+
+function healthItem(issue, ignored = false) {
+  const check = health.data.checks.find((c) => c.id === issue.check);
+  const btn = (label, onclick, primary = false) => h("button", { class: `btn small${primary ? " primary" : ""}`, type: "button", onclick }, label);
+  const open = (folder) => { closeDialog($("#health-dialog")); navigate(folder); };
+  const actions = [];
+  if (!ignored) {
+    if (issue.fix) actions.push(btn(issue.fix.label, () => healthFix(issue), true));
+    actions.push(btn("Open", () => open(issue.folder), !issue.fix));
+    if (issue.actions.includes("musicbrainz") && connectionOn("musicbrainz")) {
+      actions.push(btn("Find in MusicBrainz", () => {
+        closeDialog($("#health-dialog"));
+        openMusicBrainzFor({ body: { folder: issue.folder }, label: `“${issue.album}”` }, { onWritten: () => { health.at = 0; updateHealthSlot(true); } });
+      }));
+    }
+    if (issue.actions.includes("slskd") && skReady()) {
+      actions.push(btn("Find in slskd", () => {
+        closeDialog($("#health-dialog"));
+        els.filter.value = [issue.artist, issue.album].filter(Boolean).join(" ");
+        setBang(true, issue.folder);
+        els.filter.focus();
+      }));
+    }
+    actions.push(h("button", { class: "link-btn inbox-skip", type: "button", onclick: () => healthIgnore(issue) }, "Ignore"));
+  } else {
+    actions.push(btn("Show again", () => healthIgnore(issue, false)));
+  }
+  const detail = issue.folders
+    ? h("div", { class: "health-folders" }, issue.folders.map((f) => h("button", { class: "link-btn", type: "button", dir: "auto", onclick: () => open(f) }, f)))
+    : issue.detail.length ? h("details", { class: "sk-files" }, h("summary", {}, "Details"),
+      h("ul", {}, issue.detail.map((d) => h("li", { dir: "auto" }, d)), issue.more ? h("li", {}, `and ${issue.more} more`) : null)) : null;
+  return h("div", { class: `inbox-item health-item ${issue.category}` },
+    h("span", { class: "mb-thumb mb-noart health-thumb", "aria-hidden": "true" }, icon(HEALTH_ICON[issue.category] || "alert")),
+    h("div", { class: "inbox-main" },
+      h("div", { class: "inbox-title", dir: "auto" }, issue.album, issue.artist ? h("span", { class: "inbox-artist" }, ` · ${issue.artist}`) : null),
+      h("div", { class: "mb-cand-meta", dir: "auto" }, issue.folder || "Library"),
+      h("div", { class: "inbox-status" },
+        h("span", { class: "inbox-chip review" }, check?.label || issue.check),
+        h("span", { class: "inbox-note" }, issue.message)),
+      detail),
+    h("div", { class: "inbox-actions" }, actions));
+}
+
+function renderHealthSettings() {
+  const d = health.data;
+  return h("div", { class: "health-settings" },
+    h("p", { class: "mb-lead" }, "Choose what Library health looks for. Switched-off checks are skipped; you can switch them back on any time."),
+    d.categories.map((cat) => h("section", { class: "health-cat" },
+      h("h3", { class: "field-label" }, cat.label),
+      d.checks.filter((c) => c.category === cat.id).map((c) => {
+        const input = h("input", { type: "checkbox", role: "switch", checked: c.enabled });
+        input.addEventListener("change", async () => {
+          const disabled = d.checks.filter((x) => (x.id === c.id ? !input.checked : !x.enabled)).map((x) => x.id);
+          input.disabled = true;
+          try { afterHealthChange(await api("PUT", "/api/library-health/settings", { disabled })); }
+          catch (err) { input.checked = !input.checked; toast(err.message, "error"); }
+        });
+        return h("label", { class: "switch-row" },
+          h("span", { class: "switch-text" }, h("span", { class: "switch-title" }, c.label), h("span", { class: "switch-sub" }, c.about)),
+          input);
+      }))));
+}
+
+function renderHealth() {
+  const d = health.data;
+  const body = $("#health-body");
+  const close = h("button", { class: "btn", type: "button", "data-close": true }, "Close");
+  const tab = (view, label) => h("button", { class: `btn small${health.view === view ? " primary" : ""}`, type: "button",
+    "aria-pressed": String(health.view === view), onclick: () => { health.view = health.view === view ? "issues" : view; renderHealth(); } }, label);
+  setKids($("#health-foot"),
+    tab("settings", "Checks"),
+    d.ignored.length || health.view === "ignored" ? tab("ignored", `Ignored (${d.ignored.length})`) : null,
+    h("span", { class: "spacer" }), close);
+  if (health.view === "settings") { setKids(body, renderHealthSettings()); return; }
+  if (health.view === "ignored") {
+    setKids(body, h("p", { class: "mb-lead" }, d.ignored.length ? "Issues you chose to ignore. Show one again to put it back on the list." : "Nothing ignored."),
+      d.ignored.length ? h("div", { class: "inbox-list" }, d.ignored.map((i) => healthItem(i, true))) : null);
+    return;
+  }
+  const shown = health.filter === "all" ? d.issues : d.issues.filter((i) => i.category === health.filter);
+  if (health.filter !== "all" && !shown.length) health.filter = "all";
+  const chip = (id, label, count) => h("button", { class: `health-chip${health.filter === id ? " on" : ""}`, type: "button",
+    "aria-pressed": String(health.filter === id), onclick: () => { health.filter = id; renderHealth(); } }, label, h("span", {}, String(count)));
+  setKids(body,
+    h("p", { class: "mb-lead" },
+      d.indexing ? "Codetta is still reading your library, so this list may grow. " : "",
+      d.count ? `${plural(d.count, "thing")} to look at across ${plural(d.albums, "album")}.`
+        : `Nothing to fix across ${plural(d.albums, "album")}. Your library looks healthy.`,
+      d.unmatched ? ` ${plural(d.unmatched, "album")} ${d.unmatched === 1 ? "isn't" : "aren't"} matched on MusicBrainz yet (Find in MusicBrainz on an album does it).` : ""),
+    d.count ? h("div", { class: "health-chips", role: "group", "aria-label": "Show" },
+      chip("all", "All", d.count),
+      d.categories.filter((c) => c.count).map((c) => chip(c.id, c.label, c.count))) : null,
+    shown.length ? h("div", { class: "inbox-list health-list" }, shown.map((i) => healthItem(i))) : null);
+}
+
 // ---- Notifications: the bell -------------------------------------------------------------------------
 //
 // Background news (the inbox finished, an album filed itself, an update is out).
@@ -4187,7 +4352,7 @@ function bindEvents() {
   $("#apply-go").addEventListener("click", doApply);
 
   // All dialogs: close buttons and backdrop clicks.
-  for (const dialog of [els.applyDialog, els.manageDialog, els.filterDialog, $("#mb-dialog"), $("#organize-dialog"), $("#inbox-dialog"), $("#soulseek-dialog"), $("#news-dialog")]) {
+  for (const dialog of [els.applyDialog, els.manageDialog, els.filterDialog, $("#mb-dialog"), $("#organize-dialog"), $("#inbox-dialog"), $("#soulseek-dialog"), $("#health-dialog"), $("#news-dialog")]) {
     dialog.addEventListener("click", (e) => {
       if (e.target.closest("[data-close]") || e.target === dialog) closeDialog(dialog);
     });

@@ -2160,3 +2160,46 @@ body:has(.now-playing:not([hidden])) .browser { padding-bottom: 120px; }
   .notif-text strong { font-size: 13.5px; }
   .notif-text time { font-size: 10.5px; }
 }
+
+/* ---- Library health: the card on the Library page and its sheet ---------------------------------- */
+
+.health-slot { margin: -4px auto 18px; } /* auto: centred in the page column like everything else */
+.health-card {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 10px 14px;
+  border: 1px solid var(--border-strong); border-radius: 12px; background: var(--surface); color: var(--text);
+  font: inherit; text-align: left; cursor: pointer; transition: background-color var(--dur) ease, transform var(--dur) var(--ease-out);
+}
+.health-card:hover { background: var(--hover); }
+.health-card:active { transform: scale(0.995); }
+.health-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.health-card > svg:last-child { width: 16px; height: 16px; margin-left: auto; fill: none; stroke: var(--faint); stroke-width: 1.8; flex: none; }
+.health-card-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; flex: none;
+  background: color-mix(in oklab, var(--success) 14%, transparent); color: var(--success); }
+.health-card.has-issues .health-card-icon { background: var(--warning-soft); color: var(--warning); }
+.health-card-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.health-card-text { display: flex; flex-direction: column; min-width: 0; }
+.health-card-text strong { font-size: 15px; font-weight: 650; }
+.health-card-text span { font-size: 13px; color: var(--muted); }
+.health-card-count { margin-left: auto; min-width: 26px; height: 22px; padding: 0 8px; border-radius: 11px; display: grid; place-items: center;
+  background: var(--warning-soft); color: var(--warning); font-size: 12px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.health-card-count + svg { margin-left: 4px !important; }
+
+.health-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 14px; }
+.health-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px; border-radius: 999px;
+  border: 1px solid var(--border-strong); background: none; color: var(--text); font: inherit; font-size: 13px; font-weight: 550; cursor: pointer; }
+.health-chip span { color: var(--muted); font-variant-numeric: tabular-nums; }
+.health-chip.on { background: var(--text); border-color: var(--text); color: var(--bg); }
+.health-chip.on span { color: color-mix(in oklab, var(--bg) 70%, transparent); }
+.health-item { grid-template-columns: 56px minmax(0, 1fr); align-items: start; }
+.health-item .inbox-actions { grid-column: 2; justify-content: flex-start; }
+.health-thumb { display: grid; place-items: center; }
+.health-thumb svg { width: 22px; height: 22px; fill: none; stroke: var(--muted); stroke-width: 1.6; }
+.health-folders { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; margin-top: 6px; font-size: 13px; }
+.health-settings .health-cat { margin-top: 14px; }
+.health-settings .health-cat h3 { margin: 0 0 4px; }
+@media (max-width: 760px) {
+  .health-item { grid-template-columns: 48px minmax(0, 1fr); }
+  .health-item .inbox-actions { grid-column: 1 / -1; }
+  .health-chip { min-height: 36px; }
+  .health-card { min-height: 60px; }
+}

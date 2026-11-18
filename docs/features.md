@@ -152,6 +152,33 @@ if a name is taken, that file is listed and left alone. Lyrics files
 booklet, logs and scans come along. Folders left empty are removed. The whole
 organize is one entry in the activity log, so **Undo** puts everything back.
 
+## Library health
+
+A card at the top of the Library page says how many things are worth a look
+("23 things to look at"). It opens one list, grouped by kind:
+
+- **Shows up split in your player:** an album whose tracks spell the album
+  name, album artist or year differently, or that has features but no album
+  artist (so Navidrome shows one album as several).
+- **Tracks:** missing tracks (gaps, or fewer than the album's track total),
+  the same track number twice, a multi-disc album with tracks missing their
+  disc number.
+- **Covers:** no cover at all (embedded or a cover image in the folder), or
+  one smaller than 500 pixels.
+- **Tags & files:** tracks without a title, artist, album or track number, the
+  same album in two folders, the same song twice, unreadable files, and lossy
+  files (MP3, AAC) inside an otherwise lossless album.
+
+Where the fix is obvious there's a button for it ("Use “Kehlani”" as the album
+artist, "Number from file names", "Number from disc folders"). You see what
+it will change first, and the whole fix is one entry in Activity, so one Undo
+reverts it. Everything else has **Open**, and **Find in MusicBrainz** or
+**Find in slskd** where they help. **Ignore** hides an issue you're happy
+with, and **Checks** switches any check off (and back on).
+
+It reads Codetta's search index, so no music file is opened and a library of
+thousands of albums is checked in well under a second.
+
 ## Import inbox
 
 Point Codetta at the folder new music lands in (downloads, rips; mount it at

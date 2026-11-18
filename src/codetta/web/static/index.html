@@ -115,6 +115,7 @@
       <main class="browser" id="browser" tabindex="-1">
         <div class="banner" id="banner" hidden></div>
         <section class="folder-head" id="folder-head"></section>
+        <div class="health-slot" id="health-slot" hidden></div>
         <div class="filter-chips" id="filter-chips" hidden></div>
         <section id="folders" class="folders" aria-label="Folders"></section>
         <section id="tracks" class="tracks" aria-label="Tracks"></section>
@@ -342,6 +343,18 @@
     </div>
     <div class="sheet-body" id="organize-body"></div>
     <div class="sheet-foot" id="organize-foot"></div>
+  </dialog>
+
+  <!-- Library health (drawn by app.js) -->
+  <dialog class="sheet wide" id="health-dialog" aria-labelledby="health-title">
+    <div class="sheet-head">
+      <h2 id="health-title">Library health</h2>
+      <button class="icon-btn" type="button" data-close aria-label="Close">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body" id="health-body"></div>
+    <div class="sheet-foot" id="health-foot"></div>
   </dialog>
 
   <!-- Soulseek requests through slskd (drawn by app.js) -->
