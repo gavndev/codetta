@@ -413,3 +413,23 @@ def test_tracks_report_art_fingerprints(client):
     a, b = tracks["01 - Intro.flac"]["art"], tracks["2 - Groove.mp3"]["art"]
     assert a == b and (a["width"], a["height"]) == (64, 48)  # same cover -> same fingerprint
     assert tracks["10 - Outro.m4a"]["art"] is None
+
+
+def test_player_lyrics_from_tag_or_lrc_file(tmp_path):
+    import shutil
+    from codetta.core.engine import MetadataEngine
+    from codetta.web.app import Settings, create_app
+    from fastapi.testclient import TestClient
+    from tests.conftest import FIXTURES_DIR
+    music = tmp_path / "music"; music.mkdir()
+    for n in ("a.flac", "b.flac", "c.flac"):
+        shutil.copy2(FIXTURES_DIR / "sample.flac", music / n)
+    MetadataEngine().update_tags(music / "a.flac", {"lyrics": "[00:01.00] Hello\n[00:05.50] World"})
+    (music / "b.lrc").write_text("[00:02.00] From a file\n[00:04.00] Second line", "utf-8")
+    with TestClient(create_app(Settings(music_dir=music, config_dir=tmp_path / "cfg", auth=False))) as c:
+        a = c.get("/api/lyrics", params={"path": "a.flac"}).json()
+        assert a["source"] == "tag" and a["synced"] and "Hello" in a["lyrics"]
+        b = c.get("/api/lyrics", params={"path": "b.flac"}).json()
+        assert b["source"] == "file" and b["synced"] and "From a file" in b["lyrics"]
+        assert c.get("/api/lyrics", params={"path": "c.flac"}).json() == {"lyrics": "", "source": None, "synced": False}
+        assert c.get("/api/lyrics", params={"path": "../etc/passwd"}).status_code == 400

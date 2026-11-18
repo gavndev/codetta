@@ -219,16 +219,28 @@ Replacing an album moves the old copy into Codetta's config folder
 (`replaced/`), as its own entry in the activity log, so it can be undone. It's
 kept there for 30 days (like "Recently Deleted"), then removed.
 
-## Quick listen
+## Listen
 
 Every track has a play button at the end of its row. It streams the file
-itself from your server (no conversion, nothing cached), so you can check what
-a file is before tagging it. Seeking works, as do lock-screen and headphone
-controls on phones. Formats your browser can't play (WMA, DSF, WavPack, TTA,
-Speex) don't get a button.
+itself from your server (no conversion, nothing cached). Pressing play queues
+the rest of the album (or of your search results) after it, and Codetta moves
+on to the next track by itself. The now-playing pill at the bottom has play,
+next and stop; lock-screen and headphone controls work too.
 
-Multi-disc albums show a **Disc 1**, **Disc 2** line between discs (with the
-disc subtitle, if any), and pointing at a track shows its number as "2/01".
+Tap the pill for the full player: a big cover, previous, play, next and
+**shuffle**, then two tabs:
+
+- **Up next:** what plays after this track. Tap one to jump to it, or take it
+  out of the queue.
+- **Lyrics:** synced lyrics (LRC) follow the song line by line, with the line
+  being sung in the middle; tap a line to jump there. Plain lyrics show as
+  they are. They come from the track's lyrics tag, or from a `.lrc` file with
+  the same name next to it (as Navidrome reads them).
+
+Formats your browser can't play (WMA, DSF, WavPack, TTA, Speex) don't get a
+play button. Multi-disc albums show a **Disc 1**, **Disc 2** line between
+discs (with the disc subtitle, if any), and pointing at a track shows its
+number as "2/01".
 
 ## Lyrics
 

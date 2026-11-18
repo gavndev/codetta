@@ -7,6 +7,9 @@ All notable changes to Codetta. Versions follow [Semantic Versioning](https://se
 - **Frosted glass:** sheets, menus, notifications, toasts, the selection bar and the now-playing pill float on frosted glass, with the page blurred softly behind sheets (solid panels where blur isn't available or "reduce transparency" is on).
 - **Fresher motion:** one quick, springy curve everywhere. Sheets settle in, toasts and menus pop, buttons give a little when pressed, folders lift on hover, the first rows ripple in when you change pages, and covers settle into place. The Control Center opens with the same quick motion as the other sheets. "Reduce motion" is respected.
 - Rounder buttons and badges, to match.
+- **Tag Loadouts are now Tag Presets**, everywhere. Your saved ones move over by themselves (from `config/loadouts/` to `config/presets/`).
+- **Compact actions:** Apply preset, Organize and (on phones) Select are icon buttons now, and show their name when you point at them. On phones the album's actions fit on one row.
+- **A real player:** pressing play queues the rest of the album (or search results) after the track, and it carries on to the next one by itself. **Shuffle**, **previous** and **next** (also from your lock screen and headphones). Tap the now-playing pill for the full player: a big cover, **Up next** (jump to any track, or take one out) and **Lyrics**: synced lyrics follow along line by line (tap a line to jump there), plain lyrics show as they are. Lyrics come from the track's tag or a `.lrc` file next to it.
 
 ## 0.7.0 (2026-11-18)
 

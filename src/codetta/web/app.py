@@ -977,6 +977,30 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         return FileResponse(target, media_type=mime, content_disposition_type="inline",
                             headers={"Cache-Control": "private, max-age=3600"})
 
+    LRC_LINE = re.compile(r"^\s*\[\d{1,3}:\d{2}(?:[.:]\d{1,3})?\]")
+
+    @app.get("/api/lyrics")
+    def get_lyrics(path: str = Query(..., max_length=MAX_PATH_CHARS, description="File, relative to the music folder")) -> dict:
+        """The track's lyrics for the player: the lyrics tag, else a ``.lrc`` file next to it
+        (as Navidrome reads them). ``synced`` when it's timed LRC."""
+        require_library()
+        target = library.resolve(path)
+        text, source = "", None
+        try:
+            text = "\n".join(engine.load_metadata(target).tags.get("lyrics", [])).strip()
+            source = "tag" if text else None
+        except (MetadataError, OSError):
+            pass
+        if not text:
+            side = target.with_suffix(".lrc")
+            try:
+                if side.is_file() and side.stat().st_size <= 512 * 1024:
+                    text, source = side.read_text("utf-8", errors="replace").strip(), "file"
+            except OSError:
+                pass
+        synced = sum(1 for line in text.splitlines() if LRC_LINE.match(line)) >= 2
+        return {"lyrics": text, "source": source, "synced": synced}
+
     @app.get("/api/lyrics/lookup")
     def lyrics_lookup(path: str = Query(..., max_length=MAX_PATH_CHARS, description="File, relative to the music folder")) -> dict:
         """Look up lyrics for a track on LRCLIB (sends artist, title, album and length only).
