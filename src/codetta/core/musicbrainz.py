@@ -180,13 +180,20 @@ class MusicBrainz:
                 self._cache.move_to_end(url)
                 return self._cache[url]
         with self._rate_lock:  # one request at a time, at most one per min_interval
-            wait = self._last + self.min_interval - self._clock()
-            if wait > 0:
-                self._sleep(wait)
-            try:
-                data = self.fetch(url)
-            finally:
-                self._last = self._clock()
+            for attempt in (1, 2):
+                wait = self._last + self.min_interval - self._clock()
+                if wait > 0:
+                    self._sleep(wait)
+                try:
+                    data = self.fetch(url)
+                    break
+                except ProviderError as exc:
+                    # "Busy" (503): MusicBrainz asks clients to slow down. Wait a little longer, try once more.
+                    if attempt == 2 or "busy" not in str(exc).lower():
+                        raise
+                    self._sleep(1.5 * self.min_interval)
+                finally:
+                    self._last = self._clock()
         with self._cache_lock:
             self._cache[url] = data
             while len(self._cache) > 64:

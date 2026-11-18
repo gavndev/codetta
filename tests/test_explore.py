@@ -125,3 +125,21 @@ def test_explore_needs_the_musicbrainz_connection_and_valid_ids(client):
     assert c.get("/api/mb/search", params={"q": "x"}).status_code == 403
     assert len(fake.urls) == before  # nothing was sent
     assert c.get("/api/musicbrainz/cover/" + RG1, params={"kind": "nope"}).status_code in (403, 422)
+
+
+def test_busy_musicbrainz_is_retried_once():
+    from codetta.core.musicbrainz import MusicBrainz
+    from codetta.core.providers import ProviderError
+    calls, slept = [], []
+
+    def fetch(url):
+        calls.append(url)
+        if len(calls) == 1:
+            raise ProviderError("MusicBrainz is busy right now. Try again in a moment.")
+        return {"artists": []}
+
+    mb = MusicBrainz(fetch, min_interval=1.0, sleep=slept.append)
+    assert mb.search_artists("x") == [] and len(calls) == 2 and 1.5 in slept
+    always = MusicBrainz(lambda url: (_ for _ in ()).throw(ProviderError("MusicBrainz is busy right now.")), sleep=lambda s: None)
+    with pytest.raises(ProviderError):
+        always.search_artists("y")
