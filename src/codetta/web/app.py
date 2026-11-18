@@ -5,7 +5,7 @@ Run locally:
 
 Settings (environment variables):
     CODETTA_MUSIC_DIR   the music library to edit (default: /music)
-    CODETTA_CONFIG_DIR  where loadouts, the activity log and the account are
+    CODETTA_CONFIG_DIR  where presets, the activity log and the account are
                      stored (default: ./config)
     CODETTA_USERNAME    optional: set the account here instead of the setup screen
     CODETTA_PASSWORD      (both must be set; the password can't then be changed in the UI)
@@ -163,12 +163,12 @@ from codetta.core.slskd import (
 from codetta.core.presets import (
     PLACEHOLDERS,
     FileResult,
-    Loadout,
-    LoadoutError,
-    LoadoutNotFoundError,
-    LoadoutStore,
-    apply_loadout,
-    apply_loadout_to_folder,
+    Preset,
+    PresetError,
+    PresetNotFoundError,
+    PresetStore,
+    apply_preset,
+    apply_preset_to_folder,
     slugify,
 )
 from codetta.core.tagmap import FIELDS, is_tag_supported
@@ -357,18 +357,18 @@ class UpdateResult(BaseModel):
     track: TrackOut | None = None
 
 
-class LoadoutOut(BaseModel):
+class PresetOut(BaseModel):
     name: str
     slug: str
     description: str
     tags: dict[str, list[str]]
 
 
-class LoadoutIn(BaseModel):
+class PresetIn(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     description: str = Field("", max_length=1000)
     tags: dict[str, str | list[str]] = Field(default={}, max_length=200)
-    # When editing, the loadout's name before the edit (handles renames).
+    # When editing, the preset's name before the edit (handles renames).
     previous_name: str | None = Field(default=None, max_length=100)
 
 
@@ -482,6 +482,17 @@ class MBProposalIn(MBTarget):
 # --- App ----------------------------------------------------------------------------
 
 
+def _migrate_presets_folder(config_dir: Path) -> None:
+    """Tag Presets used to be called Tag Loadouts, kept in config/loadouts/. Move them over once."""
+    old, new = config_dir / "loadouts", config_dir / "presets"
+    try:
+        if old.is_dir() and not new.exists():
+            old.rename(new)
+            log.info("Moved your Tag Presets from %s to %s", old, new)
+    except OSError as exc:  # read-only config folder: presets just start fresh
+        log.warning("Couldn't move %s to %s: %s", old, new, exc)
+
+
 def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_latest_release,
                fetch_json=None, fetch_mb=None, fetch_art=None, post_acoustid=None, run_fpcalc=None,
                slskd_request=None) -> FastAPI:
@@ -497,7 +508,8 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     )
     updates = UpdateChecker(VERSION, settings.update_repo, lambda: connections.enabled("updates"), fetch_release)
     library = Library(settings.music_dir, settings.inbox_dir, settings.config_dir / "replaced")
-    store = LoadoutStore(settings.config_dir / "loadouts")
+    _migrate_presets_folder(settings.config_dir)
+    store = PresetStore(settings.config_dir / "presets")
     engine = MetadataEngine()
     activity = ActivityLog(settings.config_dir / "activity.jsonl")
     art_store = ArtStore(settings.config_dir / "undo-art")
@@ -533,11 +545,11 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        # On startup (not on import), add the starter loadouts if missing.
+        # On startup (not on import), add the starter presets if missing.
         try:
             store.install_defaults()
         except OSError:
-            pass  # read-only config folder: loadouts just won't be saved
+            pass  # read-only config folder: presets just won't be saved
         # Drop saved album art that no remembered change refers to any more.
         try:
             art_store.prune(h for rec in activity.undo_records() for h in art_hashes(rec))
@@ -572,8 +584,8 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     app.add_exception_handler(LibraryPathError, _error(400))
     app.add_exception_handler(FileNotFoundError, _error(404))
     app.add_exception_handler(MetadataError, _error(422))
-    app.add_exception_handler(LoadoutNotFoundError, _error(404))
-    app.add_exception_handler(LoadoutError, _error(422))
+    app.add_exception_handler(PresetNotFoundError, _error(404))
+    app.add_exception_handler(PresetError, _error(422))
 
     # --- Sign-in --------------------------------------------------------------------------
 
@@ -918,7 +930,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
 
     @app.get("/api/fields")
     def fields() -> dict:
-        """The editor's known tags (in display order) and loadout placeholders."""
+        """The editor's known tags (in display order) and preset placeholders."""
         return {
             "fields": [
                 {"key": f.key, "label": f.label, "group": f.group, "multi": f.multi}
@@ -2381,41 +2393,41 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         """Recent changes, newest first. Pass ``after_id`` to get only newer ones."""
         return activity.recent(limit=limit, after_id=after_id)
 
-    # --- Loadouts --------------------------------------------------------------------
+    # --- Presets --------------------------------------------------------------------
 
-    @app.get("/api/loadouts", response_model=list[LoadoutOut])
-    def list_loadouts():
-        return [_to_loadout_out(lo) for lo in store.list()]
+    @app.get("/api/presets", response_model=list[PresetOut])
+    def list_presets():
+        return [_to_preset_out(lo) for lo in store.list()]
 
-    @app.post("/api/loadouts", response_model=LoadoutOut)
-    def save_loadout(body: LoadoutIn):
-        """Create a loadout, or edit one (pass ``previous_name`` when editing)."""
-        loadout = Loadout(name=body.name, tags=body.tags, description=body.description)
+    @app.post("/api/presets", response_model=PresetOut)
+    def save_preset(body: PresetIn):
+        """Create a preset, or edit one (pass ``previous_name`` when editing)."""
+        preset = Preset(name=body.name, tags=body.tags, description=body.description)
         editing = body.previous_name is not None
-        renamed = editing and slugify(body.previous_name) != loadout.slug
-        if (not editing or renamed) and _exists(store, loadout.name):
-            raise HTTPException(409, f"A loadout named '{loadout.name}' already exists")
+        renamed = editing and slugify(body.previous_name) != preset.slug
+        if (not editing or renamed) and _exists(store, preset.name):
+            raise HTTPException(409, f"A preset named '{preset.name}' already exists")
         try:
-            store.save(loadout)
+            store.save(preset)
         except OSError as exc:
-            raise HTTPException(500, f"Could not save loadout: {exc}") from exc
+            raise HTTPException(500, f"Could not save preset: {exc}") from exc
         if renamed and _exists(store, body.previous_name):
             store.delete(body.previous_name)
-        return _to_loadout_out(loadout)
+        return _to_preset_out(preset)
 
-    @app.delete("/api/loadouts/{name}", status_code=204)
-    def delete_loadout(name: str):
+    @app.delete("/api/presets/{name}", status_code=204)
+    def delete_preset(name: str):
         store.delete(name)
 
-    @app.post("/api/loadouts/apply", response_model=list[ApplyResultOut])
+    @app.post("/api/presets/apply", response_model=list[ApplyResultOut])
     def apply(body: ApplyIn):
-        """Apply a loadout to files or a folder. ``dry_run`` (default) only previews."""
+        """Apply a preset to files or a folder. ``dry_run`` (default) only previews."""
         require_library()
-        loadout = store.get(body.name)
+        preset = store.get(body.name)
         if body.folder is not None:
-            results = apply_loadout_to_folder(
+            results = apply_preset_to_folder(
                 engine,
-                loadout,
+                preset,
                 library.resolve(body.folder),
                 mode=body.mode,
                 recursive=body.recursive,
@@ -2423,16 +2435,16 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             )
         elif body.paths:
             paths = [library.resolve(p) for p in _unique(body.paths)]
-            results = apply_loadout(engine, loadout, paths, mode=body.mode, dry_run=body.dry_run)
+            results = apply_preset(engine, preset, paths, mode=body.mode, dry_run=body.dry_run)
         else:
-            raise HTTPException(400, "Choose some files or a folder to apply the loadout to")
+            raise HTTPException(400, "Choose some files or a folder to apply the preset to")
         out = [result_out(r) for r in results]
         if not body.dry_run:
             undo_files = {
                 library.relative(r.path): {"before": r.previous, "after": r.applied}
                 for r in results if not r.error and r.applied
             }
-            _log_loadout(activity, loadout.name, body.mode, out,
+            _log_preset(activity, preset.name, body.mode, out,
                          undo={"type": "tags", "files": undo_files} if undo_files else None)
             lib_index.mark_dirty(o.path for o in out if not o.error and o.applied)
         return out
@@ -2479,17 +2491,17 @@ def _to_track_out(rel: str, meta: TrackMetadata, mtime: int | None = None) -> Tr
     )
 
 
-def _to_loadout_out(lo: Loadout) -> LoadoutOut:
-    return LoadoutOut(name=lo.name, slug=lo.slug, description=lo.description, tags=lo.tags)
+def _to_preset_out(lo: Preset) -> PresetOut:
+    return PresetOut(name=lo.name, slug=lo.slug, description=lo.description, tags=lo.tags)
 
 
-def _exists(store: LoadoutStore, name: str) -> bool:
+def _exists(store: PresetStore, name: str) -> bool:
     try:
         store.get(name)
         return True
-    except LoadoutNotFoundError:
+    except PresetNotFoundError:
         return False
-    except LoadoutError:
+    except PresetError:
         return True  # a file exists under that name, even if it's broken
 
 
@@ -2558,15 +2570,15 @@ def _log_art(activity: ActivityLog, adding: bool, art, had_art: int, results: li
     )
 
 
-def _log_loadout(activity: ActivityLog, name: str, mode: str, results: list[ApplyResultOut], undo: dict | None = None) -> None:
+def _log_preset(activity: ActivityLog, name: str, mode: str, results: list[ApplyResultOut], undo: dict | None = None) -> None:
     changed = [r for r in results if not r.error and r.applied]
     failed = [r for r in results if r.error]
     keys = sorted({k for r in changed for k in r.applied})
     diff = [{"key": k, "old": "", "new": _join(changed[0].applied[k]) if len(changed) == 1 and k in changed[0].applied else "set"} for k in keys]
     how = "filled empty tags" if mode == "fill" else "overwrote tags"
-    message = f"Applied loadout “{name}” to {len(changed)} of {len(results)} files ({how})"
+    message = f"Applied preset “{name}” to {len(changed)} of {len(results)} files ({how})"
     activity.add(
-        "loadout", message, ok=not failed,
+        "preset", message, ok=not failed,
         files=[r.path for r in changed], changes=diff,
         errors=[{"path": r.path, "error": r.error or ""} for r in failed],
         undo=undo,

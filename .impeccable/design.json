@@ -493,8 +493,8 @@
       "name": "Secondary Button",
       "kind": "button",
       "refersTo": "button-secondary",
-      "description": "Copy, Replace, Apply loadout: sheet surface with a 3:1 field-line border.",
-      "html": "<button class=\"ds-btn\">Apply loadout…</button>",
+      "description": "Copy, Replace, Apply preset: sheet surface with a 3:1 field-line border.",
+      "html": "<button class=\"ds-btn\">Apply preset…</button>",
       "css": ".ds-btn{display:inline-flex;align-items:center;justify-content:center;height:34px;padding:0 14px;border-radius:6px;border:1px solid var(--field-line,#8b919b);background:var(--surface,#fff);color:var(--text,#1b1e24);font:600 14px/1 'Schibsted Grotesk',system-ui,sans-serif;cursor:pointer;transition:background-color 120ms ease,transform 120ms ease}.ds-btn:hover{background:var(--hover,rgba(27,30,36,.04))}.ds-btn:active{background:var(--pressed,rgba(27,30,36,.07));transform:scale(.97)}.ds-btn:focus-visible{outline:2px solid var(--spot,#0e7c74);outline-offset:2px}"
     },
     {

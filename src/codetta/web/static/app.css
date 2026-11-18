@@ -1169,8 +1169,8 @@ dialog::backdrop { background: var(--backdrop); }
 .preview-item .note { font-size: 12px; color: var(--faint); margin-top: 2px; }
 .preview-item.error .name { color: var(--danger); }
 
-.loadout-list { display: flex; flex-direction: column; gap: 8px; }
-.loadout-card {
+.preset-list { display: flex; flex-direction: column; gap: 8px; }
+.preset-card {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -1178,10 +1178,10 @@ dialog::backdrop { background: var(--backdrop); }
   border: 1px solid var(--border);
   border-radius: 12px;
 }
-.loadout-card .info { flex: 1; min-width: 0; }
-.loadout-card .name { font-weight: 600; }
-.loadout-card .desc { color: var(--muted); font-size: 13px; margin-top: 2px; }
-.loadout-card .tags { color: var(--faint); font-size: 12px; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.preset-card .info { flex: 1; min-width: 0; }
+.preset-card .name { font-weight: 600; }
+.preset-card .desc { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.preset-card .tags { color: var(--faint); font-size: 12px; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .tag-rows { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
 
@@ -1767,7 +1767,7 @@ dialog.sheet.wide { width: min(760px, calc(100vw - 32px)); }
 @media (prefers-reduced-motion: reduce) {
   .mb-find:hover { animation: none; transform: none; }
 }
-.mb-find.in-actions { margin-right: auto; } /* far left, opposite Apply loadout */
+.mb-find.in-actions { margin-right: auto; } /* far left, opposite Apply preset */
 .mb-find.phone-only { display: none; }
 
 @media (max-width: 760px) {
@@ -2518,7 +2518,7 @@ dialog.sheet[open]::backdrop { animation: fade-in 320ms ease both; }
 .mb-find-inner { border-radius: 8.5px; }
 .inbox-chip, .badge { border-radius: 6px; }
 
-/* Control Center: the same quick, simple motion as the other sheets (inbox, loadouts), still anchored at the profile picture. */
+/* Control Center: the same quick, simple motion as the other sheets (inbox, presets), still anchored at the profile picture. */
 dialog.cc[open] .cc-panel { animation: glass-in 380ms var(--spring) both; }
 dialog.cc.closing .cc-panel { animation: glass-out 180ms var(--ease-in) forwards; }
 dialog.cc[open]::backdrop { animation: fade-in 320ms ease both; }
@@ -2526,3 +2526,26 @@ dialog.cc.closing::backdrop { animation: fade-out 180ms ease forwards; }
 @media (prefers-reduced-motion: reduce) {
   dialog.cc[open] .cc-panel, dialog.cc.closing .cc-panel { animation-duration: 1ms !important; }
 }
+
+
+/* ---- Icon buttons that show their name on hover (Apply preset, Organize, Select) ------------------ */
+
+.btn.icon-expand { display: inline-flex; align-items: center; gap: 0; padding: 0 9px; min-width: 34px; justify-content: center; }
+.btn.icon-expand > svg { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.7;
+  stroke-linecap: round; stroke-linejoin: round; }
+.icon-expand-label { display: inline-block; max-width: 0; opacity: 0; overflow: hidden; white-space: nowrap; margin-left: 0;
+  transition: max-width 320ms var(--spring), opacity 180ms ease, margin-left 320ms var(--spring); }
+@media (hover: hover) {
+  .btn.icon-expand:hover .icon-expand-label, .btn.icon-expand:focus-visible .icon-expand-label { max-width: 150px; opacity: 1; margin-left: 7px; }
+}
+.btn.icon-expand.primary > svg { stroke: currentColor; }
+@media (max-width: 760px) {
+  /* One tidy row: Find buttons on the left, compact icons on the right. */
+  .folder-actions { gap: 6px; flex-wrap: nowrap; align-items: center; }
+  .folder-actions:has(.mb-find) { flex: 1 1 100%; }
+  .btn.icon-expand { width: 40px; height: 40px; min-width: 40px; padding: 0; border-radius: 12px; }
+  .folder-actions .mb-find-inner { height: 37px; padding: 0 11px; gap: 6px; }
+}
+@media (prefers-reduced-motion: reduce) { .icon-expand-label { transition: none; } }
+.btn.icon-expand.phone-only { display: none; }
+@media (max-width: 760px) { .btn.icon-expand.phone-only { display: inline-flex; } }

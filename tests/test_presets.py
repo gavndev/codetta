@@ -1,4 +1,4 @@
-"""Tests for Tag Loadouts (codetta.core.presets)."""
+"""Tests for Tag Presets (codetta.core.presets)."""
 
 import hashlib
 import json
@@ -10,12 +10,12 @@ import pytest
 from codetta.core.engine import MetadataEngine
 from codetta.core.presets import (
     ApplyMode,
-    Loadout,
-    LoadoutError,
-    LoadoutStore,
-    apply_loadout,
-    apply_loadout_to_folder,
-    default_loadouts,
+    Preset,
+    PresetError,
+    PresetStore,
+    apply_preset,
+    apply_preset_to_folder,
+    default_presets,
     filename_to_title,
     slugify,
 )
@@ -49,33 +49,33 @@ def sha256(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-# --- Loadout validation ----------------------------------------------------------
+# --- Preset validation ----------------------------------------------------------
 
 
-def test_loadout_normalizes_values_and_keys():
-    lo = Loadout(name="  Test  ", tags={"Genre": "Rock", "ARTIST": ["A", "B"]})
+def test_preset_normalizes_values_and_keys():
+    lo = Preset(name="  Test  ", tags={"Genre": "Rock", "ARTIST": ["A", "B"]})
     assert lo.name == "Test"
     assert lo.tags == {"genre": ["Rock"], "artist": ["A", "B"]}
 
 
 @pytest.mark.parametrize("name", ["", "   "])
-def test_loadout_requires_a_name(name):
-    with pytest.raises(LoadoutError):
-        Loadout(name=name)
+def test_preset_requires_a_name(name):
+    with pytest.raises(PresetError):
+        Preset(name=name)
 
 
 @pytest.mark.parametrize("name", ["🔥🔥", "!!!", "★ Favourites ★", "हिंदी गाने", "夜のドライブ"])
-def test_loadout_names_in_any_script_or_emoji(tmp_path, name):
-    store = LoadoutStore(tmp_path)
-    store.save(Loadout(name=name, tags={"genre": "Test"}))
+def test_preset_names_in_any_script_or_emoji(tmp_path, name):
+    store = PresetStore(tmp_path)
+    store.save(Preset(name=name, tags={"genre": "Test"}))
     assert store.get(name).name == name
     assert [lo.name for lo in store.list()] == [name]
     assert slugify(name)  # always a usable file name
 
 
 def test_unknown_placeholder_is_rejected():
-    with pytest.raises(LoadoutError, match="unknown placeholder"):
-        Loadout(name="Bad", tags={"title": "{nope}"})
+    with pytest.raises(PresetError, match="unknown placeholder"):
+        Preset(name="Bad", tags={"title": "{nope}"})
 
 
 @pytest.mark.parametrize(
@@ -90,30 +90,30 @@ def test_unknown_placeholder_is_rejected():
     ],
 )
 def test_from_dict_rejects_bad_shapes(data):
-    with pytest.raises(LoadoutError):
-        Loadout.from_dict(data)
+    with pytest.raises(PresetError):
+        Preset.from_dict(data)
 
 
 def test_dict_round_trip_keeps_single_values_readable():
-    lo = Loadout(name="X", tags={"genre": "Rock", "artist": ["A", "B"]}, description="d")
+    lo = Preset(name="X", tags={"genre": "Rock", "artist": ["A", "B"]}, description="d")
     data = lo.to_dict()
     assert data["tags"] == {"genre": "Rock", "artist": ["A", "B"]}
-    assert Loadout.from_dict(data) == lo
+    assert Preset.from_dict(data) == lo
 
 
-def test_default_loadouts_are_valid():
-    names = [lo.name for lo in default_loadouts()]
+def test_default_presets_are_valid():
+    names = [lo.name for lo in default_presets()]
     assert names == ["Single", "Album Folder", "Full Credits"]
 
 
-# --- LoadoutStore --------------------------------------------------------------
+# --- PresetStore --------------------------------------------------------------
 
 
 def test_store_save_get_list_delete(tmp_path):
-    store = LoadoutStore(tmp_path / "loadouts")
+    store = PresetStore(tmp_path / "presets")
     assert store.list() == []
 
-    path = store.save(Loadout(name="My Vibes", tags={"mood": "Chill"}))
+    path = store.save(Preset(name="My Vibes", tags={"mood": "Chill"}))
 
     assert path.name == "my-vibes.json"
     assert store.get("My Vibes").tags == {"mood": ["Chill"]}
@@ -122,20 +122,20 @@ def test_store_save_get_list_delete(tmp_path):
 
     store.delete("My Vibes")
     assert store.list() == []
-    with pytest.raises(LoadoutError):
+    with pytest.raises(PresetError):
         store.get("My Vibes")
 
 
 def test_store_save_replaces_existing(tmp_path):
-    store = LoadoutStore(tmp_path)
-    store.save(Loadout(name="X", tags={"genre": "Rock"}))
-    store.save(Loadout(name="X", tags={"genre": "Jazz"}))
+    store = PresetStore(tmp_path)
+    store.save(Preset(name="X", tags={"genre": "Rock"}))
+    store.save(Preset(name="X", tags={"genre": "Jazz"}))
     assert store.get("X").tags == {"genre": ["Jazz"]}
     assert [p.name for p in tmp_path.iterdir()] == ["x.json"]
 
 
 def test_store_files_are_human_editable(tmp_path):
-    store = LoadoutStore(tmp_path)
+    store = PresetStore(tmp_path)
     (tmp_path / "hand-made.json").write_text(
         json.dumps({"name": "Hand Made", "tags": {"genre": "Lo-Fi"}})
     )
@@ -143,8 +143,8 @@ def test_store_files_are_human_editable(tmp_path):
 
 
 def test_store_list_skips_broken_files(tmp_path):
-    store = LoadoutStore(tmp_path)
-    store.save(Loadout(name="Good"))
+    store = PresetStore(tmp_path)
+    store.save(Preset(name="Good"))
     (tmp_path / "broken.json").write_text("{ not json")
     (tmp_path / "wrong.json").write_text('{"name": "W", "tags": {"genre": 5}}')
     (tmp_path / ".codetta-leftover.json").write_text('{"name": "Ghost"}')
@@ -153,13 +153,13 @@ def test_store_list_skips_broken_files(tmp_path):
 
 def test_store_get_broken_file_raises(tmp_path):
     (tmp_path / "broken.json").write_text("{ not json")
-    with pytest.raises(LoadoutError):
-        LoadoutStore(tmp_path).get("broken")
+    with pytest.raises(PresetError):
+        PresetStore(tmp_path).get("broken")
 
 
 def test_install_defaults_does_not_overwrite_user_edits(tmp_path):
-    store = LoadoutStore(tmp_path)
-    store.save(Loadout(name="Single", tags={"genre": "Mine"}))
+    store = PresetStore(tmp_path)
+    store.save(Preset(name="Single", tags={"genre": "Mine"}))
 
     added = store.install_defaults()
 
@@ -168,9 +168,9 @@ def test_install_defaults_does_not_overwrite_user_edits(tmp_path):
     assert store.install_defaults() == []
 
 
-def test_unicode_loadout_names(tmp_path):
-    store = LoadoutStore(tmp_path)
-    store.save(Loadout(name="ローファイ", tags={"genre": "Lo-Fi"}))
+def test_unicode_preset_names(tmp_path):
+    store = PresetStore(tmp_path)
+    store.save(Preset(name="ローファイ", tags={"genre": "Lo-Fi"}))
     assert store.get("ローファイ").tags == {"genre": ["Lo-Fi"]}
 
 
@@ -205,15 +205,15 @@ def test_slugify():
 
 
 @pytest.mark.parametrize("sample", ["sample.flac", "sample.mp3", "sample.m4a", "sample.ogg", "sample.opus"])
-def test_single_loadout_fleshes_out_a_bare_file(engine, blank_file, sample):
+def test_single_preset_fleshes_out_a_bare_file(engine, blank_file, sample):
     ext = sample.split(".")[1]
     path = blank_file(sample, f"01 - Night Drive.{ext}")
-    lo = Loadout(
+    lo = Preset(
         name="Single+",
-        tags={**default_loadouts()[0].tags, "artist": "DJ Test", "genre": "Lo-Fi"},
+        tags={**default_presets()[0].tags, "artist": "DJ Test", "genre": "Lo-Fi"},
     )
 
-    [result] = apply_loadout(engine, lo, [path])
+    [result] = apply_preset(engine, lo, [path])
 
     assert result.ok, result.error
     tags = engine.load_metadata(path).tags
@@ -224,7 +224,7 @@ def test_single_loadout_fleshes_out_a_bare_file(engine, blank_file, sample):
     assert tags["tracknumber"] == ["1/1"]
     assert tags["releasetype"] == ["single"]
     assert tags["media"] == ["Digital Media"]
-    # Blank fields in the loadout (date, albumartist, comment) are not written.
+    # Blank fields in the preset (date, albumartist, comment) are not written.
     assert "date" not in tags and "comment" not in tags
 
 
@@ -232,7 +232,7 @@ def test_single_loadout_fleshes_out_a_bare_file(engine, blank_file, sample):
 def test_full_credits_apply_to_every_format(engine, blank_file, sample):
     ext = sample.split(".")[1]
     path = blank_file(sample, f"song.{ext}")
-    lo = Loadout(
+    lo = Preset(
         name="Credits",
         tags={
             "composer": "C", "producer": ["P1", "P2"], "engineer": "E", "mixer": "M",
@@ -240,7 +240,7 @@ def test_full_credits_apply_to_every_format(engine, blank_file, sample):
         },
     )
 
-    [result] = apply_loadout(engine, lo, [path])
+    [result] = apply_preset(engine, lo, [path])
 
     assert result.ok and result.unsupported == []
     tags = engine.load_metadata(path).tags
@@ -251,9 +251,9 @@ def test_full_credits_apply_to_every_format(engine, blank_file, sample):
 def test_fill_mode_keeps_existing_values(engine, tmp_path):
     path = tmp_path / "sample.flac"
     shutil.copy2(FIXTURES_DIR / "sample.flac", path)  # already titled "Test Track"
-    lo = Loadout(name="X", tags={"title": "{filename_title}", "mood": "Chill"})
+    lo = Preset(name="X", tags={"title": "{filename_title}", "mood": "Chill"})
 
-    [result] = apply_loadout(engine, lo, [path])
+    [result] = apply_preset(engine, lo, [path])
 
     assert result.kept_existing == ["title"]
     assert result.applied == {"mood": ["Chill"]}
@@ -265,20 +265,20 @@ def test_fill_mode_keeps_existing_values(engine, tmp_path):
 def test_overwrite_mode_replaces_values(engine, tmp_path):
     path = tmp_path / "sample.flac"
     shutil.copy2(FIXTURES_DIR / "sample.flac", path)
-    lo = Loadout(name="X", tags={"title": "{filename_title}"})
+    lo = Preset(name="X", tags={"title": "{filename_title}"})
 
-    [result] = apply_loadout(engine, lo, [path], mode="overwrite")
+    [result] = apply_preset(engine, lo, [path], mode="overwrite")
 
     assert result.applied == {"title": ["sample"]}
     assert engine.load_metadata(path).tags["title"] == ["sample"]
 
 
-def test_overwrite_does_not_touch_tags_outside_the_loadout(engine, tmp_path):
+def test_overwrite_does_not_touch_tags_outside_the_preset(engine, tmp_path):
     path = tmp_path / "sample.mp3"
     shutil.copy2(FIXTURES_DIR / "sample.mp3", path)
-    lo = Loadout(name="X", tags={"genre": "Jazz"})
+    lo = Preset(name="X", tags={"genre": "Jazz"})
 
-    apply_loadout(engine, lo, [path], mode=ApplyMode.OVERWRITE)
+    apply_preset(engine, lo, [path], mode=ApplyMode.OVERWRITE)
 
     tags = engine.load_metadata(path).tags
     assert tags["genre"] == ["Jazz"]
@@ -288,9 +288,9 @@ def test_overwrite_does_not_touch_tags_outside_the_loadout(engine, tmp_path):
 def test_dry_run_reports_but_does_not_write(engine, blank_file):
     path = blank_file("sample.flac", "track.flac")
     before = sha256(path)
-    lo = Loadout(name="X", tags={"title": "{filename_title}", "genre": "Rock"})
+    lo = Preset(name="X", tags={"title": "{filename_title}", "genre": "Rock"})
 
-    [result] = apply_loadout(engine, lo, [path], dry_run=True)
+    [result] = apply_preset(engine, lo, [path], dry_run=True)
 
     assert result.applied == {"title": ["track"], "genre": ["Rock"]}
     assert sha256(path) == before
@@ -300,9 +300,9 @@ def test_unchanged_file_is_not_rewritten(engine, tmp_path):
     path = tmp_path / "sample.flac"
     shutil.copy2(FIXTURES_DIR / "sample.flac", path)
     before = sha256(path)
-    lo = Loadout(name="X", tags={"genre": "Test"})  # already the value
+    lo = Preset(name="X", tags={"genre": "Test"})  # already the value
 
-    [result] = apply_loadout(engine, lo, [path], mode="overwrite")
+    [result] = apply_preset(engine, lo, [path], mode="overwrite")
 
     assert result.applied == {}
     assert sha256(path) == before
@@ -310,9 +310,9 @@ def test_unchanged_file_is_not_rewritten(engine, tmp_path):
 
 def test_unsupported_tags_are_skipped_not_fatal(engine, blank_file):
     path = blank_file("sample.mp3", "song.mp3")
-    lo = Loadout(name="X", tags={"genre": "Rock", "my_custom_field": "x"})
+    lo = Preset(name="X", tags={"genre": "Rock", "my_custom_field": "x"})
 
-    [result] = apply_loadout(engine, lo, [path])
+    [result] = apply_preset(engine, lo, [path])
 
     assert result.ok
     assert result.unsupported == ["my_custom_field"]
@@ -324,9 +324,9 @@ def test_one_bad_file_does_not_stop_the_batch(engine, blank_file, tmp_path):
     bad = tmp_path / "bad.flac"
     bad.write_bytes(b"not audio at all" * 20)
     missing = tmp_path / "missing.mp3"
-    lo = Loadout(name="X", tags={"genre": "Rock"})
+    lo = Preset(name="X", tags={"genre": "Rock"})
 
-    results = apply_loadout(engine, lo, [bad, missing, good])
+    results = apply_preset(engine, lo, [bad, missing, good])
 
     assert [r.ok for r in results] == [False, False, True]
     assert results[0].applied == {}
@@ -334,11 +334,11 @@ def test_one_bad_file_does_not_stop_the_batch(engine, blank_file, tmp_path):
 
 
 def test_apply_by_name_from_store(engine, blank_file, tmp_path):
-    store = LoadoutStore(tmp_path / "loadouts")
+    store = PresetStore(tmp_path / "presets")
     store.install_defaults()
     path = blank_file("sample.opus", "02_sunrise.opus")
 
-    apply_loadout(engine, store.get("Single"), [path])
+    apply_preset(engine, store.get("Single"), [path])
 
     tags = engine.load_metadata(path).tags
     assert tags["title"] == ["sunrise"]
@@ -357,7 +357,7 @@ def test_album_folder_numbers_tracks_in_natural_order(engine, blank_file, tmp_pa
     (tmp_path / album / "cover.jpg").write_bytes(b"jpeg")  # non-audio: ignored
     (tmp_path / album / ".codetta-temp.flac").write_bytes(b"x")  # temp: ignored
 
-    results = apply_loadout_to_folder(engine, default_loadouts()[1], tmp_path / album)
+    results = apply_preset_to_folder(engine, default_presets()[1], tmp_path / album)
 
     assert all(r.ok for r in results), [r.error for r in results]
     got = {
@@ -376,8 +376,8 @@ def test_recursive_folder_numbers_each_subfolder_separately(engine, blank_file, 
     blank_file("sample.mp3", "a.mp3", "Artist/Album Two")
     blank_file("sample.mp3", "skip.mp3", "Artist/.hidden")
 
-    results = apply_loadout_to_folder(
-        engine, default_loadouts()[1], tmp_path / "Artist", recursive=True
+    results = apply_preset_to_folder(
+        engine, default_presets()[1], tmp_path / "Artist", recursive=True
     )
 
     tags = {f"{r.path.parent.name}/{r.path.name}": engine.load_metadata(r.path).tags for r in results}
@@ -392,11 +392,22 @@ def test_non_recursive_ignores_subfolders(engine, blank_file, tmp_path):
     blank_file("sample.flac", "top.flac", "Album")
     blank_file("sample.flac", "nested.flac", "Album/Extras")
 
-    results = apply_loadout_to_folder(engine, default_loadouts()[1], tmp_path / "Album")
+    results = apply_preset_to_folder(engine, default_presets()[1], tmp_path / "Album")
 
     assert [r.path.name for r in results] == ["top.flac"]
 
 
 def test_missing_folder_raises(engine, tmp_path):
     with pytest.raises(FileNotFoundError):
-        apply_loadout_to_folder(engine, default_loadouts()[1], tmp_path / "nope")
+        apply_preset_to_folder(engine, default_presets()[1], tmp_path / "nope")
+
+
+def test_old_loadouts_folder_moves_to_presets(tmp_path):
+    """Tag Presets used to be "Tag Loadouts" in config/loadouts/: existing installs keep theirs."""
+    from codetta.web.app import Settings, create_app
+    old = tmp_path / "config" / "loadouts"
+    old.mkdir(parents=True)
+    (old / "my-preset.json").write_text('{"name": "My preset", "description": "", "tags": {"genre": "Jazz"}}')
+    (tmp_path / "music").mkdir()
+    create_app(Settings(music_dir=tmp_path / "music", config_dir=tmp_path / "config", auth=False))
+    assert not old.exists() and (tmp_path / "config" / "presets" / "my-preset.json").is_file()

@@ -173,7 +173,7 @@ downloaded into your inbox, and you decide whether it joins your library.
 It's off unless you set it up. [More about it →](docs/features.md#soulseek-through-slskd)
 
 **Also:** lyrics (plain or synced, with **Find lyrics** from LRCLIB), sort and
-classical fields, an Advanced mode with the raw tags, Tag Loadouts for turning
+classical fields, an Advanced mode with the raw tags, Tag Presets for turning
 loose downloads into proper releases, smart suggestions from the rest of the
 album, copy & paste tags, every field Navidrome shows (credits, mood, label,
 release type, multiple artists), multi-disc albums, any language and script,

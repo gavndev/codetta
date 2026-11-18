@@ -49,7 +49,7 @@ from whichever device is at hand, with full confidence nothing gets damaged.
   Tailscale; sometimes behind a reverse proxy with HTTPS.
 - Libraries from a few hundred to tens of thousands of tracks; one folder is
   loaded at a time, search uses a background index.
-- Typical sessions: fix a loose download (loadouts), clean up an album (Save to
+- Typical sessions: fix a loose download (presets), clean up an album (Save to
   folder), add covers, fetch lyrics, check results in the music player after a
   rescan. Sign-in screen first on each new device.
 - Used in Safari on iPhone (all iOS browsers are WebKit, including Brave),
@@ -61,7 +61,7 @@ from whichever device is at hand, with full confidence nothing gets damaged.
 - Edits tags and embedded art on 15 file types (FLAC, MP3, M4A/M4B, Ogg Vorbis,
   Opus, Ogg FLAC, Speex, WAV, AIFF, DSF, TrueAudio, MP2, WavPack, WMA).
 - Features: batch editing, Save to folder, smart suggestions, copy & paste tags,
-  Tag Loadouts with preview, tag filter, library-wide tag search, activity log
+  Tag Presets with preview, tag filter, library-wide tag search, activity log
   with undo/redo, lyrics (plain and synced, Find lyrics via LRCLIB), sort and
   classical fields, Advanced mode raw tag view, profile picture, sign-in.
 - Technical: FastAPI backend; front end is plain HTML/CSS/JavaScript with no

@@ -94,7 +94,7 @@ docker compose up -d
 
 To stay on a specific version, change `latest` in `docker-compose.yml` to a
 version number such as `0.1.0`. Codetta never updates itself. That would mean giving it control of Docker,
-and with it the rest of your server. Your account, loadouts and activity log
+and with it the rest of your server. Your account, presets and activity log
 live in `./codetta-config` and are kept across updates.
 
 ## Signing in
@@ -125,4 +125,4 @@ docker image rm ghcr.io/gavndev/codetta
 ```
 
 Your music is never deleted. Remove the `codetta-config` folder too if you
-don't want to keep your account, loadouts and activity log.
+don't want to keep your account, presets and activity log.

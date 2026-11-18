@@ -531,8 +531,8 @@ def test_inputs_are_validated(client):
     long_path = "a/" * 3000
     assert c.get("/api/browse", params={"path": long_path}).status_code == 422
     assert c.get("/api/track", params={"path": long_path}).status_code == 422
-    assert c.post("/api/loadouts", json={"name": "", "tags": {}}).status_code == 422
-    assert c.post("/api/loadouts", json={"name": "x" * 101, "tags": {}}).status_code == 422
+    assert c.post("/api/presets", json={"name": "", "tags": {}}).status_code == 422
+    assert c.post("/api/presets", json={"name": "x" * 101, "tags": {}}).status_code == 422
     assert c.patch("/api/tracks", json={"paths": ["song.flac"], "changes": {f"k{i}": "v" for i in range(201)}}).status_code == 422
     assert c.post("/api/library-health/ignore", json={"id": "../../etc"}).status_code == 422
     assert c.post("/api/slskd/jobs/..%2F..%2Fx/cancel").status_code == 404

@@ -166,7 +166,7 @@ def test_first_run_requires_setup(client):
 
 
 @pytest.mark.parametrize("path", [
-    "/api/browse", "/api/track?path=x.flac", "/api/fields", "/api/status", "/api/loadouts", "/api/update",
+    "/api/browse", "/api/track?path=x.flac", "/api/fields", "/api/status", "/api/presets", "/api/update",
     "/api/activity", "/api/art?path=x.flac", "/docs", "/openapi.json",
 ])
 def test_everything_private_is_locked(client, path):
@@ -177,7 +177,7 @@ def test_everything_private_is_locked(client, path):
 
 @pytest.mark.parametrize("method,path", [
     ("patch", "/api/tracks"), ("put", "/api/art?path=x"), ("delete", "/api/art?path=x"),
-    ("post", "/api/loadouts"), ("post", "/api/loadouts/apply"), ("delete", "/api/loadouts/Single"),
+    ("post", "/api/presets"), ("post", "/api/presets/apply"), ("delete", "/api/presets/Single"),
 ])
 def test_writes_are_locked(client, method, path):
     res = getattr(client, method)(path)

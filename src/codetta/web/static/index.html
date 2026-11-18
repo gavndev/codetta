@@ -12,7 +12,7 @@
   <link rel="icon" href="/static/icon.svg?v=3" type="image/svg+xml"> <!-- bump ?v= when the icon changes: browsers cache favicons hard -->
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=3">
   <link rel="preload" href="/static/fonts/schibsted-grotesk.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/static/app.css?v=59">
+  <link rel="stylesheet" href="/static/app.css?v=61">
   <script src="/static/theme.js?v=1"></script>
 </head>
 <body>
@@ -57,7 +57,7 @@
           <input type="radio" name="welcome-mode" value="offline">
           <span class="choice-body">
             <span class="choice-title">Stay offline</span>
-            <span class="choice-sub">Edit, batch-tag and use loadouts. Nothing goes online, ever.</span>
+            <span class="choice-sub">Edit, batch-tag and use presets. Nothing goes online, ever.</span>
           </span>
         </label>
         <label class="choice">
@@ -98,7 +98,7 @@
         <button class="icon-btn" id="tagfilter-btn" type="button" aria-label="Filter by tag" title="Filter by tag">
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 4.5h14l-5.5 6.5v5l-3-1.5V11z"/></svg>
         </button>
-        <button class="icon-btn" id="manage-btn" type="button" aria-label="Manage loadouts" title="Manage loadouts">
+        <button class="icon-btn" id="manage-btn" type="button" aria-label="Manage presets" title="Manage presets">
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12M4 10h12M4 14h12"/><circle cx="7" cy="6" r="1.6"/><circle cx="13" cy="10" r="1.6"/><circle cx="9" cy="14" r="1.6"/></svg>
         </button>
         <button class="icon-btn" id="theme-btn" type="button" aria-label="Theme"></button>
@@ -164,24 +164,24 @@
       <span id="selection-count"></span>
       <div class="selection-actions">
         <button class="btn" id="sel-clear" type="button">Clear</button>
-        <button class="btn" id="sel-loadout" type="button">Loadout…</button>
+        <button class="btn" id="sel-preset" type="button">Preset…</button>
         <button class="btn primary" id="sel-edit" type="button">Edit</button>
       </div>
     </div>
   </div>
 
-  <!-- Apply a loadout -->
+  <!-- Apply a preset -->
   <dialog class="sheet" id="apply-dialog" aria-labelledby="apply-title">
     <div class="sheet-head">
-      <h2 id="apply-title">Apply loadout</h2>
+      <h2 id="apply-title">Apply preset</h2>
       <button class="icon-btn" type="button" data-close aria-label="Close">
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg>
       </button>
     </div>
     <div class="sheet-body">
       <label class="field">
-        <span class="field-label">Loadout</span>
-        <select id="apply-loadout"></select>
+        <span class="field-label">Preset</span>
+        <select id="apply-preset"></select>
       </label>
       <p class="hint" id="apply-desc"></p>
 
@@ -405,10 +405,10 @@
   <!-- Now playing: a pill that grows from the bottom centre while something plays (drawn by app.js) -->
   <div class="now-playing" id="now-playing" hidden></div>
 
-  <!-- Manage loadouts -->
+  <!-- Manage presets -->
   <dialog class="sheet" id="manage-dialog" aria-labelledby="manage-title">
     <div class="sheet-head">
-      <h2 id="manage-title">Loadouts</h2>
+      <h2 id="manage-title">Presets</h2>
       <button class="icon-btn" type="button" data-close aria-label="Close">
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg>
       </button>
@@ -420,6 +420,6 @@
   <datalist id="tag-keys"></datalist>
   <div class="toasts" id="toasts" aria-live="polite"></div>
 
-  <script src="/static/app.js?v=58" type="module"></script>
+  <script src="/static/app.js?v=59" type="module"></script>
 </body>
 </html>

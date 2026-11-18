@@ -36,14 +36,14 @@ anything is written.
 
 ## Turn loose downloads into proper releases
 
-**Tag Loadouts** are saved sets of tags with placeholders like
+**Tag Presets** are saved sets of tags with placeholders like
 `{filename_title}`, `{folder}` and `{track}/{tracktotal}`. Apply one to a file,
 a selection or a folder, and loose downloads become properly tagged singles or
 albums. You always get a preview first, and you choose whether to only fill
 empty tags or overwrite them.
 
 <p align="center">
-  <img src="media/loadouts.gif" alt="Previewing the Single loadout on a folder of loose downloads, then applying it to five files" width="900">
+  <img src="media/presets.gif" alt="Previewing the Single preset on a folder of loose downloads, then applying it to five files" width="900">
 </p>
 
 ## Undo anything
@@ -144,7 +144,7 @@ their tags, using a pattern such as
 which gives `Kōsei Mori/Northern Signal (2021)/03 Harbour Lights.flac`
 (`2-03` on multi-disc albums). `{a|b}` uses the first tag that has a value,
 `[ … ]` disappears when a tag in it is empty, and `/` starts a folder. Pick a
-preset, tap tag buttons to build your own, and watch the live example.
+starting pattern, tap tag buttons to build your own, and watch the live example.
 
 You see every move before anything happens. Codetta never overwrites a file:
 if a name is taken, that file is listed and left alone. Lyrics files

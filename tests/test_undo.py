@@ -132,8 +132,8 @@ def test_undo_art_skips_if_art_changed_since(client):
     assert client.get("/api/art", params={"path": p}).content == PNG
 
 
-def test_undo_loadout(client):
-    client.post("/api/loadouts/apply", json={"name": "Album Folder", "folder": "Album", "mode": "overwrite", "dry_run": False})
+def test_undo_preset(client):
+    client.post("/api/presets/apply", json={"name": "Album Folder", "folder": "Album", "mode": "overwrite", "dry_run": False})
     assert tags(client, "Album/02.mp3")["tracknumber"] == ["2/3"]
     client.post(f"/api/activity/{latest(client)['id']}/undo")
     t = tags(client, "Album/02.mp3")

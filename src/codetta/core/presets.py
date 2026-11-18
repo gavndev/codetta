@@ -1,7 +1,7 @@
-"""Tag Loadouts: saved sets of tags you can apply to many files at once.
+"""Tag Presets: saved sets of tags you can apply to many files at once.
 
-A loadout is a JSON file in the loadouts folder (``config/loadouts/`` by
-default), for example ``config/loadouts/album-folder.json``::
+A preset is a JSON file in the presets folder (``config/presets/`` by
+default), for example ``config/presets/album-folder.json``::
 
     {
       "name": "Album Folder",
@@ -16,7 +16,7 @@ default), for example ``config/loadouts/album-folder.json``::
     }
 
 Values can be a single string or a list (for multi-value tags). Blank values
-are ignored when applying, so a loadout can list fields to fill in later.
+are ignored when applying, so a preset can list fields to fill in later.
 
 Placeholders are filled in per file:
 
@@ -26,7 +26,7 @@ Placeholders are filled in per file:
     {track}           the file's position in the batch (1, 2, 3, ...)
     {tracktotal}      how many files are in the batch
 
-Applying a loadout:
+Applying a preset:
 
 * ``mode="fill"`` (the default) only sets tags the file doesn't already have,
   so it's safe to run over partly tagged files.
@@ -60,12 +60,12 @@ PLACEHOLDERS = frozenset({"filename", "filename_title", "folder", "track", "trac
 _PLACEHOLDER_RE = re.compile(r"\{([a-z_]+)\}")
 
 
-class LoadoutError(Exception):
-    """A loadout is invalid, missing, or could not be saved."""
+class PresetError(Exception):
+    """A preset is invalid, missing, or could not be saved."""
 
 
-class LoadoutNotFoundError(LoadoutError):
-    """No loadout with that name exists."""
+class PresetNotFoundError(PresetError):
+    """No preset with that name exists."""
 
 
 class ApplyMode(StrEnum):
@@ -74,7 +74,7 @@ class ApplyMode(StrEnum):
 
 
 @dataclass
-class Loadout:
+class Preset:
     name: str
     tags: dict[str, list[str]] = field(default_factory=dict)
     description: str = ""
@@ -82,16 +82,16 @@ class Loadout:
     def __post_init__(self) -> None:
         self.name = self.name.strip()
         if not self.name or not slugify(self.name):
-            raise LoadoutError("A loadout needs a name")
+            raise PresetError("A preset needs a name")
         self.tags = {key.strip().lower(): _as_list(value) for key, value in self.tags.items()}
         for key, values in self.tags.items():
             if not key:
-                raise LoadoutError(f"Loadout '{self.name}' has a blank tag name")
+                raise PresetError(f"Preset '{self.name}' has a blank tag name")
             for value in values:
                 unknown = set(_PLACEHOLDER_RE.findall(value)) - PLACEHOLDERS
                 if unknown:
-                    raise LoadoutError(
-                        f"Loadout '{self.name}', tag '{key}': unknown placeholder "
+                    raise PresetError(
+                        f"Preset '{self.name}', tag '{key}': unknown placeholder "
                         f"{{{sorted(unknown)[0]}}}. Available: "
                         + ", ".join(f"{{{p}}}" for p in sorted(PLACEHOLDERS))
                     )
@@ -101,24 +101,24 @@ class Loadout:
         return slugify(self.name)
 
     @classmethod
-    def from_dict(cls, data: object) -> Loadout:
+    def from_dict(cls, data: object) -> Preset:
         if not isinstance(data, dict):
-            raise LoadoutError("A loadout must be a JSON object")
+            raise PresetError("A preset must be a JSON object")
         name, tags = data.get("name"), data.get("tags", {})
         description = data.get("description", "")
         if not isinstance(name, str):
-            raise LoadoutError("A loadout needs a \"name\" string")
+            raise PresetError("A preset needs a \"name\" string")
         if not isinstance(tags, dict):
-            raise LoadoutError(f"Loadout '{name}': \"tags\" must be an object")
+            raise PresetError(f"Preset '{name}': \"tags\" must be an object")
         if not isinstance(description, str):
-            raise LoadoutError(f"Loadout '{name}': \"description\" must be a string")
+            raise PresetError(f"Preset '{name}': \"description\" must be a string")
         for key, value in tags.items():
             ok = isinstance(value, str) or (
                 isinstance(value, list) and all(isinstance(v, str) for v in value)
             )
             if not ok:
-                raise LoadoutError(
-                    f"Loadout '{name}', tag '{key}': value must be a string or list of strings"
+                raise PresetError(
+                    f"Preset '{name}', tag '{key}': value must be a string or list of strings"
                 )
         return cls(name=name, tags=tags, description=description)
 
@@ -131,37 +131,37 @@ class Loadout:
         }
 
 
-class LoadoutStore:
-    """Loads and saves loadouts as one JSON file each in ``directory``."""
+class PresetStore:
+    """Loads and saves presets as one JSON file each in ``directory``."""
 
     def __init__(self, directory: str | Path) -> None:
         self.directory = Path(directory)
 
-    def list(self) -> list[Loadout]:
-        """All valid loadouts, sorted by name. Broken files are skipped."""
+    def list(self) -> list[Preset]:
+        """All valid presets, sorted by name. Broken files are skipped."""
         if not self.directory.is_dir():
             return []
-        loadouts = []
+        presets = []
         for path in self.directory.glob("*.json"):
             if path.name.startswith("."):
                 continue  # e.g. a leftover temp file from an interrupted save
             try:
-                loadouts.append(self._read(path))
-            except LoadoutError:
+                presets.append(self._read(path))
+            except PresetError:
                 continue  # one bad hand-edited file shouldn't hide the rest
-        return sorted(loadouts, key=lambda lo: lo.name.lower())
+        return sorted(presets, key=lambda lo: lo.name.lower())
 
-    def get(self, name: str) -> Loadout:
+    def get(self, name: str) -> Preset:
         path = self._path_for(name)
         if not path.is_file():
-            raise LoadoutNotFoundError(f"No loadout named '{name}'")
+            raise PresetNotFoundError(f"No preset named '{name}'")
         return self._read(path)
 
-    def save(self, loadout: Loadout) -> Path:
-        """Save (or replace) a loadout. Returns the file it was written to."""
+    def save(self, preset: Preset) -> Path:
+        """Save (or replace) a preset. Returns the file it was written to."""
         self.directory.mkdir(parents=True, exist_ok=True)
-        path = self._path_for(loadout.name)
-        text = json.dumps(loadout.to_dict(), indent=2, ensure_ascii=False) + "\n"
+        path = self._path_for(preset.name)
+        text = json.dumps(preset.to_dict(), indent=2, ensure_ascii=False) + "\n"
         fd, temp_name = tempfile.mkstemp(prefix=".codetta-", suffix=".json", dir=self.directory)
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
@@ -175,38 +175,38 @@ class LoadoutStore:
     def delete(self, name: str) -> None:
         path = self._path_for(name)
         if not path.is_file():
-            raise LoadoutNotFoundError(f"No loadout named '{name}'")
+            raise PresetNotFoundError(f"No preset named '{name}'")
         path.unlink()
 
-    def install_defaults(self) -> list[Loadout]:
-        """Save the starter loadouts that don't exist yet. Returns those added."""
+    def install_defaults(self) -> list[Preset]:
+        """Save the starter presets that don't exist yet. Returns those added."""
         added = []
-        for loadout in default_loadouts():
-            if not self._path_for(loadout.name).exists():
-                self.save(loadout)
-                added.append(loadout)
+        for preset in default_presets():
+            if not self._path_for(preset.name).exists():
+                self.save(preset)
+                added.append(preset)
         return added
 
     def _path_for(self, name: str) -> Path:
         slug = slugify(name)
         if not slug:
-            raise LoadoutError(f"Invalid loadout name: '{name}'")
+            raise PresetError(f"Invalid preset name: '{name}'")
         return self.directory / f"{slug}.json"
 
-    def _read(self, path: Path) -> Loadout:
+    def _read(self, path: Path) -> Preset:
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
-            raise LoadoutError(f"Could not read loadout {path.name}: {exc}") from exc
-        return Loadout.from_dict(data)
+            raise PresetError(f"Could not read preset {path.name}: {exc}") from exc
+        return Preset.from_dict(data)
 
 
-# --- Applying loadouts -------------------------------------------------------
+# --- Applying presets -------------------------------------------------------
 
 
 @dataclass
 class FileResult:
-    """What applying a loadout did (or would do) to one file."""
+    """What applying a preset did (or would do) to one file."""
 
     path: Path
     applied: dict[str, list[str]] = field(default_factory=dict)
@@ -220,14 +220,14 @@ class FileResult:
         return self.error is None
 
 
-def apply_loadout(
+def apply_preset(
     engine: MetadataEngine,
-    loadout: Loadout,
+    preset: Preset,
     paths: list[str | Path],
     mode: ApplyMode | str = ApplyMode.FILL,
     dry_run: bool = False,
 ) -> list[FileResult]:
-    """Apply ``loadout`` to ``paths``, in the order given.
+    """Apply ``preset`` to ``paths``, in the order given.
 
     ``{track}`` and ``{tracktotal}`` come from that order. One file failing
     doesn't stop the others; check each result's ``error``.
@@ -235,20 +235,20 @@ def apply_loadout(
     mode = ApplyMode(mode)
     paths = [Path(p) for p in paths]
     return [
-        _apply_one(engine, loadout, path, mode, dry_run, track=i, tracktotal=len(paths))
+        _apply_one(engine, preset, path, mode, dry_run, track=i, tracktotal=len(paths))
         for i, path in enumerate(paths, start=1)
     ]
 
 
-def apply_loadout_to_folder(
+def apply_preset_to_folder(
     engine: MetadataEngine,
-    loadout: Loadout,
+    preset: Preset,
     folder: str | Path,
     mode: ApplyMode | str = ApplyMode.FILL,
     recursive: bool = False,
     dry_run: bool = False,
 ) -> list[FileResult]:
-    """Apply ``loadout`` to every audio file in ``folder`` (e.g. one album).
+    """Apply ``preset`` to every audio file in ``folder`` (e.g. one album).
 
     Files are numbered in natural name order ("2 song" before "10 song").
     With ``recursive=True``, each subfolder is numbered separately, so a
@@ -260,13 +260,13 @@ def apply_loadout_to_folder(
     groups = _audio_files_by_folder(folder, recursive)
     results = []
     for files in groups:
-        results.extend(apply_loadout(engine, loadout, files, mode, dry_run))
+        results.extend(apply_preset(engine, preset, files, mode, dry_run))
     return results
 
 
 def _apply_one(
     engine: MetadataEngine,
-    loadout: Loadout,
+    preset: Preset,
     path: Path,
     mode: ApplyMode,
     dry_run: bool,
@@ -284,11 +284,11 @@ def _apply_one(
             "tracktotal": str(tracktotal),
         }
         changes: dict[str, TagValue] = {}
-        for key, values in loadout.tags.items():
+        for key, values in preset.tags.items():
             filled = [_fill_placeholders(v, context) for v in values]
             filled = [v for v in filled if v.strip()]
             if not filled:
-                continue  # blank in the loadout: nothing to apply
+                continue  # blank in the preset: nothing to apply
             if not is_tag_supported(current.format, key):
                 result.unsupported.append(key)
             elif mode is ApplyMode.FILL and current.tags.get(key):
@@ -343,7 +343,7 @@ def slugify(name: str) -> str:
         return slug
     if not name.strip():
         return ""
-    return "loadout-" + hashlib.sha256(name.strip().encode("utf-8")).hexdigest()[:10]
+    return "preset-" + hashlib.sha256(name.strip().encode("utf-8")).hexdigest()[:10]
 
 
 def filename_to_title(stem: str) -> str:
@@ -380,13 +380,13 @@ def _is_hidden(path: Path, root: Path) -> bool:
     return any(part.startswith(".") for part in path.relative_to(root).parts)
 
 
-# --- Starter loadouts ----------------------------------------------------------
+# --- Starter presets ----------------------------------------------------------
 
 
-def default_loadouts() -> list[Loadout]:
-    """Starter loadouts. Blank fields are reminders of what to fill in."""
+def default_presets() -> list[Preset]:
+    """Starter presets. Blank fields are reminders of what to fill in."""
     return [
-        Loadout(
+        Preset(
             name="Single",
             description=(
                 "For a loose track (e.g. a SoundCloud download): makes it show up as "
@@ -406,7 +406,7 @@ def default_loadouts() -> list[Loadout]:
                 "comment": "",
             },
         ),
-        Loadout(
+        Preset(
             name="Album Folder",
             description=(
                 "For a folder of untagged tracks: names the album after the folder "
@@ -425,7 +425,7 @@ def default_loadouts() -> list[Loadout]:
                 "media": "Digital Media",
             },
         ),
-        Loadout(
+        Preset(
             name="Full Credits",
             description=(
                 "The extra detail Navidrome / OpenSubsonic clients can show: credits, "

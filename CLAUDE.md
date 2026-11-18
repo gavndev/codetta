@@ -7,7 +7,7 @@ Codetta is a self-hosted music metadata editor built in Python (FastAPI + Mutage
 - **Language:** Python 3.14+
 - **Core Library:** `mutagen` for reading/writing audio metadata (FLAC, MP3, M4A/AAC, OGG Vorbis, Opus).
 - **Tag vocabulary:** `src/codetta/core/tagmap.py` gives every format the same lowercase tag names (Navidrome/OpenSubsonic set, stored the way MusicBrainz Picard does). Add new tag names there.
-- **Tag Loadouts:** JSON files in `config/loadouts/`, handled by `src/codetta/core/presets.py`.
+- **Tag Presets:** JSON files in `config/presets/`, handled by `src/codetta/core/presets.py`.
 - **Album art:** `src/codetta/core/artwork.py` (per-format picture handling); writes go through `MetadataEngine.update_artwork()`.
 - **Security layer:** `src/codetta/web/security.py` (size limits, cross-site protection, CSP/security headers). The page must not use inline scripts or event-handler attributes (the CSP forbids them); new upload endpoints need an entry in `BODY_LIMITS`. Any security fix gets a test in `tests/test_security.py`.
 - **Sign-in:** `src/codetta/core/auth.py` (account, sessions, rate limiting) + middleware in `src/codetta/web/app.py`. Every new API route is private by default; only `/`, `/static/*`, `/api/auth/*`, `/api/health` and `/api/changelog` (the public CHANGELOG.md) are public. Account files (`auth.json`, `sessions.json`) live in the config folder and must never be committed.
@@ -21,7 +21,7 @@ Codetta is a self-hosted music metadata editor built in Python (FastAPI + Mutage
 
 ## Common Development Commands
 - **Run Virtual Environment:** `source .venv/bin/activate`
-- **Run FastAPI Locally:** `CODETTA_MUSIC_DIR=/path/to/music uvicorn codetta.web.app:app --reload --port 8111` (add `--host 0.0.0.0` to open it from a phone on the same Wi-Fi). Loadouts go in `CODETTA_CONFIG_DIR` (default `./config`).
+- **Run FastAPI Locally:** `CODETTA_MUSIC_DIR=/path/to/music uvicorn codetta.web.app:app --reload --port 8111` (add `--host 0.0.0.0` to open it from a phone on the same Wi-Fi). Presets go in `CODETTA_CONFIG_DIR` (default `./config`).
 - **Run Tests:** `pytest`
 - **Build Docker Image:** `docker compose build`
 - **Run Docker Container:** `docker compose up -d`

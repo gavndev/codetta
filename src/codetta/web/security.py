@@ -29,7 +29,7 @@ BODY_LIMITS = {
     "/api/art": MAX_ART_BYTES,
     "/api/account/avatar": MAX_AVATAR_BYTES,
 }
-DEFAULT_LIMIT = 1 * MB  # JSON: tag edits, loadouts, sign-in...
+DEFAULT_LIMIT = 1 * MB  # JSON: tag edits, presets, sign-in...
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 
 CSP = "; ".join([

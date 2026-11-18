@@ -13,7 +13,7 @@ set -- uvicorn codetta.web.app:app --host 0.0.0.0 --port "$PORT" --no-server-hea
 
 if [ "$(id -u)" = "0" ]; then
     mkdir -p "$CONFIG"
-    # The config folder (account, loadouts, activity log) must belong to the
+    # The config folder (account, presets, activity log) must belong to the
     # user Codetta runs as. Your music folder is never touched here.
     if ! chown -R "$PUID:$PGID" "$CONFIG" 2>/dev/null; then
         echo "codetta: warning: couldn't change the owner of $CONFIG to $PUID:$PGID" >&2

@@ -63,7 +63,7 @@ def music(tmp_path):
 @pytest.fixture
 def client(music, tmp_path):
     app = create_app(Settings(music_dir=music, config_dir=tmp_path / "config"))
-    with TestClient(app) as c:  # "with" runs startup (installs default loadouts)
+    with TestClient(app) as c:  # "with" runs startup (installs default presets)
         yield signed_in(c)
 
 
@@ -208,51 +208,51 @@ def test_update_requires_paths(client):
     assert client.patch("/api/tracks", json={"paths": [], "changes": {}}).status_code == 422
 
 
-# --- Loadouts ------------------------------------------------------------------------------------
+# --- Presets ------------------------------------------------------------------------------------
 
 
-def test_default_loadouts_installed_on_startup(client):
-    names = [lo["name"] for lo in client.get("/api/loadouts").json()]
+def test_default_presets_installed_on_startup(client):
+    names = [lo["name"] for lo in client.get("/api/presets").json()]
     assert names == ["Album Folder", "Full Credits", "Single"]
 
 
-def test_create_edit_rename_delete_loadout(client):
-    res = client.post("/api/loadouts", json={"name": "Lo-Fi", "tags": {"genre": "Lo-Fi", "mood": ["Chill", "Calm"]}})
+def test_create_edit_rename_delete_preset(client):
+    res = client.post("/api/presets", json={"name": "Lo-Fi", "tags": {"genre": "Lo-Fi", "mood": ["Chill", "Calm"]}})
     assert res.status_code == 200
     assert res.json()["tags"] == {"genre": ["Lo-Fi"], "mood": ["Chill", "Calm"]}
 
     # Creating it again is refused (avoids silently overwriting).
-    assert client.post("/api/loadouts", json={"name": "lo-fi", "tags": {}}).status_code == 409
+    assert client.post("/api/presets", json={"name": "lo-fi", "tags": {}}).status_code == 409
 
     # Editing in place is fine.
-    res = client.post("/api/loadouts", json={"name": "Lo-Fi", "tags": {"genre": "Jazz"}, "previous_name": "Lo-Fi"})
+    res = client.post("/api/presets", json={"name": "Lo-Fi", "tags": {"genre": "Jazz"}, "previous_name": "Lo-Fi"})
     assert res.json()["tags"] == {"genre": ["Jazz"]}
 
     # Renaming.
-    res = client.post("/api/loadouts", json={"name": "Jazz Vibes", "tags": {"genre": "Jazz"}, "previous_name": "Lo-Fi"})
+    res = client.post("/api/presets", json={"name": "Jazz Vibes", "tags": {"genre": "Jazz"}, "previous_name": "Lo-Fi"})
     assert res.status_code == 200
-    names = [lo["name"] for lo in client.get("/api/loadouts").json()]
+    names = [lo["name"] for lo in client.get("/api/presets").json()]
     assert "Jazz Vibes" in names and "Lo-Fi" not in names
 
-    # Renaming onto an existing loadout is refused.
-    res = client.post("/api/loadouts", json={"name": "Single", "tags": {}, "previous_name": "Jazz Vibes"})
+    # Renaming onto an existing preset is refused.
+    res = client.post("/api/presets", json={"name": "Single", "tags": {}, "previous_name": "Jazz Vibes"})
     assert res.status_code == 409
 
-    assert client.delete("/api/loadouts/Jazz Vibes").status_code == 204
-    assert client.delete("/api/loadouts/Jazz Vibes").status_code == 404
+    assert client.delete("/api/presets/Jazz Vibes").status_code == 204
+    assert client.delete("/api/presets/Jazz Vibes").status_code == 404
 
 
-def test_invalid_loadout_is_rejected(client):
-    res = client.post("/api/loadouts", json={"name": "Bad", "tags": {"title": "{nope}"}})
+def test_invalid_preset_is_rejected(client):
+    res = client.post("/api/presets", json={"name": "Bad", "tags": {"title": "{nope}"}})
     assert res.status_code == 422
     assert "unknown placeholder" in res.json()["detail"]
-    assert client.post("/api/loadouts", json={"name": "   ", "tags": {}}).status_code == 422
+    assert client.post("/api/presets", json={"name": "   ", "tags": {}}).status_code == 422
 
 
 def test_apply_preview_does_not_write(client, music):
     path = music / "Artist" / "Album" / "2 - Groove.mp3"
     before = sha256(path)
-    res = client.post("/api/loadouts/apply", json={"name": "Album Folder", "folder": "Artist/Album"})
+    res = client.post("/api/presets/apply", json={"name": "Album Folder", "folder": "Artist/Album"})
     results = res.json()
     assert [r["path"] for r in results] == [
         "Artist/Album/01 - Intro.flac", "Artist/Album/2 - Groove.mp3", "Artist/Album/10 - Outro.m4a",
@@ -266,7 +266,7 @@ def test_apply_preview_does_not_write(client, music):
 
 
 def test_apply_to_folder_writes(client):
-    res = client.post("/api/loadouts/apply", json={"name": "Album Folder", "folder": "Artist/Album", "dry_run": False})
+    res = client.post("/api/presets/apply", json={"name": "Album Folder", "folder": "Artist/Album", "dry_run": False})
     assert all(r["error"] is None for r in res.json())
     tracks = client.get("/api/browse", params={"path": "Artist/Album"}).json()["tracks"]
     assert [t["tags"]["tracknumber"] for t in tracks] == [["3/12"], ["2/3"], ["3/3"]]  # first kept its own
@@ -274,7 +274,7 @@ def test_apply_to_folder_writes(client):
 
 
 def test_apply_overwrite_mode(client):
-    client.post("/api/loadouts/apply", json={
+    client.post("/api/presets/apply", json={
         "name": "Album Folder", "folder": "Artist/Album", "mode": "overwrite", "dry_run": False,
     })
     tracks = client.get("/api/browse", params={"path": "Artist/Album"}).json()["tracks"]
@@ -283,7 +283,7 @@ def test_apply_overwrite_mode(client):
 
 
 def test_apply_to_selected_files(client):
-    res = client.post("/api/loadouts/apply", json={
+    res = client.post("/api/presets/apply", json={
         "name": "Single", "paths": ["Artist/Album/10 - Outro.m4a"], "dry_run": False,
     })
     [result] = res.json()
@@ -293,7 +293,7 @@ def test_apply_to_selected_files(client):
 
 
 def test_apply_recursive(client):
-    res = client.post("/api/loadouts/apply", json={"name": "Album Folder", "folder": "Artist", "recursive": True})
+    res = client.post("/api/presets/apply", json={"name": "Album Folder", "folder": "Artist", "recursive": True})
     results = res.json()
     paths = [r["path"] for r in results]
     assert "Artist/Album/2 - Groove.mp3" in paths
@@ -301,11 +301,11 @@ def test_apply_recursive(client):
 
 
 def test_apply_errors(client):
-    assert client.post("/api/loadouts/apply", json={"name": "Nope", "folder": ""}).status_code == 404
-    assert client.post("/api/loadouts/apply", json={"name": "Single"}).status_code == 400
-    assert client.post("/api/loadouts/apply", json={"name": "Single", "folder": "../.."}).status_code == 400
-    assert client.post("/api/loadouts/apply", json={"name": "Single", "paths": ["../x.mp3"]}).status_code == 400
-    assert client.post("/api/loadouts/apply", json={"name": "Single", "folder": "Nope"}).status_code == 404
+    assert client.post("/api/presets/apply", json={"name": "Nope", "folder": ""}).status_code == 404
+    assert client.post("/api/presets/apply", json={"name": "Single"}).status_code == 400
+    assert client.post("/api/presets/apply", json={"name": "Single", "folder": "../.."}).status_code == 400
+    assert client.post("/api/presets/apply", json={"name": "Single", "paths": ["../x.mp3"]}).status_code == 400
+    assert client.post("/api/presets/apply", json={"name": "Single", "folder": "Nope"}).status_code == 404
 
 
 # --- Album art & activity ---------------------------------------------------------------------
@@ -357,11 +357,11 @@ def test_activity_records_changes(client):
     assert client.get("/api/activity").json() == []
     client.patch("/api/tracks", json={"paths": ["Loose Track.mp3"], "changes": {"title": "Night Drive"}})
     client.put("/api/art", params={"path": "Loose Track.mp3"}, content=JPEG, headers={"Content-Type": "image/jpeg"})
-    client.post("/api/loadouts/apply", json={"name": "Single", "paths": ["Artist/Album/2 - Groove.mp3"], "dry_run": False})
-    client.post("/api/loadouts/apply", json={"name": "Single", "paths": ["Artist/Album/2 - Groove.mp3"]})  # preview: not logged
+    client.post("/api/presets/apply", json={"name": "Single", "paths": ["Artist/Album/2 - Groove.mp3"], "dry_run": False})
+    client.post("/api/presets/apply", json={"name": "Single", "paths": ["Artist/Album/2 - Groove.mp3"]})  # preview: not logged
 
     log = client.get("/api/activity").json()
-    assert [e["kind"] for e in log] == ["loadout", "art", "edit"]
+    assert [e["kind"] for e in log] == ["preset", "art", "edit"]
     edit = log[2]
     assert edit["ok"] is True
     assert edit["message"] == "Edited title on Loose Track.mp3"
@@ -370,7 +370,7 @@ def test_activity_records_changes(client):
     assert "Single" in log[0]["message"]
 
     newer = client.get("/api/activity", params={"after_id": edit["id"]}).json()
-    assert [e["kind"] for e in newer] == ["loadout", "art"]
+    assert [e["kind"] for e in newer] == ["preset", "art"]
 
 
 def test_activity_records_failures(client):

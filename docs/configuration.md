@@ -21,7 +21,7 @@ All optional. Set them under `environment:` in your
 |---|---|
 | `/music` | Your library. Codetta needs read-write access to edit it. |
 | `/inbox` (optional) | Where new music lands, e.g. slskd's or your torrent client's downloads folder. The **Inbox** files albums from here into `/music`. Needs read-write access. Without Docker, set `CODETTA_INBOX_DIR` instead. |
-| `/config` | Your account, sessions, profile picture, loadouts, connection choices, the activity log, previous album art kept for undo, and the search index (rebuilt automatically if deleted). Include it in your backups. |
+| `/config` | Your account, sessions, profile picture, presets, connection choices, the activity log, previous album art kept for undo, and the search index (rebuilt automatically if deleted). Include it in your backups. |
 
 ## Connections (online features)
 

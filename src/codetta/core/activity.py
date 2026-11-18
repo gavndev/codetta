@@ -40,7 +40,7 @@ class ActivityLog:
         undoes: int | None = None,
         extra: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Record one action. ``kind`` is "edit", "art", "loadout", "musicbrainz" or "undo".
+        """Record one action. ``kind`` is "edit", "art", "preset", "musicbrainz" or "undo".
 
         ``undo`` holds what's needed to reverse it (see codetta.core.undo);
         ``undoes`` is the id of the entry this one reversed.

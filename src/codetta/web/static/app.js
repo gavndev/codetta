@@ -132,6 +132,12 @@ const ICONS = {
   gear: '<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.6"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4"/><circle cx="10" cy="10" r="5.2"/></svg>',
   code: '<svg viewBox="0 0 20 20"><path d="M7 6 3 10l4 4M13 6l4 4-4 4"/></svg>',
   bell: '<svg viewBox="0 0 20 20"><path d="M5.5 13.5V9a4.5 4.5 0 0 1 9 0v4.5l1.5 2h-12z"/><path d="M8.5 17.5a1.6 1.6 0 0 0 3 0"/></svg>',
+  // Drawn for Codetta: a sheet of paper with a pencil (Tag Presets), a stack of layers (Organize),
+  // a ticked circle (Select) and two of them (Select all).
+  preset: '<svg viewBox="0 0 20 20"><path d="M10 17.5H5.5a1 1 0 0 1-1-1v-13a1 1 0 0 1 1-1h6l3 3v3.5"/><path d="M11.5 2.5v3h3"/><path d="M7.5 8.5h4.5M7.5 11.5h3"/><path d="m15.6 10.6 1.8 1.8-5.2 5.2-2.4.6.6-2.4z"/></svg>',
+  layers: '<svg viewBox="0 0 20 20"><path d="M10 3 2.5 6.8 10 10.6l7.5-3.8z"/><path d="m2.5 10.2 7.5 3.8 7.5-3.8"/><path d="m2.5 13.6 7.5 3.8 7.5-3.8"/></svg>',
+  select: '<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="m7 10.2 2.1 2.1L13.2 8"/></svg>',
+  selectall: '<svg viewBox="0 0 20 20"><circle cx="8" cy="10" r="5.5"/><path d="M12.6 4.9a5.5 5.5 0 0 1 0 10.2"/><path d="m5.8 10 1.6 1.6 3-3.2"/></svg>',
   pulse: '<svg viewBox="0 0 20 20"><path d="M2.5 10.5h3.5l2-5 3.5 9 2-4.5h4"/></svg>',
   paste: '<svg viewBox="0 0 20 20"><rect x="4.5" y="4" width="11" height="13" rx="2"/><path d="M8 4V3h4v1"/><path d="M7.5 9h5M7.5 12h3"/></svg>',
 };
@@ -203,7 +209,7 @@ const state = {
   fields: [],             // known tags, in display order
   fieldMap: new Map(),
   placeholders: [],
-  loadouts: [],
+  presets: [],
   selected: new Set(),    // selected track paths
   lastClicked: null,      // for shift-click ranges
   filter: "",
@@ -727,13 +733,7 @@ function renderSearchHead(f) {
       parts.length ? h("div", { class: "query-chips" }, parts) : null,
       ...notes.map((n) => h("p", { class: "search-note" }, n))),
     h("div", { class: "folder-actions" },
-      f.tracks.length && state.selectMode ? h("button", {
-        class: "btn phone-only", type: "button", onclick: toggleSelectAllVisible,
-      }, allVisibleSelected() ? "Deselect all" : "Select all") : null,
-      f.tracks.length ? h("button", {
-        class: `btn phone-only${state.selectMode ? " primary" : ""}`, type: "button",
-        "aria-pressed": String(state.selectMode), onclick: () => setSelectMode(!state.selectMode),
-      }, state.selectMode ? "Done" : "Select") : null),
+      selectButtons(f)),
   );
   els.tracks.classList.toggle("selecting", state.selectMode);
 }
@@ -877,6 +877,24 @@ function renderMbBody(f) {
   }
 }
 
+/** A button that's just an icon until you point at it (or tab to it): then its name slides out.
+ *  Touch screens keep the icon; its name is still read out and shown as a tooltip. */
+function iconButton(name, label, onclick, { title = label, cls = "", pressed = null } = {}) {
+  return h("button", { class: `btn icon-expand ${cls}`, type: "button", onclick, title, "aria-label": label,
+    "aria-pressed": pressed == null ? null : String(pressed) },
+  icon(name), h("span", { class: "icon-expand-label", "aria-hidden": "true" }, label));
+}
+
+function selectButtons(f) {
+  if (!f.tracks.length) return [];
+  return [
+    state.selectMode ? iconButton("selectall", allVisibleSelected() ? "Deselect all" : "Select all", toggleSelectAllVisible,
+      { cls: "phone-only" }) : null,
+    iconButton("select", state.selectMode ? "Done" : "Select", () => setSelectMode(!state.selectMode),
+      { cls: `phone-only${state.selectMode ? " primary" : ""}`, pressed: state.selectMode }),
+  ];
+}
+
 function renderFolderHead() {
   const f = state.folder;
   if (!f) return;
@@ -941,21 +959,12 @@ function renderFolderHead() {
       // Phones (and folders without a cover): first in the action row, on the left.
       canMatch ? mbFindButton(coverTrack ? "in-actions phone-only" : "in-actions") : null,
       canSoulseek ? skFindButton(coverTrack ? "in-actions phone-only" : "in-actions") : null,
-      f.tracks.length || f.folders.length ? h("button", {
-        class: "btn", type: "button", onclick: () => openApply("folder"),
-      }, "Apply loadout…") : null,
-      (f.tracks.length || f.folders.length) && !f.search ? h("button", {
-        class: "btn", type: "button", onclick: openOrganize,
-        title: "Rename and move files into folders from their tags (you see everything first)",
-      }, "Organize…") : null,
+      f.tracks.length || f.folders.length ? iconButton("preset", "Apply preset", () => openApply("folder"),
+        { title: "Apply a Tag Preset to this folder (you see every change first)" }) : null,
+      (f.tracks.length || f.folders.length) && !f.search ? iconButton("layers", "Organize", openOrganize,
+        { title: "Rename and move files into folders from their tags (you see everything first)" }) : null,
       // Phones: selecting is a mode, like the Photos app.
-      f.tracks.length && state.selectMode ? h("button", {
-        class: "btn phone-only", type: "button", onclick: toggleSelectAllVisible,
-      }, allVisibleSelected() ? "Deselect all" : "Select all") : null,
-      f.tracks.length ? h("button", {
-        class: `btn phone-only${state.selectMode ? " primary" : ""}`, type: "button",
-        "aria-pressed": String(state.selectMode), onclick: () => setSelectMode(!state.selectMode),
-      }, state.selectMode ? "Done" : "Select") : null),
+      selectButtons(f)),
   );
   els.tracks.classList.toggle("selecting", state.selectMode);
 }
@@ -2520,10 +2529,10 @@ function startActivityPolling() {
   }, 4000);
 }
 
-// ---- Loadouts: apply -----------------------------------------------------------------------------------
+// ---- Presets: apply -----------------------------------------------------------------------------------
 
-async function refreshLoadouts() {
-  state.loadouts = await api("GET", "/api/loadouts");
+async function refreshPresets() {
+  state.presets = await api("GET", "/api/presets");
 }
 
 let previewTimer = null;
@@ -2533,7 +2542,7 @@ function applyOptions() {
   const d = els.applyDialog;
   const target = $('input[name="target"]:checked', d)?.value || "folder";
   const body = {
-    name: $("#apply-loadout").value,
+    name: $("#apply-preset").value,
     mode: $('input[name="mode"]:checked', d).value,
   };
   if (target === "selection") body.paths = [...state.selected];
@@ -2544,17 +2553,17 @@ function applyOptions() {
 
 async function openApply(target) {
   if (!(await confirmDiscard())) return;
-  try { await refreshLoadouts(); } catch (err) { toast(err.message, "error"); return; }
-  if (!state.loadouts.length) {
-    toast("You don't have any loadouts yet. Create one first.");
+  try { await refreshPresets(); } catch (err) { toast(err.message, "error"); return; }
+  if (!state.presets.length) {
+    toast("You don't have any presets yet. Create one first.");
     openManage();
     return;
   }
   const d = els.applyDialog;
-  const select = $("#apply-loadout");
+  const select = $("#apply-preset");
   const previous = select.value;
-  select.replaceChildren(...state.loadouts.map((lo) => h("option", { value: lo.name }, lo.name)));
-  if (state.loadouts.some((lo) => lo.name === previous)) select.value = previous;
+  select.replaceChildren(...state.presets.map((lo) => h("option", { value: lo.name }, lo.name)));
+  if (state.presets.some((lo) => lo.name === previous)) select.value = previous;
 
   const n = state.selected.size;
   const selRadio = $('input[name="target"][value="selection"]', d);
@@ -2571,7 +2580,7 @@ async function openApply(target) {
 function syncApplyUi() {
   const { target } = applyOptions();
   $("#apply-recursive-wrap").hidden = target !== "folder" || !(state.folder?.folders.length);
-  const lo = state.loadouts.find((l) => l.name === $("#apply-loadout").value);
+  const lo = state.presets.find((l) => l.name === $("#apply-preset").value);
   $("#apply-desc").textContent = lo?.description || "";
 }
 
@@ -2584,7 +2593,7 @@ function runPreview() {
     const token = ++previewToken;
     const { body } = applyOptions();
     try {
-      const results = await api("POST", "/api/loadouts/apply", { ...body, dry_run: true });
+      const results = await api("POST", "/api/presets/apply", { ...body, dry_run: true });
       if (token !== previewToken) return;
       renderPreview(results);
     } catch (err) {
@@ -2636,7 +2645,7 @@ async function doApply() {
   go.textContent = "Applying…";
   const { body } = applyOptions();
   try {
-    const results = await api("POST", "/api/loadouts/apply", { ...body, dry_run: false });
+    const results = await api("POST", "/api/presets/apply", { ...body, dry_run: false });
     const failed = results.filter((r) => r.error);
     const changed = results.filter((r) => !r.error && Object.keys(r.applied).length);
     closeDialog(els.applyDialog);
@@ -4350,13 +4359,13 @@ function renderOrganize() {
     input.focus();
     input.dispatchEvent(new Event("input"));
   };
-  const presets = h("select", { "aria-label": "Start from a preset" },
-    h("option", { value: "" }, "Presets…"),
+  const patterns = h("select", { "aria-label": "Start from a pattern" },
+    h("option", { value: "" }, "Patterns…"),
     org.settings.presets.map((p) => h("option", { value: p.pattern }, p.name)));
-  presets.addEventListener("change", () => {
-    if (!presets.value) return;
-    input.value = org.pattern = presets.value;
-    presets.value = "";
+  patterns.addEventListener("change", () => {
+    if (!patterns.value) return;
+    input.value = org.pattern = patterns.value;
+    patterns.value = "";
     orgExample();
     orgPreview(0);
   });
@@ -4364,7 +4373,7 @@ function renderOrganize() {
     h("p", { class: "mb-lead" }, `Rename and move the audio files in ${target.label} into folders from their tags. You'll see every move first, nothing is ever overwritten, and it can all be undone.`),
     h("div", { class: "field" },
       h("span", { class: "field-label" }, "Pattern"),
-      h("div", { class: "org-pattern-row" }, input, presets),
+      h("div", { class: "org-pattern-row" }, input, patterns),
       h("div", { class: "org-tokens", role: "group", "aria-label": "Insert" },
         ORG_TOKENS.map(([label, text]) => h("button", { type: "button", class: "chip-btn", onclick: () => insert(text) }, label))),
       h("p", { class: "hint org-help" }, "{tag} inserts a tag · {a|b} uses the first that has a value · [ … ] disappears when a tag in it is empty · / starts a folder. The extension is added for you."),
@@ -4448,24 +4457,24 @@ async function orgApply() {
   }
 }
 
-// ---- Loadouts: manage -----------------------------------------------------------------------------------
+// ---- Presets: manage -----------------------------------------------------------------------------------
 
 async function openManage() {
-  try { await refreshLoadouts(); } catch (err) { toast(err.message, "error"); return; }
+  try { await refreshPresets(); } catch (err) { toast(err.message, "error"); return; }
   renderManageList();
   if (!els.manageDialog.open || els.manageDialog.classList.contains("closing")) openDialog(els.manageDialog);
 }
 
 function renderManageList() {
-  $("#manage-title").textContent = "Loadouts";
+  $("#manage-title").textContent = "Presets";
   const body = $("#manage-body");
-  if (!state.loadouts.length) {
-    body.replaceChildren(h("div", { class: "empty" }, h("strong", {}, "No loadouts yet"), "A loadout is a saved set of tags you can apply to many tracks at once."));
+  if (!state.presets.length) {
+    body.replaceChildren(h("div", { class: "empty" }, h("strong", {}, "No presets yet"), "A preset is a saved set of tags you can apply to many tracks at once."));
   } else {
     setKids(body,
       h("p", { class: "hint" }, "Saved sets of tags you can apply to tracks or whole folders. Blank values are skipped when applying."),
-      h("div", { class: "loadout-list" }, state.loadouts.map((lo) =>
-        h("div", { class: "loadout-card" },
+      h("div", { class: "preset-list" }, state.presets.map((lo) =>
+        h("div", { class: "preset-card" },
           h("div", { class: "info" },
             h("div", { class: "name" }, lo.name),
             lo.description && h("div", { class: "desc" }, lo.description),
@@ -4473,15 +4482,15 @@ function renderManageList() {
           h("button", { class: "btn small", type: "button", onclick: () => renderManageForm(lo) }, "Edit")))));
   }
   setKids($("#manage-foot"),
-    h("button", { class: "btn", type: "button", onclick: () => renderManageForm(null) }, icon("plus"), "New loadout"),
+    h("button", { class: "btn", type: "button", onclick: () => renderManageForm(null) }, icon("plus"), "New preset"),
     h("span", { class: "spacer" }),
     h("button", { class: "btn primary", type: "button", onclick: () => closeDialog(els.manageDialog) }, "Done"));
 }
 
-function renderManageForm(loadout) {
-  $("#manage-title").textContent = loadout ? "Edit loadout" : "New loadout";
-  const nameInput = h("input", { type: "text", value: loadout?.name || "", placeholder: "e.g. SoundCloud single", "aria-label": "Loadout name" });
-  const descInput = h("input", { type: "text", value: loadout?.description || "", placeholder: "What it's for (optional)", "aria-label": "Description" });
+function renderManageForm(preset) {
+  $("#manage-title").textContent = preset ? "Edit preset" : "New preset";
+  const nameInput = h("input", { type: "text", value: preset?.name || "", placeholder: "e.g. SoundCloud single", "aria-label": "Preset name" });
+  const descInput = h("input", { type: "text", value: preset?.description || "", placeholder: "What it's for (optional)", "aria-label": "Description" });
   const rowsEl = h("div", { class: "tag-rows" });
   let lastValueInput = null;
 
@@ -4495,7 +4504,7 @@ function renderManageForm(loadout) {
     return k;
   };
 
-  const entries = loadout ? Object.entries(loadout.tags) : [["title", ["{filename_title}"]], ["artist", [""]], ["album", [""]], ["genre", [""]]];
+  const entries = preset ? Object.entries(preset.tags) : [["title", ["{filename_title}"]], ["artist", [""]], ["album", [""]], ["genre", [""]]];
   for (const [k, v] of entries) addRow(k, v.join("; "));
 
   const chips = state.placeholders.map((p) => h("button", {
@@ -4541,12 +4550,12 @@ function renderManageForm(loadout) {
         : raw;
     }
     try {
-      await api("POST", "/api/loadouts", {
+      await api("POST", "/api/presets", {
         name: nameInput.value, description: descInput.value, tags,
-        previous_name: loadout ? loadout.name : null,
+        previous_name: preset ? preset.name : null,
       });
       toast(`Saved “${nameInput.value.trim()}”`, "success");
-      await refreshLoadouts();
+      await refreshPresets();
       renderManageList();
     } catch (err) {
       errorBox.textContent = err.message;
@@ -4556,18 +4565,18 @@ function renderManageForm(loadout) {
   };
 
   const del = async () => {
-    if (!(await ask({ title: `Delete “${loadout.name}”?`, message: "This loadout will be deleted. This can't be undone.",
+    if (!(await ask({ title: `Delete “${preset.name}”?`, message: "This preset will be deleted. This can't be undone.",
       confirmLabel: "Delete", danger: true }))) return;
     try {
-      await api("DELETE", `/api/loadouts/${encodeURIComponent(loadout.name)}`);
-      toast(`Deleted “${loadout.name}”`, "success");
-      await refreshLoadouts();
+      await api("DELETE", `/api/presets/${encodeURIComponent(preset.name)}`);
+      toast(`Deleted “${preset.name}”`, "success");
+      await refreshPresets();
       renderManageList();
     } catch (err) { toast(err.message, "error"); }
   };
 
   setKids($("#manage-foot"),
-    loadout && h("button", { class: "btn danger", type: "button", onclick: del }, "Delete"),
+    preset && h("button", { class: "btn danger", type: "button", onclick: del }, "Delete"),
     h("span", { class: "spacer" }),
     h("button", { class: "btn", type: "button", onclick: renderManageList }, "Cancel"),
     h("button", { class: "btn primary", type: "button", onclick: save }, "Save"));
@@ -4677,7 +4686,7 @@ function bindEvents() {
 
   $("#sel-clear").addEventListener("click", () => { state.selected.clear(); updateRowStates(); renderSelectionBar(); });
   $("#sel-edit").addEventListener("click", () => openEditor([...state.selected]));
-  $("#sel-loadout").addEventListener("click", () => openApply("selection"));
+  $("#sel-preset").addEventListener("click", () => openApply("selection"));
   $("#manage-btn").addEventListener("click", openManage);
   $("#cc-theme").addEventListener("click", () => { $("#theme-btn").click(); syncAccountTiles(); });
   $("#pw-toggle").addEventListener("click", () => setPasswordOpen($("#password-form").hidden));
@@ -5070,7 +5079,7 @@ function renderAbout() {
       h("p", { class: "hint", style: "margin:0 0 6px" }, "To update, run this on your server (use your Codetta folder's path):"),
       h("pre", { class: "update-steps" }, UPDATE_STEPS),
       h("button", { class: "btn small", type: "button", onclick: () => copyText(UPDATE_STEPS) }, icon("copy"), "Copy commands"),
-      h("p", { class: "hint", style: "margin:8px 0 0" }, "Your account, loadouts and activity log are kept."));
+      h("p", { class: "hint", style: "margin:8px 0 0" }, "Your account, presets and activity log are kept."));
     box.hidden = false;
   } else {
     status.textContent = `You're up to date${checked}.`;

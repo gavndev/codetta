@@ -96,8 +96,8 @@ def test_traversal_on_every_path_endpoint(env, evil):
               headers={"Content-Type": "image/jpeg"}),
         c.delete("/api/art", params={"path": evil}),
         c.patch("/api/tracks", json={"paths": [evil], "changes": {"title": "pwned"}}),
-        c.post("/api/loadouts/apply", json={"name": "Single", "paths": [evil], "dry_run": False}),
-        c.post("/api/loadouts/apply", json={"name": "Single", "folder": evil, "dry_run": False}),
+        c.post("/api/presets/apply", json={"name": "Single", "paths": [evil], "dry_run": False}),
+        c.post("/api/presets/apply", json={"name": "Single", "folder": evil, "dry_run": False}),
     ]
     for res in probes:
         assert res.status_code != 500, res.text
@@ -170,13 +170,13 @@ def test_too_many_paths_in_one_request_is_refused(env):
     assert c.delete("/api/art", params={"path": many[:1001]}).status_code in (422, 431)
 
 
-def test_loadout_names_cannot_write_outside_config(env):
+def test_preset_names_cannot_write_outside_config(env):
     c = env["client"]
     for name in ["../../evil", "..\\evil", "/etc/evil", "evil/../../x"]:
-        c.post("/api/loadouts", json={"name": name, "tags": {"genre": "x"}})
-    loadouts_dir = env["tmp"] / "config" / "loadouts"
+        c.post("/api/presets", json={"name": name, "tags": {"genre": "x"}})
+    presets_dir = env["tmp"] / "config" / "presets"
     for f in env["tmp"].rglob("*.json"):
-        assert f.parent in (loadouts_dir, env["tmp"] / "config"), f"loadout written outside config: {f}"
+        assert f.parent in (presets_dir, env["tmp"] / "config"), f"preset written outside config: {f}"
 
 
 def test_undo_cannot_be_pointed_at_other_files(env):
