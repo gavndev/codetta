@@ -3006,11 +3006,13 @@ async function renderSetupStep(step) {
     };
   } else if (step === "inbox") {
     let root = { folders: [] };
+    let external = { available: false };
     try { root = await api("GET", "/api/browse?path="); } catch { /* no library yet */ }
+    try { external = (await api("GET", "/api/inbox")).external; } catch { /* keep the default */ }
     setKids(form, setupLogo(), stepCount(),
       h("h1", {}, "Where does new music arrive?"),
-      h("p", { class: "auth-sub" }, "Pick the folder your downloads or rips land in. Codetta treats it as an inbox: it finds each new album, and files it into your library with your folder pattern. Nothing moves until you say so (unless you allow it below)."),
-      inboxSettingsFields({ folder: "", auto: false, watch: false }, root.folders),
+      h("p", { class: "auth-sub" }, "Pick the folder your downloads or rips land in (slskd's downloads folder, for example). Codetta treats it as an inbox: it finds each new album and files it into your music folder with your folder pattern. Nothing moves until you say so (unless you allow it below)."),
+      inboxSettingsFields({ folder: "", auto: false, watch: false }, root.folders, external),
       h("button", { class: "btn primary auth-submit", type: "submit", id: "setup-inbox-go", disabled: true }, "Use this folder"),
       h("button", { class: "link-btn setup-skip", type: "button", onclick: () => finishStep(step) }, "Not now"),
       h("p", { class: "auth-foot" }, "You can set this up or change it later from the Inbox button in the top bar."));
@@ -3023,17 +3025,29 @@ async function renderSetupStep(step) {
   }
 }
 
+const inboxLabel = (folder) => (folder === "@inbox" ? "your downloads folder" : folder.replace(/^@inbox\//, "Downloads/"));
+
 /** The inbox's settings fields (used in setup and in the Inbox screen). */
-function inboxSettingsFields(s, folders) {
+function inboxSettingsFields(s, folders, external = { available: false }) {
+  const chosen = s.folder || (external.available ? "@inbox" : "");
   const select = h("select", { name: "inbox-folder", "aria-label": "Inbox folder" },
-    h("option", { value: "" }, folders.length ? "Choose a folder…" : "No folders in your library yet"),
-    folders.map((f) => h("option", { value: f.path, selected: f.path === s.folder }, f.name)));
-  select.addEventListener("change", () => {
+    !external.available ? h("option", { value: "" }, "Choose a folder…") : null,
+    external.available ? h("option", { value: "@inbox", selected: chosen === "@inbox" }, `Your downloads folder (${external.path || "/inbox"}) · recommended`) : null,
+    folders.length ? h("optgroup", { label: "Or a folder inside your music folder" },
+      folders.map((f) => h("option", { value: f.path, selected: f.path === chosen }, f.name))) : null);
+  const sync = () => {
     const go = select.form?.querySelector("[type=submit]");
     if (go) go.disabled = !select.value;
-  });
+  };
+  select.addEventListener("change", sync);
+  queueMicrotask(sync);
   return h("div", { class: "inbox-fields" },
     h("label", { class: "field" }, h("span", { class: "field-label" }, "Inbox folder"), select),
+    !external.available ? h("div", { class: "inbox-mount-help" },
+      h("strong", {}, "Downloads somewhere else (like slskd's)?"),
+      h("span", {}, "Add that folder to Codetta's Docker volumes as /inbox, then restart Codetta:"),
+      h("pre", {}, "volumes:\n  - /path/to/downloads:/inbox"),
+      h("span", {}, "It'll then show up here as your downloads folder. (Without Docker: set CODETTA_INBOX_DIR.)")) : null,
     !connectionOn("musicbrainz") ? h("p", { class: "hint" }, "Online lookups are off, so albums are filed by their own tags. Turn on MusicBrainz in Account → Connections to match them automatically.") : null,
     h("label", { class: "switch-row" },
       h("span", { class: "switch-text" },
@@ -3106,7 +3120,7 @@ async function openNews({ latestOnly = false } = {}) {
 
 const inboxState = { data: null, timer: null, settingsOpen: false };
 const INBOX_LABELS = {
-  waiting: "Waiting", matching: "Looking up…", ready: "Ready to file", review: "Needs a look", nomatch: "Not found",
+  downloading: "Still arriving", waiting: "Waiting", matching: "Looking up…", ready: "Ready to file", review: "Needs a look", nomatch: "Not found",
   local: "Files by its tags", filed: "Filed", skipped: "Skipped", error: "Problem",
 };
 const inboxPending = (d) => (d?.groups || []).filter((g) => !["filed", "skipped"].includes(g.status)).length;
@@ -3136,8 +3150,10 @@ async function loadInbox() {
     return;
   }
   renderInbox();
-  // Keep it fresh while lookups run and the sheet is open.
-  if (inboxState.data.running && $("#inbox-dialog").open) inboxState.timer = setTimeout(loadInbox, 1500);
+  // Keep it fresh while lookups run (and, more slowly, while downloads arrive) and the sheet is open.
+  if ($("#inbox-dialog").open && (inboxState.data.running || inboxState.data.downloading)) {
+    inboxState.timer = setTimeout(loadInbox, inboxState.data.running ? 1500 : 15000);
+  }
 }
 
 async function inboxAction(url, body, done) {
@@ -3173,9 +3189,9 @@ function renderInbox() {
     api("GET", "/api/browse?path=").catch(() => ({ folders: [] })).then((root) => {
       const form = h("form", { class: "inbox-settings" },
         h("p", { class: "mb-lead" }, d.settings.folder && !d.folder_exists
-          ? `The inbox folder “${d.settings.folder}” isn't there any more. Choose another.`
-          : "Pick the folder new music lands in (downloads, rips). Codetta finds each album and files it into your library with your folder pattern."),
-        inboxSettingsFields(d.settings, root.folders),
+          ? `The inbox folder (${inboxLabel(d.settings.folder)}) isn't there any more${d.settings.folder.startsWith("@") ? ": is it still mounted?" : "."} Choose another.`
+          : "Pick the folder new music lands in (downloads, rips). Codetta finds each album and files it into your music folder with your folder pattern."),
+        inboxSettingsFields(d.settings, root.folders, d.external),
         h("div", { class: "inbox-settings-actions" },
           d.settings.folder && d.folder_exists ? h("button", { class: "btn", type: "button", onclick: () => { inboxState.settingsOpen = false; renderInbox(); } }, "Cancel") : null,
           h("button", { class: "btn primary", type: "submit", disabled: !d.settings.folder }, "Save")));
@@ -3216,7 +3232,7 @@ function renderInbox() {
       rel?.id && d.online ? mbThumb(rel.id) : h("span", { class: "mb-thumb mb-noart", "aria-hidden": "true" }, icon("note")),
       h("div", { class: "inbox-main" },
         h("div", { class: "inbox-title", dir: "auto" }, name, g.artist ? h("span", { class: "inbox-artist" }, ` · ${g.artist}`) : null),
-        h("div", { class: "mb-cand-meta" }, [rel ? mbMeta(rel) : "", `${plural(g.files, "file")} in ${g.key}`].filter(Boolean).join(" · ")),
+        h("div", { class: "mb-cand-meta" }, [rel ? mbMeta(rel) : "", `${plural(g.files, "file")} in ${inboxLabel(g.key)}`].filter(Boolean).join(" · ")),
         h("div", { class: "inbox-status" },
           h("span", { class: `inbox-chip ${g.status}` }, INBOX_LABELS[g.status] || g.status, g.score != null && g.status !== "filed" ? ` · ${g.score}%` : ""),
           g.note ? h("span", { class: "inbox-note" }, g.note) : null)),
@@ -3225,8 +3241,8 @@ function renderInbox() {
   setKids(body,
     h("div", { class: "inbox-head" },
       h("p", { class: "mb-lead" }, d.groups.length
-        ? `${pending ? plural(pending, "album") + " waiting" : "All caught up"} in “${d.settings.folder}”.${d.settings.auto ? " Confident matches are filed automatically." : ""}`
-        : `Nothing new in “${d.settings.folder}”. Drop an album folder in there and open the Inbox again.`),
+        ? `${pending ? plural(pending, "album") + " waiting" : "All caught up"} in ${inboxLabel(d.settings.folder)}.${d.downloading ? ` ${plural(d.downloading, "album")} still arriving: Codetta waits until the download finishes.` : ""}${d.settings.auto ? " Confident matches are filed automatically." : ""}`
+        : `Nothing new in ${inboxLabel(d.settings.folder)}. When an album lands there, it shows up here.`),
       h("button", { class: "link-btn", type: "button", onclick: () => { inboxState.settingsOpen = true; renderInbox(); } }, "Settings")),
     d.groups.length ? h("div", { class: "inbox-list" }, d.groups.map(item)) : null);
   setKids($("#inbox-foot"),

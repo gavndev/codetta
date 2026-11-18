@@ -24,9 +24,10 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import threading
 import unicodedata
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -211,6 +212,20 @@ def save_pattern(file: Path, pattern: str) -> None:
     os.replace(tmp, file)
 
 
+
+Root = Path | Callable[[str], Path]  # the music folder, or a resolver that also knows "@inbox/..."
+
+
+def _at(root: Root, rel: str) -> Path:
+    if callable(root):
+        return root(rel)
+    return root / rel if rel else root
+
+
+def _is_top(folder: str) -> bool:
+    """The music folder itself, or a root alias like "@inbox": never removed."""
+    return folder == "" or ("/" not in folder and folder.startswith("@"))
+
 # --- Planning -------------------------------------------------------------------------------
 
 
@@ -244,7 +259,7 @@ def _has_audio(folder: Path, limit: int = 2000) -> bool:
     return False
 
 
-def plan_moves(root: Path, sources: list[Source], pattern: str) -> list[Move]:
+def plan_moves(root: Root, sources: list[Source], pattern: str) -> list[Move]:
     """Where each file would go. Reads nothing but names; writes nothing."""
     check_pattern(pattern)
     multi = multi_disc_albums(sources)
@@ -256,7 +271,7 @@ def plan_moves(root: Path, sources: list[Source], pattern: str) -> list[Move]:
         except PatternError as exc:
             moves.append(Move(s.rel, s.rel, "error", str(exc)))
             continue
-        src_path, dst_path = root / s.rel, root / dst
+        src_path, dst_path = _at(root, s.rel), _at(root, dst)
         if dst == s.rel:
             moves.append(Move(s.rel, dst, "same"))
             continue
@@ -278,9 +293,9 @@ def plan_moves(root: Path, sources: list[Source], pattern: str) -> list[Move]:
         src_stem = os.path.splitext(m.src)[0]
         dst_stem = os.path.splitext(m.dst)[0]
         for suffix in SIDECAR_SUFFIXES:
-            side = root / (src_stem + suffix)
+            side = _at(root, src_stem + suffix)
             new = dst_stem + suffix
-            if side.is_file() and not os.path.lexists(root / new) and new.casefold() not in taken:
+            if side.is_file() and not os.path.lexists(_at(root, new)) and new.casefold() not in taken:
                 m.companions.append((src_stem + suffix, new))
                 taken.add(new.casefold())
 
@@ -292,14 +307,14 @@ def plan_moves(root: Path, sources: list[Source], pattern: str) -> list[Move]:
     sidecars = {a for m in moves for a, _ in m.companions}
     for folder, group in by_folder.items():
         dests = {m.dst.rsplit("/", 1)[0] if "/" in m.dst else "" for m in group}
-        if len(dests) != 1 or any(m.status != "move" for m in group) or folder == "":
+        if len(dests) != 1 or any(m.status != "move" for m in group) or _is_top(folder):
             continue
         new_folder = dests.pop()
         if new_folder == folder:
             continue
         audio_here = {m.src for m in group}
         try:
-            entries = list(os.scandir(root / folder))
+            entries = list(os.scandir(_at(root, folder)))
         except OSError:
             continue
         audio_in_folder = {f"{folder}/{e.name}" for e in entries
@@ -314,7 +329,7 @@ def plan_moves(root: Path, sources: list[Source], pattern: str) -> list[Move]:
             if e.is_dir(follow_symlinks=False) and _has_audio(Path(e.path)):
                 continue  # e.g. "CD2/": its own files move by themselves
             new = f"{new_folder}/{e.name}" if new_folder else e.name
-            if os.path.lexists(root / new) or new.casefold() in taken:
+            if os.path.lexists(_at(root, new)) or new.casefold() in taken:
                 continue  # never overwrite; it just stays where it is
             carrier.companions.append((rel, new))
             taken.add(new.casefold())
@@ -335,8 +350,8 @@ class MoveResult:
     moved: list[tuple[str, str]] = field(default_factory=list)  # every (src, dst) actually moved
 
 
-def _move_one(root: Path, src: str, dst: str) -> None:
-    a, b = root / src, root / dst
+def _move_one(root: Root, src: str, dst: str) -> None:
+    a, b = _at(root, src), _at(root, dst)
     if not os.path.lexists(a):
         raise FileNotFoundError("It's no longer there")
     if os.path.lexists(b) and not _same_file(a, b):
@@ -345,25 +360,52 @@ def _move_one(root: Path, src: str, dst: str) -> None:
     try:
         os.rename(a, b)  # same filesystem: instant, and the file itself is never rewritten
     except OSError as exc:
-        if exc.errno == 18:  # EXDEV: the target is on another disk (a linked folder)
-            raise OSError("That folder is on a different disk; Codetta only moves within one") from exc
+        if exc.errno != 18:  # EXDEV: another disk or mount (e.g. the inbox folder)
+            raise
+        _copy_then_remove(a, b)
+
+
+def _copy_then_remove(a: Path, b: Path) -> None:
+    """Move across disks: copy to a temporary name next to the target, check
+    it, give it its real name, and only then delete the original."""
+    tmp = b.with_name(f".codetta-move-{os.getpid()}-{b.name}")
+    try:
+        if a.is_dir() and not a.is_symlink():
+            shutil.copytree(a, tmp, symlinks=True)
+            if sum(1 for _ in tmp.rglob("*")) != sum(1 for _ in a.rglob("*")):
+                raise OSError("The copy came out incomplete")
+        else:
+            shutil.copy2(a, tmp, follow_symlinks=False)
+            if tmp.stat().st_size != a.stat().st_size:
+                raise OSError("The copy came out the wrong size")
+        if os.path.lexists(b):
+            raise FileExistsError("A different file already has that name")
+        os.rename(tmp, b)
+    except BaseException:
+        if tmp.is_dir() and not tmp.is_symlink():
+            shutil.rmtree(tmp, ignore_errors=True)
+        else:
+            tmp.unlink(missing_ok=True)
         raise
+    if a.is_dir() and not a.is_symlink():
+        shutil.rmtree(a)
+    else:
+        a.unlink()
 
 
-def remove_empty_dirs(root: Path, folders: Iterable[str]) -> None:
-    """Remove folders a move left empty (and their empty parents), never the library itself."""
+def remove_empty_dirs(root: Root, folders: Iterable[str]) -> None:
+    """Remove folders a move left empty (and their empty parents), never the
+    music folder or the inbox folder themselves."""
     for folder in sorted(set(folders), key=lambda f: -f.count("/")):
-        path = root / folder
-        while folder and path != root:
+        while not _is_top(folder):
             try:
-                path.rmdir()  # only succeeds when empty
+                _at(root, folder).rmdir()  # only succeeds when empty
             except OSError:
                 break
             folder = folder.rsplit("/", 1)[0] if "/" in folder else ""
-            path = root / folder if folder else root
 
 
-def apply_moves(root: Path, moves: list[Move]) -> list[MoveResult]:
+def apply_moves(root: Root, moves: list[Move]) -> list[MoveResult]:
     """Do the planned moves. Each file is moved on its own; one failure doesn't stop the rest."""
     results = []
     left: list[str] = []
@@ -373,7 +415,7 @@ def apply_moves(root: Path, moves: list[Move]) -> list[MoveResult]:
                 continue
             r = MoveResult(m.src, m.dst, ok=False)
             try:
-                with file_lock(root / m.src):  # never while that file is being saved
+                with file_lock(_at(root, m.src)):  # never while that file is being saved
                     _move_one(root, m.src, m.dst)
                 r.ok = True
                 r.moved.append((m.src, m.dst))
@@ -393,17 +435,17 @@ def apply_moves(root: Path, moves: list[Move]) -> list[MoveResult]:
     return results
 
 
-def undo_moves(root: Path, moves: list[list[str]]) -> tuple[list[tuple[str, str, bool, str | None]], list[list[str]]]:
+def undo_moves(root: Root, moves: list[list[str]]) -> tuple[list[tuple[str, str, bool, str | None]], list[list[str]]]:
     """Move files back. Returns ([(original src, dst, ok, error)], moves done in reverse)."""
     report, reverse, left = [], [], []
     with _move_lock:
         for src, dst in reversed(moves):  # companions first, then their audio file, in reverse order
             try:
-                if not os.path.lexists(root / dst):
+                if not os.path.lexists(_at(root, dst)):
                     raise FileNotFoundError("Moved or deleted since, so it was left alone")
-                if os.path.lexists(root / src):
+                if os.path.lexists(_at(root, src)):
                     raise FileExistsError("Something else now has the old name, so it was left alone")
-                with file_lock(root / dst):
+                with file_lock(_at(root, dst)):
                     _move_one(root, dst, src)
                 reverse.append([dst, src])
                 left.append(dst.rsplit("/", 1)[0] if "/" in dst else "")

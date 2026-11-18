@@ -37,7 +37,8 @@ def make_client(music, tmp_path):
     opened = []
 
     def make(online=True, fake=None):
-        app = create_app(Settings(music_dir=music, config_dir=tmp_path / "config"),
+        app = create_app(Settings(music_dir=music, config_dir=tmp_path / "config", inbox_settle_seconds=0,
+                                  inbox_dir=tmp_path / "downloads"),
                          fetch_mb=fake or FakeMB(), fetch_art=lambda url: None)
         c = TestClient(app)
         c.__enter__()
@@ -233,3 +234,63 @@ def test_update_check_notifies(tmp_path):
         c.get("/api/update")
         items = c.get("/api/notifications").json()["items"]
     assert [i["title"] for i in items] == ["Codetta 99.0.0 is out"]
+
+
+# --- A downloads folder outside the music folder (slskd's, mounted at /inbox) ---------------------
+
+
+@pytest.fixture
+def external(tmp_path, music):
+    """The album sits in a separate downloads folder, not in the music folder."""
+    downloads = tmp_path / "downloads"
+    downloads.mkdir()
+    shutil.move(str(music / ALBUM_DIR), str(downloads / "Coda Tester - Fixture Album"))
+    return downloads
+
+
+def test_external_inbox_files_into_the_library(make_client, music, external, monkeypatch):
+    import os as _os
+
+    real_rename = _os.rename
+
+    def cross_device(a, b, *args, **kwargs):  # the inbox is another mount: rename fails like in Docker
+        if str(external) in str(a) and str(music) in str(b):
+            raise OSError(18, "Invalid cross-device link")
+        return real_rename(a, b, *args, **kwargs)
+
+    monkeypatch.setattr("codetta.core.organize.os.rename", cross_device)
+    c = make_client()
+    data = c.get("/api/inbox").json()
+    assert data["external"]["available"] is True
+    c.put("/api/inbox/settings", json={"folder": "@inbox"})
+    g = settle(c)["groups"][0]
+    assert g["key"] == "@inbox/Coda Tester - Fixture Album" and g["status"] == "ready"
+    res = c.post("/api/inbox/accept", json={"key": g["key"]}).json()
+    assert res["status"] == "filed"
+    new = music / "Coda Tester" / "Fixture Album (2024)"
+    assert (new / "01 Opening.flac").exists() and (new / "cover.jpg").exists()
+    assert list(external.iterdir()) == []  # copied, checked, then removed; the inbox folder itself stays
+    assert not any(p.name.startswith(".codetta-move") for p in new.iterdir())
+
+    entry = c.get("/api/activity").json()[0]
+    assert c.post(f"/api/activity/{entry['id']}/undo").json()["undone"] == 3  # back into the downloads folder
+    assert (external / "Coda Tester - Fixture Album" / "01.flac").exists()
+
+
+def test_albums_still_downloading_wait(tmp_path, music):
+    app = create_app(Settings(music_dir=music, config_dir=tmp_path / "config2", inbox_settle_seconds=3600),
+                     fetch_mb=FakeMB(), fetch_art=lambda url: None)
+    with TestClient(app) as c:
+        c.post("/api/auth/setup", json={"username": "owner", "password": PASSWORD})
+        c.put("/api/connections", json={"enabled": {"musicbrainz": True}})
+        c.put("/api/inbox/settings", json={"folder": "Downloads", "auto": True})
+        data = c.get("/api/inbox").json()
+    assert data["groups"][0]["status"] == "downloading" and data["downloading"] == 1
+    assert (music / ALBUM_DIR / "01.flac").exists()  # never filed half-downloaded
+
+
+def test_inbox_path_cannot_escape(make_client):
+    c = make_client()
+    assert c.put("/api/inbox/settings", json={"folder": "@inbox/../../etc"}).status_code == 400
+    assert c.put("/api/inbox/settings", json={"folder": "@nowhere"}).status_code == 400
+    assert c.get("/api/track", params={"path": "@inbox/../../../etc/passwd"}).status_code == 400

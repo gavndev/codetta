@@ -58,6 +58,7 @@ ENV PATH=/opt/venv/bin:$PATH \
     PYTHONDONTWRITEBYTECODE=1 \
     CODETTA_MUSIC_DIR=/music \
     CODETTA_CONFIG_DIR=/config \
+    CODETTA_INBOX_DIR=/inbox \
     CODETTA_PORT=8111 \
     PUID=1000 \
     PGID=1000

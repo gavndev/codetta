@@ -25,6 +25,8 @@ services:
     volumes:
       - /path/to/your/music:/music     # ← your music library (read-write)
       - ./codetta-config:/config       # account, loadouts, activity log, search index
+      # Optional: where new music lands (e.g. slskd's downloads), for the import inbox.
+      # - /path/to/downloads:/inbox
     # Hardening: no privilege escalation, read-only system files.
     security_opt:
       - no-new-privileges:true

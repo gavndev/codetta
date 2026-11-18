@@ -22,6 +22,8 @@ Settings (environment variables):
     CODETTA_ACOUSTID      "on"/"off": Identify by sound (AcoustID; needs MusicBrainz too)
     CODETTA_ACOUSTID_KEY  your own AcoustID application key instead of Codetta's
     CODETTA_FPCALC        path to Chromaprint's fpcalc (default: found on PATH)
+    CODETTA_INBOX_DIR     a downloads folder outside the music folder (e.g. slskd's) for
+                          the import inbox; /inbox in the Docker image (mount it there)
     CODETTA_LYRICS_LOOKUP "on"/"off": Find lyrics (asks lrclib.net, only when pressed)
     CODETTA_UPDATE_CHECK  "on"/"off": twice-daily check for new releases on GitHub
     CODETTA_UPDATE_REPO   where to look for releases (default: gavndev/codetta)
@@ -69,6 +71,7 @@ from codetta.core import changelog
 from codetta.core.notifications import Notifications
 from codetta.core.onboarding import OnboardingStore
 from codetta.core.inbox import (
+    DOWNLOADING,
     ERROR as INBOX_ERROR,
     FILED,
     LOCAL,
@@ -177,6 +180,8 @@ class Settings:
     acoustid: bool | None = None  # "Identify by sound" (fingerprints looked up on AcoustID)
     acoustid_key: str | None = None  # an own application key instead of Codetta's
     fpcalc: str | None = None  # Chromaprint's fpcalc; None = look on PATH
+    inbox_dir: Path | None = None  # a downloads folder outside the library (e.g. slskd's), used as "@inbox"
+    inbox_settle_seconds: float = 120  # wait this long after a file changes (downloads still arriving)
     update_repo: str = DEFAULT_REPO
     allowed_hosts: tuple[str, ...] = ()  # empty = answer to any host name
     allow_public_setup: bool = False  # first-run setup only from private addresses
@@ -197,6 +202,7 @@ class Settings:
             acoustid=parse_switch(env("ACOUSTID")),
             acoustid_key=(env("ACOUSTID_KEY") or "").strip() or None,
             fpcalc=(env("FPCALC") or "").strip() or None,
+            inbox_dir=Path(env("INBOX_DIR")).expanduser() if env("INBOX_DIR") else None,
             update_repo=env("UPDATE_REPO", DEFAULT_REPO),
             allowed_hosts=tuple(h.strip() for h in (env("ALLOWED_HOSTS") or "").split(",") if h.strip()),
             allow_public_setup=(env("ALLOW_PUBLIC_SETUP") or "").strip().lower() in ("on", "true", "1", "yes"),
@@ -409,7 +415,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
                 "acoustid": settings.acoustid},
     )
     updates = UpdateChecker(VERSION, settings.update_repo, lambda: connections.enabled("updates"), fetch_release)
-    library = Library(settings.music_dir)
+    library = Library(settings.music_dir, settings.inbox_dir)
     store = LoadoutStore(settings.config_dir / "loadouts")
     engine = MetadataEngine()
     activity = ActivityLog(settings.config_dir / "activity.jsonl")
@@ -1315,7 +1321,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
                 sources.append(Source(rel, meta.tags, meta.format or ""))
             except (MetadataError, LibraryPathError, OSError) as exc:
                 errors.append(Move(rel, rel, "error", str(exc)))
-        return pattern, plan_moves(library.root, sources, pattern) + errors
+        return pattern, plan_moves(library.resolve, sources, pattern) + errors
 
     @app.get("/api/organize/settings")
     def organize_settings() -> dict:
@@ -1358,7 +1364,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     def organize_apply(body: OrganizeIn) -> dict:
         """Rename and move the files (and their extras). One undoable activity entry."""
         pattern, moves = organize_plan(body)
-        results = apply_moves(library.root, moves)
+        results = apply_moves(library.resolve, moves)
         moved = [pair for r in results if r.ok for pair in r.moved]
         ok = [r for r in results if r.ok]
         failed = [r for r in results if not r.ok]
@@ -1374,7 +1380,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
                 errors=[{"path": r.src, "error": r.error or ""} for r in failed],
                 undo={"type": "moves", "moves": [list(p) for p in moved]} if moved else None,
             )
-        lib_index.mark_dirty([p for pair in moved for p in pair])
+        lib_index.mark_dirty([p for pair in moved for p in pair if not p.startswith("@")])  # the index covers the library only
         art_cache.clear()
         return {
             "moved": len(ok), "failed": len(failed), "extras": len(moved) - len(ok),
@@ -1410,7 +1416,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
 
     # --- Import inbox ------------------------------------------------------------------
 
-    inbox = InboxStore(settings.config_dir / "inbox.json")
+    inbox = InboxStore(settings.config_dir / "inbox.json", settings.inbox_settle_seconds)
     inbox_worker: dict = {"thread": None}
     inbox_wake = threading.Event()
 
@@ -1541,10 +1547,18 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
                 counts[g.status] = counts.get(g.status, 0) + 1
             folder = inbox.settings.folder
             running = bool(inbox_worker["thread"] and inbox_worker["thread"].is_alive())
+            try:
+                exists = bool(folder) and library.resolve(folder).is_dir()
+            except LibraryPathError:
+                exists = False
             return {
+                # A downloads folder mounted outside the music folder (e.g. slskd's), offered first.
+                "external": {"available": library.inbox_available(),
+                             "path": str(settings.inbox_dir) if settings.inbox_dir else None},
+                "downloading": sum(g.status == DOWNLOADING for g in groups),
                 "settings": {"folder": folder, "auto": inbox.settings.auto, "organize": inbox.settings.organize,
                              "watch": inbox.settings.watch},
-                "folder_exists": bool(folder) and library.resolve(folder).is_dir(),
+                "folder_exists": exists,
                 "online": connections.enabled("musicbrainz"),
                 "running": running, "counts": counts,
                 "groups": [{"key": g.key, "files": len(g.paths), "paths": g.paths[:1000], "status": g.status,
@@ -1569,9 +1583,10 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         require_library()
         folder = body.folder.strip().strip("/")
         if not folder:
-            raise HTTPException(422, "Choose a folder inside your music folder (not the whole library).")
+            raise HTTPException(422, "Choose your downloads folder, or a folder inside your music folder (not the whole library).")
         if not library.resolve(folder).is_dir():
-            raise HTTPException(422, f"There's no folder called “{folder}” in your music folder.")
+            raise HTTPException(422, "The downloads folder isn't mounted (see CODETTA_INBOX_DIR)." if folder.startswith("@")
+                                else f"There's no folder called “{folder}” in your music folder.")
         with inbox.lock:
             if folder != inbox.settings.folder:
                 inbox.groups.clear()
@@ -1630,7 +1645,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         outcome = undo_change(engine, library.resolve, art_store, entry["undo"])
         lib_index.mark_dirty(r.path for r in outcome.results if r.ok)
         if entry["undo"].get("type") == "moves" and outcome.reverse:
-            lib_index.mark_dirty(p for pair in outcome.reverse["moves"] for p in pair)
+            lib_index.mark_dirty(p for pair in outcome.reverse["moves"] for p in pair if not p.startswith("@"))
             art_cache.clear()
         done = [r for r in outcome.results if r.ok]
         skipped = [r for r in outcome.results if r.skipped]

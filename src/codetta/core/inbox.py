@@ -27,6 +27,7 @@ from pathlib import Path
 from codetta.core.library import Library
 
 # Statuses an album in the inbox can have.
+DOWNLOADING = "downloading"  # files changed moments ago (still arriving): wait before looking it up
 WAITING = "waiting"  # found, not looked up yet
 MATCHING = "matching"
 READY = "ready"  # confident match: can be filed in one tap (or automatically)
@@ -39,6 +40,7 @@ ERROR = "error"
 
 DISC_FOLDER = re.compile(r"^(cd|disc|disk)[\s_.-]*\d+\b", re.IGNORECASE)
 MAX_GROUPS = 500
+SETTLE_SECONDS = 120  # an album is looked up once its files have been still this long
 
 
 @dataclass
@@ -87,22 +89,27 @@ def find_groups(library: Library, inbox: str, limit: int = MAX_GROUPS) -> list[t
     return sorted(groups.items())[:limit]
 
 
-def signature(library: Library, paths: list[str]) -> str:
+def signature(library: Library, paths: list[str]) -> tuple[str, float]:
+    """(fingerprint of names, sizes and times; when the newest file last changed)."""
     h = hashlib.sha256()
+    newest = 0.0
     for rel in sorted(paths):
         try:
             st = library.resolve(rel).stat()
             h.update(f"{rel}\0{st.st_size}\0{st.st_mtime_ns}\n".encode())
+            # ctime too: a downloader that moves a finished file in keeps its old mtime.
+            newest = max(newest, st.st_mtime, st.st_ctime)
         except OSError:
             h.update(f"{rel}\0missing\n".encode())
-    return h.hexdigest()[:16]
+    return h.hexdigest()[:16], newest
 
 
 class InboxStore:
     """Settings and per-album state, saved to inbox.json."""
 
-    def __init__(self, file: Path) -> None:
+    def __init__(self, file: Path, settle_seconds: float = SETTLE_SECONDS) -> None:
         self.file = file
+        self.settle_seconds = settle_seconds
         self.lock = threading.RLock()
         self.settings = InboxSettings()
         self.groups: dict[str, Group] = {}
@@ -150,14 +157,20 @@ class InboxStore:
                 return []
             found = find_groups(library, inbox)
             keys = set()
+            now = time.time()
             for key, paths in found:
                 keys.add(key)
-                sig = signature(library, paths)
+                sig, newest = signature(library, paths)
+                settled = now - newest >= self.settle_seconds
                 g = self.groups.get(key)
                 if g is None or (g.signature != sig and g.status not in (SKIPPED, FILED)):
-                    self.groups[key] = Group(key=key, paths=paths, signature=sig, updated=time.time())
+                    self.groups[key] = Group(key=key, paths=paths, signature=sig, updated=now,
+                                             status=WAITING if settled else DOWNLOADING,
+                                             note="" if settled else "Still arriving: waiting for the download to finish")
                 else:
                     g.paths = paths
+                    if g.status == DOWNLOADING and settled:
+                        g.status, g.note = WAITING, ""
             for key in [k for k, g in self.groups.items() if k not in keys and g.status != FILED]:
                 del self.groups[key]
             # Filed albums are kept for a while so the list can say where they went.

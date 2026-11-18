@@ -172,7 +172,7 @@ def _undo_moves(resolve: Callable[[str], Path], record: dict) -> UndoOutcome:
     for src, dst in moves:  # validate every path before touching anything
         resolve(src)
         resolve(dst)
-    report, reverse = undo_moves(resolve(""), moves)
+    report, reverse = undo_moves(resolve, moves)
     outcome = UndoOutcome()
     from codetta.core.engine import SUPPORTED_EXTENSIONS
 

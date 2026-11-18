@@ -31,11 +31,19 @@ class FolderListing:
     skipped: int = 0
 
 
+INBOX = "@inbox"  # paths starting with this live in the inbox folder, outside the library
+
+
 class Library:
-    def __init__(self, root: str | Path) -> None:
+    def __init__(self, root: str | Path, inbox: str | Path | None = None) -> None:
         # Normalise without resolving symlinks: a library that links to music
         # on other disks is normal, and the engine follows links when writing.
         self.root = Path(os.path.abspath(root))
+        # Optional second folder (e.g. slskd's downloads), addressed as "@inbox/...".
+        self.inbox = Path(os.path.abspath(inbox)) if inbox else None
+
+    def inbox_available(self) -> bool:
+        return self.inbox is not None and self.inbox.is_dir()
 
     def exists(self) -> bool:
         return self.root.is_dir()
@@ -47,11 +55,21 @@ class Library:
         rel = PurePosixPath(relative.strip("/")) if relative.strip("/") else PurePosixPath()
         if rel.is_absolute() or any(part in ("..", ".") for part in rel.parts):
             raise LibraryPathError(f"Path must stay inside the music folder: {relative!r}")
+        if rel.parts and rel.parts[0] == INBOX:
+            if self.inbox is None:
+                raise LibraryPathError("There's no inbox folder set up (CODETTA_INBOX_DIR)")
+            return self.inbox.joinpath(*rel.parts[1:])
+        if rel.parts and rel.parts[0].startswith("@"):
+            raise LibraryPathError(f"Unknown folder: {rel.parts[0]}")
         return self.root.joinpath(*rel.parts)
 
     def relative(self, path: Path) -> str:
         """The library-relative form of ``path`` (always with forward slashes)."""
-        rel = PurePosixPath(Path(os.path.abspath(path)).relative_to(self.root)).as_posix()
+        path = Path(os.path.abspath(path))
+        if self.inbox is not None and path.is_relative_to(self.inbox) and not path.is_relative_to(self.root):
+            rel = PurePosixPath(path.relative_to(self.inbox)).as_posix()
+            return INBOX if rel == "." else f"{INBOX}/{rel}"
+        rel = PurePosixPath(path.relative_to(self.root)).as_posix()
         return "" if rel == "." else rel
 
     def list_folder(self, relative: str = "") -> FolderListing:
