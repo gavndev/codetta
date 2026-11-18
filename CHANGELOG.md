@@ -2,8 +2,9 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.1.1 (2026-11-17)
 
+- README rewritten as a short landing page; details moved to `docs/` (install, configuration, features, FAQ), plus `SECURITY.md` and `CONTRIBUTING.md`.
 - README: an honest comparison with MusicBrainz Picard, beets and Metadata Remote.
 - A quiet footer on the sign-in screen and under the track list: GitHub link · Made with ♥︎ · version.
 

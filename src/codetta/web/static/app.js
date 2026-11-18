@@ -2220,7 +2220,7 @@ function showAuth(mode, message = "") {
   $("#auth-submit").textContent = setup ? "Create account" : "Sign in";
   $("#auth-foot").textContent = setup
     ? "Use at least 8 characters. You can change it later from the account menu."
-    : "Forgot your password? It can be reset on the server (see “Resetting your password” in the README).";
+    : "Forgot your password? It can be reset on the server (see “Resetting your password” in Codetta's install guide).";
   $("#auth-error").hidden = true;
   const wasHidden = $("#auth").hidden;
   $("#auth").hidden = false;
