@@ -9,6 +9,7 @@ file, the exact values before and after the change:
                                                         "after":  "<sha256 or null>"}}}
 
     {"type": "multi", "parts": [<tags record>, <art record>]}   (e.g. a MusicBrainz match)
+    {"type": "moves", "moves": [["old/path.flac", "new/path.flac"], ...]}   (Organize)
 
 Album art is too big for the log, so images are kept in an ``ArtStore``
 (one file per distinct image, so a cover shared by a whole album is stored
@@ -106,6 +107,8 @@ def undo_change(
     kind = record.get("type")
     if kind == "multi":
         return _undo_multi(engine, resolve, art, record)
+    if kind == "moves":
+        return _undo_moves(resolve, record)
     outcome = UndoOutcome()
     reverse_files: dict[str, dict] = {}
 
@@ -158,4 +161,26 @@ def _undo_multi(engine: MetadataEngine, resolve: Callable[[str], Path], art: Art
     reverse = [p.reverse for p in parts if p.reverse]
     if reverse:
         outcome.reverse = {"type": "multi", "parts": reverse}
+    return outcome
+
+
+def _undo_moves(resolve: Callable[[str], Path], record: dict) -> UndoOutcome:
+    """Move organized files back to where they were."""
+    from codetta.core.organize import undo_moves
+
+    moves = [m for m in record.get("moves", []) if isinstance(m, list) and len(m) == 2]
+    for src, dst in moves:  # validate every path before touching anything
+        resolve(src)
+        resolve(dst)
+    report, reverse = undo_moves(resolve(""), moves)
+    outcome = UndoOutcome()
+    from codetta.core.engine import SUPPORTED_EXTENSIONS
+
+    audio = {src for src, _ in moves if Path(src).suffix.lower() in SUPPORTED_EXTENSIONS}  # report per song
+    for src, dst, ok, error in report:
+        if src in audio or not ok:
+            skipped = not ok and error is not None and "left alone" in error
+            outcome.results.append(UndoResult(dst, ok=ok, skipped=skipped, error=error))
+    if reverse:
+        outcome.reverse = {"type": "moves", "moves": reverse}
     return outcome

@@ -78,6 +78,16 @@ Codetta on its own never touches the internet. Online features are "connections"
 - [x] **Task 10.1:** Play button on every row (`GET /api/stream`, Starlette range requests, type from Codetta's own list; `canPlayType` hides it for unplayable formats; Media Session metadata; stops on folder change). Security tests for sign-in, traversal, non-audio and content type.
 - [x] **Task 10.2:** Multi-disc albums: tracks grouped by disc with a "Disc N" separator (+ disc subtitle), hover shows "disc/track", disc icon (drawn for Codetta, not icons8, which needs attribution) spins on hover and while its disc plays.
 
+## Phase 11: Level Up (v0.6+): what Picard and beets do, done the Codetta way
+Close the gaps with Picard and beets while staying light: every feature previews before it writes, is undoable, runs in the background when big, and anything online stays an opt-in connection.
+- [x] **Task 11.1: Organize.** (`src/codetta/core/organize.py`, `/api/organize/*`, tests in `tests/test_organize.py`) Rename and move files from a pattern (`{albumartist|artist}/{album}[ ({year})]/{disctrack} {title}`), with presets, a live example and a full preview. Safe names on every filesystem (SMB/Windows characters, hidden names, length), conflicts reported instead of overwritten, `.lrc` sidecars and the album's other files (cover.jpg, booklet, logs) move along, emptied folders removed. One undoable activity entry; search index follows. Never touches anything unless asked.
+- [ ] **Task 11.2: Import inbox.** A downloads folder Codetta watches: loose files grouped into albums, identified (tags, then sound), confident matches approved automatically if you want, the rest queued for review, then tagged and organized into the library. Later the landing spot for slskd.
+- [ ] **Task 11.3: Batch matching.** Match many albums at once in the background (within MusicBrainz's rate limit), review the uncertain ones later from any device.
+- [ ] **Task 11.4: Edition preferences.** Preferred countries, formats (digital vs CD), release types and original vs release dates, used when ranking candidates.
+- [ ] **Task 11.5: Library health.** One page of fixable problems: no cover, no MusicBrainz IDs, mixed album artists, inconsistent disc/track numbers, duplicates, missing tracks.
+- [ ] **Task 11.6: Refresh from MusicBrainz.** Re-check albums that already have MusicBrainz IDs and offer the corrections made since (like beets' mbsync).
+- [ ] **Task 11.7: Extras as connections.** Last.fm genres; ReplayGain via a small static tool (like fpcalc).
+
 ## Phase 6: Data sources, listening, organizing (roadmap)
 - [ ] **Task 6.1:** (→ Phase 9) MusicBrainz integration: match a file or folder to a MusicBrainz release/recording and offer its "official" metadata (titles, artists, dates, label, catalog number, MBIDs, cover art), previewed before writing like loadouts. Also feeds smart suggestions.
 - [ ] **Task 6.2:** Last.fm integration: genre tags (top tags), similar artists and listener counts as another suggestion source (user supplies their own API key).

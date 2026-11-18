@@ -4,6 +4,8 @@ All notable changes to Codetta. Versions follow [Semantic Versioning](https://se
 
 ## Unreleased (0.5.0)
 
+- **Organize** (Level Up #1): rename and move files into folders from their tags with a pattern like `{albumartist|artist}/{album}[ ({year})]/{disctrack} {title}`. Presets, one-tap tag buttons and a live example; a preview of every move before anything happens. Names are made safe for any filesystem or network share, nothing is ever overwritten (conflicts are listed instead), lyrics files and the album's cover, booklet and scans move along, and emptied folders are tidied away. One undoable entry in the activity log. Files without artist/album tags are flagged before they'd land in "Unknown Artist".
+
 - **Play a track** from the list: a play button at the end of every row (it grows to "Play" when you point at it). Plays the file straight from your server, with seeking and lock-screen/headphone controls, and a thin progress line under the row. Nothing is converted or cached; formats your browser can't play (WMA, DSF, WavPack…) get no button. Playback stops when you open another folder.
 - **Multi-disc albums** read like a streaming service: a "Disc 2" line (with the disc subtitle) between discs, tracks grouped by disc, and pointing at a row shows "2/01". The disc icon spins when you point at it, and slowly while that disc is playing.
 

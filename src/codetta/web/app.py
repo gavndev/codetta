@@ -65,7 +65,20 @@ from codetta.core.auth import (
 )
 from codetta.core.engine import MetadataEngine, MetadataError, TrackMetadata
 from codetta.core.index import LibraryIndex, parse_query
-from codetta.core.library import Library, LibraryPathError, count_contents
+from codetta.core.library import Library, LibraryPathError, TooManyFilesError, audio_files, count_contents
+from codetta.core.organize import (
+    DEFAULT_PATTERN,
+    PRESETS as ORGANIZE_PRESETS,
+    Move,
+    PatternError,
+    Source,
+    apply_moves,
+    check_pattern,
+    load_pattern,
+    plan_moves,
+    render,
+    save_pattern,
+)
 from codetta.core.acoustid import DEFAULT_KEY as ACOUSTID_KEY
 from codetta.core.acoustid import LOOKUP_URL as ACOUSTID_URL
 from codetta.core.acoustid import AcoustID, Fingerprinter, FingerprintError, find_fpcalc, rank_releases
@@ -259,7 +272,8 @@ STREAM_TYPES = {
     ".aif": "audio/aiff", ".aiff": "audio/aiff", ".aifc": "audio/aiff", ".wma": "audio/x-ms-wma",
     ".wv": "audio/x-wavpack", ".dsf": "audio/x-dsf", ".tta": "audio/x-tta",
 }
-MAX_IDENTIFY = 200  # files fingerprinted in one request (each takes a moment to decode)
+MAX_IDENTIFY = 200
+MAX_ORGANIZE = 5000  # files planned/moved in one request  # files fingerprinted in one request (each takes a moment to decode)
 
 
 def _unique(paths: list[str]) -> list[str]:
@@ -310,6 +324,17 @@ class ApplyResultOut(BaseModel):
     kept_existing: list[str]
     unsupported: list[str]
     error: str | None = None
+
+
+class OrganizeIn(BaseModel):
+    paths: list[str] = Field(default=[], max_length=MAX_PATHS_PER_REQUEST)  # these files...
+    folder: str | None = None  # ...or the audio files in this folder
+    recursive: bool = False  # ...and its subfolders
+    pattern: str | None = Field(default=None, max_length=400)  # None: the saved pattern
+
+
+class PatternIn(BaseModel):
+    pattern: str = Field(max_length=400)
 
 
 class ConnectionsIn(BaseModel):
@@ -1203,6 +1228,96 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         lib_index.mark_dirty(r.path for r in results if r.ok)
         return results
 
+    # --- Organize ---------------------------------------------------------------------
+
+    pattern_file = settings.config_dir / "organize.json"
+
+    def organize_plan(body: OrganizeIn) -> tuple[str, list[Move]]:
+        require_library()
+        try:
+            pattern = check_pattern(body.pattern) if body.pattern is not None else load_pattern(pattern_file)
+        except PatternError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        if body.folder is not None:
+            try:
+                rels = audio_files(library, body.folder, body.recursive, MAX_ORGANIZE)
+            except TooManyFilesError as exc:
+                raise HTTPException(422, str(exc)) from exc
+        else:
+            rels = _unique(body.paths)
+        sources, errors = [], []
+        for rel in rels:
+            try:
+                meta = engine.load_metadata(library.resolve(rel))
+                sources.append(Source(rel, meta.tags, meta.format or ""))
+            except (MetadataError, LibraryPathError, OSError) as exc:
+                errors.append(Move(rel, rel, "error", str(exc)))
+        return pattern, plan_moves(library.root, sources, pattern) + errors
+
+    @app.get("/api/organize/settings")
+    def organize_settings() -> dict:
+        return {"pattern": load_pattern(pattern_file), "default": DEFAULT_PATTERN,
+                "presets": [{"name": n, "pattern": p} for n, p in ORGANIZE_PRESETS]}
+
+    @app.put("/api/organize/settings")
+    def save_organize_settings(body: PatternIn) -> dict:
+        try:
+            save_pattern(pattern_file, body.pattern)
+        except PatternError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        except OSError as exc:
+            raise HTTPException(500, f"Could not save to the config folder: {exc}") from exc
+        return organize_settings()
+
+    @app.post("/api/organize/example")
+    def organize_example(body: PatternIn) -> dict:
+        """What the pattern makes of a sample track (for the live example while typing)."""
+        try:
+            check_pattern(body.pattern)
+        except PatternError as exc:
+            return {"ok": False, "error": str(exc)}
+        sample = Source("Some Folder/track.flac", {
+            "albumartist": ["Kōsei Mori"], "artist": ["Kōsei Mori"], "album": ["Northern Signal"],
+            "title": ["Harbour Lights"], "tracknumber": ["3/10"], "discnumber": ["2/2"], "date": ["2021-04-09"],
+            "genre": ["Ambient"], "label": ["Low Orbit Records"],
+        }, "flac")
+        return {"ok": True, "single": render(body.pattern, sample, False), "multi": render(body.pattern, sample, True)}
+
+    @app.post("/api/organize/preview")
+    def organize_preview(body: OrganizeIn) -> dict:
+        """Where each file would go. Nothing is moved."""
+        pattern, moves = organize_plan(body)
+        counts = {k: sum(m.status == k for m in moves) for k in ("move", "same", "conflict", "error")}
+        return {"pattern": pattern, "counts": counts, "extras": sum(len(m.companions) for m in moves),
+                "moves": [m.to_dict() for m in moves]}
+
+    @app.post("/api/organize/apply")
+    def organize_apply(body: OrganizeIn) -> dict:
+        """Rename and move the files (and their extras). One undoable activity entry."""
+        pattern, moves = organize_plan(body)
+        results = apply_moves(library.root, moves)
+        moved = [pair for r in results if r.ok for pair in r.moved]
+        ok = [r for r in results if r.ok]
+        failed = [r for r in results if not r.ok]
+        if results:
+            target = _name(ok[0].dst) if len(ok) == 1 else f"{len(ok)} tracks"
+            message = (f"Organized {target}" if not failed else
+                       f"Organized {len(ok)} of {len(results)} tracks" if ok else "Couldn't organize the tracks")
+            activity.add(
+                "organize", message, ok=not failed,
+                files=[r.dst for r in ok] + [r.src for r in failed],
+                changes=[{"key": "location", "old": ok[0].src, "new": ok[0].dst}] if len(ok) == 1 else
+                        [{"key": "pattern", "old": "", "new": pattern}],
+                errors=[{"path": r.src, "error": r.error or ""} for r in failed],
+                undo={"type": "moves", "moves": [list(p) for p in moved]} if moved else None,
+            )
+        lib_index.mark_dirty([p for pair in moved for p in pair])
+        art_cache.clear()
+        return {
+            "moved": len(ok), "failed": len(failed), "extras": len(moved) - len(ok),
+            "results": [{"src": r.src, "dst": r.dst, "ok": r.ok, "error": r.error} for r in results],
+        }
+
     @app.post("/api/activity/{entry_id}/undo")
     def undo(entry_id: int) -> dict:
         """Reverse a logged change. Files edited again since are left alone."""
@@ -1216,6 +1331,9 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             raise HTTPException(409, "This change has already been undone")
         outcome = undo_change(engine, library.resolve, art_store, entry["undo"])
         lib_index.mark_dirty(r.path for r in outcome.results if r.ok)
+        if entry["undo"].get("type") == "moves" and outcome.reverse:
+            lib_index.mark_dirty(p for pair in outcome.reverse["moves"] for p in pair)
+            art_cache.clear()
         done = [r for r in outcome.results if r.ok]
         skipped = [r for r in outcome.results if r.skipped]
         failed = [r for r in outcome.results if not r.ok and not r.skipped]

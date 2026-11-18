@@ -134,6 +134,24 @@ recording, whatever its name or track number says.
 Running your own MusicBrainz mirror? Point `CODETTA_MUSICBRAINZ_URL` at it and
 lookups stay on your network with no rate limit.
 
+## Organize your files
+
+**Organize…** renames and moves the files in a folder (or your selection) from
+their tags, using a pattern such as
+
+    {albumartist|artist}/{album}[ ({year})]/{disctrack} {title}
+
+which gives `Kōsei Mori/Northern Signal (2021)/03 Harbour Lights.flac`
+(`2-03` on multi-disc albums). `{a|b}` uses the first tag that has a value,
+`[ … ]` disappears when a tag in it is empty, and `/` starts a folder. Pick a
+preset, tap tag buttons to build your own, and watch the live example.
+
+You see every move before anything happens. Codetta never overwrites a file:
+if a name is taken, that file is listed and left alone. Lyrics files
+(`song.lrc`) follow their song, and when a whole album folder moves, its cover,
+booklet, logs and scans come along. Folders left empty are removed. The whole
+organize is one entry in the activity log, so **Undo** puts everything back.
+
 ## Quick listen
 
 Every track has a play button at the end of its row. It streams the file

@@ -89,6 +89,25 @@ class Library:
         )
 
 
+class TooManyFilesError(LibraryPathError):
+    """More audio files than one request may handle."""
+
+
+def audio_files(library: Library, relative: str, recursive: bool, limit: int) -> list[str]:
+    """Audio files in a folder (and its subfolders if ``recursive``), in natural
+    order, hidden entries skipped. Raises TooManyFilesError past ``limit``."""
+    out: list[str] = []
+    pending = [library.list_folder(relative)]
+    while pending:
+        listing = pending.pop(0)
+        out.extend(listing.files)
+        if len(out) > limit:
+            raise TooManyFilesError(f"That's more than {limit} files at once. Choose a smaller folder.")
+        if recursive:
+            pending.extend(library.list_folder(f) for f in listing.folders)
+    return out
+
+
 def count_contents(folder: Path) -> tuple[int, int] | None:
     """(subfolders, audio files) directly inside ``folder``, without reading
     any tags. None if the folder can't be read."""

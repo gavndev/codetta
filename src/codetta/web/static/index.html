@@ -12,7 +12,7 @@
   <link rel="icon" href="/static/icon.svg?v=3" type="image/svg+xml"> <!-- bump ?v= when the icon changes: browsers cache favicons hard -->
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=3">
   <link rel="preload" href="/static/fonts/schibsted-grotesk.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/static/app.css?v=48">
+  <link rel="stylesheet" href="/static/app.css?v=49">
   <script src="/static/theme.js?v=1"></script>
 </head>
 <body>
@@ -314,6 +314,18 @@
     <div class="sheet-foot" id="mb-foot"></div>
   </dialog>
 
+  <!-- Organize: rename and move files from a pattern (filled in by app.js) -->
+  <dialog class="sheet wide" id="organize-dialog" aria-labelledby="organize-title">
+    <div class="sheet-head">
+      <h2 id="organize-title">Organize files</h2>
+      <button class="icon-btn" type="button" data-close aria-label="Close">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body" id="organize-body"></div>
+    <div class="sheet-foot" id="organize-foot"></div>
+  </dialog>
+
   <!-- Manage loadouts -->
   <dialog class="sheet" id="manage-dialog" aria-labelledby="manage-title">
     <div class="sheet-head">
@@ -329,6 +341,6 @@
   <datalist id="tag-keys"></datalist>
   <div class="toasts" id="toasts" aria-live="polite"></div>
 
-  <script src="/static/app.js?v=47" type="module"></script>
+  <script src="/static/app.js?v=49" type="module"></script>
 </body>
 </html>

@@ -100,6 +100,11 @@ _file_locks: dict[str, threading.Lock] = {}
 _file_locks_guard = threading.Lock()
 
 
+def file_lock(path: Path) -> threading.Lock:
+    """The lock that guards writes to ``path`` (also taken when Codetta moves it)."""
+    return _lock_for(Path(path))
+
+
 def _lock_for(path: Path) -> threading.Lock:
     key = os.path.realpath(path)
     with _file_locks_guard:

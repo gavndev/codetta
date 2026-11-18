@@ -1827,3 +1827,33 @@ dialog.sheet.wide { width: min(760px, calc(100vw - 32px)); }
 .num-disc { font-size: 12.5px; letter-spacing: -0.02em; }
 .col-dur { transition: opacity var(--dur-fast) ease; }
 .track-row:has(.play-btn:hover) .col-dur, .track-row:has(.play-btn:focus-visible) .col-dur { opacity: 0; }
+
+/* ---- Organize ------------------------------------------------------------------------------- */
+
+.org-pattern-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.org-pattern { font-family: var(--mono); font-size: 13px; }
+.org-pattern-row select { width: auto; }
+.org-tokens { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chip-btn {
+  min-height: 30px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: 6px;
+  background: var(--surface); color: var(--text); font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.chip-btn:hover { border-color: var(--spot); color: var(--spot); }
+.org-help { margin: 8px 0 0; }
+.org-example { display: grid; gap: 2px; margin-top: 10px; padding: 10px 12px; border-left: 2px solid var(--spot); background: var(--hover); border-radius: 0 6px 6px 0; }
+.org-example:empty { display: none; }
+.org-example code { font-family: var(--mono); font-size: 12.5px; overflow-wrap: anywhere; }
+.org-ex-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.org-example .hint { margin: 2px 0 0; }
+.org-ex-error { color: var(--danger); font-size: 13px; }
+.org-list { border-top: 1.5px solid var(--text); }
+.org-move { padding: 8px 0; border-bottom: 1px solid var(--rule); font-size: 13px; }
+.org-from { color: var(--muted); overflow-wrap: anywhere; }
+.org-to { color: var(--text); font-weight: 500; overflow-wrap: anywhere; }
+.org-move.conflict .note, .org-move.error .note { color: var(--danger); }
+.org-move .note { font-size: 12px; color: var(--faint); margin-top: 2px; }
+@media (max-width: 760px) {
+  .org-pattern-row { grid-template-columns: minmax(0, 1fr); }
+  .chip-btn { min-height: 36px; }
+}
+.org-warn { font-size: 13px; color: var(--warning); background: var(--warning-soft); padding: 8px 10px; border-radius: 6px; margin: 0 0 10px; }

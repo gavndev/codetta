@@ -460,3 +460,20 @@ def test_simultaneous_saves_to_one_file_both_land(engine, fixture_copy):
     assert not errors
     tags = engine.load_metadata(path).tags
     assert all(tags.get(f"custom{i}") == [f"value {i}"] for i in range(8)), tags
+
+
+def test_organize_never_overwrites_a_file_that_appears_after_the_preview(tmp_path):
+    """Between previewing and applying, another program saves a file at the
+    destination: the move is refused and both files survive untouched."""
+    from codetta.core.organize import DEFAULT_PATTERN, Source, apply_moves, plan_moves
+
+    root = tmp_path / "music"
+    (root / "in").mkdir(parents=True)
+    (root / "in" / "a.flac").write_bytes(b"mine")
+    tags = {"albumartist": ["A"], "album": ["B"], "title": ["C"], "tracknumber": ["1"]}
+    moves = plan_moves(root, [Source("in/a.flac", tags)], DEFAULT_PATTERN)
+    (root / "A" / "B").mkdir(parents=True)
+    (root / "A" / "B" / "01 C.flac").write_bytes(b"theirs")
+    result = apply_moves(root, moves)[0]
+    assert not result.ok
+    assert (root / "in" / "a.flac").read_bytes() == b"mine" and (root / "A" / "B" / "01 C.flac").read_bytes() == b"theirs"

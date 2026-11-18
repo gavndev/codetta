@@ -727,6 +727,10 @@ function renderFolderHead() {
       f.tracks.length || f.folders.length ? h("button", {
         class: "btn", type: "button", onclick: () => openApply("folder"),
       }, "Apply loadout…") : null,
+      (f.tracks.length || f.folders.length) && !f.search ? h("button", {
+        class: "btn", type: "button", onclick: openOrganize,
+        title: "Rename and move files into folders from their tags (you see everything first)",
+      }, "Organize…") : null,
       // Phones: selecting is a mode, like the Photos app.
       f.tracks.length && state.selectMode ? h("button", {
         class: "btn phone-only", type: "button", onclick: toggleSelectAllVisible,
@@ -2841,6 +2845,178 @@ async function mbApply() {
   }
 }
 
+// ---- Organize: rename and move files from a pattern -------------------------------------------------
+
+const org = { settings: null, pattern: "", recursive: false, remember: true, preview: null, error: null, token: 0, timer: null, exTimer: null, example: null };
+const ORG_TOKENS = [
+  ["Album artist", "{albumartist|artist}"], ["Artist", "{artist}"], ["Album", "{album}"], ["Year", "[ ({year})]"],
+  ["Disc-track", "{disctrack}"], ["Track", "{track}"], ["Title", "{title}"], ["Genre", "{genre}"], ["Folder", "/"],
+];
+
+function orgTarget() {
+  const n = state.selected.size;
+  if (n) return { body: { paths: [...state.selected] }, label: plural(n, "selected track"), folder: false };
+  return { body: { folder: state.path, recursive: org.recursive }, label: state.path ? "this folder" : "your whole library", folder: true };
+}
+
+async function openOrganize() {
+  if (!(await confirmDiscard())) return;
+  try {
+    org.settings = await api("GET", "/api/organize/settings");
+  } catch (err) { toast(err.message, "error"); return; }
+  org.pattern = org.settings.pattern;
+  org.recursive = !state.folder?.tracks.length; // a folder of folders: include them
+  org.preview = null;
+  org.error = null;
+  renderOrganize();
+  openDialog($("#organize-dialog"));
+  orgExample();
+  orgPreview(0);
+}
+
+function orgExample() {
+  clearTimeout(org.exTimer);
+  org.exTimer = setTimeout(async () => {
+    try { org.example = await api("POST", "/api/organize/example", { pattern: org.pattern }); } catch { org.example = null; }
+    const box = $("#org-example");
+    if (!box) return;
+    const ex = org.example;
+    setKids(box, !ex ? null : ex.ok
+      ? [h("span", { class: "org-ex-label" }, "Example"), h("code", { dir: "auto" }, ex.single),
+        h("code", { dir: "auto" }, ex.multi), h("span", { class: "hint" }, "Second line: a multi-disc album")]
+      : h("span", { class: "org-ex-error" }, ex.error));
+  }, 120);
+}
+
+function orgPreview(delay = 300) {
+  clearTimeout(org.timer);
+  const go = $("#org-go");
+  if (go) go.disabled = true;
+  org.timer = setTimeout(async () => {
+    const token = ++org.token;
+    try {
+      const res = await api("POST", "/api/organize/preview", { ...orgTarget().body, pattern: org.pattern });
+      if (token !== org.token) return;
+      org.preview = res;
+      org.error = null;
+    } catch (err) {
+      if (token !== org.token) return;
+      org.preview = null;
+      org.error = err.message;
+    }
+    renderOrganizePreview();
+  }, delay);
+}
+
+function renderOrganize() {
+  const target = orgTarget();
+  const input = h("input", { type: "text", id: "org-pattern", value: org.pattern, spellcheck: "false", autocomplete: "off",
+    autocapitalize: "off", "aria-label": "Pattern", class: "org-pattern" });
+  input.addEventListener("input", () => { org.pattern = input.value; orgExample(); orgPreview(); });
+  const insert = (text) => {
+    const [a, b] = [input.selectionStart ?? input.value.length, input.selectionEnd ?? input.value.length];
+    input.setRangeText(text, a, b, "end");
+    input.focus();
+    input.dispatchEvent(new Event("input"));
+  };
+  const presets = h("select", { "aria-label": "Start from a preset" },
+    h("option", { value: "" }, "Presets…"),
+    org.settings.presets.map((p) => h("option", { value: p.pattern }, p.name)));
+  presets.addEventListener("change", () => {
+    if (!presets.value) return;
+    input.value = org.pattern = presets.value;
+    presets.value = "";
+    orgExample();
+    orgPreview(0);
+  });
+  setKids($("#organize-body"),
+    h("p", { class: "mb-lead" }, `Rename and move the audio files in ${target.label} into folders from their tags. You'll see every move first, nothing is ever overwritten, and it can all be undone.`),
+    h("div", { class: "field" },
+      h("span", { class: "field-label" }, "Pattern"),
+      h("div", { class: "org-pattern-row" }, input, presets),
+      h("div", { class: "org-tokens", role: "group", "aria-label": "Insert" },
+        ORG_TOKENS.map(([label, text]) => h("button", { type: "button", class: "chip-btn", onclick: () => insert(text) }, label))),
+      h("p", { class: "hint org-help" }, "{tag} inserts a tag · {a|b} uses the first that has a value · [ … ] disappears when a tag in it is empty · / starts a folder. The extension is added for you."),
+      h("div", { class: "org-example", id: "org-example", "aria-live": "polite" })),
+    target.folder && state.folder?.folders.length ? h("label", { class: "check" },
+      h("input", { type: "checkbox", checked: org.recursive, onchange: (e) => { org.recursive = e.target.checked; orgPreview(0); } }),
+      " Include subfolders") : null,
+    h("label", { class: "check" },
+      h("input", { type: "checkbox", checked: org.remember, onchange: (e) => { org.remember = e.target.checked; } }),
+      " Remember this pattern"),
+    h("div", { class: "preview", id: "org-preview", "aria-live": "polite" }, h("p", { class: "loading" }, "Working out where everything goes…")));
+  setKids($("#organize-foot"),
+    h("span", { class: "spacer" }),
+    h("button", { class: "btn", type: "button", "data-close": true }, "Cancel"),
+    h("button", { class: "btn primary", type: "button", id: "org-go", disabled: true, onclick: orgApply }, "Move"));
+}
+
+function renderOrganizePreview() {
+  const box = $("#org-preview");
+  const go = $("#org-go");
+  if (!box) return;
+  if (org.error) {
+    setKids(box, h("div", { class: "error-box" }, org.error));
+    go.disabled = true;
+    return;
+  }
+  const p = org.preview;
+  const c = p.counts;
+  const moving = p.moves.filter((m) => m.status === "move");
+  const problems = p.moves.filter((m) => m.status === "conflict" || m.status === "error");
+  const summary = [];
+  if (moving.length) summary.push(`${plural(moving.length, "file")} will move${p.extras ? `, plus ${plural(p.extras, "other file")} that come${p.extras === 1 ? "s" : ""} along (cover, lyrics, booklet…)` : ""}.`);
+  else summary.push(c.same ? "Everything is already where this pattern puts it." : "Nothing to move.");
+  if (c.same && moving.length) summary.push(`${plural(c.same, "file")} already in place.`);
+  if (problems.length) summary.push(`${plural(problems.length, "file")} can't move (see below).`);
+  const unknown = moving.filter((m) => /(^|\/)Unknown (Artist|Album)\//.test(m.dst)).length;
+  const warn = unknown ? h("p", { class: "org-warn" }, `${plural(unknown, "file")} ${unknown === 1 ? "has" : "have"} no artist or album tag, so ${unknown === 1 ? "it" : "they"} would go to “Unknown Artist” / “Unknown Album”. Tag ${unknown === 1 ? "it" : "them"} first (Find in MusicBrainz can help), or move them anyway.`) : null;
+  const row = (m) => h("div", { class: `org-move ${m.status}` },
+    h("div", { class: "org-from", dir: "auto" }, m.src),
+    h("div", { class: "org-to", dir: "auto" }, m.status === "error" ? "" : ["→ ", m.dst]),
+    m.reason ? h("div", { class: "note" }, m.reason) : null,
+    m.companions.length ? h("div", { class: "note" }, `+ ${m.companions.map((x) => x.src.split("/").pop()).join(", ")}`) : null);
+  const shown = [...problems, ...moving].slice(0, 300);
+  setKids(box,
+    h("p", { class: "preview-summary" }, summary.join(" ")),
+    warn,
+    shown.length ? h("div", { class: "org-list" }, shown.map(row)) : null,
+    shown.length < problems.length + moving.length ? h("p", { class: "hint" }, `…and ${problems.length + moving.length - shown.length} more`) : null);
+  go.disabled = !moving.length;
+  go.textContent = moving.length ? `Move ${plural(moving.length, "file")}` : "Move";
+}
+
+async function orgApply() {
+  const go = $("#org-go");
+  go.disabled = true;
+  go.textContent = "Moving…";
+  try {
+    if (org.remember && org.pattern !== org.settings.pattern) {
+      try { await api("PUT", "/api/organize/settings", { pattern: org.pattern }); } catch { /* still organize */ }
+    }
+    const res = await api("POST", "/api/organize/apply", { ...orgTarget().body, pattern: org.pattern });
+    closeDialog($("#organize-dialog"));
+    const failed = res.results.filter((r) => !r.ok);
+    if (failed.length) toast(`Moved ${plural(res.moved, "file")}; ${failed.length} couldn't move: ${failed[0].error}`, "error");
+    else toast(`Organized ${plural(res.moved, "file")}. Undo is in the activity log.`, "success");
+    state.selected.clear();
+    renderSelectionBar();
+    folderCache.clear();
+    refreshActivity();
+    // If this folder was emptied by the move, go to where the music went.
+    const first = res.results.find((r) => r.ok);
+    try {
+      await api("GET", `/api/browse?path=${encodeURIComponent(state.path)}`);
+      await loadFolder(state.path, { keepScroll: true });
+    } catch {
+      navigate(first ? first.dst.split("/").slice(0, -1).join("/") : "");
+    }
+  } catch (err) {
+    toast(err.message, "error");
+    orgPreview(0);
+  }
+}
+
 // ---- Loadouts: manage -----------------------------------------------------------------------------------
 
 async function openManage() {
@@ -3072,7 +3248,7 @@ function bindEvents() {
   $("#apply-go").addEventListener("click", doApply);
 
   // All dialogs: close buttons and backdrop clicks.
-  for (const dialog of [els.applyDialog, els.manageDialog, els.filterDialog, $("#mb-dialog")]) {
+  for (const dialog of [els.applyDialog, els.manageDialog, els.filterDialog, $("#mb-dialog"), $("#organize-dialog")]) {
     dialog.addEventListener("click", (e) => {
       if (e.target.closest("[data-close]") || e.target === dialog) closeDialog(dialog);
     });

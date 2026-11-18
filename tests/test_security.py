@@ -429,3 +429,25 @@ def test_stream_type_never_comes_from_the_file(client, music):
     (music / "evil.mp3").write_text("<script>alert(1)</script>")
     res = client.get("/api/stream", params={"path": "evil.mp3"})
     assert res.headers["content-type"] == "audio/mpeg" and res.headers["x-content-type-options"] == "nosniff"
+
+
+# --- Organize --------------------------------------------------------------------------------
+
+
+def test_organize_routes_need_sign_in(music, tmp_path):
+    with make_client(music, tmp_path) as c:
+        for method, url in [("get", "/api/organize/settings"), ("put", "/api/organize/settings"),
+                            ("post", "/api/organize/preview"), ("post", "/api/organize/apply"),
+                            ("post", "/api/organize/example")]:
+            assert getattr(c, method)(url).status_code == 401, url
+
+
+def test_organize_tags_cannot_move_files_out_of_the_library(client, music, tmp_path):
+    """A file whose tags say "../../.." still lands inside the music folder."""
+    from codetta.core.engine import MetadataEngine
+
+    MetadataEngine().update_tags(music / "song.flac", {"albumartist": "../../../tmp", "album": "..", "title": "../x"})
+    res = client.post("/api/organize/apply", json={"paths": ["song.flac"]}).json()
+    assert res["moved"] == 1
+    dst = (music / res["results"][0]["dst"]).resolve()
+    assert dst.is_file() and dst.is_relative_to(music.resolve())
