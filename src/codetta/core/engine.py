@@ -362,9 +362,19 @@ def _sniff_format(path: Path) -> type | None:
     return None
 
 
+MAX_TAG_VALUE_CHARS = 100_000  # plenty for long (synced) lyrics; keeps responses bounded
+MAX_TAG_KEYS = 200
+
+
 def _check_changes(changes: dict[str, list[str]]) -> None:
     """Reject changes that can't be stored safely, before touching the file."""
+    if len(changes) > MAX_TAG_KEYS:
+        raise MetadataError(f"Too many tags in one change (max {MAX_TAG_KEYS})")
     for key, values in changes.items():
+        if len(key) > 200:
+            raise MetadataError("Tag name is too long")
+        if sum(len(v) for v in values) > MAX_TAG_VALUE_CHARS:
+            raise MetadataError(f"Tag '{key}' is too long (max {MAX_TAG_VALUE_CHARS:,} characters)")
         if key in COVER_ART_KEYS:
             raise MetadataError(f"'{key}' holds cover art and can't be edited as text")
         if any("\x00" in v for v in values):

@@ -1412,7 +1412,11 @@ async function saveEditor(targetPaths = null) {
   };
   try {
     if (ed.changes.size) {
-      if (apply(await api("PATCH", "/api/tracks", { paths, changes }))) ed.changes.clear();
+      let allOk = true;
+      for (let i = 0; i < paths.length; i += 500) { // big folders go in batches (server max 1000)
+        allOk = apply(await api("PATCH", "/api/tracks", { paths: paths.slice(i, i + 500), changes })) && allOk;
+      }
+      if (allOk) ed.changes.clear();
     }
     if (ed.art) {
       if (apply(await sendArt(paths, ed.art))) clearPendingArt(ed);
@@ -1592,7 +1596,7 @@ async function sendArt(paths, art) {
   let batch = [], size = 0;
   for (const p of paths) {
     const part = `path=${encodeURIComponent(p)}`;
-    if (batch.length && size + part.length + 1 > MAX_QUERY) { batches.push(batch); batch = []; size = 0; }
+    if (batch.length && (size + part.length + 1 > MAX_QUERY || batch.length >= 500)) { batches.push(batch); batch = []; size = 0; }
     batch.push(part);
     size += part.length + 1;
   }

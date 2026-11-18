@@ -86,7 +86,7 @@ def test_api_update_endpoint(tmp_path):
     settings = Settings(music_dir=tmp_path / "music", config_dir=tmp_path / "config", update_check=True)
     with TestClient(create_app(settings, fetch_release=release("v99.0.0"))) as c:
         assert c.get("/api/update").status_code == 401  # private
-        c.post("/api/auth/setup", json={"username": "gavin", "password": "correct horse 1"})
+        c.post("/api/auth/setup", json={"username": "listener", "password": "correct horse 1"})
         data = c.get("/api/update").json()
         assert data["current"] == VERSION
         assert data["latest"] == "99.0.0" and data["update_available"] is True

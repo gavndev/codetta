@@ -18,7 +18,7 @@ from codetta.core.auth import (
 )
 from codetta.web.app import SESSION_COOKIE, Settings, create_app
 
-USER, PASSWORD = "gavin", "correct horse battery"
+USER, PASSWORD = "listener", "correct horse battery"
 
 
 # --- Password hashing ------------------------------------------------------------------
@@ -50,7 +50,7 @@ def test_setup_then_check(tmp_path):
     accounts.create(USER, PASSWORD)
     assert not accounts.setup_required
     assert accounts.check(USER, PASSWORD).username == USER
-    assert accounts.check("GAVIN", PASSWORD) is not None  # username isn't case-sensitive
+    assert accounts.check("LISTENER", PASSWORD) is not None  # username isn't case-sensitive
     assert accounts.check(USER, "nope nope nope") is None
     assert accounts.check("someone", PASSWORD) is None
 

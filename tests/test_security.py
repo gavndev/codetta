@@ -27,7 +27,7 @@ def make_client(music, tmp_path, **kw):
 @pytest.fixture
 def client(music, tmp_path):
     with make_client(music, tmp_path) as c:
-        c.post("/api/auth/setup", json={"username": "gavin", "password": "correct horse 1"})
+        c.post("/api/auth/setup", json={"username": "listener", "password": "correct horse 1"})
         yield c
 
 
@@ -170,10 +170,10 @@ def test_old_weak_hash_upgrades_on_sign_in(music, tmp_path):
     assert needs_rehash(old_hash)
     store = AccountStore(tmp_path / "config" / "auth.json")
     (tmp_path / "config").mkdir()
-    store._save(type("A", (), {"username": "gavin", "password_hash": old_hash})())
+    store._save(type("A", (), {"username": "listener", "password_hash": old_hash})())
 
     with make_client(music, tmp_path) as c:
-        assert c.post("/api/auth/login", json={"username": "gavin", "password": "correct horse 1"}).status_code == 200
+        assert c.post("/api/auth/login", json={"username": "listener", "password": "correct horse 1"}).status_code == 200
     upgraded = AccountStore(tmp_path / "config" / "auth.json").get().password_hash
     assert upgraded != old_hash and not needs_rehash(upgraded)
 
@@ -283,7 +283,7 @@ def test_busy_sign_in_answers_503(client, monkeypatch):
     client.cookies.clear()
     held = [auth._hash_slots.acquire() for _ in range(auth.MAX_CONCURRENT_HASHES)]
     try:
-        res = client.post("/api/auth/login", json={"username": "gavin", "password": "correct horse 1"})
+        res = client.post("/api/auth/login", json={"username": "listener", "password": "correct horse 1"})
         assert res.status_code == 503 and res.headers["retry-after"]
     finally:
         for _ in held:

@@ -43,13 +43,18 @@ def is_newer(candidate: str | None, current: str | None) -> bool:
     return a + (0,) * (width - len(a)) > b + (0,) * (width - len(b))
 
 
+_REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+
+
 def fetch_latest_release(repo: str) -> dict:
     """Latest published (non-draft, non-prerelease) GitHub release."""
+    if not _REPO_RE.match(repo):
+        raise ValueError(f"Not a GitHub owner/repo: {repo!r}")
     req = urllib.request.Request(
         f"https://api.github.com/repos/{repo}/releases/latest",
         headers={"Accept": "application/vnd.github+json", "User-Agent": "Codetta-update-check"},
     )
-    with urllib.request.urlopen(req, timeout=5) as res:
+    with urllib.request.urlopen(req, timeout=5) as res:  # nosec B310: fixed https://api.github.com URL
         return json.loads(res.read().decode("utf-8"))
 
 

@@ -117,7 +117,7 @@ def read_picture(audio, format_name: str) -> Artwork | None:
         for encoded in (audio.tags or {}).get("metadata_block_picture", []):
             try:
                 pic = Picture(base64.b64decode(encoded))
-            except Exception:  # noqa: BLE001 - a damaged picture block is skipped, not fatal
+            except Exception:  # noqa: BLE001  # nosec B112 - a damaged picture block is skipped, not fatal
                 continue
             candidates.append((pic.type, pic.data, pic.mime))
 

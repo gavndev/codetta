@@ -20,13 +20,13 @@ def test_detect_image_type(data, mime):
 
 def test_store_save_replace_delete(tmp_path):
     store = AvatarStore(tmp_path / "avatars")
-    assert store.get("gavin") is None and store.version("gavin") is None
-    store.save("gavin", JPEG)
-    assert store.get("gavin") == (JPEG, "image/jpeg")
-    store.save("Gavin", WEBP)  # usernames aren't case-sensitive
-    assert store.get("gavin") == (WEBP, "image/webp")
+    assert store.get("listener") is None and store.version("listener") is None
+    store.save("listener", JPEG)
+    assert store.get("listener") == (JPEG, "image/jpeg")
+    store.save("Listener", WEBP)  # usernames aren't case-sensitive
+    assert store.get("listener") == (WEBP, "image/webp")
     assert len(list((tmp_path / "avatars").iterdir())) == 1  # old JPEG replaced, not left behind
-    assert store.delete("gavin") and store.get("gavin") is None
+    assert store.delete("listener") and store.get("listener") is None
 
 
 @pytest.mark.parametrize("name", ["ガビン", "गेविन", "🎧 dj"])
@@ -39,14 +39,14 @@ def test_store_any_username(tmp_path, name):
 @pytest.mark.parametrize("data", [b"", b"GIF89a....", b"\xff\xd8\xff" + b"\x00" * (3 * 1024 * 1024)])
 def test_store_rejects_bad_uploads(tmp_path, data):
     with pytest.raises(AvatarError):
-        AvatarStore(tmp_path).save("gavin", data)
+        AvatarStore(tmp_path).save("listener", data)
 
 
 @pytest.fixture
 def client(tmp_path):
     (tmp_path / "music").mkdir()
     with TestClient(create_app(Settings(music_dir=tmp_path / "music", config_dir=tmp_path / "config"))) as c:
-        c.post("/api/auth/setup", json={"username": "gavin", "password": "correct horse 1"})
+        c.post("/api/auth/setup", json={"username": "listener", "password": "correct horse 1"})
         yield c
 
 

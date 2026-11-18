@@ -13,6 +13,9 @@ Settings (environment variables):
                      that already handles it (default: on)
     CODETTA_UPDATE_CHECK  "off" stops the twice-daily check for new releases on GitHub
     CODETTA_UPDATE_REPO   where to look for releases (default: gavndev/codetta)
+    CODETTA_ALLOW_PUBLIC_SETUP  "on" lets the first-run setup screen be used from a
+                          public (internet) address; by default only home networks,
+                          Tailscale and this machine can create the account
     CODETTA_ALLOWED_HOSTS optional comma-separated host names Codetta answers to
                           (e.g. "music-server,192.168.1.50"); blocks DNS rebinding
 """
@@ -94,6 +97,7 @@ class Settings:
     update_check: bool = False  # on by default via from_env; off for tests/embedding
     update_repo: str = DEFAULT_REPO
     allowed_hosts: tuple[str, ...] = ()  # empty = answer to any host name
+    allow_public_setup: bool = False  # first-run setup only from private addresses
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -106,6 +110,7 @@ class Settings:
             update_check=env("UPDATE_CHECK", "on").strip().lower() not in ("off", "false", "0", "no"),
             update_repo=env("UPDATE_REPO", DEFAULT_REPO),
             allowed_hosts=tuple(h.strip() for h in (env("ALLOWED_HOSTS") or "").split(",") if h.strip()),
+            allow_public_setup=(env("ALLOW_PUBLIC_SETUP") or "").strip().lower() in ("on", "true", "1", "yes"),
         )
 
 
@@ -165,8 +170,16 @@ class BrowseOut(BaseModel):
     tracks: list[TrackOut]
 
 
+MAX_PATHS_PER_REQUEST = 1000  # the UI sends bigger jobs in batches
+
+
+def _unique(paths: list[str]) -> list[str]:
+    """Drop repeated paths (keeping order), so a file is never processed twice."""
+    return list(dict.fromkeys(paths))
+
+
 class UpdateIn(BaseModel):
-    paths: list[str] = Field(min_length=1)
+    paths: list[str] = Field(min_length=1, max_length=MAX_PATHS_PER_REQUEST)
     # Tag name -> new value(s). null, "" or [] removes the tag.
     changes: dict[str, TagValueIn]
 
@@ -195,7 +208,7 @@ class LoadoutIn(BaseModel):
 
 class ApplyIn(BaseModel):
     name: str
-    paths: list[str] = []  # apply to these files...
+    paths: list[str] = Field(default=[], max_length=MAX_PATHS_PER_REQUEST)  # apply to these files...
     folder: str | None = None  # ...or to every audio file in this folder
     recursive: bool = False
     mode: Literal["fill", "overwrite"] = "fill"
@@ -320,6 +333,11 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             raise HTTPException(400, "Sign-in is turned off")
         if not accounts.setup_required:
             raise HTTPException(409, "Codetta is already set up. Sign in instead.")
+        if not settings.allow_public_setup and _is_public_address(client_key(request)):
+            # Someone on the internet must never be able to claim a fresh install.
+            log.warning("Refused first-run setup from public address %s", client_key(request))
+            raise HTTPException(403, "For safety, set up Codetta from your home network or Tailscale "
+                                     "(or set CODETTA_ALLOW_PUBLIC_SETUP=on).")
         try:
             account = accounts.create(body.username, body.password)
         except BusyError as exc:
@@ -541,7 +559,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         require_library()
         results = []
         before: dict[str, dict[str, list[str]]] = {}  # for the activity log
-        for rel in body.paths:
+        for rel in _unique(body.paths):
             try:
                 target = library.resolve(rel)
                 before[rel] = engine.load_metadata(target).tags
@@ -585,14 +603,18 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     async def set_art(request: Request, path: list[str] = Query(..., description="One or more files")):
         """Embed the request body (a JPEG or PNG image) as album art in each file."""
         require_library()
+        if len(path) > MAX_PATHS_PER_REQUEST:
+            raise HTTPException(422, f"Too many files in one request (max {MAX_PATHS_PER_REQUEST})")
         image = await request.body()  # size already capped by GuardMiddleware
-        return await run_in_threadpool(_change_art, path, image)
+        return await run_in_threadpool(_change_art, _unique(path), image)
 
     @app.delete("/api/art", response_model=list[UpdateResult])
     def delete_art(path: list[str] = Query(..., description="One or more files")):
         """Remove all embedded pictures from each file."""
         require_library()
-        return _change_art(path, None)
+        if len(path) > MAX_PATHS_PER_REQUEST:
+            raise HTTPException(422, f"Too many files in one request (max {MAX_PATHS_PER_REQUEST})")
+        return _change_art(_unique(path), None)
 
     def _change_art(paths: list[str], image: bytes | None) -> list[UpdateResult]:
         results, had_art = [], 0
@@ -709,7 +731,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
                 dry_run=body.dry_run,
             )
         elif body.paths:
-            paths = [library.resolve(p) for p in body.paths]
+            paths = [library.resolve(p) for p in _unique(body.paths)]
             results = apply_loadout(engine, loadout, paths, mode=body.mode, dry_run=body.dry_run)
         else:
             raise HTTPException(400, "Choose some files or a folder to apply the loadout to")
@@ -734,6 +756,20 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     # Added last so it wraps everything, including the sign-in check's 401s.
     app.add_middleware(GuardMiddleware, allowed_hosts=set(settings.allowed_hosts))
     return app
+
+
+def _is_public_address(host: str) -> bool:
+    """True for internet addresses. Home networks, Tailscale (100.64.0.0/10 and
+    fd7a:115c:a1e0::/48), loopback and link-local are not public."""
+    import ipaddress
+
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return False  # e.g. "testclient" or a Unix socket: not an internet peer
+    if ip.version == 6 and ip.ipv4_mapped:
+        ip = ip.ipv4_mapped
+    return ip.is_global
 
 
 def _to_track_out(rel: str, meta: TrackMetadata, mtime: int | None = None) -> TrackOut:

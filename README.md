@@ -196,6 +196,7 @@ All optional. Set them under `environment:` in your
 | `CODETTA_USERNAME` + `CODETTA_PASSWORD` | – | Create the account from here instead of the setup screen. The password can then only be changed here. |
 | `CODETTA_AUTH` | `on` | Set to `off` to disable sign-in. **Only** do this if a reverse proxy in front of Codetta already requires a login. |
 | `CODETTA_UPDATE_CHECK` | `on` | Twice a day, Codetta asks GitHub whether a newer release exists, and shows a dot on the account icon if so. Only the request itself is sent (no information about you or your library). Set to `off` to disable. |
+| `CODETTA_ALLOW_PUBLIC_SETUP` | `off` | The first-run setup screen only works from home networks, Tailscale and the server itself, so nobody on the internet can claim a fresh install. Set to `on` only if you must set up over the internet. |
 | `CODETTA_ALLOWED_HOSTS` | – | Optional comma-separated host names Codetta answers to (e.g. `music-server,192.168.1.50`). Requests for any other name are refused, which blocks DNS-rebinding attacks. Recommended if Codetta is reachable from more than your own devices. |
 | `FORWARDED_ALLOW_IPS` | `127.0.0.1` | If you use a reverse proxy, set this to its IP so login lockouts see each visitor's real address. |
 
@@ -254,10 +255,13 @@ address:
 ## Security
 
 - Every page and API call requires signing in, except the sign-in screen itself and a health check.
+- A fresh install can only be set up from your home network, Tailscale or the server itself, never from the internet.
 - Passwords are hashed with scrypt; sessions are random tokens stored only as hashes; repeated wrong passwords are locked out.
 - Changes must come from Codetta's own page (cross-site requests are refused), request sizes are capped, and every response carries a strict Content Security Policy.
 - Album art from your files is only ever shown as an image, so a malicious file can't run code in your browser.
 - The container runs as your user, with a read-only system filesystem and no extra privileges.
+- Codetta only touches files inside the music folder. Symlinks *you* put in that folder (e.g. to music on another disk) are followed; nothing in Codetta can create links, upload new files or delete tracks.
+- Requests are bounded: at most 1,000 files and 100,000 characters per tag value per request, and the same file listed twice is only edited once.
 
 Found a security problem? Please report it privately rather than in a public issue.
 

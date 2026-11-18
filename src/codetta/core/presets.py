@@ -343,7 +343,7 @@ def slugify(name: str) -> str:
         return slug
     if not name.strip():
         return ""
-    return "loadout-" + hashlib.sha1(name.strip().encode("utf-8")).hexdigest()[:10]
+    return "loadout-" + hashlib.sha256(name.strip().encode("utf-8")).hexdigest()[:10]
 
 
 def filename_to_title(stem: str) -> str:

@@ -35,9 +35,9 @@ def settings(music, tmp_path):
 
 def signed_in(c):
     if c.get("/api/auth/status").json()["setup_required"]:
-        c.post("/api/auth/setup", json={"username": "gavin", "password": "correct horse 1"})
+        c.post("/api/auth/setup", json={"username": "listener", "password": "correct horse 1"})
     else:
-        c.post("/api/auth/login", json={"username": "gavin", "password": "correct horse 1"})
+        c.post("/api/auth/login", json={"username": "listener", "password": "correct horse 1"})
     return c
 
 
