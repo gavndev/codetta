@@ -103,8 +103,8 @@ covers straight from your photo library (HEIC included).
 
 ## Match albums on MusicBrainz
 
-Turn on the MusicBrainz connection, open an album folder and press **Match on
-MusicBrainz…**. Codetta lists the editions that fit (year, country, format,
+Turn on the MusicBrainz connection, open an album folder and press **Find in
+MusicBrainz**. Codetta lists the editions that fit (year, country, format,
 label, catalog number, track count and a match score). Already-tagged albums
 offer their own release first, and you can paste any musicbrainz.org release
 link instead of searching.
@@ -126,7 +126,7 @@ whole match is one undoable entry in the activity log. Tags are stored the way
 MusicBrainz Picard writes them.
 
 **Untagged or mystery files?** Turn on the AcoustID connection and press
-**Identify** in the match dialog. Codetta fingerprints each track on your server
+**Listen** in the match dialog. Codetta fingerprints each track on your server
 (only that short code and the length go to [AcoustID](https://acoustid.org)),
 finds the releases holding most of them, and pairs every file with its exact
 recording, whatever its name or track number says.

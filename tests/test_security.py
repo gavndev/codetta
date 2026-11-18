@@ -379,3 +379,10 @@ def test_fpcalc_only_ever_gets_a_resolved_library_path(music, tmp_path):
         c.post("/api/musicbrainz/identify", json={"paths": ["song.flac"]})
     assert len(argvs) == 1
     assert argvs[0][-1] == str((music / "song.flac").resolve()) and argvs[0][-1].startswith("/")
+
+
+@pytest.mark.parametrize("name", ["codetta.png", "codetta-light.svg", "codetta-dark.webp"])
+def test_dashboard_icons_load_without_sign_in(client, name):
+    """Dashboards (Homepage, Homarr...) fetch the icon without a session."""
+    client.cookies.clear()
+    assert client.get(f"/static/icons/{name}").status_code == 200

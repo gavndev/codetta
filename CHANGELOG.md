@@ -2,14 +2,16 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
-## Unreleased (0.4.0)
+## 0.4.0 (2026-11-18)
 
 - **Offline unless you opt in.** Online features are now *connections*, all off until you choose. After creating your account (or on first start after upgrading) a welcome card asks: stay offline, or turn on online features, with a switch for each one saying exactly what it sends and where. Change them any time in **Account → Connections**. `CODETTA_MUSICBRAINZ`, `CODETTA_LYRICS_LOOKUP` and `CODETTA_UPDATE_CHECK` (`on`/`off`) lock a switch from your compose file; `CODETTA_OFFLINE=on` blocks them all.
 - **Changed:** Find lyrics and the update check used to be on by default. They're now off until you turn them on (the welcome card offers this once).
 - **Match on MusicBrainz:** find the release for an album folder (or selected tracks) by its tags or a pasted musicbrainz.org link, compare editions (year, country, format, label, catalog number, track count, match score), then review a per-file preview before writing. Files are paired with tracks by disc/track number, then title and length, and any pairing can be changed. Choose the fields (titles, credits from recording and work relationships, release details, sort names, MusicBrainz IDs and ISRCs, genres), replace or only fill empty tags, and add cover art from the Cover Art Archive. One activity entry, undoable as a whole (tags and cover together). Respects MusicBrainz's one-request-a-second limit; `CODETTA_MUSICBRAINZ_URL` points it at your own mirror.
-- **Identify by sound (AcoustID):** a new connection that recognises tracks by their audio, even untagged ones. In the match dialog, **Identify** fingerprints each file on your server with Chromaprint's `fpcalc` and sends only those codes and track lengths to AcoustID. Releases holding most of your tracks are offered first ("9 of your 10 tracks are on it"), and files pair with their exact recordings. The Docker image now includes Chromaprint's official static `fpcalc` (a few MB, checksum-verified). `CODETTA_ACOUSTID`, `CODETTA_ACOUSTID_KEY`, `CODETTA_FPCALC`.
+- **Identify by sound (AcoustID):** a new connection that recognises tracks by their audio, even untagged ones. In the match dialog, **Listen** fingerprints each file on your server with Chromaprint's `fpcalc` and sends only those codes and track lengths to AcoustID. Releases holding most of your tracks are offered first ("9 of your 10 tracks are on it"), and files pair with their exact recordings. The Docker image now includes Chromaprint's official static `fpcalc` (about 9 MB, checksum-verified). `CODETTA_ACOUSTID`, `CODETTA_ACOUSTID_KEY`, `CODETTA_FPCALC`.
 - MusicBrainz IDs (release, release group, recording, release track, artist, album artist, work) and `script` are stored the way Picard writes them in every format, including M4A and WMA.
 - **Find in MusicBrainz** button on album pages, beside the genre (phones: "Find", first in the action row), with a MusicBrainz-coloured edge that shifts and glows on hover.
+- **Dashboard icons:** the Codetta icon in full colour, light (for dark dashboards) and dark (for light dashboards), as SVG, PNG and WebP, served at `/static/icons/` so Homepage, Homarr or Dashy can point straight at them.
+- Account → Connections opens and closes (the closed row says what's on), and the sound lookup button reads **Listen** → **Listening…** while it works.
 - With sign-in turned off, the account button now opens Settings, so connections and Advanced mode stay reachable.
 
 ## 0.3.1 (2026-11-18)

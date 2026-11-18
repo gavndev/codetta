@@ -2292,8 +2292,21 @@ async function submitWelcome(e) {
   }
 }
 
+const connOpenPref = () => { try { return localStorage.getItem("codetta-connections-open") === "1"; } catch { return false; } };
+
+/** Open or close the Connections section (remembered per browser). */
+function setConnectionsOpen(open) {
+  $("#conn-toggle").setAttribute("aria-expanded", String(open));
+  $("#conn-body").hidden = !open;
+  $(".connections").classList.toggle("open", open);
+  try { localStorage.setItem("codetta-connections-open", open ? "1" : "0"); } catch { /* private mode */ }
+}
+
 function renderConnections() {
   const conn = state.connections;
+  const on = conn ? conn.connections.filter((c) => c.enabled).map((c) => c.name.split(":")[0]) : [];
+  $("#conn-summary").textContent = !conn ? "" : on.length ? `On: ${on.join(", ")}` : "Offline: nothing is sent anywhere";
+  setConnectionsOpen(connOpenPref());
   const intro = $("#conn-intro");
   if (!conn) {
     intro.textContent = "Couldn't load the connection settings.";
@@ -2307,6 +2320,8 @@ function renderConnections() {
     input.disabled = true;
     try {
       state.connections = await api("PUT", "/api/connections", { enabled: { [item.id]: input.checked } });
+      const names = state.connections.connections.filter((c) => c.enabled).map((c) => c.name.split(":")[0]);
+      $("#conn-summary").textContent = names.length ? `On: ${names.join(", ")}` : "Offline: nothing is sent anywhere";
       applyConnections();
       if (item.id === "updates") refreshUpdate();
     } catch (err) {
@@ -2468,7 +2483,8 @@ function renderMbSearch() {
       h("span", {}, sound
         ? `Recognised ${sound.identified} of ${plural(sound.total, "track")}.${unknown.length ? ` Not recognised: ${unknown.slice(0, 3).map((f) => relativeToFolder(f.path)).join(", ")}${unknown.length > 3 ? ` +${unknown.length - 3} more` : ""}.` : ""}`
         : "Works even on untagged files. Codetta fingerprints each track here and sends only that code to AcoustID.")),
-    h("button", { class: "btn", type: "button", disabled: !!mb.busy, onclick: mbIdentify }, sound ? "Listen again" : "Identify")) : null;
+    h("button", { class: "btn", type: "button", disabled: !!mb.busy, "aria-busy": String(mb.busy === "sound"), onclick: mbIdentify },
+      mb.busy === "sound" ? "Listening…" : sound ? "Listen again" : "Listen")) : null;
   setKids(body,
     h("p", { class: "mb-lead" }, `Find the release for ${mb.target.label}. Pick the exact edition (year, country, format), then review every change before it's written.`),
     soundBox,
@@ -3121,6 +3137,7 @@ async function boot() {
   bindEvents();
   $("#auth-form").addEventListener("submit", submitAuth);
   $("#welcome-form").addEventListener("submit", submitWelcome);
+  $("#conn-toggle").addEventListener("click", () => setConnectionsOpen($("#conn-body").hidden));
   for (const r of document.querySelectorAll('input[name="welcome-mode"]')) r.addEventListener("change", welcomeModeChanged);
   $("#account-btn").addEventListener("click", openAccount);
   $("#password-form").addEventListener("submit", changePassword);

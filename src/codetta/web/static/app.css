@@ -1757,3 +1757,13 @@ dialog.sheet.wide { width: min(760px, calc(100vw - 32px)); }
   .mb-find-long { display: none; }
   .mb-find-short { display: inline; }
 }
+
+/* Connections: a section you can open and close */
+.conn-toggle {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; min-height: 44px;
+  padding: 6px 0; border: 0; background: none; text-align: left; cursor: pointer; color: inherit;
+}
+.conn-toggle svg { color: var(--faint); transition: transform var(--dur) var(--ease-out); }
+.connections.open .conn-toggle svg { transform: rotate(90deg); }
+.connections { padding-bottom: 4px; }
+#conn-body { padding-top: 4px; animation: fade-in var(--dur) ease; }

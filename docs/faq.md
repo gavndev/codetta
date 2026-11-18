@@ -23,8 +23,8 @@ whether to stay offline or turn on online features ("connections"):
 any time in **Account → Connections**, or lock them with environment variables;
 `CODETTA_OFFLINE=on` blocks them all (see [Configuration](configuration.md)).
 
-**How does Match on MusicBrainz work?**
-Open an album folder and press **Match on MusicBrainz…**. Codetta searches with
+**How does Find in MusicBrainz work?**
+Open an album folder and press **Find in MusicBrainz**. Codetta searches with
 the album and artist already in your tags (or paste a release link from
 musicbrainz.org) and lists the editions it finds, best fit first: year,
 country, format, label and track count, with a match score. Pick one, and
@@ -37,13 +37,33 @@ other players pick up the MusicBrainz IDs.
 
 **Can it recognise untagged files by how they sound?**
 Yes, with the **AcoustID** connection turned on (alongside MusicBrainz). In
-**Match on MusicBrainz…**, press **Identify**: Codetta makes a fingerprint of
+**Find in MusicBrainz**, press **Listen**: Codetta makes a fingerprint of
 each track on your server (a short code describing the sound, never the audio
 itself) and asks AcoustID which recordings they are. Releases holding most of
 your tracks come first, and each file is paired with its exact recording, so
 wrong track numbers and missing titles don't matter. Tracks AcoustID doesn't
 know are listed, and fall back to pairing by title and length. AcoustID is
 free for non-commercial use.
+
+**How do I add Codetta to my dashboard (Homepage, Homarr, Dashy…)?**
+Codetta serves its icon in three versions, without needing sign-in, so any
+dashboard can load it straight from your server:
+
+| Icon | Use it on | Address |
+|---|---|---|
+| Full colour (teal square) | Any background | `http://your-server:8111/static/icons/codetta.png` |
+| Light ("c." in white) | Dark dashboards | `http://your-server:8111/static/icons/codetta-light.png` |
+| Dark ("c." in ink) | Light dashboards | `http://your-server:8111/static/icons/codetta-dark.png` |
+
+Each also comes as `.svg` and `.webp`. They're in the repository under
+`src/codetta/web/static/icons/` too. For example, in Homepage:
+
+```yaml
+- Codetta:
+    icon: http://music-server:8111/static/icons/codetta.png
+    href: http://music-server:8111
+    description: Music tags
+```
 
 **Can several people use it?**
 There's one account per Codetta instance for now. You can stay signed in on as

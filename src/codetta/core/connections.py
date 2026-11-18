@@ -45,7 +45,7 @@ CONNECTIONS: tuple[Connection, ...] = (
         "Recognise tracks by how they sound, even untagged ones, to find the right MusicBrainz "
         "release. Works together with MusicBrainz.",
         "A fingerprint of each track's sound (a short code, never the audio itself) and its length, "
-        "when you press Identify by sound.",
+        "when you press Listen.",
         ("api.acoustid.org",), "ACOUSTID",
     ),
     Connection(

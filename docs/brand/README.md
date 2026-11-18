@@ -12,6 +12,13 @@ album taken from its cover.
 | `logo-dark.svg` | Dark backgrounds |
 | `mark.svg` / `app-icon.svg` | Favicon and app icon: the spot square with a knocked-out lowercase c |
 | `social-preview.png` | GitHub social preview / link cards (1280 × 640) |
+| `../../src/codetta/web/static/icons/codetta.{svg,png,webp}` | Dashboards: the full-colour app icon, on any background |
+| `…/icons/codetta-light.*` | Dashboards with dark backgrounds: "c." in booklet white with the dark-mode spot |
+| `…/icons/codetta-dark.*` | Dashboards with light backgrounds: "c." in ink with the house spot |
+
+The dashboard icons follow the naming dashboard-icon collections use (`name`,
+`name-light`, `name-dark`) and are served by Codetta at `/static/icons/` without
+sign-in, so a dashboard can point straight at them. PNG and WebP are 512 × 512.
 
 **The wordmark** is "codetta" in Schibsted Grotesk at weight 800, tracked
 tight (−3.5%), followed by a small square "full stop" sized from the x-height.
