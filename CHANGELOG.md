@@ -2,6 +2,10 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.6.1 (2026-11-18)
+
+- **Fixed:** on phones, the notifications panel and pop-ups ran off the left edge of the screen (the bell moved in from the edge with 0.6.0's new top bar). They now always stay on screen, and are a little more compact on phones.
+
 ## 0.6.0 (2026-11-18)
 
 - **Soulseek through slskd** (Level Up #3): a new connection for people who run [slskd](https://github.com/slskd/slskd). Type `!slskd` in the search bar and it becomes a **slskd** chip: what you type next is searched on Soulseek (`*` works as a wildcard for filtered names, like `*-Pain`). Or press **Find in slskd** on an album to fill the search bar with its artist and album, ready to edit. Codetta picks the best copy (lossless first by default, then free upload slots, queue and speed), downloads it into your inbox, moves on to the next copy if one fails or stalls, and asks before it joins your library: **Import**, **Blocklist & try next**, or **Choose another**. A download from an album's button replaces that album (the old copy is kept so Activity can undo it). Turn off *Review each download* to let exact MusicBrainz matches file themselves. Set it up in the new setup step or **Account → Connections**; Codetta warns you if slskd isn't sharing a folder, since Soulseek users often refuse people who share nothing. `CODETTA_SLSKD`, `CODETTA_SLSKD_URL`, `CODETTA_SLSKD_API_KEY`.

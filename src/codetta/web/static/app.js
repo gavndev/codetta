@@ -3712,7 +3712,11 @@ function runNotifAction(n) {
 /** Position the panel and pop-ups under the bell, their corner pointing at it. */
 function placeUnderBell(el) {
   const r = $("#notif-btn").getBoundingClientRect();
-  const right = Math.max(12, window.innerWidth - r.right - 8);
+  // Line its right edge up with the bell, but never past the screen's left edge
+  // (on phones the bell sits in from the edge, so the panel slides right).
+  const gutter = 12;
+  const width = Math.min(isPhone() ? 360 : 380, window.innerWidth - 2 * gutter); // as in app.css
+  const right = Math.max(gutter, Math.min(window.innerWidth - r.right - 8, window.innerWidth - width - gutter));
   el.style.top = `${r.bottom + 8}px`;
   el.style.right = `${right}px`;
   el.style.setProperty("--origin-x", `${Math.max(16, window.innerWidth - right - (r.left + r.width / 2))}px`);

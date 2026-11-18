@@ -2144,3 +2144,19 @@ body:has(.now-playing:not([hidden])) .browser { padding-bottom: 120px; }
 .dl-progress { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; max-width: 360px; }
 .dl-progress .sk-progress { margin: 0; max-width: none; }
 .dl-progress-text { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* Notifications on phones: within the screen (12px from each edge), a little more compact. */
+@media (max-width: 760px) {
+  .notif-panel, .notif-pops { width: min(360px, calc(100vw - 24px)); }
+  .notif-panel { padding: 4px; border-radius: 14px; max-height: min(460px, calc(100dvh - 140px)); }
+  .notif-head { padding: 6px 8px 4px; }
+  .notif-head strong { font-size: 14px; }
+  .notif-tools .link-btn { min-height: 36px; }
+  .notif-item, .notif-pop { grid-template-columns: 26px minmax(0, 1fr); gap: 9px; padding: 8px; border-radius: 10px; }
+  .notif-pop { border-radius: 14px; }
+  .notif-icon { width: 26px; height: 26px; }
+  .notif-icon svg { width: 14px; height: 14px; }
+  .notif-text { font-size: 12.5px; gap: 1px; }
+  .notif-text strong { font-size: 13.5px; }
+  .notif-text time { font-size: 10.5px; }
+}
