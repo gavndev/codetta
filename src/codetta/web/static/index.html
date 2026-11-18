@@ -12,7 +12,7 @@
   <link rel="icon" href="/static/icon.svg?v=3" type="image/svg+xml"> <!-- bump ?v= when the icon changes: browsers cache favicons hard -->
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=3">
   <link rel="preload" href="/static/fonts/schibsted-grotesk.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/static/app.css?v=50">
+  <link rel="stylesheet" href="/static/app.css?v=51">
   <script src="/static/theme.js?v=1"></script>
 </head>
 <body>
@@ -97,6 +97,10 @@
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12M4 10h12M4 14h12"/><circle cx="7" cy="6" r="1.6"/><circle cx="13" cy="10" r="1.6"/><circle cx="9" cy="14" r="1.6"/></svg>
         </button>
         <button class="icon-btn" id="theme-btn" type="button" aria-label="Theme"></button>
+        <button class="icon-btn" id="notif-btn" type="button" aria-label="Notifications" title="Notifications" aria-expanded="false" aria-controls="notif-panel">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 13.5V9a4.5 4.5 0 0 1 9 0v4.5l1.5 2h-12z"/><path d="M8.5 17.5a1.6 1.6 0 0 0 3 0"/></svg>
+          <span class="badge-count" id="notif-count" hidden></span>
+        </button>
         <button class="icon-btn" id="account-btn" type="button" aria-label="Account" title="Account" hidden>
           <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="7" r="3.2"/><path d="M3.8 16.5a6.2 6.2 0 0 1 12.4 0"/></svg>
         </button>
@@ -359,6 +363,10 @@
     <div class="sheet-foot"><span class="spacer"></span><button class="btn primary" type="button" data-close>Got it</button></div>
   </dialog>
 
+  <!-- Notifications: the bell's panel, and pop-ups that grow out of the bell -->
+  <div class="notif-panel" id="notif-panel" role="dialog" aria-label="Notifications" hidden></div>
+  <div class="notif-pops" id="notif-pops" aria-live="polite"></div>
+
   <!-- Now playing: a pill that grows from the bottom centre while something plays (drawn by app.js) -->
   <div class="now-playing" id="now-playing" hidden></div>
 
@@ -377,6 +385,6 @@
   <datalist id="tag-keys"></datalist>
   <div class="toasts" id="toasts" aria-live="polite"></div>
 
-  <script src="/static/app.js?v=50" type="module"></script>
+  <script src="/static/app.js?v=51" type="module"></script>
 </body>
 </html>

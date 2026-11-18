@@ -122,6 +122,7 @@ const ICONS = {
   undo: '<svg viewBox="0 0 20 20"><path d="M7.5 5 4 8.5 7.5 12"/><path d="M4.5 8.5h7a4.5 4.5 0 0 1 0 9H9"/></svg>',
   spark: '<svg viewBox="0 0 20 20"><path d="M10 3.5 11.4 8.6 16.5 10l-5.1 1.4L10 16.5l-1.4-5.1L3.5 10l5.1-1.4z"/></svg>',
   // A disc (drawn for Codetta): rim, label ring, spindle hole and two shine arcs.
+  inbox: '<svg viewBox="0 0 20 20"><path d="M3.5 11.5 5.6 5a1.5 1.5 0 0 1 1.4-1h6a1.5 1.5 0 0 1 1.4 1l2.1 6.5v3A1.5 1.5 0 0 1 15 16H5a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M3.5 11.5h3.5l1 2h4l1-2h3.5"/></svg>',
   disc: '<svg class="disc-icon" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7.5"/><circle cx="10" cy="10" r="2.6"/><circle cx="10" cy="10" r=".6" fill="currentColor" stroke="none"/><path d="M5.4 8.05A5 5 0 0 1 7.97 5.43"/><path d="M14.6 11.95a5 5 0 0 1-2.57 2.62"/></svg>',
   play: '<svg viewBox="0 0 20 20"><path d="M7 5.2v9.6a.6.6 0 0 0 .9.5l7.6-4.8a.6.6 0 0 0 0-1L7.9 4.7a.6.6 0 0 0-.9.5z" fill="currentColor" stroke="none"/></svg>',
   pause: '<svg viewBox="0 0 20 20"><rect x="5.5" y="4.5" width="3" height="11" rx="1" fill="currentColor" stroke="none"/><rect x="11.5" y="4.5" width="3" height="11" rx="1" fill="currentColor" stroke="none"/></svg>',
@@ -3057,6 +3058,7 @@ function readInboxFields(root) {
 
 function afterSetup() {
   refreshInboxBadge();
+  pollNotifications();
   let seen = null;
   try { seen = localStorage.getItem("codetta-seen-version"); } catch { /* private mode */ }
   if (seen !== state.auth?.version) openNews({ latestOnly: true });
@@ -3147,6 +3149,7 @@ async function inboxAction(url, body, done) {
     folderCache.clear();
     refreshActivity();
     if (inboxState.data.running) inboxState.timer = setTimeout(loadInbox, 1500);
+    setTimeout(pollNotifications, 2000);
   } catch (err) {
     toast(err.message, "error");
   }
@@ -3232,6 +3235,117 @@ function renderInbox() {
     ready.length ? h("button", { class: "btn primary", type: "button", onclick: () => inboxAction("/api/inbox/accept-ready", {}, (res) =>
       toast(`Filed ${plural(res.filed, "album")}${res.filed < res.total ? ` (${res.total - res.filed} need a look)` : ""}`, "success")) },
       `File ${plural(ready.length, "confident match", "confident matches")}`) : h("button", { class: "btn", type: "button", "data-close": true }, "Close"));
+}
+
+// ---- Notifications: the bell -------------------------------------------------------------------------
+//
+// Background news (the inbox finished, an album filed itself, an update is out).
+// New ones pop out of the bell for a few seconds; the panel keeps the list.
+
+const notif = { lastId: null, items: [], unread: 0, timer: null };
+const notifIcon = (kind) => icon(kind === "inbox" ? "inbox" : kind === "update" ? "spark" : "check");
+
+const relTime = (secs) => {
+  const d = Math.max(0, Date.now() / 1000 - secs);
+  if (d < 60) return "just now";
+  if (d < 3600) return `${Math.floor(d / 60)} min ago`;
+  if (d < 86400) return `${Math.floor(d / 3600)} h ago`;
+  return new Date(secs * 1000).toLocaleDateString([], { day: "numeric", month: "short" });
+};
+
+async function pollNotifications() {
+  clearTimeout(notif.timer);
+  try {
+    // Pop what this browser hasn't shown yet (also what happened while you were away), at most 3.
+    if (notif.lastId === null) {
+      try { notif.lastId = Number(localStorage.getItem("codetta-notif-seen")) || 0; } catch { notif.lastId = 0; }
+    }
+    const res = await api("GET", `/api/notifications?after_id=${notif.lastId}`);
+    for (const n of res.items.filter((x) => !x.read).slice(0, 3).reverse()) popNotification(n);
+    notif.lastId = res.last_id;
+    try { localStorage.setItem("codetta-notif-seen", String(res.last_id)); } catch { /* private mode */ }
+    notif.unread = res.unread;
+    renderNotifBadge();
+    if (!$("#notif-panel").hidden) openNotifications(true);
+  } catch { /* offline or signed out: try again later */ }
+  if (!document.hidden) notif.timer = setTimeout(pollNotifications, 20000);
+}
+
+function renderNotifBadge() {
+  $("#notif-count").hidden = !notif.unread;
+  $("#notif-count").textContent = notif.unread > 99 ? "99+" : String(notif.unread);
+}
+
+function runNotifAction(n) {
+  closeNotifications();
+  const a = n.action || {};
+  if (a.open === "inbox") openInbox();
+  else if (a.open === "account") openAccount();
+  else if (a.open === "news") openNews();
+  else if (a.open === "folder" && a.path != null) navigate(a.path);
+  api("POST", "/api/notifications/read", { ids: [n.id] }).then((res) => { notif.unread = res.unread; renderNotifBadge(); }).catch(() => {});
+}
+
+/** Position the panel and pop-ups under the bell, their corner pointing at it. */
+function placeUnderBell(el) {
+  const r = $("#notif-btn").getBoundingClientRect();
+  const right = Math.max(12, window.innerWidth - r.right - 8);
+  el.style.top = `${r.bottom + 8}px`;
+  el.style.right = `${right}px`;
+  el.style.setProperty("--origin-x", `${Math.max(16, window.innerWidth - right - (r.left + r.width / 2))}px`);
+}
+
+function popNotification(n) {
+  const box = $("#notif-pops");
+  placeUnderBell(box);
+  const card = h("button", { class: `notif-pop ${n.kind}`, type: "button", onclick: () => { card.remove(); runNotifAction(n); } },
+    h("span", { class: "notif-icon" }, notifIcon(n.kind)),
+    h("span", { class: "notif-text" }, h("strong", {}, n.title), n.body ? h("span", {}, n.body) : null));
+  box.prepend(card);
+  while (box.children.length > 3) box.lastChild.remove();
+  replay($("#notif-btn"), "ring");
+  setTimeout(() => playOut(card, "notif-out", () => card.remove()), 7000);
+}
+
+function openNotifications(refreshOnly = false) {
+  const panel = $("#notif-panel");
+  if (!refreshOnly) $("#notif-pops").replaceChildren(); // the panel has them all
+  api("GET", "/api/notifications").then((res) => {
+    notif.items = res.items;
+    notif.unread = res.unread;
+    renderNotifBadge();
+    const list = res.items.length
+      ? h("ul", { class: "notif-list" }, res.items.map((n) => h("li", {},
+        h("button", { class: `notif-item${n.read ? "" : " unread"}`, type: "button", onclick: () => runNotifAction(n) },
+          h("span", { class: "notif-icon" }, notifIcon(n.kind)),
+          h("span", { class: "notif-text" }, h("strong", {}, n.title), n.body ? h("span", {}, n.body) : null,
+            h("time", {}, relTime(n.time)))))))
+      : h("p", { class: "notif-empty" }, "Nothing yet. Codetta tells you here when the inbox finishes, an album files itself, or an update is out.");
+    setKids(panel,
+      h("div", { class: "notif-head" },
+        h("strong", {}, "Notifications"),
+        res.items.length ? h("span", { class: "notif-tools" },
+          res.unread ? h("button", { class: "link-btn", type: "button", onclick: async () => {
+            const r = await api("POST", "/api/notifications/read", {}); notif.unread = r.unread; renderNotifBadge(); openNotifications(true);
+          } }, "Mark all read") : null,
+          h("button", { class: "link-btn", type: "button", onclick: async () => {
+            await api("DELETE", "/api/notifications"); notif.unread = 0; renderNotifBadge(); openNotifications(true);
+          } }, "Clear")) : null),
+      list);
+    if (!refreshOnly && panel.hidden) {
+      placeUnderBell(panel);
+      panel.hidden = false;
+      replay(panel, "notif-in");
+      $("#notif-btn").setAttribute("aria-expanded", "true");
+    }
+  }).catch((err) => toast(err.message, "error"));
+}
+
+function closeNotifications() {
+  const panel = $("#notif-panel");
+  if (panel.hidden) return;
+  $("#notif-btn").setAttribute("aria-expanded", "false");
+  playOut(panel, "notif-out", () => { panel.hidden = true; });
 }
 
 // ---- Organize: rename and move files from a pattern -------------------------------------------------
@@ -3850,6 +3964,15 @@ async function boot() {
   $("#welcome-form").addEventListener("submit", submitWelcome);
   $("#conn-toggle").addEventListener("click", () => setConnectionsOpen($("#conn-body").hidden));
   $("#inbox-btn").addEventListener("click", openInbox);
+  $("#notif-btn").addEventListener("click", (e) => {
+    e.stopPropagation();
+    if ($("#notif-panel").hidden) openNotifications(); else closeNotifications();
+  });
+  document.addEventListener("click", (e) => {
+    if (!$("#notif-panel").hidden && !e.target.closest("#notif-panel, #notif-btn")) closeNotifications();
+  });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeNotifications(); });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && appStarted) pollNotifications(); });
   document.addEventListener("click", (e) => { if (e.target.closest("[data-news]")) openNews(); });
   for (const r of document.querySelectorAll('input[name="welcome-mode"]')) r.addEventListener("change", welcomeModeChanged);
   $("#account-btn").addEventListener("click", openAccount);

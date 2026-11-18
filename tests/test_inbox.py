@@ -184,3 +184,52 @@ def test_changelog_parser(tmp_path):
     assert v[0]["version"] == "1.1.0" and v[0]["unreleased"] and v[0]["items"] == ["New thing that wraps"]
     assert v[1] == {"title": "1.0.0 (2026-01-02)", "version": "1.0.0", "date": "2026-01-02", "unreleased": False,
                     "items": ["First"], "text": []}
+
+
+# --- Notifications -----------------------------------------------------------------------------------
+
+
+def test_inbox_round_sends_one_notification(make_client):
+    c = make_client()
+    c.put("/api/inbox/settings", json={"folder": "Downloads"})
+    settle(c)
+    n = c.get("/api/notifications").json()
+    assert n["unread"] == 1 and n["items"][0]["title"] == "Inbox: 1 ready to file"
+    assert n["items"][0]["action"] == {"open": "inbox"}
+    last = n["last_id"]
+    assert c.get("/api/notifications", params={"after_id": last}).json()["items"] == []
+    assert c.post("/api/notifications/read", json={}).json()["unread"] == 0
+    assert c.delete("/api/notifications").json()["items"] == []
+
+
+def test_auto_filed_album_is_announced(make_client):
+    c = make_client()
+    c.put("/api/inbox/settings", json={"folder": "Downloads", "auto": True})
+    settle(c)
+    titles = [x["title"] for x in c.get("/api/notifications").json()["items"]]
+    assert "Filed “Fixture Album” by Coda Tester" in titles
+    filed = next(x for x in c.get("/api/notifications").json()["items"] if x["title"].startswith("Filed"))
+    assert filed["action"] == {"open": "folder", "path": "Coda Tester/Fixture Album (2024)"}
+
+
+def test_update_is_announced_once(tmp_path):
+    from codetta.core.notifications import Notifications
+
+    n = Notifications(tmp_path / "n.json")
+    assert n.add("update", "Codetta 9.9 is out", key="update:9.9")
+    assert n.add("update", "Codetta 9.9 is out", key="update:9.9") is None
+    again = Notifications(tmp_path / "n.json")  # survives a restart
+    assert again.recent()["items"][0]["title"] == "Codetta 9.9 is out"
+    assert again.add("update", "x", key="update:9.9") is None
+
+
+def test_update_check_notifies(tmp_path):
+    (tmp_path / "music").mkdir()
+    app = create_app(Settings(music_dir=tmp_path / "music", config_dir=tmp_path / "c", update_check=True),
+                     fetch_release=lambda repo: {"tag_name": "v99.0.0"})
+    with TestClient(app) as c:
+        c.post("/api/auth/setup", json={"username": "owner", "password": PASSWORD})
+        c.get("/api/update")
+        c.get("/api/update")
+        items = c.get("/api/notifications").json()["items"]
+    assert [i["title"] for i in items] == ["Codetta 99.0.0 is out"]

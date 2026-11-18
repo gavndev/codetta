@@ -66,6 +66,7 @@ from codetta.core.auth import (
 from codetta.core.engine import MetadataEngine, MetadataError, TrackMetadata
 from codetta.core.index import LibraryIndex, parse_query
 from codetta.core import changelog
+from codetta.core.notifications import Notifications
 from codetta.core.onboarding import OnboardingStore
 from codetta.core.inbox import (
     ERROR as INBOX_ERROR,
@@ -354,6 +355,10 @@ class InboxSettingsIn(BaseModel):
     watch: bool = False
 
 
+class NotificationsReadIn(BaseModel):
+    ids: list[int] | None = Field(default=None, max_length=500)  # None: all
+
+
 class InboxActionIn(BaseModel):
     key: str = Field(max_length=2000)
     release: str | None = Field(default=None, max_length=500)  # file with this release instead of the found one
@@ -414,6 +419,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     sessions = SessionStore(settings.config_dir / "sessions.json")
     limiter = LoginRateLimiter()
     user_agent = f"Codetta/{VERSION} (https://github.com/gavndev/codetta)"
+    notices = Notifications(settings.config_dir / "notifications.json")
     lrclib = LRCLib(fetch_json or (lambda url: http_get_json(url, user_agent)))
     mb_mirror = settings.musicbrainz_url.rstrip("/") if settings.musicbrainz_url else None
     if mb_mirror and not mb_mirror.endswith("/ws/2"):
@@ -713,7 +719,29 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     @app.get("/api/update")
     def update_status(force: bool = Query(False, description="Check GitHub now instead of using the cached answer")) -> dict:
         """Installed version and, if enabled, the latest release on GitHub."""
-        return updates.status(force=force)
+        result = updates.status(force=force)
+        if result.get("update_available") and result.get("latest"):
+            notices.add("update", f"Codetta {result['latest']} is out",
+                      "See what's new and how to update in Account.", {"open": "account"},
+                      key=f"update:{result['latest']}")
+        return result
+
+    # --- Notifications -------------------------------------------------------------------
+
+    @app.get("/api/notifications")
+    def get_notifications(after_id: int = Query(0, ge=0)) -> dict:
+        """Newest first. ``after_id`` returns only newer ones (for the bell's pop-ups)."""
+        return notices.recent(after_id)
+
+    @app.post("/api/notifications/read")
+    def read_notifications(body: NotificationsReadIn) -> dict:
+        notices.mark_read(body.ids)
+        return notices.recent()
+
+    @app.delete("/api/notifications")
+    def clear_notifications() -> dict:
+        notices.clear()
+        return notices.recent()
 
     @app.get("/api/status")
     def status() -> dict:
@@ -1421,11 +1449,11 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
                          release=best, score=best["score"], recordings=recordings,
                          note="" if exact else "Check the match: not every track lines up for certain.")
             if exact and inbox.settings.auto:
-                inbox_file(key)
+                inbox_file(key, automatic=True)
         except HTTPException as exc:
             inbox.update(key, status=INBOX_ERROR, title=title, artist=artist, note=str(exc.detail))
 
-    def inbox_file(key: str, release: str | None = None, recordings: dict | None = None) -> dict:
+    def inbox_file(key: str, release: str | None = None, recordings: dict | None = None, automatic: bool = False) -> dict:
         g = inbox.groups.get(key)
         if g is None:
             raise HTTPException(404, "That album is no longer in the inbox")
@@ -1444,22 +1472,49 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             if stuck:
                 notes.append(f"{stuck} file(s) couldn't move: a file with that name is already in your library (a duplicate?)")
         status = FILED if not notes else INBOX_ERROR
+        if automatic:
+            name = " by ".join(x for x in (f"“{g.title}”" if g.title else g.key.rsplit("/", 1)[-1], g.artist) if x)
+            if status == FILED:
+                notices.add("inbox", f"Filed {name}", f"Matched on MusicBrainz and moved to {moved_to or 'your library'}.",
+                            {"open": "folder", "path": moved_to} if moved_to else {"open": "inbox"})
+            else:
+                notices.add("inbox", f"Couldn't file {name}", "; ".join(notes), {"open": "inbox"})
         inbox.update(key, status=status, dest=moved_to or "",
                      note="; ".join(notes) or (f"Filed in {moved_to}" if moved_to else "Tagged"),
                      release=g.release if not release or (g.release or {}).get("id") == release else {"id": release})
         return {"status": status, "moved_to": moved_to, "note": "; ".join(notes)}
 
     def inbox_run() -> None:
+        done: list[str] = []
         while True:
             with inbox.lock:
                 nxt = next((g.key for g in inbox.groups.values() if g.status == WAITING), None)
             if nxt is None:
+                inbox_summary(done)
                 return
+            done.append(nxt)
             try:
                 inbox_match(nxt)
             except Exception as exc:  # never let one album stop the queue
                 log.warning("Inbox: couldn't look up %s: %s", nxt, exc)
                 inbox.update(nxt, status=INBOX_ERROR, note="Something went wrong looking this up")
+
+    def inbox_summary(keys: list[str]) -> None:
+        """One notification when a round of lookups ends (auto-filed albums have their own)."""
+        groups = [g for k in keys if (g := inbox.groups.get(k))]
+        ready = [g for g in groups if g.status in (READY, LOCAL)]
+        look = [g for g in groups if g.status in (REVIEW, NO_MATCH, INBOX_ERROR)]
+        if not ready and not look:
+            return
+        parts = []
+        if ready:
+            parts.append(f"{len(ready)} ready to file")
+        if look:
+            parts.append(f"{len(look)} need{'s' if len(look) == 1 else ''} a look")
+        names = ", ".join(g.title or g.key.rsplit("/", 1)[-1] for g in (ready + look)[:3])
+        more = len(ready) + len(look) - 3
+        notices.add("inbox", f"Inbox: {' · '.join(parts)}", names + (f" and {more} more" if more > 0 else ""),
+                    {"open": "inbox"})
 
     def inbox_start() -> None:
         t = inbox_worker["thread"]
