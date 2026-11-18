@@ -27,6 +27,7 @@
 <p align="center">
   <a href="#quick-start">Quick start</a> ·
   <a href="#what-it-does">What it does</a> ·
+  <a href="#how-codetta-compares">Compare</a> ·
   <a href="#installing">Installing</a> ·
   <a href="#settings">Settings</a> ·
   <a href="#faq">FAQ</a> ·
@@ -177,6 +178,47 @@ covers straight from your photo library (HEIC included).
     <img src="docs/screenshots/editor-light.png" alt="Codetta's track editor next to an album" width="900">
   </picture>
 </p>
+
+## How Codetta compares
+
+There are great tools for music metadata, and Codetta isn't trying to replace
+them all. Here's an honest look, so you can pick what fits.
+
+| | **Codetta** | [MusicBrainz Picard](https://picard.musicbrainz.org/) | [beets](https://beets.io/) | [Metadata Remote](https://github.com/wow-signal-dev/metadata-remote) |
+|---|---|---|---|---|
+| What it is | Web app on your server | Desktop app | Command-line library manager | Web app on your server |
+| Use it from your phone | ✅ Designed for it | ❌ | ❌ | ➖ Responsive layout |
+| Runs in Docker | ✅ Official image | ➖ Community images | ➖ Community images | ✅ Official image |
+| Built-in sign-in | ✅ | – (local app) | – (local app) | ❌ Use a reverse proxy |
+| Edit tags by hand, one track or many | ✅ | ✅ | ➖ `beet modify` | ✅ |
+| Album art | ✅ | ✅ + Cover Art Archive | ✅ via plugin | ✅ |
+| Match releases on MusicBrainz | ❌ Planned | ✅ Incl. audio fingerprints | ✅ Automatic on import | ➖ Suggestions |
+| Undo | ✅ Kept across restarts | ❌ | ❌ | ✅ Until restart |
+| Search the whole library by tag | ✅ | ➖ | ✅ Query language | ➖ Filtering |
+| Rename / organize files | ❌ By design (optional auto-organize planned) | ✅ | ✅ | ✅ Rename |
+| Play tracks | ❌ Planned | ➖ Basic player | ➖ Via external player | ✅ In the browser |
+| Plugins | ❌ Planned | ✅ | ✅ | ❌ |
+| Formats | 5 (more coming) | 20+ | Most common formats | 9 |
+| License | AGPL-3.0 | GPL-2.0 | MIT | AGPL-3.0 |
+
+✅ yes · ➖ partly or with extra setup · ❌ no
+
+**In short:**
+
+- **Picard** is the gold standard for matching your files to MusicBrainz,
+  including identifying unknown tracks by their sound. Best at a desktop.
+- **beets** is unbeatable for automatically importing, tagging and organizing
+  large collections, if you're comfortable in a terminal.
+- **Metadata Remote** is a lightweight web editor with MusicBrainz suggestions,
+  a built-in player and file renaming. Pair it with your own login if it's
+  reachable beyond your home network.
+- **Codetta** is for fixing tags by hand from any browser, especially your
+  phone: safe writes, a sign-in, undo that survives restarts, library-wide
+  search, Tag Loadouts and the fields Navidrome shows. It never moves your
+  files, and works well alongside Picard or beets.
+
+*Compared in November 2026 from each project's documentation. Spotted
+something out of date? Please [open an issue](https://github.com/gavndev/codetta/issues).*
 
 ## How Codetta keeps your files safe
 
