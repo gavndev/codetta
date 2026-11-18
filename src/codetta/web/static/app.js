@@ -146,12 +146,38 @@ function icon(name) {
 
 // ---- API -----------------------------------------------------------------------------
 
+// A thin line under the top bar while Codetta waits on the server for something you did
+// (only after 200 ms, so quick answers never flicker). Background polls don't count.
+const net = { pending: 0, timer: null };
+const QUIET = /^\/api\/(notifications|activity|update|library-health\/summary|slskd$|inbox$|health$)/;
+function netBusy(delta) {
+  net.pending = Math.max(0, net.pending + delta);
+  const bar = document.getElementById("net-bar");
+  if (!bar) return;
+  if (net.pending && !net.timer && bar.hidden) {
+    net.timer = setTimeout(() => { net.timer = null; if (net.pending) { bar.hidden = false; replay(bar, "net-in"); } }, 200);
+  } else if (!net.pending) {
+    clearTimeout(net.timer);
+    net.timer = null;
+    if (!bar.hidden) playOut(bar, "net-out", () => { bar.hidden = true; });
+  }
+}
+
 async function api(method, url, body) {
-  const res = await fetch(url, {
-    method,
-    headers: body ? { "Content-Type": "application/json" } : {},
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  const quiet = method === "GET" && QUIET.test(url.split("?")[0]);
+  if (!quiet) netBusy(1);
+  let res;
+  try {
+    res = await fetch(url, {
+      method,
+      headers: body ? { "Content-Type": "application/json" } : {},
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    throw new Error("Can't reach the Codetta server. Check your connection and try again.");
+  } finally {
+    if (!quiet) netBusy(-1);
+  }
   if (res.status === 401 && !url.startsWith("/api/auth/")) {
     showAuth("login", "Your session ended. Sign in again to carry on where you left off.");
     throw new Error("Sign in required");
@@ -505,7 +531,10 @@ async function loadFolder(path, { keepScroll = false } = {}) {
 
   const cached = navigating ? folderCache.get(path) : null;
   let loadingTimer = null;
-  if (cached) {
+  if (!cached && navigating && isMbKey(path)) {
+    // MusicBrainz takes a few seconds (one request a second): say so instead of a frozen page.
+    showMbLoading(path);
+  } else if (cached) {
     showFolder(cached, scrollMemory.get(path) ?? 0);
   } else if (navigating) {
     // Keep the current folder on screen (dimmed) until the new one arrives,
@@ -747,6 +776,22 @@ function mbArtistRow(a) {
       h("strong", { dir: "auto" }, a.name, a.disambiguation ? h("span", { class: "mbx-dis" }, ` (${a.disambiguation})`) : null),
       h("span", { class: "mbx-meta" }, [a.type, a.area || a.country, lifeText(a)].filter(Boolean).join(" · "))),
     icon("chevron"));
+}
+
+function showMbLoading(path) {
+  const { kind, value } = mbKey(path);
+  const what = kind === "search" ? `Looking up “${value}” on MusicBrainz` : kind === "artist" ? "Loading the artist from MusicBrainz" : "Loading the release from MusicBrainz";
+  els.browser.classList.remove("is-loading");
+  $("#health-slot").hidden = true;
+  setKids(els.folderHead, h("div", { class: "mbx-loading" },
+    h("h1", { dir: "auto" }, kind === "search" ? value : "\u00a0"),
+    h("p", { class: "mbx-wait" }, h("span", { class: "spinner", "aria-hidden": "true" }), `${what}…`),
+    h("p", { class: "mbx-source" }, "MusicBrainz answers one request a second, so this can take a few seconds.")));
+  els.folders.classList.add("mbx-host");
+  setKids(els.folders, h("div", { class: "mbx-grid mbx-skeleton", "aria-hidden": "true" },
+    Array.from({ length: 6 }, () => h("div", { class: "mbx-card" }, h("span", { class: "mbx-cover sk-shimmer" }),
+      h("span", { class: "sk-line sk-shimmer" }), h("span", { class: "sk-line short sk-shimmer" })))));
+  els.tracks.replaceChildren();
 }
 
 function renderMbHead(f) {
@@ -3481,7 +3526,11 @@ const BANGS = {
     names: ["mb", "musicbrainz"], label: "MusicBrainz", icon: "musicbrainz", about: "Artists and releases on MusicBrainz",
     placeholder: "Search MusicBrainz: artists, albums", available: () => connectionOn("musicbrainz"),
     missing: "MusicBrainz isn't on. Turn it on in Account → Connections.",
-    run: (q) => { const query = q.trim(); if (!query) return; els.filter.value = ""; setBang(false); els.filter.blur(); navigate(MBX + "search:" + query); },
+    run: (q) => {
+      const query = q.trim();
+      if (!query) return;
+      if (!enoughText(query)) { toast("Type at least two letters or numbers to search MusicBrainz.", "error"); return; }
+      els.filter.value = ""; setBang(false); els.filter.blur(); navigate(MBX + "search:" + query); },
   },
   slskd: {
     names: ["slskd", "soulseek"], label: "slskd", icon: "slskd", about: "Look for music on Soulseek",
@@ -3558,9 +3607,15 @@ function renderBangSuggestions() {
   if (box.hidden) { box.classList.remove("closing"); box.hidden = false; replay(box, "opening"); }
 }
 
+const enoughText = (q) => [...q].filter((c) => /[\p{L}\p{N}]/u.test(c)).length >= 2;
+
 async function skSearch(query, upgrade = bang.upgrade) {
   query = query.trim();
   if (!query) return;
+  if (!enoughText(query)) { toast("Type at least two letters or numbers to search Soulseek.", "error"); return; }
+  const chip = $("#bang-chip");
+  chip.classList.add("busy");
+  for (const b of document.querySelectorAll(".sk-search button[type=submit]")) { b.disabled = true; b.textContent = "Asking…"; }
   try {
     const res = await api("POST", "/api/slskd/search", { query, upgrade });
     sk.data = res;
@@ -3571,6 +3626,9 @@ async function skSearch(query, upgrade = bang.upgrade) {
     openSoulseek(res.job.id);
   } catch (err) {
     toast(err.message, "error");
+  } finally {
+    chip.classList.remove("busy");
+    for (const b of document.querySelectorAll(".sk-search button[type=submit]")) { b.disabled = false; b.textContent = "Search"; }
   }
 }
 
@@ -3694,14 +3752,15 @@ function slskdFields(d) {
     h("input", { type: "checkbox", role: "switch", name, checked }));
   return h("div", { class: "sk-fields" },
     h("label", { class: "field" }, h("span", { class: "field-label" }, "slskd address"),
-      h("input", { name: "sk-url", type: "text", inputmode: "url", placeholder: "http://slskd:5030", value: d?.url || "",
+      h("input", { name: "sk-url", type: "text", inputmode: "url", placeholder: "http://slskd:5030", value: d?.url || "", maxlength: "500",
         disabled: locked.url, autocomplete: "off", spellcheck: "false", autocapitalize: "off" })),
     h("label", { class: "field" }, h("span", { class: "field-label" }, "API key"),
       h("input", { name: "sk-key", type: "password", disabled: locked.api_key, autocomplete: "off",
-        placeholder: d?.has_key ? "Saved (type a new one to change it)" : "One of the api_keys in slskd's settings" })),
+        placeholder: d?.has_key ? "Saved (type a new one to change it)" : "One of the api_keys in slskd's settings", maxlength: "500" })),
     locked.url || locked.api_key ? h("p", { class: "conn-lock" }, "Set on the server by CODETTA_SLSKD_URL / CODETTA_SLSKD_API_KEY.") : null,
     h("p", { class: "hint" }, "Add a key in slskd's settings under ", h("code", {}, "web → authentication → api_keys"),
       " (16+ characters), then paste it here. Codetta keeps it on this server and never shows it again."),
+    h("p", { class: "field-error sk-field-error", role: "alert", hidden: true }),
     sw("sk-review", "Review each download", "Codetta asks before a download joins your library. Off: downloads that match MusicBrainz exactly are filed by themselves.", st.review),
     sw("sk-lossless", "Lossless only", "Never download lossy files. Off: lossless first, otherwise the best MP3/AAC (at least the bitrate below).", st.lossless_only),
     h("label", { class: "field sk-bitrate" }, h("span", { class: "field-label" }, "Lowest bitrate for lossy files"),
@@ -3709,7 +3768,25 @@ function slskdFields(d) {
     h("div", { class: "sk-check-slot" }, skCheckView(d?.check, d)));
 }
 
+function slskdFieldError(root) {
+  const url = $('[name="sk-url"]', root).value.trim();
+  const key = $('[name="sk-key"]', root).value.trim();
+  if (url) {
+    let u = null;
+    try { u = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(url) ? url : `http://${url}`); } catch { /* below */ }
+    if (!u || !/^https?:$/.test(u.protocol) || !u.hostname || u.username || /\s/.test(url)) {
+      return "slskd's address should look like http://slskd:5030 or http://192.168.1.50:5030";
+    }
+  } else if (!$('[name="sk-url"]', root).disabled) return "Add slskd's address, like http://slskd:5030";
+  if (key && (key.length < 8 || /\s/.test(key))) return "That doesn't look like an slskd API key (at least 8 characters, no spaces).";
+  return "";
+}
+
 function readSlskdFields(root) {
+  const problem = slskdFieldError(root);
+  const out = $(".sk-field-error", root);
+  if (out) { out.textContent = problem; out.hidden = !problem; }
+  if (problem) throw new Error(problem);
   const key = $('[name="sk-key"]', root).value.trim();
   return {
     url: $('[name="sk-url"]', root).value.trim(), api_key: key || null,
@@ -3837,7 +3914,8 @@ function skItem(j) {
       reviewable && g.release ? h("div", { class: "mb-cand-meta" }, `MusicBrainz: ${mbMeta(g.release)}${g.score != null ? ` · ${g.score}% match` : ""}`) : null,
       bar,
       h("div", { class: "inbox-status" },
-        h("span", { class: `inbox-chip ${chipClass}` }, chip),
+        h("span", { class: `inbox-chip ${chipClass}` }, SK_ACTIVE.includes(j.status) || chipClass === "matching"
+          ? h("span", { class: "live-dot", "aria-hidden": "true" }) : null, chip),
         j.note ? h("span", { class: "inbox-note" }, j.note) : null),
       reviewable && c ? h("details", { class: "sk-files" }, h("summary", {}, `What came: ${plural(c.files.length, "file")}`),
         h("ol", {}, c.files.map((n) => h("li", { dir: "auto" }, n)))) : null,
@@ -3860,7 +3938,7 @@ function renderSoulseek() {
   }
   const form = h("form", { class: "sk-search" },
     h("span", { class: "bang-chip" }, icon("slskd"), "slskd"),
-    h("input", { type: "search", name: "q", placeholder: "Artist and album (* is a wildcard)", "aria-label": "Search Soulseek",
+    h("input", { type: "search", name: "q", placeholder: "Artist and album (* is a wildcard)", "aria-label": "Search Soulseek", maxlength: "300",
       autocomplete: "off", spellcheck: "false", enterkeyhint: "search" }),
     h("button", { class: "btn primary", type: "submit" }, "Search"));
   form.addEventListener("submit", (e) => { e.preventDefault(); skSearch(form.q.value, ""); });
@@ -4597,7 +4675,6 @@ function bindEvents() {
   $("#sel-loadout").addEventListener("click", () => openApply("selection"));
   $("#manage-btn").addEventListener("click", openManage);
   $("#cc-theme").addEventListener("click", () => { $("#theme-btn").click(); syncAccountTiles(); });
-  $("#cc-notif").addEventListener("click", () => { closeDialog($("#account-dialog")); setTimeout(() => openNotifications(), 200); });
   $("#pw-toggle").addEventListener("click", () => setPasswordOpen($("#password-form").hidden));
   window.addEventListener("resize", () => { if ($("#account-dialog").open) placeAccount(); });
   const healthToggle = $("#health-toggle");
@@ -4806,9 +4883,6 @@ function syncAccountTiles() {
   $("#cc-theme-state").textContent = { system: "Automatic", light: "Light", dark: "Dark" }[theme];
   if (!$("#cc-health-icon").firstChild) $("#cc-health-icon").append(icon("pulse"));
   if (!$("#cc-advanced-icon").firstChild) $("#cc-advanced-icon").append(icon("code"));
-  if (!$("#cc-notif-icon").firstChild) $("#cc-notif-icon").append(icon("bell"));
-  $("#cc-notif-state").textContent = notif.unread ? `${notif.unread} new` : "All read";
-  $("#cc-notif").classList.toggle("on", !!notif.unread);
 }
 
 function setPasswordOpen(open) {

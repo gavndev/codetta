@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import threading
 import time
 from collections import OrderedDict
@@ -47,6 +48,7 @@ from dataclasses import dataclass
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.concurrency import run_in_threadpool
@@ -261,6 +263,7 @@ class PasswordChange(BaseModel):
     new_password: str = Field(max_length=2000)
 
 TagValueIn = str | list[str] | None
+MAX_PATH_CHARS = 4096  # longer than any real path (Linux allows 4096 bytes)
 
 
 class ArtInfo(BaseModel):
@@ -344,7 +347,7 @@ def _unique(paths: list[str]) -> list[str]:
 class UpdateIn(BaseModel):
     paths: list[str] = Field(min_length=1, max_length=MAX_PATHS_PER_REQUEST)
     # Tag name -> new value(s). null, "" or [] removes the tag.
-    changes: dict[str, TagValueIn]
+    changes: dict[str, TagValueIn] = Field(max_length=200)
 
 
 class UpdateResult(BaseModel):
@@ -362,17 +365,17 @@ class LoadoutOut(BaseModel):
 
 
 class LoadoutIn(BaseModel):
-    name: str
-    description: str = ""
-    tags: dict[str, str | list[str]] = {}
+    name: str = Field(min_length=1, max_length=100)
+    description: str = Field("", max_length=1000)
+    tags: dict[str, str | list[str]] = Field(default={}, max_length=200)
     # When editing, the loadout's name before the edit (handles renames).
-    previous_name: str | None = None
+    previous_name: str | None = Field(default=None, max_length=100)
 
 
 class ApplyIn(BaseModel):
-    name: str
+    name: str = Field(min_length=1, max_length=100)
     paths: list[str] = Field(default=[], max_length=MAX_PATHS_PER_REQUEST)  # apply to these files...
-    folder: str | None = None  # ...or to every audio file in this folder
+    folder: str | None = Field(default=None, max_length=MAX_PATH_CHARS)  # ...or to every audio file in this folder
     recursive: bool = False
     mode: Literal["fill", "overwrite"] = "fill"
     dry_run: bool = True  # preview by default; send false to actually write
@@ -388,7 +391,7 @@ class ApplyResultOut(BaseModel):
 
 class OrganizeIn(BaseModel):
     paths: list[str] = Field(default=[], max_length=MAX_PATHS_PER_REQUEST)  # these files...
-    folder: str | None = None  # ...or the audio files in this folder
+    folder: str | None = Field(default=None, max_length=MAX_PATH_CHARS)  # ...or the audio files in this folder
     recursive: bool = False  # ...and its subfolders
     pattern: str | None = Field(default=None, max_length=400)  # None: the saved pattern
 
@@ -420,7 +423,7 @@ class SlskdSettingsIn(BaseModel):
 
 
 class SlskdSearchIn(BaseModel):
-    query: str = Field(min_length=1, max_length=300)
+    query: str = Field(min_length=2, max_length=300)
     upgrade: str = Field("", max_length=2000)  # a library folder this download should replace
 
 
@@ -439,7 +442,7 @@ class HealthSettingsIn(BaseModel):
 
 
 class HealthIssueIn(BaseModel):
-    id: str = Field(min_length=1, max_length=40)
+    id: str = Field(pattern=r"^[0-9a-f]{12}$")
     ignore: bool = True
 
 
@@ -457,7 +460,7 @@ class ConnectionsIn(BaseModel):
 
 class MBTarget(BaseModel):
     paths: list[str] = Field(default=[], max_length=MAX_PATHS_PER_REQUEST)  # these files...
-    folder: str | None = None  # ...or the audio files directly in this folder (one album)
+    folder: str | None = Field(default=None, max_length=MAX_PATH_CHARS)  # ...or the audio files directly in this folder (one album)
 
 
 class MBSearchIn(MBTarget):
@@ -927,7 +930,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     # --- Library ---------------------------------------------------------------------
 
     @app.get("/api/browse", response_model=BrowseOut)
-    def browse(path: str = Query("", description="Folder, relative to the music folder")):
+    def browse(path: str = Query("", max_length=MAX_PATH_CHARS, description="Folder, relative to the music folder")):
         """One folder: its subfolders and the tags of its audio files."""
         require_library()
         listing = library.list_folder(path)
@@ -945,12 +948,12 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         )
 
     @app.get("/api/track", response_model=TrackOut)
-    def get_track(path: str = Query(..., description="File, relative to the music folder")):
+    def get_track(path: str = Query(..., max_length=MAX_PATH_CHARS, description="File, relative to the music folder")):
         require_library()
         return to_out(path, engine.load_metadata(library.resolve(path)))
 
     @app.get("/api/stream", responses={200: {"content": {"audio/*": {}}}, 206: {"description": "Part of the file"}})
-    def stream(path: str = Query(..., description="File, relative to the music folder")):
+    def stream(path: str = Query(..., max_length=MAX_PATH_CHARS, description="File, relative to the music folder")):
         """The audio file itself, for the in-browser player. Supports seeking
         (HTTP range requests); nothing is converted or cached."""
         require_library()
@@ -963,7 +966,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
                             headers={"Cache-Control": "private, max-age=3600"})
 
     @app.get("/api/lyrics/lookup")
-    def lyrics_lookup(path: str = Query(..., description="File, relative to the music folder")) -> dict:
+    def lyrics_lookup(path: str = Query(..., max_length=MAX_PATH_CHARS, description="File, relative to the music folder")) -> dict:
         """Look up lyrics for a track on LRCLIB (sends artist, title, album and length only).
         Returns a suggestion; nothing is written."""
         require_connection("lyrics")
@@ -1291,7 +1294,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         }
 
     @app.get("/api/track/raw")
-    def get_track_raw(path: str = Query(..., description="File, relative to the music folder")) -> dict:
+    def get_track_raw(path: str = Query(..., max_length=MAX_PATH_CHARS, description="File, relative to the music folder")) -> dict:
         """Advanced mode: every stored field exactly as the file has it (read-only)."""
         require_library()
         return read_raw(engine, library.resolve(path))
@@ -1349,7 +1352,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     # --- Album art ---------------------------------------------------------------------
 
     @app.get("/api/art", responses={200: {"content": {"image/jpeg": {}, "image/png": {}}}})
-    def get_art(path: str = Query(..., description="File, relative to the music folder")):
+    def get_art(path: str = Query(..., max_length=MAX_PATH_CHARS, description="File, relative to the music folder")):
         """The track's embedded cover image (404 if it has none)."""
         require_library()
         art = engine.read_artwork(library.resolve(path))
@@ -1823,6 +1826,8 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             raise HTTPException(409, "Connect your slskd first: Account → Connections → Soulseek.")
 
     def sk_job(job_id: str):
+        if not re.fullmatch(r"[0-9a-f-]{32,36}", job_id or ""):
+            raise HTTPException(404, "That Soulseek request is gone")
         job = soulseek_store.jobs.get(job_id)
         if job is None:
             raise HTTPException(404, "That Soulseek request is gone")
@@ -1965,8 +1970,19 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     @app.put("/api/slskd/settings")
     def put_soulseek_settings(body: SlskdSettingsIn) -> dict:
         url = slskd_clean_url(body.url)
-        if url and not url.lower().startswith(("http://", "https://")):
-            raise HTTPException(422, "slskd's address should look like http://slskd:5030")
+        if url:
+            parts = urlsplit(url)
+            if (parts.scheme not in ("http", "https") or not parts.hostname or parts.username or parts.password
+                    or any(c.isspace() for c in url) or parts.query or parts.fragment):
+                raise HTTPException(422, "slskd's address should look like http://slskd:5030 or http://192.168.1.50:5030")
+            try:
+                parts.port  # a port that isn't a number raises
+            except ValueError:
+                raise HTTPException(422, "The port in slskd's address should be a number, like :5030") from None
+        if body.api_key is not None and body.api_key.strip():
+            key = body.api_key.strip()
+            if any(c.isspace() for c in key) or not key.isprintable() or len(key) < 8:
+                raise HTTPException(422, "That doesn't look like an slskd API key (at least 8 characters, no spaces).")
         with soulseek_store.lock:
             st = soulseek_store.settings
             if soulseek_store.env_url is None:
@@ -2120,7 +2136,9 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     def with_owned(g: dict) -> dict:
         return {**g, "in_library": owned_folder(g["artist"], g["title"]) if g["artist"] else None}
 
-    def explore(call):
+    def explore(call, mbid: str | None = None):
+        if mbid is not None and not MBID_RE.match(mbid):
+            raise HTTPException(422, "That isn't a MusicBrainz ID.")
         require_connection("musicbrainz")
         try:
             return call()
@@ -2130,6 +2148,9 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     @app.get("/api/mb/search")
     def mb_explore_search(q: str = Query(..., min_length=1, max_length=200)) -> dict:
         """Artists and releases on MusicBrainz matching ``q`` (two requests: about two seconds)."""
+        q = " ".join(q.split())
+        if sum(c.isalnum() for c in q) < 2:
+            raise HTTPException(422, "Type at least two letters or numbers to search MusicBrainz.")
         def run():
             artists = [artist_summary(a) for a in mb.search_artists(q)]
             groups = [with_owned(group_summary(g)) for g in mb.search_release_groups(q)]
@@ -2150,7 +2171,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             genres = sorted((x for x in a.get("genres") or [] if isinstance(x, dict)), key=lambda x: -(x.get("count") or 0))
             return {**artist_summary(a), "links": artist_links(a), "genres": [x.get("name") for x in genres[:6]],
                     "groups": groups}
-        return explore(run)
+        return explore(run, mbid)
 
     @app.get("/api/mb/release-group/{mbid}")
     def mb_explore_group(mbid: str) -> dict:
@@ -2175,7 +2196,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
                     "tracks": tracklist(rel),
                 }
             return out
-        return explore(run)
+        return explore(run, mbid)
 
     # --- Library health -------------------------------------------------------------------------
 

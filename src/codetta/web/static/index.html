@@ -12,7 +12,7 @@
   <link rel="icon" href="/static/icon.svg?v=3" type="image/svg+xml"> <!-- bump ?v= when the icon changes: browsers cache favicons hard -->
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=3">
   <link rel="preload" href="/static/fonts/schibsted-grotesk.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/static/app.css?v=55">
+  <link rel="stylesheet" href="/static/app.css?v=56">
   <script src="/static/theme.js?v=1"></script>
 </head>
 <body>
@@ -86,7 +86,7 @@
         <label class="search">
           <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg>
           <button class="bang-chip" id="bang-chip" type="button" hidden aria-label="Soulseek search is on. Tap to turn it off" title="Searching Soulseek. Tap (or Backspace) to search your library again"></button>
-          <input id="filter" type="search" dir="auto" placeholder="Search anything" autocomplete="off" spellcheck="false" aria-label="Search anything: type to filter this folder, Enter to search your library, or start with !mb or !slskd">
+          <input id="filter" type="search" maxlength="300" dir="auto" placeholder="Search anything" autocomplete="off" spellcheck="false" aria-label="Search anything: type to filter this folder, Enter to search your library, or start with !mb or !slskd">
         </label>
         <button class="search-cancel" id="search-cancel" type="button" tabindex="-1">Cancel</button>
         <div class="bang-suggest" id="bang-suggest" role="listbox" aria-label="Search somewhere else" hidden></div>
@@ -110,6 +110,7 @@
           <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="7" r="3.2"/><path d="M3.8 16.5a6.2 6.2 0 0 1 12.4 0"/></svg>
         </button>
       </div>
+      <div class="net-bar" id="net-bar" hidden role="progressbar" aria-label="Loading"></div>
     </header>
 
     <div class="layout">
@@ -267,7 +268,6 @@
         <button class="cc-toggle" type="button" id="cc-theme"><span class="cc-ico" id="cc-theme-icon"></span><span class="cc-label">Theme</span><span class="cc-state" id="cc-theme-state"></span></button>
         <label class="cc-toggle"><input type="checkbox" role="switch" id="health-toggle" checked><span class="cc-ico" id="cc-health-icon"></span><span class="cc-label">Library health</span><span class="cc-state cc-onoff"></span></label>
         <label class="cc-toggle"><input type="checkbox" role="switch" id="advanced-toggle"><span class="cc-ico" id="cc-advanced-icon"></span><span class="cc-label">Advanced</span><span class="cc-state cc-onoff"></span></label>
-        <button class="cc-toggle" type="button" id="cc-notif"><span class="cc-ico" id="cc-notif-icon"></span><span class="cc-label">Alerts</span><span class="cc-state" id="cc-notif-state"></span></button>
       </div>
 
       <section class="cc-tile about" aria-labelledby="about-title">
@@ -420,6 +420,6 @@
   <datalist id="tag-keys"></datalist>
   <div class="toasts" id="toasts" aria-live="polite"></div>
 
-  <script src="/static/app.js?v=56" type="module"></script>
+  <script src="/static/app.js?v=57" type="module"></script>
 </body>
 </html>

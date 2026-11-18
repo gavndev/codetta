@@ -512,7 +512,7 @@ def test_soulseek_download_never_claims_an_older_album_with_the_same_file_names(
     with TestClient(app) as c:
         c.post("/api/auth/setup", json={"username": "listener", "password": "correct horse 1"})
         c.put("/api/connections", json={"enabled": {"slskd": True}})
-        c.put("/api/slskd/settings", json={"url": "slskd:5030", "api_key": "secret"})
+        c.put("/api/slskd/settings", json={"url": "slskd:5030", "api_key": "codetta-test-key-0001"})
         c.put("/api/inbox/settings", json={"folder": "@inbox"})
         job = c.post("/api/slskd/search", json={"query": "Coda Tester Fixture Album"}).json()["job"]
         job = wait_for(c, job["id"], lambda j: j["status"] == "fetched")
@@ -521,3 +521,25 @@ def test_soulseek_download_never_claims_an_older_album_with_the_same_file_names(
         assert job["status"] == "fetched" and job["inbox"] is None  # still waiting: not "My Own Rip"
         assert c.post(f"/api/slskd/jobs/{job['id']}/next", json={"block": True}).status_code == 200
         assert all((old / f"0{i}.flac").exists() for i in range(1, 6))
+
+
+# --- Input validation: bad input gets a clear answer, never reaches deeper code ------------------
+
+
+def test_inputs_are_validated(client):
+    c = client
+    long_path = "a/" * 3000
+    assert c.get("/api/browse", params={"path": long_path}).status_code == 422
+    assert c.get("/api/track", params={"path": long_path}).status_code == 422
+    assert c.post("/api/loadouts", json={"name": "", "tags": {}}).status_code == 422
+    assert c.post("/api/loadouts", json={"name": "x" * 101, "tags": {}}).status_code == 422
+    assert c.patch("/api/tracks", json={"paths": ["song.flac"], "changes": {f"k{i}": "v" for i in range(201)}}).status_code == 422
+    assert c.post("/api/library-health/ignore", json={"id": "../../etc"}).status_code == 422
+    assert c.post("/api/slskd/jobs/..%2F..%2Fx/cancel").status_code == 404
+    assert c.post("/api/slskd/search", json={"query": "a"}).status_code == 422
+    for bad in ("ftp://slskd:5030", "http://user:pw@slskd:5030", "http://slskd:port", "http://slskd:5030/?x=1", "http:// slskd"):
+        r = c.put("/api/slskd/settings", json={"url": bad})
+        assert r.status_code == 422, bad
+    assert c.put("/api/slskd/settings", json={"url": "slskd:5030", "api_key": "short"}).status_code == 422
+    assert c.put("/api/slskd/settings", json={"url": "slskd:5030", "api_key": "has a space in it"}).status_code == 422
+    assert c.put("/api/slskd/settings", json={"url": "http://192.168.1.50:5030"}).status_code == 200

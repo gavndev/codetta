@@ -119,10 +119,11 @@ def test_release_page_shows_the_first_official_edition(client):
 
 def test_explore_needs_the_musicbrainz_connection_and_valid_ids(client):
     c, fake = client
-    assert c.get("/api/mb/artist/not-an-id").status_code == 502
+    assert c.get("/api/mb/artist/not-an-id").status_code == 422
+    assert c.get("/api/mb/search", params={"q": " * "}).status_code == 422  # nothing to search for
     c.put("/api/connections", json={"enabled": {"musicbrainz": False}})
     before = len(fake.urls)
-    assert c.get("/api/mb/search", params={"q": "x"}).status_code == 403
+    assert c.get("/api/mb/search", params={"q": "xy"}).status_code == 403
     assert len(fake.urls) == before  # nothing was sent
     assert c.get("/api/musicbrainz/cover/" + RG1, params={"kind": "nope"}).status_code in (403, 422)
 

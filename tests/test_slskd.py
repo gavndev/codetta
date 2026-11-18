@@ -25,7 +25,7 @@ MP3 = [f("share/T-Pain - Epiphany/01 - Bartender.mp3", 9000, bitRate=320),
 class FakeSlskd:
     """Answers like slskd's /api/v0, keeping just enough state."""
 
-    def __init__(self, responses=None, key="secret"):
+    def __init__(self, responses=None, key="codetta-test-key-0001"):
         self.key = key
         self.responses = responses if responses is not None else [
             {"username": "mp3guy", "files": MP3, "hasFreeUploadSlot": True, "uploadSpeed": 5_000_000, "queueLength": 0},
@@ -89,7 +89,7 @@ class FakeSlskd:
 def setup(tmp_path):
     fake = FakeSlskd()
     store = SoulseekStore(tmp_path / "slskd.json")
-    store.settings.url, store.settings.api_key = "http://slskd:5030", "secret"
+    store.settings.url, store.settings.api_key = "http://slskd:5030", "codetta-test-key-0001"
     clock = [1000.0]
     notes = []
     sk = Soulseek(store, fake, notify=lambda t, b, a: notes.append(t), clock=lambda: clock[0])
@@ -156,7 +156,7 @@ def test_full_flow_search_download_arrive(setup):
     mode = stat.S_IMODE(store.file.stat().st_mode)
     assert mode == 0o600
     again = SoulseekStore(store.file)
-    assert again.jobs[job.id].status == ARRIVED and again.settings.api_key == "secret"
+    assert again.jobs[job.id].status == ARRIVED and again.settings.api_key == "codetta-test-key-0001"
 
 
 def test_failed_download_moves_to_next_candidate(setup):
@@ -210,8 +210,8 @@ def test_empty_query_and_unconfigured(tmp_path):
     sk = Soulseek(SoulseekStore(tmp_path / "s.json"), FakeSlskd())
     with pytest.raises(SlskdError, match="Connect"):
         sk.search("T-Pain")
-    sk.store.settings.url, sk.store.settings.api_key = "http://x", "secret"
-    with pytest.raises(SlskdError, match="Type what"):
+    sk.store.settings.url, sk.store.settings.api_key = "http://x", "codetta-test-key-0001"
+    with pytest.raises(SlskdError, match="at least two"):
         sk.search("  * ")
 
 

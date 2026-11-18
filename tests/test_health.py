@@ -172,7 +172,8 @@ def test_api_fix_ignore_and_switch_off(client):
     off = c.put("/api/library-health/settings", json={"disabled": ["no_albumartist"]}).json()
     assert not any(x["check"] == "no_albumartist" for x in off["issues"])
     assert not next(x for x in off["checks"] if x["id"] == "no_albumartist")["enabled"]
-    assert c.post("/api/library-health/fix", json={"id": "nope"}).status_code == 404
+    assert c.post("/api/library-health/fix", json={"id": "nope"}).status_code == 422  # not an issue id at all
+    assert c.post("/api/library-health/fix", json={"id": "0123456789ab"}).status_code == 404
 
 
 def test_health_needs_sign_in(tmp_path):

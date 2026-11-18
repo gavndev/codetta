@@ -69,7 +69,7 @@ def client(music, tmp_path):  # noqa: F811
 
 
 def connect(c):
-    return c.put("/api/slskd/settings", json={"url": "slskd:5030", "api_key": "secret"}).json()
+    return c.put("/api/slskd/settings", json={"url": "slskd:5030", "api_key": "codetta-test-key-0001"}).json()
 
 
 def wait_for(c, job_id, done, timeout=10):
@@ -92,7 +92,7 @@ def test_settings_never_send_the_key_back(client, tmp_path):
     c, _ = client()
     data = connect(c)
     assert data["configured"] and data["has_key"] and data["url"] == "http://slskd:5030"
-    assert "secret" not in json.dumps(data)
+    assert "codetta-test-key-0001" not in json.dumps(data)
     assert data["check"]["ok"] and data["check"]["shared_folders"] == 1
     # Saving other settings keeps the key.
     data = c.put("/api/slskd/settings", json={"url": "slskd:5030", "review": False}).json()
@@ -203,7 +203,7 @@ def test_inbox_shows_progress_of_an_album_still_arriving(music, tmp_path):  # no
     with TestClient(app) as c:
         c.post("/api/auth/setup", json={"username": "owner", "password": PASSWORD})
         c.put("/api/connections", json={"enabled": {"slskd": True}})
-        c.put("/api/slskd/settings", json={"url": "slskd:5030", "api_key": "secret"})
+        c.put("/api/slskd/settings", json={"url": "slskd:5030", "api_key": "codetta-test-key-0001"})
         g = c.put("/api/inbox/settings", json={"folder": "@inbox"}).json()["groups"][0]
         assert g["status"] == "downloading"
         assert g["transfer"]["progress"] == 0.5 and g["transfer"]["finished"] == 1 and g["transfer"]["files"] == 2

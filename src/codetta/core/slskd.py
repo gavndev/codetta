@@ -82,8 +82,8 @@ class SlskdSettings:
 
 def clean_url(url: str) -> str:
     url = url.strip().rstrip("/")
-    if url and not re.match(r"^https?://", url, re.I):
-        url = "http://" + url
+    if url and not re.match(r"^[a-z][a-z0-9+.-]*://", url, re.I):
+        url = "http://" + url  # "slskd:5030" -> "http://slskd:5030"; any other scheme is left for the caller to refuse
     if url.endswith("/api/v0"):
         url = url[: -len("/api/v0")]
     return url
@@ -522,8 +522,8 @@ class Soulseek:
 
     def search(self, query: str, upgrade: str = "") -> Job:
         query = " ".join(query.split())
-        if len(_words(query.replace("*", ""))) == 0:
-            raise SlskdError("Type what you're looking for after !slskd.")
+        if sum(c.isalnum() for c in query) < 2:
+            raise SlskdError("Type at least two letters or numbers to search Soulseek.")
         client = self.client()
         job = self.store.add_job(query, upgrade)
         try:
