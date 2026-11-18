@@ -53,6 +53,13 @@
 - [x] **Task 5.4:** Album art is a pending change like tags: preview with "Not saved", Revert, counted on the Save buttons and listed in the change list; Save writes it to the track/selection, Save to folder to every track in the folder. Any image the browser can open (HEIC on iPhone/Safari, WebP, AVIF, GIF) is converted to JPEG; JPEG/PNG kept as-is.
 - [x] **Task 5.5:** Album-art thumbnail on every track row (placeholder when missing). Tracks report an art fingerprint, so a cover shared by an album downloads once and is cached.
 
+## Phase 7: Second wave (v0.2): formats, power-user metadata, lyrics
+- [x] **Task 7.1:** More formats: WAV, AIFF/AIFC, DSF, TrueAudio, MP2 (ID3), WavPack (APEv2), WMA (ASF), M4B (MP4), Ogg FLAC and Speex (Vorbis comments). Tag families with adapters in `tagmap.tag_view()`; album art for APEv2 (`Cover Art (Front)`) and ASF (`WM/Picture`); content sniffing for every container. Native-tagged fixtures from `tests/fixtures/make_more_fixtures.py`; all 15 formats run the full safety/art/round-trip suite. Monkey's Audio/Musepack/TAK/OptimFROG wait for real sample files.
+- [ ] **Task 7.2:** Sort and classical fields: sort names (title/artist/album/album artist/composer), work, movement (name, number, total), conductor/performer/ensemble, opus/catalogue; mapped per format like Picard. Editor group "Sorting" and "Classical".
+- [ ] **Task 7.3:** Advanced mode (account menu toggle, remembered per browser): raw tag view showing every stored tag/frame/atom name and value as the file stores it, read-only first.
+- [ ] **Task 7.4:** Lyrics: plain and synced (LRC) lyrics field with a proper multi-line editor, stored per format (Vorbis LYRICS, ID3 USLT/SYLT, MP4 ©lyr, APE Lyrics, ASF WM/Lyrics).
+- [ ] **Task 7.5:** Fetch lyrics from LRCLIB (free, no account, synced lyrics), previewed before saving; first step toward a plugin system (later: MusicBrainz, Last.fm as plugins; a small "Codetta SDK" for community plugins).
+
 ## Phase 6: Data sources, listening, organizing (roadmap)
 - [ ] **Task 6.1:** MusicBrainz integration: match a file or folder to a MusicBrainz release/recording and offer its "official" metadata (titles, artists, dates, label, catalog number, MBIDs, cover art), previewed before writing like loadouts. Also feeds smart suggestions.
 - [ ] **Task 6.2:** Last.fm integration: genre tags (top tags), similar artists and listener counts as another suggestion source (user supplies their own API key).

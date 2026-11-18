@@ -11,6 +11,9 @@ import shutil
 import subprocess
 
 import mutagen
+import struct
+from mutagen.apev2 import BINARY as APE_BINARY, APEValue
+from mutagen.asf import ASFByteArrayAttribute
 import pytest
 from mutagen.flac import FLAC, Picture
 from mutagen.id3 import APIC, ID3
@@ -110,7 +113,16 @@ def test_unicode_and_odd_filenames(engine, tmp_path, filename):
 # --- Cover art must survive tag edits ----------------------------------------------
 
 
+ID3_EXTS = {".mp3", ".mp2", ".wav", ".aiff", ".dsf", ".tta"}
+
+
+def _wm_picture(data):
+    mime = "image/png".encode("utf-16-le") + b"\x00\x00"
+    return struct.pack("<bI", 3, len(data)) + mime + b"\x00\x00" + data
+
+
 def _add_cover(path):
+    """Add a cover with each format's own API (not Codetta's)."""
     fmt = path.suffix.lower()
     if fmt == ".flac":
         audio = FLAC(path)
@@ -118,15 +130,25 @@ def _add_cover(path):
         pic.type, pic.mime, pic.data = 3, "image/png", PNG_1X1
         audio.add_picture(pic)
         audio.save()
-    elif fmt == ".mp3":
-        audio = ID3(path)
-        audio.add(APIC(encoding=3, mime="image/png", type=3, desc="Cover", data=PNG_1X1))
+    elif fmt in ID3_EXTS:
+        audio = mutagen.File(path)
+        if audio.tags is None:
+            audio.add_tags()
+        audio.tags.add(APIC(encoding=3, mime="image/png", type=3, desc="Cover", data=PNG_1X1))
         audio.save()
-    elif fmt == ".m4a":
+    elif fmt in (".m4a", ".m4b"):
         audio = MP4(path)
         audio["covr"] = [MP4Cover(PNG_1X1, imageformat=MP4Cover.FORMAT_PNG)]
         audio.save()
-    else:  # ogg / opus store pictures as a base64 Vorbis comment
+    elif fmt == ".wv":
+        audio = mutagen.File(path)
+        audio.tags["Cover Art (Front)"] = APEValue(b"cover.png\x00" + PNG_1X1, APE_BINARY)
+        audio.save()
+    elif fmt == ".wma":
+        audio = mutagen.File(path)
+        audio.tags["WM/Picture"] = [ASFByteArrayAttribute(_wm_picture(PNG_1X1))]
+        audio.save()
+    else:  # Ogg family: a base64 picture block in a Vorbis comment
         audio = mutagen.File(path)
         pic = Picture()
         pic.type, pic.mime, pic.data = 3, "image/png", PNG_1X1
@@ -138,10 +160,16 @@ def _cover_bytes(path):
     fmt = path.suffix.lower()
     if fmt == ".flac":
         return [p.data for p in FLAC(path).pictures]
-    if fmt == ".mp3":
-        return [f.data for f in ID3(path).getall("APIC")]
-    if fmt == ".m4a":
+    if fmt in ID3_EXTS:
+        tags = mutagen.File(path).tags
+        return [f.data for f in tags.getall("APIC")] if tags is not None else []
+    if fmt in (".m4a", ".m4b"):
         return [bytes(c) for c in MP4(path).tags.get("covr", [])]
+    if fmt == ".wv":
+        item = (mutagen.File(path).tags or {}).get("Cover Art (Front)")
+        return [bytes(item.value).partition(b"\x00")[2]] if item else []
+    if fmt == ".wma":
+        return [bytes(a.value)[len(_wm_picture(b"")):] for a in mutagen.File(path).tags.get("WM/Picture", [])]
     audio = mutagen.File(path)
     return [
         Picture(base64.b64decode(v)).data for v in audio.get("metadata_block_picture", [])
@@ -300,7 +328,7 @@ def test_mislabelled_file_is_detected_by_content(engine, tmp_path):
     assert engine.load_metadata(path).tags["title"] == ["Still Works"]
 
 
-@pytest.mark.parametrize("ext", [".wav", ".aac", ".wma", ".txt", ".jpg", ""])
+@pytest.mark.parametrize("ext", [".aac", ".ape", ".mpc", ".txt", ".jpg", ""])
 def test_unsupported_extensions(engine, tmp_path, ext):
     path = tmp_path / f"file{ext}"
     shutil.copy2(FIXTURES_DIR / "sample.flac", path)  # real audio inside, wrong type

@@ -207,6 +207,8 @@ const fmtDuration = (s) => {
   return `${m}:${String(Math.round(s % 60)).padStart(2, "0")}`;
 };
 const first = (track, key) => (track.tags[key] || [])[0] || "";
+const FORMAT_LABELS = { wavpack: "WV", oggflac: "Ogg FLAC", speex: "SPX", wma: "WMA" };
+const fmtLabel = (format) => FORMAT_LABELS[format] || (format || "").toUpperCase();
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const baseName = (path) => path.split("/").pop();
 
@@ -648,7 +650,7 @@ function renderTracks() {
     if (!f.folders.length) {
       els.folders.replaceChildren(h("div", { class: "empty" },
         h("strong", {}, "No audio files here"),
-        "Codetta shows FLAC, MP3, M4A, OGG and Opus files."));
+        "Codetta shows FLAC, MP3, M4A, OGG, Opus, WAV, AIFF, WMA, WavPack, DSF and more."));
     }
     return;
   }
@@ -710,10 +712,10 @@ function renderTracks() {
       h("div", { class: "col-title" },
         h("span", { class: "main" }, title || h("span", { class: "untitled" }, t.name)),
         h("span", { class: "sub" }, t.error ? t.error
-          : [artist, album].filter(Boolean).join(" · ") || (title ? t.name : `${(t.format || "").toUpperCase()} · No tags yet`))),
+          : [artist, album].filter(Boolean).join(" · ") || (title ? t.name : `${fmtLabel(t.format)} · No tags yet`))),
       h("div", { class: "col-artist" }, t.error ? t.error : artist),
       h("div", { class: "col-album" }, album),
-      h("div", { class: "col-fmt" }, t.format ? h("span", { class: "badge" }, t.format) : ""),
+      h("div", { class: "col-fmt" }, t.format ? h("span", { class: "badge" }, fmtLabel(t.format)) : ""),
       h("div", { class: "col-dur" }, fmtDuration(t.duration)),
     );
     state.rows.set(t.path, { row, checkbox });
@@ -969,14 +971,14 @@ function renderEditor() {
   if (tracks.length === 1) {
     const t = tracks[0];
     parts.push(h("div", { class: "file-info" },
-      h("span", { class: "badge" }, t.format),
+      h("span", { class: "badge" }, fmtLabel(t.format)),
       t.duration != null && h("span", { class: "num" }, fmtDuration(t.duration)),
       t.bitrate && h("span", { class: "num" }, `${Math.round(t.bitrate / 1000)} kbps`),
       t.sample_rate && h("span", { class: "num" }, `${(t.sample_rate / 1000).toFixed(1).replace(/\.0$/, "")} kHz`),
       t.channels && h("span", {}, t.channels === 1 ? "Mono" : t.channels === 2 ? "Stereo" : `${t.channels} ch`),
       h("span", { class: "path" }, t.path)));
   } else {
-    const formats = [...new Set(tracks.map((t) => t.format))].join(", ");
+    const formats = [...new Set(tracks.map((t) => fmtLabel(t.format)))].join(", ");
     parts.push(h("div", { class: "file-info" }, h("span", {}, `${tracks.length} files · ${formats}`)));
   }
 

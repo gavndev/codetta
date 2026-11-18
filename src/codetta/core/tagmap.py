@@ -17,20 +17,30 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from mutagen._vorbis import is_valid_key as _is_valid_vorbis_key
+from mutagen.apev2 import TEXT as _APE_TEXT
+from mutagen.apev2 import is_valid_apev2_key
+from mutagen.asf import ASFBoolAttribute, ASFUnicodeAttribute
 from mutagen.easyid3 import EasyID3
 from mutagen.easymp4 import EasyMP4Tags
 from mutagen.id3 import COMM, TIPL
 
-VORBIS_FORMATS = frozenset({"flac", "ogg", "opus"})
+# Formats grouped by how they store tags. Each family shares one mapping.
+VORBIS_FORMATS = frozenset({"flac", "ogg", "opus", "oggflac", "speex"})  # free-form comments
+ID3_FORMATS = frozenset({"mp3", "mp2", "tta", "wav", "aiff", "dsf"})  # ID3 frames
+ID3_CONTAINERS = frozenset({"wav", "aiff", "dsf"})  # ID3 inside another container (no "easy" class)
+APE_FORMATS = frozenset({"wavpack"})  # APEv2 items
+ASF_FORMATS = frozenset({"wma"})  # ASF attributes
+MP4_FORMATS = frozenset({"m4a"})
 
 # Old mutagen names that now duplicate one of our names (same underlying
 # field). They are hidden when reading so each value shows up once.
+_ID3_ALIASES = {
+    "organization": "label",
+    "musicbrainz_albumtype": "releasetype",
+    "musicbrainz_albumstatus": "releasestatus",
+}
 HIDDEN_ALIASES: dict[str, dict[str, str]] = {
-    "mp3": {
-        "organization": "label",
-        "musicbrainz_albumtype": "releasetype",
-        "musicbrainz_albumstatus": "releasestatus",
-    },
+    **{fmt: _ID3_ALIASES for fmt in ID3_FORMATS},
     "m4a": {
         "musicbrainz_albumtype": "releasetype",
         "musicbrainz_albumstatus": "releasestatus",
@@ -94,11 +104,194 @@ def is_tag_supported(format_name: str, key: str) -> bool:
     key = key.lower()
     if format_name in VORBIS_FORMATS:
         return bool(key) and _is_valid_vorbis_key(key)
-    if format_name == "mp3":
+    if format_name in ID3_FORMATS:
         return key in EasyID3.valid_keys
-    if format_name == "m4a":
+    if format_name in MP4_FORMATS:
         return key in EasyMP4Tags.Set
+    if format_name in APE_FORMATS:
+        name = _APE_NAMES.get(key, key)  # reserved names are blocked in any case ("id3" too)
+        return is_valid_apev2_key(name) and name.upper() not in ("ID3", "TAG", "OGGS", "MP+")
+    if format_name in ASF_FORMATS:
+        return 0 < len(key) <= 255 and key.isprintable() and _asf_name(key) not in _ASF_SYSTEM
     return False
+
+
+def tag_view(audio, format_name: str, create: bool = False):
+    """The file's tags as a mapping of Codetta tag names -> lists of strings.
+
+    For most formats that's mutagen's own (easy) tag object. ID3-in-a-container
+    formats (WAV, AIFF, DSF), APEv2 and ASF get a small adapter here, so the
+    engine treats every format the same way. ``create`` adds empty tags first.
+    """
+    if audio.tags is None:
+        if not create:
+            return {}
+        audio.add_tags()
+    if format_name in ID3_CONTAINERS:
+        view = EasyID3()
+        view._EasyID3__id3 = audio.tags  # EasyID3 is a thin layer over an ID3 object
+        return view
+    if format_name in APE_FORMATS:
+        return _APEView(audio.tags)
+    if format_name in ASF_FORMATS:
+        return _ASFView(audio.tags)
+    return audio.tags
+
+
+class _View:
+    """Minimal dict-like base: keys(), items(), get/set/delete by Codetta name."""
+
+    def keys(self):  # pragma: no cover - overridden
+        raise NotImplementedError
+
+    def items(self):
+        out = []
+        for key in self.keys():
+            try:
+                out.append((key, self[key]))
+            except KeyError:
+                continue
+        return out
+
+    def __contains__(self, key):
+        try:
+            self[key]
+        except KeyError:
+            return False
+        return True
+
+
+# --- APEv2 (WavPack) ---------------------------------------------------------
+
+# APEv2 item names are case-insensitive. Standard names where they differ from
+# ours (as Picard writes them); everything else uses our name.
+_APE_NAMES = {
+    "tracknumber": "Track",
+    "discnumber": "Disc",
+    "date": "Year",
+    "albumartist": "Album Artist",
+    "releasetype": "MUSICBRAINZ_ALBUMTYPE",
+    "releasestatus": "MUSICBRAINZ_ALBUMSTATUS",
+}
+_FROM_APE = {v.lower(): k for k, v in _APE_NAMES.items()}
+_FIELD_KEYS = None  # filled in below, once FIELDS exists
+
+
+class _APEView(_View):
+    def __init__(self, tags):
+        self.tags = tags
+
+    def keys(self):
+        return [_FROM_APE.get(k.lower(), k.lower()) for k in self.tags.keys() if self.tags[k].kind == _APE_TEXT]
+
+    def _name(self, key):
+        if key in _APE_NAMES:
+            return _APE_NAMES[key]
+        return key.title() if key in _FIELD_KEYS else key  # "Title", "Genre"... like other taggers
+
+    def __getitem__(self, key):
+        value = self.tags.get(self._name(key))
+        if value is None or value.kind != _APE_TEXT:
+            raise KeyError(key)
+        return list(value)
+
+    def __setitem__(self, key, values):
+        self.tags[self._name(key)] = list(values)
+
+    def __delitem__(self, key):
+        del self.tags[self._name(key)]
+
+
+# --- ASF (WMA) -----------------------------------------------------------------
+
+# Codetta name -> ASF attribute, following Picard.
+_ASF_NAMES = {
+    "title": "Title",
+    "artist": "Author",
+    "album": "WM/AlbumTitle",
+    "albumartist": "WM/AlbumArtist",
+    "tracknumber": "WM/TrackNumber",
+    "discnumber": "WM/PartOfSet",
+    "date": "WM/Year",
+    "genre": "WM/Genre",
+    "artists": "WM/ARTISTS",
+    "composer": "WM/Composer",
+    "lyricist": "WM/Writer",
+    "conductor": "WM/Conductor",
+    "producer": "WM/Producer",
+    "label": "WM/Publisher",
+    "catalognumber": "WM/CatalogNo",
+    "barcode": "WM/Barcode",
+    "isrc": "WM/ISRC",
+    "media": "WM/Media",
+    "mood": "WM/Mood",
+    "bpm": "WM/BeatsPerMinute",
+    "language": "WM/Language",
+    "copyright": "Copyright",
+    "grouping": "WM/ContentGroupDescription",
+    "comment": "Description",
+    "discsubtitle": "WM/SetSubTitle",
+    "compilation": "WM/IsCompilation",
+    "originaldate": "WM/OriginalReleaseTime",
+    "releasetype": "MusicBrainz/Album Type",
+    "releasestatus": "MusicBrainz/Album Status",
+    "releasecountry": "MusicBrainz/Album Release Country",
+}
+_FROM_ASF = {v.lower(): k for k, v in _ASF_NAMES.items()}
+# Technical attributes written by encoders: never shown or edited as tags.
+_ASF_SYSTEM = frozenset(n.lower() for n in (
+    "WM/Picture", "WMFSDKVersion", "WMFSDKNeeded", "IsVBR", "DeviceConformanceTemplate",
+    "WM/MediaPrimaryClassID", "WM/WMContentID", "WM/WMCollectionID", "WM/WMCollectionGroupID",
+    "WM/EncodingTime", "WM/ToolName", "WM/ToolVersion", "WM/UniqueFileIdentifier",
+))
+
+
+def _asf_name(key: str) -> str:
+    return _ASF_NAMES.get(key, key).lower()
+
+
+class _ASFView(_View):
+    def __init__(self, tags):
+        self.tags = tags
+
+    def _native(self, key):
+        """The attribute name actually used in this file (names are case-insensitive)."""
+        wanted = _asf_name(key)
+        for name in self.tags.keys():
+            if name.lower() == wanted:
+                return name
+        return _ASF_NAMES.get(key, key)
+
+    @staticmethod
+    def _text(attr):
+        if isinstance(attr, ASFBoolAttribute):
+            return "1" if attr.value else "0"
+        value = attr.value
+        return value if isinstance(value, str) else str(value) if isinstance(value, int) else None
+
+    def keys(self):
+        out = []
+        for name in self.tags.keys():
+            if name.lower() in _ASF_SYSTEM:
+                continue
+            if any(self._text(a) is not None for a in self.tags[name]):
+                out.append(_FROM_ASF.get(name.lower(), name.lower()))
+        return out
+
+    def __getitem__(self, key):
+        name = self._native(key)
+        if name.lower() in _ASF_SYSTEM or name not in self.tags.keys():
+            raise KeyError(key)
+        values = [t for t in (self._text(a) for a in self.tags[name]) if t is not None]
+        if not values:
+            raise KeyError(key)
+        return values
+
+    def __setitem__(self, key, values):
+        self.tags[self._native(key)] = [ASFUnicodeAttribute(v) for v in values]
+
+    def __delitem__(self, key):
+        del self.tags[self._native(key)]
 
 
 # --- MP3 (ID3) ---------------------------------------------------------------
@@ -224,3 +417,6 @@ def _register_mp4_compilation() -> None:
 
 
 _register_mp4_compilation()
+
+
+_FIELD_KEYS = frozenset(f.key for f in FIELDS)

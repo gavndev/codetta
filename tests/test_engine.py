@@ -13,7 +13,7 @@ from codetta.core.engine import (
     TrackMetadata,
     UnsupportedFormatError,
 )
-from tests.conftest import EXPECTED_TAGS, SAMPLE_FILES
+from tests.conftest import EXPECTED_TAGS, SAMPLE_FILES, SAMPLE_RATES
 
 
 @pytest.fixture
@@ -52,7 +52,7 @@ def test_reads_audio_properties(engine, fixture_copy, name):
     meta = engine.load_metadata(fixture_copy(name))
 
     assert meta.duration == pytest.approx(1.0, abs=0.1)
-    assert meta.sample_rate in (44100, 48000)  # Opus always reports 48 kHz
+    assert meta.sample_rate == SAMPLE_RATES.get(name, 44100)
     assert meta.channels == 1
 
 
@@ -435,7 +435,15 @@ def test_m4a_compilation_rejects_non_boolean(engine, fixture_copy):
         ("mp3", "made_up_tag", False),
         ("m4a", "releasetype", True),
         ("m4a", "made_up_tag", False),
-        ("wav", "title", False),
+        ("wav", "title", True),
+        ("aiff", "mood", True),
+        ("wav", "made_up_tag", False),  # ID3 family: fixed vocabulary
+        ("wavpack", "anything_goes", True),  # APEv2: free-form
+        ("wavpack", "ID3", False),  # reserved APEv2 name
+        ("wma", "anything_goes", True),  # ASF: free-form
+        ("wma", "WM/Picture", False),  # technical attribute
+        ("speex", "mood", True),
+        ("aac", "title", False),
     ],
 )
 def test_is_tag_supported(fmt, key, expected):

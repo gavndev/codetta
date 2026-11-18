@@ -18,17 +18,25 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import mutagen
+from mutagen.aiff import AIFF
+from mutagen.asf import ASF
+from mutagen.dsf import DSF
 from mutagen.easymp4 import EasyMP4
 from mutagen.flac import FLAC
 from mutagen.mp3 import MP3, EasyMP3
 from mutagen.mp4 import MP4
+from mutagen.oggflac import OggFLAC
 from mutagen.oggopus import OggOpus
+from mutagen.oggspeex import OggSpeex
 from mutagen.oggvorbis import OggVorbis
+from mutagen.trueaudio import EasyTrueAudio, TrueAudio
+from mutagen.wave import WAVE
+from mutagen.wavpack import WavPack
 
 # Importing tagmap registers the extra tag names (mood, label, engineer, ...)
 # so every format shares one vocabulary.
 from codetta.core.artwork import Artwork, ArtworkError, parse_image, read_picture, write_picture
-from codetta.core.tagmap import HIDDEN_ALIASES, is_tag_supported
+from codetta.core.tagmap import HIDDEN_ALIASES, is_tag_supported, tag_view
 
 __all__ = [
     "SUPPORTED_EXTENSIONS",
@@ -42,7 +50,11 @@ __all__ = [
 ]
 
 # File extensions Codetta will open. Anything else is rejected up front.
-SUPPORTED_EXTENSIONS: frozenset[str] = frozenset({".flac", ".mp3", ".m4a", ".ogg", ".opus"})
+SUPPORTED_EXTENSIONS: frozenset[str] = frozenset({
+    ".flac", ".mp3", ".m4a", ".ogg", ".opus",  # the original five
+    ".wav", ".aif", ".aiff", ".aifc", ".dsf", ".tta", ".mp2",  # ID3 tags
+    ".wv", ".wma", ".m4b", ".oga", ".spx",  # APEv2, ASF, audiobooks, Ogg FLAC, Speex
+})
 
 # The mutagen class detected from the file's contents -> Codetta's format name.
 # Detection is by content (see _sniff_format), so a mislabelled file is still
@@ -53,7 +65,22 @@ _FORMAT_NAMES: dict[type, str] = {
     EasyMP4: "m4a",
     OggVorbis: "ogg",
     OggOpus: "opus",
+    OggFLAC: "oggflac",
+    OggSpeex: "speex",
+    WAVE: "wav",
+    AIFF: "aiff",
+    DSF: "dsf",
+    EasyTrueAudio: "tta",
+    WavPack: "wavpack",
+    ASF: "wma",
 }
+
+
+def _format_of(audio) -> str:
+    name = _FORMAT_NAMES[type(audio)]
+    if name == "mp3" and getattr(audio.info, "layer", 3) == 2:
+        return "mp2"  # MPEG layer II: same container and tags as MP3
+    return name
 
 # OGG/Opus (and some old files) store cover art inside a text field as a big
 # base64 blob. It isn't a text tag, so it's hidden from ``tags`` and can't be
@@ -128,17 +155,20 @@ class MetadataEngine:
             raise UnsupportedFormatError(f"Unsupported file type '{path.suffix}': {path}")
 
         audio = _open_audio(path)
-        format_name = _FORMAT_NAMES[type(audio)]
+        format_name = _format_of(audio)
 
         tags = {
             key.lower(): [str(value) for value in values]
-            for key, values in (audio.tags or {}).items()
+            for key, values in tag_view(audio, format_name).items()
             if key.lower() not in COVER_ART_KEYS
         }
         for old_name in HIDDEN_ALIASES.get(format_name, {}):
             tags.pop(old_name, None)
         info = audio.info
         sample_rate = getattr(info, "sample_rate", None)
+        channels = getattr(info, "channels", None)
+        if format_name == "tta" and not channels:
+            channels = _tta_channels(path)  # mutagen doesn't report it for TrueAudio
         if format_name == "opus":
             # Opus always decodes at 48 kHz; mutagen doesn't expose a rate for it.
             sample_rate = 48000
@@ -149,7 +179,7 @@ class MetadataEngine:
             duration=getattr(info, "length", None) or None,
             bitrate=getattr(info, "bitrate", None) or None,
             sample_rate=sample_rate or None,
-            channels=getattr(info, "channels", None) or None,
+            channels=channels or None,
         )
 
     def update_tags(self, path: str | Path, changes: Mapping[str, TagValue]) -> TrackMetadata:
@@ -278,13 +308,12 @@ class MetadataEngine:
     def _write_tags(self, path: Path, format_name: str, changes: dict[str, list[str]]) -> None:
         try:
             audio = _open_audio(path)
-            if audio.tags is None:
-                audio.add_tags()
+            tags = tag_view(audio, format_name, create=True)
             for key, values in changes.items():
                 if values:
-                    audio[key] = values
-                elif key in audio:
-                    del audio[key]
+                    tags[key] = values
+                elif key in tags:
+                    del tags[key]
             audio.save()
         except (KeyError, ValueError) as exc:
             raise MetadataError(
@@ -308,7 +337,7 @@ def _open_audio(path: Path):
 
     mutagen on its own trusts the extension over the contents, so an MP3
     renamed to ``.flac`` would fail to open. Sniffing the header first avoids
-    that, and also guarantees only Codetta's five formats are ever tried.
+    that, and also guarantees only Codetta's own formats are ever tried.
     """
     try:
         kind = _sniff_format(path)
@@ -327,8 +356,8 @@ def _open_raw(path: Path):
     Returns (audio, format_name).
     """
     audio = _open_audio(path)
-    format_name = _FORMAT_NAMES[type(audio)]
-    raw_class = {"mp3": MP3, "m4a": MP4}.get(format_name)
+    format_name = _format_of(audio)
+    raw_class = {"mp3": MP3, "mp2": MP3, "m4a": MP4, "tta": TrueAudio}.get(format_name)
     if raw_class is not None:
         try:
             audio = raw_class(path)
@@ -342,11 +371,11 @@ def _sniff_format(path: Path) -> type | None:
     with open(path, "rb") as f:
         head = f.read(64)
         if head.startswith(b"ID3") and len(head) >= 10:
-            # Skip an ID3 tag (normally MP3, occasionally stuck on a FLAC).
+            # Skip an ID3 tag (normally MP3; sometimes stuck on a FLAC or TTA).
             size = (head[6] << 21) | (head[7] << 14) | (head[8] << 7) | head[9]
             f.seek(10 + size)
             after = f.read(4)
-            return FLAC if after == b"fLaC" else EasyMP3
+            return {b"fLaC": FLAC, b"TTA1": EasyTrueAudio}.get(after, EasyMP3)
     if head.startswith(b"fLaC"):
         return FLAC
     if head.startswith(b"OggS"):
@@ -354,11 +383,42 @@ def _sniff_format(path: Path) -> type | None:
             return OggOpus
         if b"\x01vorbis" in head:
             return OggVorbis
+        if b"\x7fFLAC" in head:
+            return OggFLAC
+        if b"Speex   " in head:
+            return OggSpeex
         return None
+    if head[:4] == b"RIFF" and head[8:12] == b"WAVE":
+        return WAVE
+    if head[:4] == b"FORM" and head[8:12] in (b"AIFF", b"AIFC"):
+        return AIFF
+    if head.startswith(b"DSD "):
+        return DSF
+    if head.startswith(b"TTA1"):
+        return EasyTrueAudio
+    if head.startswith(b"wvpk"):
+        return WavPack
+    if head.startswith(b"\x30\x26\xb2\x75\x8e\x66\xcf\x11"):  # ASF header GUID
+        return ASF
     if head[4:8] == b"ftyp":
         return EasyMP4
     if len(head) >= 2 and head[0] == 0xFF and head[1] & 0xE0 == 0xE0:
         return EasyMP3  # MPEG audio frame with no ID3 tag
+    return None
+
+
+def _tta_channels(path: Path) -> int | None:
+    """Channel count from a TrueAudio header ("TTA1", format, channels, ...)."""
+    try:
+        with open(path, "rb") as f:
+            head = f.read(10)
+            if head.startswith(b"ID3") and len(head) == 10:
+                f.seek(10 + ((head[6] << 21) | (head[7] << 14) | (head[8] << 7) | head[9]))
+                head = f.read(10)
+            if head.startswith(b"TTA1") and len(head) >= 8:
+                return int.from_bytes(head[6:8], "little") or None
+    except OSError:
+        pass
     return None
 
 

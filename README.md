@@ -7,7 +7,7 @@
 
 <p align="center">
   <strong>Clean, self-hosted tag editing for your music library.</strong><br>
-  Fix the tags on your FLAC, MP3, M4A, OGG and Opus files from any browser, including your phone.
+  Fix the tags on your FLAC, MP3, M4A, OGG, WAV, AIFF, WMA and more, from any browser, including your phone.
 </p>
 
 <p align="center">
@@ -139,7 +139,7 @@ language and script, light and dark themes. [See every feature →](docs/feature
 | Rename / organize files | ❌ By design (optional auto-organize planned) | ✅ | ✅ | ✅ Rename |
 | Play tracks | ❌ Planned | ➖ Basic player | ➖ Via external player | ✅ In the browser |
 | Plugins | ❌ Planned | ✅ | ✅ | ❌ |
-| Formats | 5 (more coming) | 20+ | Most common formats | 9 |
+| Formats | 15 file types | 20+ | Most common formats | 9 |
 | License | AGPL-3.0 | GPL-2.0 | MIT | AGPL-3.0 |
 
 ✅ yes · ➖ partly or with extra setup · ❌ no

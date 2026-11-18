@@ -34,5 +34,5 @@ change from the activity log.
 ## Known limitations
 
 - One account per Codetta instance.
-- WAV, AIFF, WMA and raw `.aac` files aren't supported.
-- Custom tag names (beyond Codetta's field list) only work in FLAC, Ogg and Opus files.
+- Raw `.aac`, Monkey's Audio (`.ape`) and Musepack (`.mpc`) files aren't supported yet.
+- Custom tag names (beyond Codetta's field list) work in FLAC, Ogg, Opus, WavPack and WMA files, not in ID3 or MP4 formats.

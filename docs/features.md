@@ -123,13 +123,19 @@ Your library matters, so Codetta is careful with it:
 
 ## Supported formats
 
-| Format | Extensions | Notes |
-|---|---|---|
-| FLAC | `.flac` | Any tag name is allowed. |
-| MP3 | `.mp3` | All of Codetta's fields. Saved as ID3v2.4, which Navidrome and modern players read; some older software prefers ID3v2.3. |
-| AAC / ALAC | `.m4a` | All of Codetta's fields. |
-| Ogg Vorbis | `.ogg` | Any tag name is allowed. |
-| Opus | `.opus` | Any tag name is allowed. |
+| Format | Extensions | Tags | Custom tag names |
+|---|---|---|---|
+| FLAC | `.flac` | Vorbis comments | ✅ |
+| Ogg Vorbis, Opus, Ogg FLAC, Speex | `.ogg` `.opus` `.oga` `.spx` | Vorbis comments | ✅ |
+| WavPack | `.wv` | APEv2 | ✅ |
+| WMA | `.wma` | ASF attributes | ✅ |
+| MP3, MP2 | `.mp3` `.mp2` | ID3v2.4 | Codetta's field list |
+| WAV, AIFF | `.wav` `.aif` `.aiff` `.aifc` | ID3v2.4 (as Picard and Navidrome use) | Codetta's field list |
+| DSF (DSD) | `.dsf` | ID3v2.4 | Codetta's field list |
+| TrueAudio | `.tta` | ID3v2.4 | Codetta's field list |
+| AAC / ALAC, audiobooks | `.m4a` `.m4b` | MP4 atoms | Codetta's field list |
 
-Codetta detects the real format from each file's contents, so a mislabelled
-file still opens correctly.
+Every format supports album art and every field in the editor. Codetta detects
+the real format from each file's contents, so a mislabelled file still opens
+correctly. Monkey's Audio (`.ape`), Musepack (`.mpc`) and other APEv2 formats
+are planned once we have sample files to test against.

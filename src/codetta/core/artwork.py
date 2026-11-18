@@ -3,10 +3,12 @@
 Each format keeps pictures somewhere different:
 
     FLAC        METADATA_BLOCK_PICTURE blocks (``audio.pictures``)
-    MP3         ID3 ``APIC`` frames
+    ID3 family  ``APIC`` frames (MP3, MP2, WAV, AIFF, DSF, TrueAudio)
     M4A         the ``covr`` atom (JPEG or PNG only)
-    OGG / Opus  a base64-encoded picture block in the ``metadata_block_picture``
-                comment
+    OGG family  a base64-encoded picture block in the ``metadata_block_picture``
+                comment (Ogg Vorbis, Opus, Ogg FLAC, Speex)
+    WavPack     the APEv2 ``Cover Art (Front)`` binary item ("name\\0" + image)
+    WMA         ``WM/Picture`` attributes (a small binary header + image)
 
 Codetta keeps it simple and predictable: *setting* art replaces every embedded
 picture with one front cover, and *removing* art removes them all. Images must
@@ -22,9 +24,16 @@ import base64
 import struct
 from dataclasses import dataclass
 
+from mutagen.apev2 import BINARY as APE_BINARY
+from mutagen.apev2 import APEValue
+from mutagen.asf import ASFByteArrayAttribute
 from mutagen.flac import Picture
 from mutagen.id3 import APIC
 from mutagen.mp4 import MP4Cover
+
+from codetta.core.tagmap import APE_FORMATS, ASF_FORMATS, ID3_FORMATS
+
+APE_COVER_KEYS = ("Cover Art (Front)", "Cover Art (Back)", "Cover Art (Other)")
 
 MAX_ART_BYTES = 20 * 1024 * 1024  # 20 MB; real covers are usually < 2 MB
 FRONT_COVER = 3  # picture type for "Cover (front)" in FLAC/ID3
@@ -104,9 +113,20 @@ def read_picture(audio, format_name: str) -> Artwork | None:
     candidates: list[tuple[int, bytes, str]] = []  # (type, data, mime)
     if format_name == "flac":
         candidates = [(p.type, p.data, p.mime) for p in audio.pictures]
-    elif format_name == "mp3":
+    elif format_name in ID3_FORMATS:
         frames = audio.tags.getall("APIC") if audio.tags is not None else []
         candidates = [(f.type, f.data, f.mime) for f in frames]
+    elif format_name in APE_FORMATS:
+        for i, key in enumerate(APE_COVER_KEYS):
+            item = (audio.tags or {}).get(key)
+            if item is not None and item.kind == APE_BINARY:
+                _, _, data = bytes(item.value).partition(b"\x00")
+                candidates.append((FRONT_COVER if i == 0 else 0, data, ""))
+    elif format_name in ASF_FORMATS:
+        for attr in (audio.tags or {}).get("WM/Picture", []):
+            pic = _asf_unpack(bytes(attr.value))
+            if pic:
+                candidates.append(pic)
     elif format_name == "m4a":
         covers = (audio.tags or {}).get("covr", [])
         candidates = [
@@ -143,7 +163,7 @@ def write_picture(audio, format_name: str, art: Artwork | None) -> None:
         audio.clear_pictures()
         if art:
             audio.add_picture(_flac_picture(art))
-    elif format_name == "mp3":
+    elif format_name in ID3_FORMATS:
         if audio.tags is None:
             audio.add_tags()
         audio.tags.delall("APIC")
@@ -157,7 +177,21 @@ def write_picture(audio, format_name: str, art: Artwork | None) -> None:
             audio.tags["covr"] = [MP4Cover(art.data, imageformat=fmt)]
         else:
             audio.tags.pop("covr", None)
-    else:  # ogg / opus
+    elif format_name in APE_FORMATS:
+        if audio.tags is None:
+            audio.add_tags()
+        for key in APE_COVER_KEYS:
+            if key in audio.tags:
+                del audio.tags[key]
+        if art:
+            name = b"cover.png" if art.mime == "image/png" else b"cover.jpg"
+            audio.tags["Cover Art (Front)"] = APEValue(name + b"\x00" + art.data, APE_BINARY)
+    elif format_name in ASF_FORMATS:
+        if "WM/Picture" in audio.tags:
+            del audio.tags["WM/Picture"]
+        if art:
+            audio.tags["WM/Picture"] = [ASFByteArrayAttribute(_asf_pack(art))]
+    else:  # ogg family
         for key in ("metadata_block_picture", "coverart", "coverartmime"):
             if key in audio.tags:
                 del audio.tags[key]
@@ -176,3 +210,29 @@ def _flac_picture(art: Artwork) -> Picture:
     pic.depth = 24
     pic.data = art.data
     return pic
+
+
+def _asf_pack(art: Artwork) -> bytes:
+    """WM/Picture: type (1 byte), size (4, little-endian), MIME and description
+    (UTF-16-LE, NUL-terminated), then the image."""
+    mime = art.mime.encode("utf-16-le") + b"\x00\x00"
+    desc = b"\x00\x00"
+    return struct.pack("<bI", FRONT_COVER, len(art.data)) + mime + desc + art.data
+
+
+def _asf_unpack(value: bytes) -> tuple[int, bytes, str] | None:
+    try:
+        pic_type, size = struct.unpack_from("<bI", value)
+        pos = 5
+        strings = []
+        for _ in range(2):  # MIME, description
+            end = pos
+            while value[end:end + 2] != b"\x00\x00":
+                end += 2
+                if end >= len(value):  # damaged: no terminator
+                    return None
+            strings.append(value[pos:end].decode("utf-16-le"))
+            pos = end + 2
+        return pic_type, value[pos:pos + size], strings[0]
+    except (struct.error, IndexError, UnicodeDecodeError):
+        return None

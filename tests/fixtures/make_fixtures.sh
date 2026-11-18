@@ -33,3 +33,6 @@ ls -la sample.* untagged.flac
 # Tiny cover images for album art tests.
 "${FF[@]}" -f lavfi -i "color=c=0x3b8cff:s=64x48" -frames:v 1 -q:v 5 cover.jpg
 "${FF[@]}" -f lavfi -i "color=c=0xff6b3b:s=32x32" -frames:v 1 cover.png
+
+# WAV, AIFF, DSF, TrueAudio, MP2, WavPack, WMA, M4B, Ogg FLAC and Speex:
+# .venv/bin/python tests/fixtures/make_more_fixtures.py
