@@ -1,14 +1,14 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/media/hero-dark.gif">
-    <img src="docs/media/hero-light.gif" alt="Codetta: your music library, looked after. Fix tags, match albums on MusicBrainz and organize your files, from any browser." width="900">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/logo-dark.svg">
+    <img src="docs/brand/logo-light.svg" alt="Codetta" height="64">
   </picture>
 </p>
 
 <p align="center">
+  <strong>Your music library, looked after. On your own server.</strong><br>
   Fix tags, match albums on MusicBrainz, organize your files and bring in new music,<br>
-  from any browser, including your phone. On your own server or your own computer.<br>
-  FLAC, MP3, M4A, OGG, WAV, AIFF, WMA and more.
+  from any browser, including your phone. FLAC, MP3, M4A, OGG, WAV, AIFF, WMA and more.
 </p>
 
 <p align="center">
@@ -19,6 +19,13 @@
   <a href="https://github.com/gavndev/codetta/actions/workflows/ci.yml"><img alt="Tests" src="https://github.com/gavndev/codetta/actions/workflows/ci.yml/badge.svg"></a>
   <a href="https://github.com/gavndev/codetta/pkgs/container/codetta"><img alt="Docker image on ghcr.io" src="https://img.shields.io/badge/docker-ghcr.io-2496ed"></a>
   <img alt="Works great with Navidrome" src="https://img.shields.io/badge/works%20with-Navidrome-6c5ce7">
+</p>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/media/hero-dark.gif">
+    <img src="docs/media/hero-light.gif" alt="Codetta: your music library, looked after. Fix tags, match albums on MusicBrainz and organize your files, from any browser." width="900">
+  </picture>
 </p>
 
 <p align="center">
