@@ -236,6 +236,23 @@ Every change is in the [changelog](CHANGELOG.md); each version's notes are also 
 **What's new** (in the account menu, or the link in the footer) shows the same notes for the
 version you're running.
 
+## Contributing
+
+Codetta is open source, and there are two ways to make it your own:
+
+- **Run your own version.** Fork it, change whatever you like, and run it for yourself. If you run a modified version for other people, the AGPL asks you to share your changes under the same license, and to keep the original author credit (see [License](#license)).
+- **Help improve Codetta for everyone.** Bug reports, feature ideas, and pull requests are all welcome. Changes that land here ship to everyone in the next release.
+
+Not sure where to start?
+
+- **Found a bug or have an idea?** [Open an issue](https://github.com/gavndev/codetta/issues). Even a quick "this confused me" helps.
+- **Want to write code?** Read [CONTRIBUTING.md](CONTRIBUTING.md) for setup and guidelines, then open a pull request. For bigger changes, open an issue first so we can talk it through.
+- **Not a coder?** Testing new releases, improving the docs, and sharing your setup are just as valuable.
+
+Codetta is an early alpha hobby project, so feedback from real libraries makes a big difference.
+
+**Forks and the name:** You're welcome to fork Codetta, but please give your fork a different name so people don't confuse it with the original project.
+
 ## License
 
 Codetta is free software under the [GNU AGPL v3.0](LICENSE) (or later): use it,
