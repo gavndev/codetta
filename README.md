@@ -6,9 +6,9 @@
 </p>
 
 <p align="center">
-  <strong>Your music library, looked after. On your own server.</strong><br>
   Fix tags, match albums on MusicBrainz, organize your files and bring in new music,<br>
-  from any browser, including your phone. FLAC, MP3, M4A, OGG, WAV, AIFF, WMA and more.
+  from any browser, including your phone. On your own server or your own computer.<br>
+  FLAC, MP3, M4A, OGG, WAV, AIFF, WMA and more.
 </p>
 
 <p align="center">
@@ -19,10 +19,6 @@
   <a href="https://github.com/gavndev/codetta/actions/workflows/ci.yml"><img alt="Tests" src="https://github.com/gavndev/codetta/actions/workflows/ci.yml/badge.svg"></a>
   <a href="https://github.com/gavndev/codetta/pkgs/container/codetta"><img alt="Docker image on ghcr.io" src="https://img.shields.io/badge/docker-ghcr.io-2496ed"></a>
   <img alt="Works great with Navidrome" src="https://img.shields.io/badge/works%20with-Navidrome-6c5ce7">
-</p>
-
-<p align="center">
-  <img src="docs/media/overview.gif" alt="A tour of Codetta: editing an album's tags, searching the library by tag, looking up an artist on MusicBrainz, a one-tap Library health fix, the player with synced lyrics, and the account panel" width="900">
 </p>
 
 <p align="center">
