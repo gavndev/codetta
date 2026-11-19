@@ -150,9 +150,11 @@ already have are never overwritten.
   move first and never overwrite a file; an album you replace is kept aside.
 - **Undo anything** from the activity log (tags, covers, moves, a whole
   album), and it's kept across restarts.
-- **Offline unless you opt in.** MusicBrainz, AcoustID, lyrics, the update
-  check and integrations are *connections*: each is off until you turn it on,
-  and each says exactly what it sends.
+- **Private by design.** No tracking, analytics or telemetry of any kind, no
+  ads, and the page never loads anything from another site. Codetta is
+  offline unless you opt in: MusicBrainz, AcoustID, lyrics, the update check
+  and integrations are *connections*, each off until you turn it on, each
+  saying exactly what it sends. See [PRIVACY.md](PRIVACY.md).
 - **Private by default.** Built-in sign-in, a strict security setup, and it
   runs as your user. See [SECURITY.md](SECURITY.md).
 
@@ -211,7 +213,7 @@ light and dark themes. [See every feature →](docs/features.md)
 - **[Configuration](docs/configuration.md)**: settings, connections (incl. slskd), HTTPS and remote access
 - **[Features](docs/features.md)**: everything Codetta does, supported formats
 - **[FAQ](docs/faq.md)**: common questions and known limitations
-- **[Security](SECURITY.md)** · **[Changelog](CHANGELOG.md)** · **[Contributing](CONTRIBUTING.md)**
+- **[Privacy](PRIVACY.md)** · **[Security](SECURITY.md)** · **[Changelog](CHANGELOG.md)** · **[Contributing](CONTRIBUTING.md)**
 
 ## Roadmap
 

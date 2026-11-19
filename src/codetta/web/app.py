@@ -77,6 +77,7 @@ from codetta.core.health import _base_artist as base_artist
 from codetta.core.health import fold as health_fold
 from codetta.core.health import run as health_run
 from codetta.core.describe import describe_file, describe_many
+from codetta.core.plugins import ActionError, PluginManager
 from codetta.core.index import LibraryIndex, parse_query
 from codetta.core import changelog
 from codetta.core.notifications import Notifications
@@ -110,6 +111,7 @@ from codetta.core.organize import (
     plan_moves,
     prune_replaced,
     render,
+    safe_name,
     save_pattern,
 )
 from codetta.core.acoustid import DEFAULT_KEY as ACOUSTID_KEY
@@ -438,6 +440,35 @@ class SlskdNextIn(BaseModel):
 class SlskdImportIn(BaseModel):
     release: str | None = Field(default=None, max_length=500)  # file with this release instead of the found one
     recordings: dict[str, list[str]] = Field(default={}, max_length=MAX_PATHS_PER_REQUEST)
+
+
+REPLACE_FIELDS = ("title", "artist", "album", "albumartist", "genre", "composer", "comment", "label", "grouping")
+
+
+class ReplaceIn(BaseModel):
+    paths: list[str] = Field(default=[], max_length=MAX_PATHS_PER_REQUEST)  # these files...
+    folder: str | None = Field(default=None, max_length=MAX_PATH_CHARS)  # ...or the audio files in this folder
+    find: str = Field(min_length=1, max_length=200)
+    replace: str = Field("", max_length=500)
+    fields: list[str] | None = Field(default=None, max_length=40)  # None: the usual text fields
+    regex: bool = False
+    match_case: bool = False
+    dry_run: bool = True
+
+
+class ActionRunIn(BaseModel):
+    paths: list[str] = Field(default=[], max_length=MAX_PATHS_PER_REQUEST)  # these files...
+    folder: str | None = Field(default=None, max_length=MAX_PATH_CHARS)  # ...or the audio files in this folder
+    dry_run: bool = True
+
+
+class PluginToggleIn(BaseModel):
+    enabled: bool
+
+
+class FolderRenameIn(BaseModel):
+    path: str = Field(min_length=1, max_length=MAX_PATH_CHARS)
+    name: str = Field(min_length=1, max_length=255)
 
 
 class HealthSettingsIn(BaseModel):
@@ -2407,33 +2438,200 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         if not fix:
             raise HTTPException(409, "This one needs a look by hand.")
         version = lib_index.version
-        done, failed, undo_files = [], [], {}
-        for rel, changes in fix["per_file"].items():
+        done, failed = apply_per_file(fix["per_file"], f"Library health: {fix['summary']}")
+        if not failed:
+            health_cache["fixed"][issue["id"]] = version  # hidden until the index has the new tags
+        return {"fixed": len(done), "failed": len(failed), "errors": failed[:20], "health": get_health()}
+
+    # --- Plugins and actions -------------------------------------------------------------------
+
+    plugins = PluginManager(settings.config_dir)
+
+    @app.get("/api/plugins")
+    def list_plugins() -> dict:
+        """Installed plugins (built-in ones, and folders in <config>/plugins), and their actions."""
+        with plugins.lock:
+            return {"folder": str(plugins.dir), "plugins": [p.public() for p in plugins.plugins.values()],
+                    "actions": [{"id": a.id, "label": a.label, "description": a.description, "fields": list(a.fields),
+                                 "plugin": a.plugin} for a in plugins.actions.values()]}
+
+    @app.put("/api/plugins/{plugin_id}")
+    def toggle_plugin(plugin_id: str, body: PluginToggleIn) -> dict:
+        """Turn a plugin on (its code is imported) or off."""
+        try:
+            info = plugins.set_enabled(plugin_id, body.enabled)
+        except KeyError:
+            raise HTTPException(404, "There's no plugin with that id (built-in ones are always on).") from None
+        except OSError as exc:
+            raise HTTPException(500, f"Could not save to the config folder: {exc}") from exc
+        if info.error and body.enabled:
+            raise HTTPException(422, f"{info.name} couldn't load: {info.error}")
+        return list_plugins()
+
+    @app.post("/api/actions/{action_id}/run")
+    def run_action(action_id: str, body: ActionRunIn) -> dict:
+        """Run an action (built-in or from a plugin) on tracks. ``dry_run`` (the default) shows
+        what would change; otherwise it writes, as one undoable activity entry."""
+        require_library()
+        if action_id not in plugins.actions:
+            raise HTTPException(404, "That action isn't available (is its plugin turned on?).")
+        targets = _unique(body.paths) if body.paths else (
+            audio_files(library, body.folder.strip("/"), False, MAX_PATHS_PER_REQUEST) if body.folder is not None else [])
+        if not targets:
+            raise HTTPException(422, "Choose some tracks or a folder.")
+        plan, preview, unreadable = {}, [], 0
+        for rel in targets:
+            try:
+                tags = engine.load_metadata(library.resolve(rel)).tags
+            except (MetadataError, LibraryPathError, OSError):
+                unreadable += 1
+                continue
+            try:
+                changes = plugins.run_action(action_id, tags)
+            except ActionError as exc:
+                raise HTTPException(422, str(exc)) from exc
+            if changes:
+                plan[rel] = changes
+                if len(preview) < 200:
+                    preview.append({"path": rel, "changes": [{"key": k, "old": "; ".join(tags.get(k, [])),
+                                                              "new": "; ".join(v or [])} for k, v in changes.items()]})
+        out = {"tracks": len(targets), "changing": len(plan), "unreadable": unreadable, "preview": preview}
+        if body.dry_run or not plan:
+            return out
+        label = plugins.actions[action_id].label
+        done, failed = apply_per_file(plan, f"{label}: {len(plan)} track{'s' if len(plan) != 1 else ''}")
+        return {**out, "changed": len(done), "failed": len(failed), "errors": failed[:20]}
+
+    @app.post("/api/tracks/replace")
+    def replace_in_tags(body: ReplaceIn) -> dict:
+        """Find & replace in the tags of many tracks (these files, or a folder's). ``dry_run`` (the
+        default) only shows what would change; otherwise it writes, as one undoable activity entry."""
+        require_library()
+        targets = _unique(body.paths) if body.paths else (
+            audio_files(library, body.folder.strip("/"), False, MAX_PATHS_PER_REQUEST) if body.folder is not None else [])
+        if not targets:
+            raise HTTPException(422, "Choose some tracks or a folder.")
+        try:
+            pattern = re.compile(body.find if body.regex else re.escape(body.find), 0 if body.match_case else re.IGNORECASE)
+            if body.regex:
+                pattern.sub(body.replace, "")  # a bad \1 reference fails here, not half-way through
+        except re.error as exc:
+            raise HTTPException(422, f"That pattern doesn't work: {exc}") from exc
+        fields = [f.lower() for f in body.fields] if body.fields else list(REPLACE_FIELDS)
+        swap = (lambda m: m.expand(body.replace)) if body.regex else (lambda m: body.replace)
+        plan: dict[str, dict] = {}
+        preview, unreadable = [], 0
+        for rel in targets:
+            try:
+                tags = engine.load_metadata(library.resolve(rel)).tags
+            except (MetadataError, LibraryPathError, OSError):
+                unreadable += 1
+                continue
+            changes, shown = {}, []
+            for key in fields:
+                old = tags.get(key) or []
+                new = [pattern.sub(swap, v) for v in old]
+                if new != old:
+                    changes[key] = [v for v in new if v.strip()] or None
+                    shown.append({"key": key, "old": "; ".join(old), "new": "; ".join(v for v in new if v.strip())})
+            if changes:
+                plan[rel] = changes
+                if len(preview) < 200:
+                    preview.append({"path": rel, "changes": shown})
+        out = {"tracks": len(targets), "changing": len(plan), "unreadable": unreadable, "preview": preview}
+        if body.dry_run or not plan:
+            return out
+        what = f"“{body.find}” → “{body.replace}”" if body.replace else f"removed “{body.find}”"
+        done, failed = apply_per_file(plan, f"Find & replace: {what} in {len(plan)} track{'s' if len(plan) != 1 else ''}")
+        return {**out, "changed": len(done), "failed": len(failed), "errors": failed[:20]}
+
+    @app.post("/api/folders/rename")
+    def rename_folder(body: FolderRenameIn) -> dict:
+        """Rename a folder (each file is moved like Organize does: nothing overwritten, one undo)."""
+        require_library()
+        folder = body.path.strip().strip("/")
+        if not folder or folder.startswith("@"):
+            raise HTTPException(422, "Choose a folder inside your music folder.")
+        src = library.resolve(folder)
+        if not src.is_dir():
+            raise HTTPException(404, "That folder isn't there any more.")
+        name = safe_name(body.name)
+        parent = folder.rsplit("/", 1)[0] if "/" in folder else ""
+        dest = f"{parent}/{name}" if parent else name
+        if dest == folder:
+            return {"path": folder, "moved": 0, "failed": 0}
+        target = library.resolve(dest)
+        if target.exists() and not (dest.casefold() == folder.casefold() and target.samefile(src)):
+            raise HTTPException(409, f"There's already a folder called “{name}” there.")
+        moves = []
+        for dirpath, _, names in os.walk(src):
+            for n in sorted(names):
+                rel = library.relative(Path(dirpath) / n)
+                moves.append(Move(rel, dest + rel[len(folder):], "move"))
+        if dest.casefold() == folder.casefold():  # only the case changes: go via a temporary name
+            tmp = f"{dest}.codetta-rename"
+            first = apply_moves(library.resolve, [Move(m.src, tmp + m.src[len(folder):], "move") for m in moves])
+            moves = [Move(tmp + m.src[len(folder):], m.dst, "move") for m in moves]
+            results = apply_moves(library.resolve, moves)
+            pairs = [(a, d) for r1, r2 in zip(first, results) if r1.ok and r2.ok
+                     for (a, _), (_, d) in zip(r1.moved, r2.moved)]
+        else:
+            results = apply_moves(library.resolve, moves)
+            pairs = [pair for r in results if r.ok for pair in r.moved]
+        failed = [r for r in results if not r.ok]
+        for dirpath, _, _ in sorted(os.walk(src), key=lambda x: -len(x[0])):  # tidy what's left (empty folders)
+            try:
+                os.rmdir(dirpath)
+            except OSError:
+                pass
+        if pairs:
+            activity.add("organize", f"Renamed folder “{folder.rsplit('/', 1)[-1]}” to “{name}”", ok=not failed,
+                         files=[b for _, b in pairs], changes=[{"key": "folder", "old": folder, "new": dest}],
+                         errors=[{"path": r.src, "error": r.error or ""} for r in failed],
+                         undo={"type": "moves", "moves": [list(p) for p in pairs]})
+        lib_index.mark_dirty([p for pair in pairs for p in pair])
+        art_cache.clear()
+        return {"path": dest, "moved": len(pairs), "failed": len(failed)}
+
+    def apply_per_file(per_file: dict[str, dict], message: str) -> tuple[list[str], list[dict]]:
+        """Write different tag changes to each file (safe writes, a few at once) and log them as
+        one undoable activity entry. Returns (files done, failures)."""
+        undo_files: dict = {}
+
+        def one(item):
+            rel, changes = item
             try:
                 target = library.resolve(rel)
-                before = engine.load_metadata(target).tags
-                after = engine.update_tags(target, changes).tags
+                was: dict = {}
+                after = engine.update_tags(target, changes, before=was).tags
+                before = was["tags"]
                 keys = {k.lower() for k in changes}
                 diff = [k for k in keys if before.get(k, []) != after.get(k, [])]
                 if diff:
                     undo_files[rel] = {"before": {k: before.get(k, []) for k in diff},
                                        "after": {k: after.get(k, []) for k in diff}}
-                done.append(rel)
+                return rel, None
             except (MetadataError, LibraryPathError, OSError) as exc:
-                failed.append({"path": rel, "error": str(exc)})
-        keys = sorted({k for c in fix["per_file"].values() for k in c})
-        news = {k: {c.get(k) for c in fix["per_file"].values() if k in c} for k in keys}
+                return rel, str(exc)
+
+        items = list(per_file.items())
+        if len(items) > 8:
+            with ThreadPoolExecutor(max_workers=4, thread_name_prefix="codetta-write") as pool:
+                results = list(pool.map(one, items))
+        else:
+            results = [one(i) for i in items]
+        done = [r for r, e in results if e is None]
+        failed = [{"path": r, "error": e} for r, e in results if e is not None]
+        keys = sorted({k for c in per_file.values() for k in c})
+        news = {k: {str(c.get(k)) for c in per_file.values() if k in c} for k in keys}
         activity.add(
-            "edit", f"Library health: {fix['summary']}" if not failed else
-            f"Library health: fixed {len(done)} of {len(done) + len(failed)} tracks", ok=not failed,
-            files=done + [f["path"] for f in failed],
+            "edit", message if not failed else f"{message.split(':')[0]}: changed {len(done)} of {len(items)} tracks",
+            ok=not failed, files=done + [f["path"] for f in failed],
             changes=[{"key": k, "old": "", "new": news[k].pop() if len(news[k]) == 1 else "various"} for k in keys],
             errors=failed, undo={"type": "tags", "files": undo_files} if undo_files else None,
         )
         lib_index.mark_dirty(done)
-        if not failed:
-            health_cache["fixed"][issue["id"]] = version  # hidden until the index has the new tags
-        return {"fixed": len(done), "failed": len(failed), "errors": failed[:20], "health": get_health()}
+        return done, failed
 
     @app.post("/api/activity/{entry_id}/undo")
     def undo(entry_id: int) -> dict:

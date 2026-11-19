@@ -12,6 +12,13 @@ All notable changes to Codetta. Versions follow [Semantic Versioning](https://se
   - **Library health** checks 10,000 albums in under 4 seconds (was 7), then shows its last answer instantly and re-checks in the background after changes. Long lists load 200 at a time with **Show more**.
   - **Changing a tag on 1,000 files** at once: 10.7 → 5.6 seconds, still one safe write per file and one undo.
   - **Memory** on a 100,000-track library: about 130 MB (was up to 500 MB).
+- **Find & replace** in tags, for a folder, a selection or search results: remove "(Official Audio)" from every title, turn "ft." into "feat." Pick one tag or all text tags, match case, or use a pattern (regex). You see every change first, and Activity can undo it.
+- **Actions:** one-tap tidy-ups with a preview: **Clean up titles** (removes "(Official Video)", "[Explicit]", "(Lyrics)", "(Free DL)"…), **Write features as "feat."**, **Title Case** and **Trim spaces**.
+- **Plugins:** add your own actions, or ones other people wrote. Put a plugin's folder in `config/plugins/` and turn it on in **Account → Plugins** (they're off until you do). The built-in actions are written the same way. See the [plugin guide](docs/plugins.md).
+- **Rename folder:** every file moves with it, nothing is overwritten, and it's one undo.
+- On phones, Organize, Find & replace, Actions and Rename folder are in a **…** menu next to the album's other buttons.
+- **Privacy, written down:** [PRIVACY.md](PRIVACY.md) says what Codetta keeps and what it sends (nothing, until you turn a connection on). No tracking, analytics or telemetry of any kind, and tests now check that it stays that way.
+- **Glass, grounded:** menus and the search suggestions have more body, so what's behind them is a soft hint instead of readable text.
 - Your search index is rebuilt once after updating (it now keeps a sort order, so results come back in library order without extra work).
 
 ## 0.7.1 (2026-11-18)

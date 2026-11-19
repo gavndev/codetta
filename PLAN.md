@@ -115,5 +115,15 @@ Find music on Soulseek from inside Codetta; it lands in the inbox and is reviewe
 - [x] **Task 13.7: Page drawing.** Icons cloned from a cache, long lists drawn in batches, health "Show more" appends.
 - [ ] **Task 13.8: Next:** mass uploads (drag a folder of files in), mass downloads (Soulseek queue of many albums), and the same measurements on a Raspberry Pi / hard drive.
 
+## Phase 14: Preparation (listing on AlternativeTo and similar sites), started 2026-11-18
+Goal: a true competitor, honestly listable with these AlternativeTo boxes: Open source (AGPL-3.0), Self-Hosted, Docker, Online, No tracking, Privacy focused, Lightweight, Ad-free, Dark mode, Works offline, Batch editing, Batch rename files, MP3/ID3 renaming, File tagging, Lossless audio, Extensible by plugins, Support for themes.
+- [x] **14.1 Glass touch-up:** more body in the glass (88% pane, 28px blur); search suggestions and menus inside the top bar near-solid (they can't blur the page on iOS).
+- [x] **14.2 Privacy guarantee:** audited (every outbound call is behind a connection; the page loads only from the server; no access log; sessions keep no device/IP). PRIVACY.md, README section, Connections note; `tests/test_privacy.py` (no tracker code, nothing external in the page, no network with connections off, offline lock, sessions).
+- [x] **14.3 Batch editing:** already had multi-track edit, Save to folder, Tag Presets and Organize. Added **Find & replace** in tags (`/api/tracks/replace`, preview, regex, one undo) and **Rename folder** (`/api/folders/rename`, moves like Organize, case-only renames, one undo); phone "…" tools menu.
+- [x] **14.4 Plugins:** plugin API v1 (`codetta.plugins`, actions on tracks), `core/plugins.py` loader (config/plugins, off until enabled, errors reported not fatal, entry must stay in its folder), built-in "Tidy-up actions" on the same API, Actions sheet + Account → Plugins, docs/plugins.md, tests. Later: health checks and search bangs as plugin hooks (API v2, additive).
+- [ ] **14.5 Package managers:** PyPI package + `codetta` command (pipx/uv); Homebrew formula (own tap first, homebrew-core once notable); snap; Flathub and winget via a small desktop launcher. Needs the user's accounts to publish.
+- [ ] **14.6 Bug:** after applying a MusicBrainz match, the album's track order doesn't update until a reload.
+- [ ] **14.7 Listing kit:** filled-in answers for AlternativeTo, icon, fresh screenshots.
+
 ## Later (ideas, not scheduled)
 - First-run welcome card after account creation: confirms the library was found and is writable, plus three quick tips.

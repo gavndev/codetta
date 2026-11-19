@@ -142,6 +142,10 @@ const ICONS = {
   prev: '<svg viewBox="0 0 20 20"><path d="M15.5 5.2v9.6a.6.6 0 0 1-.9.5l-6.8-4.8a.6.6 0 0 1 0-1l6.8-4.8a.6.6 0 0 1 .9.5z" fill="currentColor" stroke="none"/><rect x="4.3" y="4.5" width="2.2" height="11" rx=".9" fill="currentColor" stroke="none"/></svg>',
   shuffle: '<svg viewBox="0 0 20 20"><path d="M3 6h2.4c2.6 0 3.6 1.6 4.6 4s2 4 4.6 4H17"/><path d="M3 14h2.4c1.2 0 2-.4 2.7-1.1M11.9 7.1c.7-.7 1.5-1.1 2.7-1.1H17"/><path d="m15 4 2 2-2 2M15 12l2 2-2 2"/></svg>',
   lyrics: '<svg viewBox="0 0 20 20"><path d="M3.5 5h11M3.5 8.5h11M3.5 12h6"/><circle cx="13" cy="15" r="1.8"/><path d="M14.8 15V10l2.4.8"/></svg>',
+  replace: '<svg viewBox="0 0 20 20"><circle cx="7.5" cy="7.5" r="4"/><path d="m10.5 10.5 2.5 2.5"/><path d="M12 4.5h5M14.5 2l2.5 2.5-2.5 2.5"/><path d="M9 16.5h8M11.5 14l-2.5 2.5 2.5 2.5"/></svg>',
+  rename: '<svg viewBox="0 0 20 20"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h3l1.5 1.5H15A1.5 1.5 0 0 1 16.5 8v1.5"/><path d="M3 6.5v8A1.5 1.5 0 0 0 4.5 16H9"/><path d="m15.4 10.6 1.9 1.9-5 5-2.5.6.6-2.5z"/></svg>',
+  wand: '<svg viewBox="0 0 20 20"><path d="m3.5 16.5 9-9"/><path d="m11 6 1.5-1.5 3 3L14 9z"/><path d="M15 2.5v2M16 3.5h-2M5.5 3v2.4M6.7 4.2H4.3M17 11v2M18 12h-2"/></svg>',
+  more: '<svg viewBox="0 0 20 20"><circle cx="5" cy="10" r="1.3" fill="currentColor" stroke="none"/><circle cx="10" cy="10" r="1.3" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="1.3" fill="currentColor" stroke="none"/></svg>',
   pulse: '<svg viewBox="0 0 20 20"><path d="M2.5 10.5h3.5l2-5 3.5 9 2-4.5h4"/></svg>',
   paste: '<svg viewBox="0 0 20 20"><rect x="4.5" y="4" width="11" height="13" rx="2"/><path d="M8 4V3h4v1"/><path d="M7.5 9h5M7.5 12h3"/></svg>',
 };
@@ -924,6 +928,240 @@ function selectButtons(f) {
   ];
 }
 
+// ---- Batch tools: find & replace in tags, rename a folder, actions -----------------------------------
+
+/** The folder page's batch tools (icon buttons on computers, a "…" menu on phones). */
+function folderTools(f) {
+  const target = f.search ? { paths: f.tracks.map((t) => t.path).slice(0, 1000) } : { folder: state.path };
+  const label = f.search ? plural(Math.min(f.tracks.length, 1000), "result") : "this folder";
+  return [
+    (f.tracks.length || f.folders.length) && !f.search && !f.mb ? { icon: "layers", label: "Organize", run: openOrganize,
+      title: "Rename and move files into folders from their tags (you see everything first)" } : null,
+    f.tracks.length ? { icon: "replace", label: "Find & replace", run: () => openReplace(target, label),
+      title: "Find & replace in the tags of these tracks (you see every change first)" } : null,
+    f.tracks.length ? { icon: "wand", label: "Actions", run: () => openActions(target, label),
+      title: "Clean up titles, Title Case, and actions from plugins (you see every change first)" } : null,
+    state.path && !f.search && !f.mb ? { icon: "rename", label: "Rename folder", run: renameFolder, title: "Rename this folder" } : null,
+  ].filter(Boolean);
+}
+
+function openToolsMenu(anchor, tools) {
+  document.querySelector(".tools-menu")?.remove();
+  const r = anchor.getBoundingClientRect();
+  const menu = h("div", { class: "tools-menu", role: "menu" }, tools.map((t) => h("button", { class: "tools-item", type: "button", role: "menuitem",
+    onclick: () => { menu.remove(); t.run(); } }, icon(t.icon), t.label)));
+  menu.style.top = `${r.bottom + 8}px`;
+  document.body.append(menu);
+  const left = Math.min(Math.max(12, r.left), window.innerWidth - menu.offsetWidth - 12);  // stays on screen
+  menu.style.left = `${left}px`;
+  menu.style.transformOrigin = left > r.left - 1 ? "top left" : "top right";
+  replay(menu, "opening");
+  const close = (e) => { if (!menu.contains(e.target) && e.target !== anchor) { menu.remove(); document.removeEventListener("pointerdown", close, true); } };
+  setTimeout(() => document.addEventListener("pointerdown", close, true), 0);
+}
+
+const act = { target: null, label: "", data: null, chosen: null, token: 0 };
+
+async function openActions(target, label) {
+  act.target = target; act.label = label; act.chosen = null;
+  openDialog($("#actions-dialog"));
+  setKids($("#actions-body"), h("p", { class: "loading" }, "Loading…"));
+  setKids($("#actions-foot"));
+  try { act.data = await api("GET", "/api/plugins"); } catch (err) { setKids($("#actions-body"), h("div", { class: "error-box" }, err.message)); return; }
+  renderActions();
+}
+
+function renderActions() {
+  const d = act.data;
+  const byPlugin = new Map();
+  for (const a of d.actions) { if (!byPlugin.has(a.plugin)) byPlugin.set(a.plugin, []); byPlugin.get(a.plugin).push(a); }
+  const name = (pid) => d.plugins.find((p) => p.id === pid)?.name || pid;
+  setKids($("#actions-body"),
+    h("p", { class: "mb-lead" }, `On ${act.label}. Pick one to see what it would change; nothing is written until you say so.`),
+    [...byPlugin].map(([pid, list]) => h("section", { class: "act-group" },
+      h("h3", { class: "mbx-h" }, name(pid)),
+      h("div", { class: "act-list" }, list.map((a) => h("button", { class: `act-item${act.chosen === a.id ? " on" : ""}`, type: "button",
+        onclick: () => chooseAction(a.id) },
+        h("strong", {}, a.label), a.description ? h("span", {}, a.description) : null))))),
+    h("div", { class: "rep-preview", id: "act-preview" }, act.chosen ? null : h("p", { class: "hint" }, "More actions can come from plugins: Account → Plugins.")));
+  setKids($("#actions-foot"), h("span", { class: "spacer" }),
+    h("button", { class: "btn", type: "button", "data-close": true }, "Cancel"),
+    h("button", { class: "btn primary", type: "button", id: "act-apply", disabled: true, onclick: applyAction }, "Apply"));
+}
+
+async function chooseAction(id) {
+  act.chosen = id;
+  renderActions();
+  const box = $("#act-preview");
+  const go = $("#act-apply");
+  const token = ++act.token;
+  setKids(box, h("p", { class: "hint mbx-wait" }, h("span", { class: "spinner", "aria-hidden": "true" }), "Looking…"));
+  try {
+    const d = await api("POST", `/api/actions/${encodeURIComponent(id)}/run`, { ...act.target, dry_run: true });
+    if (token !== act.token) return;
+    go.disabled = !d.changing;
+    go.textContent = d.changing ? `Apply to ${plural(d.changing, "track")}` : "Apply";
+    setKids(box,
+      h("p", { class: "rep-count" }, d.changing ? `${plural(d.changing, "track")} of ${d.tracks} would change` : `Nothing to change in ${plural(d.tracks, "track")}.`),
+      d.preview.length ? h("ul", { class: "rep-list" }, d.preview.map((p) => h("li", {},
+        h("span", { class: "rep-file", dir: "auto" }, p.path.split("/").pop()),
+        p.changes.map((ch) => h("span", { class: "rep-change" }, h("b", {}, fieldLabel(ch.key)), " ",
+          h("del", { dir: "auto" }, ch.old), " → ", h("ins", { dir: "auto" }, ch.new || "(empty)")))))) : null,
+      d.changing > d.preview.length ? h("p", { class: "hint" }, `…and ${d.changing - d.preview.length} more`) : null);
+  } catch (err) {
+    if (token !== act.token) return;
+    setKids(box, h("p", { class: "field-error" }, err.message));
+  }
+}
+
+async function applyAction() {
+  const go = $("#act-apply");
+  go.disabled = true; go.textContent = "Applying…";
+  try {
+    const d = await api("POST", `/api/actions/${encodeURIComponent(act.chosen)}/run`, { ...act.target, dry_run: false });
+    closeDialog($("#actions-dialog"));
+    toast(d.failed ? `Changed ${d.changed}, ${d.failed} couldn't be changed` : `Changed ${plural(d.changed, "track")}`, d.failed ? "error" : "success");
+    folderCache.clear();
+    refreshActivity();
+    loadFolder(state.path, { keepScroll: true });
+  } catch (err) { toast(err.message, "error"); go.disabled = false; go.textContent = "Apply"; }
+}
+
+function setPluginsOpen(open) {
+  $("#plugins-toggle").setAttribute("aria-expanded", String(open));
+  $("#plugins-body").hidden = !open;
+  $("#plugins-tile").classList.toggle("open", open);
+  if (open) renderPlugins();
+}
+
+async function renderPlugins() {
+  const box = $("#plugins-body");
+  let d;
+  try { d = await api("GET", "/api/plugins"); } catch (err) { setKids(box, h("p", { class: "field-error" }, err.message)); return; }
+  const outside = d.plugins.filter((p) => !p.builtin);
+  $("#plugins-summary").textContent = outside.length ? `${outside.filter((p) => p.enabled).length} of ${outside.length} on` : "Add actions to Codetta";
+  setKids(box,
+    h("p", { class: "hint" }, "Plugins add actions (batch changes to tags) to Codetta. They run on your server with Codetta's permissions, so only turn on plugins you trust. Put a plugin's folder in ",
+      h("code", {}, d.folder), " and it shows up here, off."),
+    d.plugins.map((p) => {
+      const input = h("input", { type: "checkbox", role: "switch", checked: p.enabled, disabled: p.builtin });
+      input.addEventListener("change", async () => {
+        input.disabled = true;
+        try { await api("PUT", `/api/plugins/${encodeURIComponent(p.id)}`, { enabled: input.checked }); toast(`${p.name} ${input.checked ? "on" : "off"}`, "success"); }
+        catch (err) { input.checked = !input.checked; toast(err.message, "error"); }
+        renderPlugins();
+      });
+      return h("label", { class: "switch-row" },
+        h("span", { class: "switch-text" },
+          h("span", { class: "switch-title" }, p.name, p.version ? h("span", { class: "plugin-meta" }, ` ${p.version}`) : null,
+            p.builtin ? h("span", { class: "plugin-meta" }, " · built in") : null),
+          p.description ? h("span", { class: "switch-sub" }, p.description) : null,
+          p.author ? h("span", { class: "switch-sub" }, `by ${p.author}`) : null,
+          p.error ? h("span", { class: "field-error" }, p.error) : null),
+        input);
+    }),
+    h("p", { class: "hint" }, h("a", { href: "https://github.com/gavndev/codetta/blob/main/docs/plugins.md", target: "_blank", rel: "noopener noreferrer" }, "Write your own plugin →")));
+}
+
+const rep = { target: null, label: "", timer: null, token: 0, data: null };
+const REPLACE_FIELD_CHOICES = [["", "All text fields"], ["title", "Title"], ["artist", "Artist"], ["album", "Album"],
+  ["albumartist", "Album artist"], ["genre", "Genre"], ["comment", "Comment"]];
+
+function openReplace(target, label) {
+  rep.target = target; rep.label = label; rep.data = null;
+  const f = {};
+  f.find = h("input", { type: "text", placeholder: "Find, e.g. (Official Audio)", maxlength: "200", dir: "auto", spellcheck: "false", autocomplete: "off" });
+  f.replace = h("input", { type: "text", placeholder: "Replace with (leave empty to remove it)", maxlength: "500", dir: "auto", spellcheck: "false", autocomplete: "off" });
+  f.field = h("select", {}, REPLACE_FIELD_CHOICES.map(([v, l]) => h("option", { value: v }, l)));
+  f.case = h("input", { type: "checkbox" });
+  f.regex = h("input", { type: "checkbox" });
+  rep.fields = f;
+  for (const el of [f.find, f.replace, f.field, f.case, f.regex]) el.addEventListener("input", () => replacePreviewSoon());
+  for (const el of [f.field, f.case, f.regex]) el.addEventListener("change", () => replacePreviewSoon());
+  setKids($("#replace-body"),
+    h("p", { class: "mb-lead" }, `In the tags of ${label}. You see every change before anything is written, and Activity can undo it.`),
+    h("div", { class: "rep-grid" },
+      h("label", { class: "field" }, h("span", { class: "field-label" }, "Find"), f.find),
+      h("label", { class: "field" }, h("span", { class: "field-label" }, "Replace with"), f.replace),
+      h("label", { class: "field" }, h("span", { class: "field-label" }, "In"), f.field)),
+    h("div", { class: "rep-options" },
+      h("label", { class: "rep-check" }, f.case, "Match case"),
+      h("label", { class: "rep-check", title: "Regular expression: \\d+ for numbers, (…) and \\1 to keep parts" }, f.regex, "Pattern (regex)")),
+    h("div", { class: "rep-preview", id: "rep-preview" }, h("p", { class: "hint" }, "Type what to find to see the changes.")));
+  setKids($("#replace-foot"), h("span", { class: "spacer" }),
+    h("button", { class: "btn", type: "button", "data-close": true }, "Cancel"),
+    h("button", { class: "btn primary", type: "button", id: "rep-apply", disabled: true, onclick: applyReplace }, "Replace"));
+  openDialog($("#replace-dialog"));
+  f.find.focus();
+}
+
+function replaceBody(dryRun) {
+  const f = rep.fields;
+  return { ...rep.target, find: f.find.value, replace: f.replace.value, fields: f.field.value ? [f.field.value] : null,
+    match_case: f.case.checked, regex: f.regex.checked, dry_run: dryRun };
+}
+
+function replacePreviewSoon() {
+  clearTimeout(rep.timer);
+  rep.timer = setTimeout(replacePreview, 300);
+}
+
+async function replacePreview() {
+  const box = $("#rep-preview");
+  const go = $("#rep-apply");
+  if (!rep.fields.find.value) { setKids(box, h("p", { class: "hint" }, "Type what to find to see the changes.")); go.disabled = true; return; }
+  const token = ++rep.token;
+  setKids(box, h("p", { class: "hint mbx-wait" }, h("span", { class: "spinner", "aria-hidden": "true" }), "Looking…"));
+  try {
+    const d = await api("POST", "/api/tracks/replace", replaceBody(true));
+    if (token !== rep.token) return;
+    rep.data = d;
+    go.disabled = !d.changing;
+    go.textContent = d.changing ? `Replace in ${plural(d.changing, "track")}` : "Replace";
+    setKids(box,
+      h("p", { class: "rep-count" }, d.changing ? `${plural(d.changing, "track")} of ${d.tracks} would change` : `Nothing to change in ${plural(d.tracks, "track")}.`),
+      d.preview.length ? h("ul", { class: "rep-list" }, d.preview.map((p) => h("li", {},
+        h("span", { class: "rep-file", dir: "auto" }, p.path.split("/").pop()),
+        p.changes.map((ch) => h("span", { class: "rep-change" }, h("b", {}, fieldLabel(ch.key)), " ",
+          h("del", { dir: "auto" }, ch.old), " → ", h("ins", { dir: "auto" }, ch.new || "(empty)")))))) : null,
+      d.changing > d.preview.length ? h("p", { class: "hint" }, `…and ${d.changing - d.preview.length} more`) : null);
+  } catch (err) {
+    if (token !== rep.token) return;
+    go.disabled = true;
+    setKids(box, h("p", { class: "field-error" }, err.message));
+  }
+}
+
+async function applyReplace() {
+  const go = $("#rep-apply");
+  go.disabled = true; go.textContent = "Replacing…";
+  try {
+    const d = await api("POST", "/api/tracks/replace", replaceBody(false));
+    closeDialog($("#replace-dialog"));
+    toast(d.failed ? `Changed ${d.changed}, ${d.failed} couldn't be changed` : `Changed ${plural(d.changed, "track")}`, d.failed ? "error" : "success");
+    folderCache.clear();
+    refreshActivity();
+    loadFolder(state.path, { keepScroll: true });
+  } catch (err) { toast(err.message, "error"); go.disabled = false; go.textContent = "Replace"; }
+}
+
+async function renameFolder() {
+  const current = state.path.split("/").pop();
+  const input = h("input", { type: "text", value: current, maxlength: "255", dir: "auto", spellcheck: "false", autocomplete: "off", class: "rename-input" });
+  setTimeout(() => { input.focus(); input.select(); }, 80);
+  const ok = await ask({ title: "Rename folder", message: "Every file moves with it. Nothing is overwritten, and Activity can undo it.",
+    details: h("label", { class: "field" }, h("span", { class: "field-label" }, "New name"), input), confirmLabel: "Rename" });
+  const name = input.value.trim();
+  if (!ok || !name || name === current) return;
+  try {
+    const r = await api("POST", "/api/folders/rename", { path: state.path, name });
+    toast(r.failed ? `Moved ${r.moved}, ${r.failed} couldn't move` : `Renamed to “${r.path.split("/").pop()}”`, r.failed ? "error" : "success");
+    folderCache.clear();
+    refreshActivity();
+    navigate(r.path);
+  } catch (err) { toast(err.message, "error"); }
+}
+
 function renderFolderHead() {
   const f = state.folder;
   if (!f) return;
@@ -990,8 +1228,8 @@ function renderFolderHead() {
       canSoulseek ? skFindButton(coverTrack ? "in-actions phone-only" : "in-actions") : null,
       f.tracks.length || f.folders.length ? iconButton("preset", "Apply preset", () => openApply("folder"),
         { title: "Apply a Tag Preset to this folder (you see every change first)" }) : null,
-      (f.tracks.length || f.folders.length) && !f.search ? iconButton("layers", "Organize", openOrganize,
-        { title: "Rename and move files into folders from their tags (you see everything first)" }) : null,
+      ...folderTools(f).map((t) => iconButton(t.icon, t.label, t.run, { title: t.title, cls: "tool-desktop" })),
+      folderTools(f).length ? iconButton("more", "More", (e) => openToolsMenu(e.currentTarget, folderTools(f)), { cls: "tool-more" }) : null,
       // Phones: selecting is a mode, like the Photos app.
       selectButtons(f)),
   );
@@ -3050,7 +3288,7 @@ function renderConnections() {
   }
   intro.textContent = conn.offline_locked
     ? "This server is set to stay offline (CODETTA_OFFLINE), so these can't be turned on."
-    : "Codetta is offline unless you turn these on. Only what's listed is sent, and only to these sites.";
+    : "Codetta never tracks you, and stays offline unless you turn these on. Only what's listed is sent, and only to these sites.";
   loadSlskd().then(renderSlskdSettings);
   setKids($("#conn-list"), conn.connections.map((c) => connectionRow(c, c.enabled, async (item, input) => {
     input.disabled = true;
@@ -4989,6 +5227,9 @@ function bindEvents() {
   $("#sel-clear").addEventListener("click", () => { state.selected.clear(); updateRowStates(); renderSelectionBar(); });
   $("#sel-edit").addEventListener("click", () => openEditor([...state.selected]));
   $("#sel-preset").addEventListener("click", () => openApply("selection"));
+  $("#sel-actions").addEventListener("click", () => openActions({ paths: [...state.selected] }, `${plural(state.selected.size, "selected track")}`));
+  $("#plugins-toggle").addEventListener("click", () => setPluginsOpen($("#plugins-body").hidden));
+  $("#sel-replace").addEventListener("click", () => openReplace({ paths: [...state.selected] }, `${plural(state.selected.size, "selected track")}`));
   $("#manage-btn").addEventListener("click", openManage);
   $("#cc-theme").addEventListener("click", () => { $("#theme-btn").click(); syncAccountTiles(); });
   $("#pw-toggle").addEventListener("click", () => setPasswordOpen($("#password-form").hidden));
@@ -5012,7 +5253,7 @@ function bindEvents() {
   $("#apply-go").addEventListener("click", doApply);
 
   // All dialogs: close buttons and backdrop clicks.
-  for (const dialog of [els.applyDialog, els.manageDialog, els.filterDialog, $("#mb-dialog"), $("#organize-dialog"), $("#inbox-dialog"), $("#soulseek-dialog"), $("#health-dialog"), $("#player-dialog"), $("#news-dialog")]) {
+  for (const dialog of [els.applyDialog, els.manageDialog, els.filterDialog, $("#mb-dialog"), $("#organize-dialog"), $("#inbox-dialog"), $("#soulseek-dialog"), $("#health-dialog"), $("#player-dialog"), $("#replace-dialog"), $("#actions-dialog"), $("#news-dialog")]) {
     dialog.addEventListener("click", (e) => {
       if (e.target.closest("[data-close]") || e.target === dialog) closeDialog(dialog);
     });

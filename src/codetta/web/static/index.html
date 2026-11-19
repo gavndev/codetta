@@ -12,7 +12,7 @@
   <link rel="icon" href="/static/icon.svg?v=3" type="image/svg+xml"> <!-- bump ?v= when the icon changes: browsers cache favicons hard -->
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=3">
   <link rel="preload" href="/static/fonts/schibsted-grotesk.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/static/app.css?v=64">
+  <link rel="stylesheet" href="/static/app.css?v=68">
   <script src="/static/theme.js?v=1"></script>
 </head>
 <body>
@@ -165,6 +165,8 @@
       <div class="selection-actions">
         <button class="btn" id="sel-clear" type="button">Clear</button>
         <button class="btn" id="sel-preset" type="button">Preset…</button>
+        <button class="btn" id="sel-replace" type="button" title="Find & replace in these tracks' tags">Replace…</button>
+        <button class="btn" id="sel-actions" type="button" title="Actions: clean up titles, Title Case, plugins…">Actions…</button>
         <button class="btn primary" id="sel-edit" type="button">Edit</button>
       </div>
     </div>
@@ -296,6 +298,17 @@
         </div>
       </section>
 
+      <section class="cc-tile plugins" id="plugins-tile">
+        <button class="conn-toggle" id="plugins-toggle" type="button" aria-expanded="false" aria-controls="plugins-body">
+          <span class="switch-text">
+            <span class="switch-title">Plugins</span>
+            <span class="switch-sub" id="plugins-summary">Add actions to Codetta</span>
+          </span>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg>
+        </button>
+        <div id="plugins-body" hidden></div>
+      </section>
+
       <section class="cc-tile password" id="pw-tile">
         <button class="conn-toggle" id="pw-toggle" type="button" aria-expanded="false" aria-controls="password-form">
           <span class="switch-text">
@@ -348,6 +361,30 @@
     </div>
     <div class="sheet-body" id="organize-body"></div>
     <div class="sheet-foot" id="organize-foot"></div>
+  </dialog>
+
+  <!-- Find & replace in tags (drawn by app.js) -->
+  <dialog class="sheet wide" id="replace-dialog" aria-labelledby="replace-title">
+    <div class="sheet-head">
+      <h2 id="replace-title">Find &amp; replace</h2>
+      <button class="icon-btn" type="button" data-close aria-label="Close">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body" id="replace-body"></div>
+    <div class="sheet-foot" id="replace-foot"></div>
+  </dialog>
+
+  <!-- Actions: built-in tidy-ups and plugins (drawn by app.js) -->
+  <dialog class="sheet wide" id="actions-dialog" aria-labelledby="actions-title">
+    <div class="sheet-head">
+      <h2 id="actions-title">Actions</h2>
+      <button class="icon-btn" type="button" data-close aria-label="Close">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body" id="actions-body"></div>
+    <div class="sheet-foot" id="actions-foot"></div>
   </dialog>
 
   <!-- Library health (drawn by app.js) -->
@@ -431,6 +468,6 @@
   <datalist id="tag-keys"></datalist>
   <div class="toasts" id="toasts" aria-live="polite"></div>
 
-  <script src="/static/app.js?v=64" type="module"></script>
+  <script src="/static/app.js?v=67" type="module"></script>
 </body>
 </html>

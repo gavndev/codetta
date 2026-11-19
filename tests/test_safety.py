@@ -477,3 +477,82 @@ def test_organize_never_overwrites_a_file_that_appears_after_the_preview(tmp_pat
     result = apply_moves(root, moves)[0]
     assert not result.ok
     assert (root / "in" / "a.flac").read_bytes() == b"mine" and (root / "A" / "B" / "01 C.flac").read_bytes() == b"theirs"
+
+
+# --- Batch tools: find & replace, folder rename ------------------------------------------------------
+
+import shutil as _shutil  # noqa: E402
+
+from fastapi.testclient import TestClient as _TestClient  # noqa: E402
+
+from codetta.web.app import Settings as _Settings, create_app as _create_app  # noqa: E402
+
+
+@pytest.fixture
+def batch_client(tmp_path):
+    from codetta.core.engine import MetadataEngine
+    music = tmp_path / "music"
+    album = music / "Artist" / "Album"
+    album.mkdir(parents=True)
+    e = MetadataEngine()
+    for i, title in enumerate(["Intro (Official Audio)", "Night ft. Zayn (official audio)", "Plain"], 1):
+        _shutil.copy2(FIXTURES_DIR / "sample.flac", album / f"0{i}.flac")
+        e.update_tags(album / f"0{i}.flac", {"title": title, "artist": "Artist"})
+    (album / "cover.jpg").write_bytes(b"jpg")
+    with _TestClient(_create_app(_Settings(music_dir=music, config_dir=tmp_path / "cfg", auth=False))) as c:
+        yield c, music
+
+
+def title(c, path):
+    return c.get("/api/track", params={"path": path}).json()["tags"].get("title")
+
+
+def test_find_replace_previews_then_writes_once_and_undoes(batch_client):
+    c, _ = batch_client
+    body = {"folder": "Artist/Album", "find": " (official audio)"}
+    prev = c.post("/api/tracks/replace", json=body).json()
+    assert prev["changing"] == 2 and title(c, "Artist/Album/01.flac") == ["Intro (Official Audio)"]  # preview only
+    assert prev["preview"][0]["changes"][0] == {"key": "title", "old": "Intro (Official Audio)", "new": "Intro"}
+    done = c.post("/api/tracks/replace", json={**body, "dry_run": False}).json()
+    assert done["changed"] == 2 and title(c, "Artist/Album/02.flac") == ["Night ft. Zayn"]
+    entry = c.get("/api/activity").json()[0]
+    assert entry["message"].startswith("Find & replace") and entry["can_undo"]
+    assert c.post(f"/api/activity/{entry['id']}/undo").json()["undone"] == 2
+    assert title(c, "Artist/Album/02.flac") == ["Night ft. Zayn (official audio)"]
+
+
+def test_find_replace_regex_and_case(batch_client):
+    c, _ = batch_client
+    r = c.post("/api/tracks/replace", json={"folder": "Artist/Album", "find": r"\bft\.\s*(\w+)", "replace": r"feat. \1",
+                                            "regex": True, "dry_run": False}).json()
+    assert r["changed"] == 1 and title(c, "Artist/Album/02.flac") == ["Night feat. Zayn (official audio)"]
+    assert c.post("/api/tracks/replace", json={"folder": "Artist/Album", "find": "OFFICIAL", "match_case": True}).json()["changing"] == 0
+    assert c.post("/api/tracks/replace", json={"folder": "Artist/Album", "find": "(", "regex": True}).status_code == 422
+    assert c.post("/api/tracks/replace", json={"folder": "Artist/Album", "find": "x", "replace": r"\9", "regex": True}).status_code == 422
+
+
+def test_rename_folder_moves_everything_and_undoes(batch_client):
+    c, music = batch_client
+    r = c.post("/api/folders/rename", json={"path": "Artist/Album", "name": "Album (2024)"}).json()
+    assert r["path"] == "Artist/Album (2024)" and r["moved"] == 4  # three tracks and the cover
+    assert not (music / "Artist" / "Album").exists() and (music / "Artist" / "Album (2024)" / "cover.jpg").exists()
+    entry = c.get("/api/activity").json()[0]
+    assert c.post(f"/api/activity/{entry['id']}/undo").json()["failed"] == 0
+    assert (music / "Artist" / "Album" / "01.flac").exists() and not (music / "Artist" / "Album (2024)").exists()
+
+
+def test_rename_folder_never_overwrites_and_stays_inside(batch_client):
+    c, music = batch_client
+    (music / "Artist" / "Taken").mkdir()
+    assert c.post("/api/folders/rename", json={"path": "Artist/Album", "name": "Taken"}).status_code == 409
+    assert (music / "Artist" / "Album" / "01.flac").exists()
+    r = c.post("/api/folders/rename", json={"path": "Artist/Album", "name": "../../escape"}).json()
+    assert r["path"].startswith("Artist/") and "/" not in r["path"][len("Artist/"):]  # the name is made safe
+    assert c.post("/api/folders/rename", json={"path": "@inbox", "name": "x"}).status_code == 422
+    assert c.post("/api/folders/rename", json={"path": "", "name": "x"}).status_code == 422
+
+
+def test_rename_folder_case_only(batch_client):
+    c, music = batch_client
+    r = c.post("/api/folders/rename", json={"path": "Artist/Album", "name": "ALBUM"}).json()
+    assert r["path"] == "Artist/ALBUM" and (music / "Artist" / "ALBUM" / "01.flac").exists()

@@ -152,6 +152,31 @@ if a name is taken, that file is listed and left alone. Lyrics files
 booklet, logs and scans come along. Folders left empty are removed. The whole
 organize is one entry in the activity log, so **Undo** puts everything back.
 
+## Batch tools
+
+Every tool here works on a whole folder, your selection, or a page of search
+results, shows every change before anything is written, and is one entry in
+Activity that **Undo** reverses. On phones they're in the **…** menu.
+
+- **Find & replace** in tags: "(Official Audio)" → nothing, "ft." → "feat.",
+  in every text tag or just one. Turn on **Pattern** for regular expressions
+  (`\d+`, and `(…)` with `\1` to keep parts).
+- **Actions**: one-tap tidy-ups. Built in: **Clean up titles** (removes
+  "(Official Video)", "[Explicit]", "(Lyrics)"…), **Write features as
+  "feat."**, **Title Case** and **Trim spaces**. Plugins add more.
+- **Rename folder**: every file moves with it, nothing is overwritten.
+- **Organize** (above) renames and moves many files and folders from their tags.
+- **Edit** a selection of tracks (or **Save to folder**) to set the same tags on
+  all of them, and **Tag Presets** to apply a saved set.
+
+## Plugins
+
+Plugins add actions to Codetta. A plugin is a folder you put in
+`config/plugins/`; it shows up in **Account → Plugins**, switched off, and its
+code doesn't run until you turn it on. Plugins run on your server with
+Codetta's permissions, so only turn on ones you trust. Writing one takes a few
+lines of Python: see the [plugin guide](plugins.md).
+
 ## Library health
 
 A card at the top of the Library page says how many things are worth a look
