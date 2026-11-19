@@ -48,7 +48,7 @@ from codetta.core.tagmap import FIELDS
 
 log = logging.getLogger("codetta.index")
 
-SCHEMA_VERSION = 4  # 4: a stored natural sort key per file (search sorts in SQLite, not Python)
+SCHEMA_VERSION = 5  # 4: a stored natural sort key per file; 5: keeps musicbrainz_albumid (Library health)
 RESCAN_SECONDS = 15 * 60  # a search re-checks the library if the last scan is older than this
 BATCH = 200  # files per database transaction while scanning
 PAR_CHUNK = 128  # files per job when worker processes help with a big scan
@@ -58,8 +58,9 @@ MAX_QUERY_CHARS = 500
 # Tags searched by plain words (no "key:").
 FREE_TEXT_KEYS = ("title", "artist", "album", "albumartist")
 
-# Not worth searching, and often large: fingerprints, IDs, loudness data.
-_SKIP_KEY = re.compile(r"^(lyrics$|unsyncedlyrics$|acoustid_|musicbrainz_|replaygain_|itunnorm|itunsmpb|isrc$|barcode$|tidal_|spotify_|discogs_|deezer_|qobuz_|.*_id$|.*fingerprint)")
+# Not worth searching, and often large: fingerprints, IDs, loudness data. The MusicBrainz
+# album ID stays: Library health tells matched albums from unmatched ones by it.
+_SKIP_KEY = re.compile(r"^(lyrics$|unsyncedlyrics$|acoustid_|musicbrainz_(?!albumid$)|replaygain_|itunnorm|itunsmpb|isrc$|barcode$|tidal_|spotify_|discogs_|deezer_|qobuz_|.*_id$|.*fingerprint)")
 # Searchable, but not worth an index entry: sort names and credits repeat the real names.
 _DUPLICATE_KEY = re.compile(r"^(.*sort|.*_credit|.*sortorder)$")
 MAX_INDEXED_VALUE = 300  # longer values (lyrics, essays in comments) aren't searchable

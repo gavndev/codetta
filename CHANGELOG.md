@@ -4,6 +4,8 @@ All notable changes to Codetta. Versions follow [Semantic Versioning](https://se
 
 ## Unreleased (0.8.2)
 
+- **Fixed:** Library health said every album "isn't matched on MusicBrainz yet", even matched ones. Your search index is rebuilt once after updating so it can tell them apart.
+- New screenshots and a README header with real albums.
 - **Snap:** `sudo snap install codetta` on Ubuntu and other Linux systems, for Intel/AMD and ARM. It updates itself. See [On your own computer](docs/install.md#on-your-own-computer).
 
 ## 0.8.1 (2026-11-19)

@@ -58,15 +58,19 @@ is [`src/codetta/web/static/icons/codetta.png`](../../src/codetta/web/static/ico
 | Extensible by plugins | [Plugin API](../plugins.md): actions on tracks, off until enabled |
 | Support for themes | Light and dark themes. Only tick this if the site counts light/dark as themes; there are no custom themes |
 
-**Screenshots** (upload in this order):
+**Screenshots** (upload in this order; the Snap Store takes 5, under 2 MB each):
 
-1. `album-light.png`: an album, booklet style
-2. `editor-light.png`: the tag editor beside the album
-3. `actions.png`: Actions previewing "Clean up titles"
-4. `health.png`: Library health
-5. `search.png`: search by tag across the library
-6. `album-dark.png`: dark theme
+1. `hero-light.jpg`: logo, tagline and real albums (`hero-dark.jpg` for dark listings)
+2. `album-light.png`: Frank Ocean's *Blond*, booklet style
+3. `editor-light.png`: the tag editor beside the album
+4. `actions.png`: Actions previewing "Clean up titles" on a messy Downloads folder
+5. `health.png`: Library health (split album, missing covers, missing tags)
+6. `search.png`, `album-dark.png`, `editor-dark.png`: where more are allowed
 7. `phone-album.png`, `phone-editor.png`: on a phone
+
+The albums are real releases, tagged from MusicBrainz with their Cover Art Archive covers;
+the audio files are silent stand-ins. Remake them with the scripts in the maintainer's notes
+(`docs/listing/screenshots.md`).
 
 ## Other directories
 
