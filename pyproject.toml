@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "codetta"
-version = "0.8.1"
+version = "0.8.2"
 description = "A private, self-hosted music library manager: tags, MusicBrainz matching, batch editing and organizing, in your browser"
 readme = "README.md"
 authors = [{ name = "Gavin Griggs" }]

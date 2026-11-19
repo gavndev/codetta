@@ -77,6 +77,7 @@ jobs:
           if [ "${{ vars.PYPI_PUBLISH }}" = "true" ]; then
             printf '\nOn your own computer: `pipx install codetta` (update: `pipx upgrade codetta`)\n' >> notes.md
           fi
+          printf 'On Ubuntu and other Linux: `sudo snap install codetta` (it updates itself once this build is promoted to stable)\n' >> notes.md
           cat notes.md
       - name: Create the release
         env:
