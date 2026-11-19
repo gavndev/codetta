@@ -15,6 +15,7 @@ All optional. Set them under `environment:` in your
 | `CODETTA_AUTH` | `on` | Set to `off` to disable sign-in. **Only** do this if a reverse proxy in front of Codetta already requires a login. |
 | `CODETTA_ALLOW_PUBLIC_SETUP` | `off` | The setup screen only works from home networks, Tailscale and the server itself, so nobody on the internet can claim a fresh install. Set to `on` only if you must set up over the internet. |
 | `CODETTA_ALLOWED_HOSTS` | – | Comma-separated host names Codetta answers to (e.g. `music-server,192.168.1.50`). Other names are refused, which blocks DNS-rebinding attacks. Recommended if more than your own devices can reach Codetta. |
+| `CODETTA_INDEX_WORKERS` | one fewer than your CPU cores, up to 4 | Helper processes that read your library the first time (or after a big import). 4 read about 3.5× faster than 1. Set `1` on a very small machine to keep memory lowest; they only run while there's a lot to read, then stop. |
 | `FORWARDED_ALLOW_IPS` | `127.0.0.1` | Behind a reverse proxy, set this to the proxy's IP so login lockouts see each visitor's real address. |
 
 | Folder in the container | What's in it |

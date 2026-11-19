@@ -43,6 +43,7 @@ import re
 import threading
 import time
 from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from importlib.metadata import PackageNotFoundError, version
@@ -75,6 +76,7 @@ from codetta.core.health import EDITION_RE, MB_RELEASE_KEYS, HealthStore, folder
 from codetta.core.health import _base_artist as base_artist
 from codetta.core.health import fold as health_fold
 from codetta.core.health import run as health_run
+from codetta.core.describe import describe_file, describe_many
 from codetta.core.index import LibraryIndex, parse_query
 from codetta.core import changelog
 from codetta.core.notifications import Notifications
@@ -220,6 +222,7 @@ class Settings:
     inbox_dir: Path | None = None  # a downloads folder outside the library (e.g. slskd's), used as "@inbox"
     inbox_settle_seconds: float = 120  # wait this long after a file changes (downloads still arriving)
     slskd_poll_seconds: float = 4  # how often a Soulseek request under way is checked on
+    index_workers: int = 0  # processes that help a big index scan (0: one fewer than the CPUs, up to 4)
     update_repo: str = DEFAULT_REPO
     allowed_hosts: tuple[str, ...] = ()  # empty = answer to any host name
     allow_public_setup: bool = False  # first-run setup only from private addresses
@@ -240,6 +243,7 @@ class Settings:
             acoustid=parse_switch(env("ACOUSTID")),
             acoustid_key=(env("ACOUSTID_KEY") or "").strip() or None,
             fpcalc=(env("FPCALC") or "").strip() or None,
+            index_workers=int(env("INDEX_WORKERS") or 0) if (env("INDEX_WORKERS") or "0").isdigit() else 0,
             slskd=parse_switch(env("SLSKD")),
             slskd_url=(env("SLSKD_URL") or "").strip() or None,
             slskd_api_key=(env("SLSKD_API_KEY") or "").strip() or None,
@@ -501,6 +505,8 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     AcoustID (form) -> parsed JSON; ``run_fpcalc`` replaces running fpcalc;
     ``slskd_request`` (method, url, headers, body) -> (status, body) stands in for slskd."""
     settings = settings or Settings.from_env()
+    if settings.index_workers <= 0:
+        settings.index_workers = max(1, min(4, (os.cpu_count() or 2) - 1))
     connections = ConnectionStore(
         settings.config_dir / "connections.json", offline=settings.offline,
         forced={"updates": settings.update_check, "lyrics": settings.lyrics_lookup, "musicbrainz": settings.musicbrainz,
@@ -536,10 +542,8 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     download_art = fetch_art or (lambda url: http_get(url, user_agent, accept="image/*", max_bytes=MAX_ART_BYTES,
                                                  service="the Cover Art Archive"))
 
-    def describe(path: Path, rel: str) -> dict:  # what the search index stores per file
-        return to_out(rel, engine.load_metadata(path)).model_dump()
-
-    lib_index = LibraryIndex(settings.music_dir, settings.config_dir / "library-index.sqlite3", describe)
+    lib_index = LibraryIndex(settings.music_dir, settings.config_dir / "library-index.sqlite3", describe_file,
+                             parallel=describe_many, workers=settings.index_workers)
     if not settings.auth:
         log.warning("Sign-in is turned OFF (CODETTA_AUTH=off). Anyone who can reach Codetta can edit your music.")
 
@@ -833,6 +837,24 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
                 track_memory.pop(rel, None)
             return TrackOut(path=rel, name=name, error=str(exc))
 
+    def tracks_out(rels: list[str]) -> list[TrackOut]:
+        """A folder's tracks. Files the search index already knows unchanged (same modification
+        time and size) come from the index: a folder of thousands opens without reading a file."""
+        known = lib_index.stored(rels) if len(rels) > 20 else {}
+        out = []
+        for rel in rels:
+            hit = known.get(rel)
+            if hit is not None:
+                try:
+                    st = library.resolve(rel).stat()
+                    if (st.st_mtime_ns, st.st_size) == (hit[0], hit[1]) and not hit[2].get("error"):
+                        out.append(TrackOut(**hit[2]))
+                        continue
+                except (OSError, LibraryPathError, ValueError):
+                    pass
+            out.append(track_out(rel))
+        return out
+
     def result_out(r: FileResult) -> ApplyResultOut:
         return ApplyResultOut(
             path=library.relative(r.path),
@@ -956,7 +978,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             breadcrumbs=crumbs,
             folders=[folder_out(f) for f in listing.folders],
             skipped=listing.skipped,
-            tracks=[track_out(f) for f in listing.files],
+            tracks=tracks_out(listing.files),
         )
 
     @app.get("/api/track", response_model=TrackOut)
@@ -1361,16 +1383,39 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         Each file succeeds or fails on its own; check ``ok`` per result.
         """
         require_library()
-        results = []
         before: dict[str, dict[str, list[str]]] = {}  # for the activity log
-        for rel in _unique(body.paths):
+
+        paths = _unique(body.paths)
+        # A tag edit never touches the embedded cover: reuse what the index knows about it
+        # instead of opening every file once more just to hash its picture again.
+        known_art = {p: (t.get("art"),) for p, (_, _, t) in lib_index.stored(paths).items()} if len(paths) > 8 else {}
+
+        def write(rel: str) -> UpdateResult:
             try:
                 target = library.resolve(rel)
-                before[rel] = engine.load_metadata(target).tags
-                meta = engine.update_tags(target, body.changes)
-                results.append(UpdateResult(path=rel, ok=True, track=to_out(rel, meta)))
+                was: dict = {}
+                meta = engine.update_tags(target, body.changes, before=was)  # safe write: copy, check, swap
+                before[rel] = was["tags"]
+                if rel in known_art:
+                    try:
+                        mtime = target.stat().st_mtime_ns
+                    except OSError:
+                        mtime = None
+                    out = _to_track_out(rel, meta, mtime)
+                    art = known_art[rel][0]
+                    out.art = ArtInfo(**art) if art else None
+                    return UpdateResult(path=rel, ok=True, track=out)
+                return UpdateResult(path=rel, ok=True, track=to_out(rel, meta))
             except (MetadataError, LibraryPathError, OSError) as exc:
-                results.append(UpdateResult(path=rel, ok=False, error=str(exc)))
+                return UpdateResult(path=rel, ok=False, error=str(exc))
+
+        if len(paths) > 8:
+            # Most of a safe write is waiting for the disk, so a few at once is ~1.6x faster
+            # (more on hard drives). Each file still has its own lock and its own safe write.
+            with ThreadPoolExecutor(max_workers=4, thread_name_prefix="codetta-write") as pool:
+                results = list(pool.map(write, paths))
+        else:
+            results = [write(rel) for rel in paths]
         keys = {k.lower() for k in body.changes}
         undo_files = {}
         for r in results:
@@ -2150,7 +2195,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         key = lib_index.version
         if owned_cache["key"] != key:
             albums: dict[str, dict[str, str]] = {}
-            for path, track in lib_index.all_tracks():
+            for path, track in lib_index.iter_tracks():
                 tags = track.get("tags") or {}
                 album = next((v for v in tags.get("album", []) if v.strip()), "")
                 who = next((v for v in tags.get("albumartist", []) + tags.get("artist", []) if v.strip()), "")
@@ -2240,17 +2285,32 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     health_cache: dict = {"key": None, "data": None, "at": 0.0, "fixed": {}}
     health_lock = threading.Lock()
 
-    def health_data() -> dict:
-        """Every issue, recomputed when the index changes (or after 10 minutes, for cover files)."""
-        with health_lock:
+    health_compute_lock = threading.Lock()
+    health_worker: dict = {"thread": None}
+
+    def health_compute() -> None:
+        with health_compute_lock:
             key = lib_index.version
-            if health_cache["key"] != key or time.time() - health_cache["at"] > 600:
-                inbox_folder = inbox.settings.folder
-                skip = [inbox_folder] if inbox_folder and not inbox_folder.startswith("@") else []
-                health_cache["data"] = health_run(lib_index.all_tracks(), folder_has_image(library.resolve),
-                                                  lib_index.paths_with_any(MB_RELEASE_KEYS), skip)
-                health_cache.update(key=key, at=time.time())
-            return health_cache["data"]
+            inbox_folder = inbox.settings.folder
+            skip = [inbox_folder] if inbox_folder and not inbox_folder.startswith("@") else []
+            data = health_run(lib_index.iter_tracks(), folder_has_image(library.resolve),
+                              lib_index.paths_with_any(MB_RELEASE_KEYS), skip)
+            with health_lock:
+                health_cache.update(data=data, key=key, at=time.time())
+
+    def health_data() -> dict:
+        """Every issue. The first check waits for the answer; after that, a change to the library
+        (or 10 minutes, for cover files) re-checks in the background while the last answer is
+        shown, so a big library never makes anyone wait twice."""
+        with health_lock:
+            data = health_cache["data"]
+            stale = health_cache["key"] != lib_index.version or time.time() - health_cache["at"] > 600
+        if data is None:
+            health_compute()
+        elif stale and not (health_worker["thread"] and health_worker["thread"].is_alive()):
+            health_worker["thread"] = threading.Thread(target=health_compute, name="codetta-health", daemon=True)
+            health_worker["thread"].start()
+        return health_cache["data"]
 
     def health_public(issue: dict) -> dict:
         """What the page needs: never the file lists or the planned changes themselves."""
@@ -2260,7 +2320,8 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
 
     def health_visible() -> tuple[dict, list[dict], list[dict]]:
         data = health_data()
-        fixed = {i for i, v in health_cache["fixed"].items() if v == lib_index.version}
+        # A fixed issue stays hidden until a check made after the fix confirms it's gone.
+        fixed = {i for i, v in health_cache["fixed"].items() if (health_cache["key"] or 0) <= v}
         shown, ignored = [], []
         for issue in data["issues"]:
             if issue["check"] in health_store.disabled or issue["id"] in fixed:
@@ -2268,9 +2329,16 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             (ignored if issue["id"] in health_store.ignored else shown).append(issue)
         return data, shown, ignored
 
+    HEALTH_PAGE = 200  # issues per answer; "Show more" asks for the next ones
+
     @app.get("/api/library-health")
-    def get_health() -> dict:
-        """Library health: things worth fixing, found from the search index."""
+    def get_health_route(category: str = Query("all", max_length=20), offset: int = Query(0, ge=0, le=1_000_000),
+                         limit: int = Query(HEALTH_PAGE, ge=1, le=1000)) -> dict:
+        """Library health: things worth fixing, found from the search index. Issues come a page
+        at a time (a big library can have thousands); ``count`` and the category counts are totals."""
+        return get_health(category, offset, limit)
+
+    def get_health(category: str = "all", offset: int = 0, limit: int = HEALTH_PAGE) -> dict:
         require_library()
         if not health_store.enabled:  # switched off: nothing is checked at all
             return {"enabled": False, "indexing": False, "albums": 0, "tracks": 0, "unmatched": None, "count": 0,
@@ -2286,8 +2354,11 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
                            for c, label in HEALTH_CATEGORIES.items()],
             "checks": [{"id": c.id, "category": c.category, "label": c.label, "about": c.about,
                         "enabled": c.id not in health_store.disabled} for c in HEALTH_CHECKS],
-            "issues": [health_public(i) for i in shown],
-            "ignored": [health_public(i) for i in ignored],
+            "category": category, "offset": offset,
+            "issues": [health_public(i) for i in (shown if category == "all" else [x for x in shown if x["category"] == category])[offset:offset + limit]],
+            "shown_total": len(shown) if category == "all" else sum(x["category"] == category for x in shown),
+            "ignored": [health_public(i) for i in ignored[:limit]],
+            "ignored_total": len(ignored),
         }
 
     @app.get("/api/library-health/summary")

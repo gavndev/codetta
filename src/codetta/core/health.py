@@ -15,6 +15,7 @@ Settings (switched-off checks, ignored issues) live in ``health.json``.
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
 import os
@@ -89,27 +90,39 @@ EDITION_RE = re.compile(r"\s*[\(\[][^)\]]*(?:deluxe|edition|remaster|version|exp
 _LEADING_NUMBER = re.compile(r"^\s*(?:(\d{1,2})[-.])?(\d{1,3})(?=[\s._-])")
 
 
+_NON_WORD = re.compile(r"[^\w]+")
+
+
+@functools.lru_cache(maxsize=65536)  # the same album and artist names come up track after track
 def fold(text: str) -> str:
     """Compare form: no accents, case, or punctuation differences."""
-    text = unicodedata.normalize("NFKD", text).casefold()
-    text = "".join(c for c in text if not unicodedata.combining(c))
-    return " ".join(re.sub(r"[^\w]+", " ", text).split())
+    if not text.isascii():
+        text = unicodedata.normalize("NFKD", text)
+        text = "".join(c for c in text if not unicodedata.combining(c))
+    return " ".join(_NON_WORD.sub(" ", text.casefold()).split())
 
 
 def _first(tags: dict, key: str) -> str:
-    for v in tags.get(key, []) or []:
-        if isinstance(v, str) and v.strip():
-            return v.strip()
+    v = tags.get(key)
+    if v.__class__ is str:  # already reduced to its first value (see _slim)
+        return v
+    for x in v or []:
+        if isinstance(x, str) and x.strip():
+            return x.strip()
     return ""
 
 
+_NUM = re.compile(r"^\s*(\d+)")
+_TOTAL = re.compile(r"^\s*\d*\s*/\s*(\d+)")
+
+
 def _num(value: str) -> int | None:
-    m = re.match(r"^\s*(\d+)", value or "")
+    m = _NUM.match(value or "")
     return int(m.group(1)) if m else None
 
 
 def _total(value: str) -> int | None:
-    m = re.match(r"^\s*\d*\s*/\s*(\d+)", value or "")
+    m = _TOTAL.match(value or "")
     return int(m.group(1)) if m else None
 
 
@@ -135,14 +148,17 @@ class Album:
     tracks: list[tuple[str, dict]] = field(default_factory=list)  # (path, track details)
 
     def values(self, key: str) -> list[str]:
-        return [_first(t.get("tags") or {}, key) for _, t in self.tracks]
+        cache = self.__dict__.setdefault("_values", {})
+        if key not in cache:
+            cache[key] = [_first(t.get("tags") or {}, key) for _, t in self.tracks]
+        return cache[key]
 
     def common(self, key: str) -> str:
         """The most common non-empty value (ties: the first one seen)."""
         vals = [v for v in self.values(key) if v]
         return Counter(vals).most_common(1)[0][0] if vals else ""
 
-    @property
+    @functools.cached_property
     def is_album(self) -> bool:
         """Most tracks agree on the album name (a "Singles" folder doesn't)."""
         names = [fold(v) for v in self.values("album") if v]
@@ -175,14 +191,14 @@ def group_albums(tracks: Iterable[tuple[str, dict]], skip: Iterable[str] = ()) -
 
 def _issue(check: str, album: Album, message: str, paths: list[str], detail: list[str] | None = None,
            fix: dict | None = None, actions: tuple[str, ...] = ()) -> dict:
-    tags = [t.get("tags") or {} for _, t in album.tracks]
+    # ``paths`` isn't kept: nothing needs the file list once the issue is found, and on a
+    # library of thousands of albums those lists were most of the memory health used.
     return {
         "id": issue_id(check, album.folder), "check": check, "category": BY_ID[check].category,
         "folder": album.folder, "album": album.common("album") or album.folder.rsplit("/", 1)[-1] or "Library",
         "artist": album.common("albumartist") or album.common("artist"),
-        "tracks": len(tags), "message": message, "detail": (detail or [])[:MAX_DETAIL],
-        "more": max(0, len(detail or []) - MAX_DETAIL), "paths": paths[:MAX_PATHS], "fix": fix,
-        "actions": list(actions),
+        "tracks": len(album.tracks), "message": message, "detail": (detail or [])[:MAX_DETAIL],
+        "more": max(0, len(detail or []) - MAX_DETAIL), "fix": fix, "actions": list(actions),
     }
 
 
@@ -364,35 +380,90 @@ def check_album(album: Album, has_folder_image: Callable[[str], bool]) -> list[d
 def duplicate_albums(albums: dict[str, Album]) -> list[dict]:
     keyed: dict[tuple[str, str], list[Album]] = {}
     for a in albums.values():
-        if not a.is_album:
-            continue
-        name = fold(a.common("album"))
-        who = fold(a.common("albumartist") or _base_artist(a.common("artist")))
-        if name:
-            keyed.setdefault((who, name), []).append(a)
-    out = []
-    for group in keyed.values():
-        if len(group) > 1:
-            first, *rest = sorted(group, key=lambda a: a.folder)
-            out.append(_issue("duplicate_album", first, f"Also in {len(rest)} other folder{'s' if len(rest) != 1 else ''}",
-                              [p for a in group for p, _ in a.tracks],
-                              [a.folder for a in group], None, ("open",)))
-            out[-1]["folders"] = [a.folder for a in group]
-    return out
+        if a.is_album:
+            key = _album_key(a)
+            if key:
+                keyed.setdefault(key, []).append(a)
+    return [_duplicate_issue(group) for group in keyed.values() if len(group) > 1]
 
 
-def run(tracks: list[tuple[str, dict]], has_folder_image: Callable[[str], bool],
+def _album_key(a: Album) -> tuple[str, str] | None:
+    name = fold(a.common("album"))
+    return (fold(a.common("albumartist") or _base_artist(a.common("artist"))), name) if name else None
+
+
+def _duplicate_issue(group: list[Album]) -> dict:
+    first, *rest = sorted(group, key=lambda a: a.folder)
+    issue = _issue("duplicate_album", first, f"Also in {len(rest)} other folder{'s' if len(rest) != 1 else ''}",
+                   [], [a.folder for a in group], None, ("open",))
+    issue["folders"] = [a.folder for a in sorted(group, key=lambda a: a.folder)]
+    return issue
+
+
+# Only what the checks read is kept per track while an album is being checked.
+_KEEP_TAGS = ("album", "albumartist", "artist", "title", "tracknumber", "discnumber", "date", "tracktotal", "totaltracks")
+
+
+def _slim(track: dict) -> dict:
+    tags = track.get("tags") or {}
+    kept = {}
+    for k in _KEEP_TAGS:
+        first = _first(tags, k) if tags.get(k) else ""
+        if first:
+            kept[k] = first  # the first value is all the checks read: keep just that
+    return {"tags": kept, "art": track.get("art"), "error": track.get("error"),
+            "format": track.get("format"), "bitrate": track.get("bitrate"), "duration": track.get("duration")}
+
+
+def _album_folder(path: str) -> str:
+    folder = path.rsplit("/", 1)[0] if "/" in path else ""
+    name = folder.rsplit("/", 1)[-1]
+    if folder and "/" in folder and DISC_FOLDER.match(name):
+        folder = folder.rsplit("/", 1)[0]
+    return folder
+
+
+def run(tracks: Iterable[tuple[str, dict]], has_folder_image: Callable[[str], bool],
         matched_paths: set[str] = frozenset(), skip: Iterable[str] = ()) -> dict:
-    """Every issue (whatever the settings), plus a few numbers."""
-    albums = group_albums(tracks, skip)
+    """Every issue (whatever the settings), plus a few numbers.
+
+    Streams: ``tracks`` in path order (as the index gives them) is checked one album at a
+    time, so a library of 100,000 tracks never sits in memory at once. A list is sorted first."""
+    if isinstance(tracks, list):
+        tracks = sorted(tracks, key=lambda x: x[0])
+    skip = tuple(s.rstrip("/") + "/" for s in skip if s)
     issues: list[dict] = []
-    for album in albums.values():
-        issues += check_album(album, has_folder_image)
-    issues += duplicate_albums(albums)
-    real = [a for a in albums.values() if a.is_album]
-    unmatched = sum(1 for a in real if not any(p in matched_paths for p, _ in a.tracks))
-    issues.sort(key=lambda i: (list(CATEGORIES).index(i["category"]), i["folder"].casefold(), i["check"]))
-    return {"albums": len(real), "folders": len(albums), "tracks": len(tracks), "unmatched": unmatched, "issues": issues}
+    open_albums: dict[str, Album] = {}  # albums whose files may still come (nested folders interleave)
+    dupes: dict[tuple[str, str], list[Album]] = {}
+    stats = {"albums": 0, "folders": 0, "tracks": 0, "unmatched": 0}
+
+    def finish(album: Album) -> None:
+        stats["folders"] += 1
+        issues.extend(check_album(album, has_folder_image))
+        if album.is_album:
+            stats["albums"] += 1
+            if not any(p in matched_paths for p, _ in album.tracks):
+                stats["unmatched"] += 1
+            key = _album_key(album)
+            if key:  # keep a light copy (names only) for the duplicate check at the end
+                light = Album(album.folder, [(p, {"tags": {k: t["tags"].get(k, "") for k in ("album", "albumartist", "artist")}})
+                                             for p, t in album.tracks[:3]])
+                dupes.setdefault(key, []).append(light)
+
+    for path, track in tracks:
+        if path.startswith("@") or (skip and path.startswith(skip)):
+            continue
+        stats["tracks"] += 1
+        folder = _album_folder(path)
+        for key in [k for k in open_albums if k and k != folder and not path.startswith(k + "/")]:
+            finish(open_albums.pop(key))  # sorted input: this album's files are all behind us
+        open_albums.setdefault(folder, Album(folder)).tracks.append((path, _slim(track)))
+    for album in open_albums.values():
+        finish(album)
+    issues.extend(_duplicate_issue(g) for g in dupes.values() if len(g) > 1)
+    order = list(CATEGORIES)
+    issues.sort(key=lambda i: (order.index(i["category"]), i["folder"].casefold(), i["check"]))
+    return {**stats, "issues": issues}
 
 
 def folder_has_image(root: Callable[[str], Path]) -> Callable[[str], bool]:

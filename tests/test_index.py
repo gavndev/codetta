@@ -286,3 +286,59 @@ def test_old_index_layout_is_rebuilt(library, tmp_path):
     idx = make_index(root, tmp_path, engine)
     idx.scan()
     assert idx.search(parse_query("artist: drake"))[1] == 2
+
+
+def test_big_scan_with_helper_processes_matches_a_plain_scan(tmp_path, monkeypatch):
+    """A big scan farms files out to helper processes; the index must come out identical."""
+    import shutil
+    from codetta.core import index as index_mod
+    from codetta.core.describe import describe_file, describe_many
+    from codetta.core.index import LibraryIndex
+    from tests.conftest import FIXTURES_DIR
+    root = tmp_path / "music"
+    for i in range(120):
+        d = root / f"Artist {i % 7}" / f"Album {i % 5}"
+        d.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(FIXTURES_DIR / ("sample.flac" if i % 2 else "sample.mp3"), d / f"{i:03d}.{'flac' if i % 2 else 'mp3'}")
+    monkeypatch.setattr(index_mod, "PAR_START", 10)
+    monkeypatch.setattr(index_mod, "PAR_CHUNK", 16)
+    plain = LibraryIndex(root, tmp_path / "plain.sqlite3", describe_file)
+    plain.scan()
+    fast = LibraryIndex(root, tmp_path / "fast.sqlite3", describe_file, parallel=describe_many, workers=3)
+    fast.scan()
+    a = {p: t for p, t in plain.iter_tracks()}
+    b = {p: t for p, t in fast.iter_tracks()}
+    assert len(a) == 120 and a == b
+
+
+def test_a_helper_that_dies_doesnt_lose_files(tmp_path, monkeypatch):
+    import shutil
+    from codetta.core import index as index_mod
+    from codetta.core.describe import describe_file, describe_many
+    from codetta.core.index import LibraryIndex, _Workers
+    from tests.conftest import FIXTURES_DIR
+    root = tmp_path / "music"; root.mkdir()
+    for i in range(60):
+        shutil.copy2(FIXTURES_DIR / "sample.mp3", root / f"{i:03d}.mp3")
+    monkeypatch.setattr(index_mod, "PAR_START", 5)
+    monkeypatch.setattr(index_mod, "PAR_CHUNK", 8)
+    real_init = _Workers.__init__
+
+    def broken(self, n, fallback):
+        real_init(self, n, fallback)
+        self.procs[0].kill()  # one helper is gone before it does anything
+    monkeypatch.setattr(_Workers, "__init__", broken)
+    idx = LibraryIndex(root, tmp_path / "i.sqlite3", describe_file, parallel=describe_many, workers=2)
+    idx.scan()
+    assert idx.status().files == 60
+
+
+def test_stored_sort_key_orders_like_natural_sort():
+    import random
+    from codetta.core.index import natural_sort_text
+    from codetta.core.library import natural_key
+    names = ["Disc 10/01.flac", "Disc 2/01.flac", "disc 2/02.flac", "Ärzte/1.mp3", "Arzte/2.mp3", "a/10 x.mp3",
+             "a/9 x.mp3", "a/x.mp3", "B/2.flac", "b/10.flac", "Zoë/1.flac", "zoe/2.flac", "007/a.mp3", "7/b.mp3",
+             "東京/1.flac", "Track 100.mp3", "Track 99.mp3"]
+    random.Random(1).shuffle(names)
+    assert sorted(names, key=natural_sort_text) == sorted(names, key=natural_key)

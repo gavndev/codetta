@@ -2,6 +2,18 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
+## Unreleased (0.8.0)
+
+- **Big libraries, much faster** (measured on 105,000 tracks):
+  - Reading your library the first time is about **4× faster** (139 → 34 seconds): helper processes share the work, then stop. `CODETTA_INDEX_WORKERS` sets how many.
+  - A folder of **5,000 tracks opens in a quarter of a second** on the server (was 6.5 s) and draws on screen without freezing: the first screenful at once, the rest a batch at a time.
+  - The Library page with 2,000 folders draws in a quarter of a second, without a freeze.
+  - **Search** of everything: 1.5 s → 0.26 s; tag searches like `genre: jazz` 0.27 → 0.07 s.
+  - **Library health** checks 10,000 albums in under 4 seconds (was 7), then shows its last answer instantly and re-checks in the background after changes. Long lists load 200 at a time with **Show more**.
+  - **Changing a tag on 1,000 files** at once: 10.7 → 5.6 seconds, still one safe write per file and one undo.
+  - **Memory** on a 100,000-track library: about 130 MB (was up to 500 MB).
+- Your search index is rebuilt once after updating (it now keeps a sort order, so results come back in library order without extra work).
+
 ## 0.7.1 (2026-11-18)
 
 - **Frosted glass:** sheets, menus, notifications, toasts, the selection bar and the now-playing pill float on frosted glass, with the page blurred softly behind sheets (solid panels where blur isn't available or "reduce transparency" is on).

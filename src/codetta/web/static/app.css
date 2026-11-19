@@ -2626,3 +2626,5 @@ dialog.player-sheet { width: min(480px, calc(100vw - 32px)); }
   dialog.player-sheet { width: 100vw; }
   .player-sheet.lyrics-mode .ps-panel { max-height: 44vh; min-height: 44vh; }
 }
+
+.health-more { display: block; margin: 14px auto 4px; }

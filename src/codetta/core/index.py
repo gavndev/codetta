@@ -43,14 +43,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from codetta.core.engine import SUPPORTED_EXTENSIONS
-from codetta.core.library import _is_valid_text, natural_key
+from codetta.core.library import _is_valid_text, _sort_text, natural_key
 from codetta.core.tagmap import FIELDS
 
 log = logging.getLogger("codetta.index")
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4  # 4: a stored natural sort key per file (search sorts in SQLite, not Python)
 RESCAN_SECONDS = 15 * 60  # a search re-checks the library if the last scan is older than this
 BATCH = 200  # files per database transaction while scanning
+PAR_CHUNK = 128  # files per job when worker processes help with a big scan
+PAR_START = 256  # use worker processes once this many files need reading (a first scan, a big import)
 MAX_QUERY_CHARS = 500
 
 # Tags searched by plain words (no "key:").
@@ -101,6 +103,21 @@ def sfold(text: str) -> str:
     text = "".join(ch for ch in text if not unicodedata.combining(ch)).casefold()
     text = re.sub(r"['’`]", "", text)
     return " ".join(re.split(r"[\W_]+", text)).strip()
+
+
+def natural_sort_text(path: str) -> str:
+    """``natural_key`` as one string SQLite can sort by ("Disc 2" < "Disc 10", case and accents
+    ignored), stored per file so a search of 100,000 hits is ordered in C, not in Python."""
+    out = []
+    for part in re.split(r"(\d+)", path):
+        if not part:
+            continue
+        if part.isdecimal():
+            digits = str(int(part))
+            out.append("\x00" + digits.rjust(max(20, len(digits)), "0"))
+        else:
+            out.append("\x01" + _sort_text(part))
+    return "".join(out)
 
 
 def word_match(haystack: str | None, needle: str) -> bool:
@@ -203,6 +220,86 @@ class IndexStatus:
 Describe = Callable[[Path, str], dict]  # (absolute path, library-relative path) -> track JSON
 
 
+class _Workers:
+    """Helper processes (``python -m codetta.core.describe``) that read files during a big scan.
+
+    Jobs go out as JSON lines, results come back the same way; each worker has at most one job.
+    A worker that dies hands its job back to be read here, so a scan never gets stuck."""
+
+    def __init__(self, n: int, fallback: Callable[[list], list]) -> None:
+        import subprocess
+        import sys
+        self.fallback = fallback
+        self.procs = []
+        for _ in range(n):
+            try:
+                self.procs.append(subprocess.Popen([sys.executable, "-m", "codetta.core.describe"], stdin=subprocess.PIPE,
+                                                   stdout=subprocess.PIPE, text=True, encoding="utf-8", bufsize=1))
+            except OSError as exc:
+                log.warning("Couldn't start an index helper: %s", exc)
+        self.started = list(self.procs)  # every helper ever started: all are reaped in close()
+        self.busy: list[tuple[object, str, list]] = []  # (process, root, items), oldest first
+
+    def __bool__(self) -> bool:
+        return bool(self.procs)
+
+    def _collect(self) -> list:
+        proc, root, items = self.busy.pop(0)
+        line = proc.stdout.readline()
+        if not line:  # the helper died: read its files here instead
+            log.warning("An index helper stopped; carrying on without it")
+            self.procs.remove(proc)
+            return self.fallback(items)
+        try:
+            return [tuple(r) for r in json.loads(line)]
+        except ValueError:
+            return self.fallback(items)
+
+    def submit(self, root: str, items: list) -> list:
+        """Hand ``items`` to a free helper; returns whatever finished meanwhile."""
+        done = []
+        busy_procs = {id(b[0]) for b in self.busy}
+        free = next((p for p in self.procs if id(p) not in busy_procs), None)
+        while free is None and self.busy:
+            proc = self.busy[0][0]
+            done.extend(self._collect())
+            free = proc if proc in self.procs else next((p for p in self.procs if id(p) not in {id(b[0]) for b in self.busy}), None)
+        if free is None:  # every helper is gone
+            return done + self.fallback(items)
+        try:
+            free.stdin.write(json.dumps({"root": root, "items": items}, ensure_ascii=False) + "\n")
+            free.stdin.flush()
+            self.busy.append((free, root, items))
+        except OSError:
+            self.procs.remove(free)
+            done.extend(self.fallback(items))
+        return done
+
+    def finish(self) -> list:
+        done = []
+        while self.busy:
+            done.extend(self._collect())
+        return done
+
+    def close(self) -> None:
+        """Stop every helper and close its pipes (including any that died along the way)."""
+        for p in self.started:
+            try:
+                p.stdin.close()
+            except Exception:  # noqa: BLE001 - already closed or broken
+                pass
+            try:
+                p.wait(timeout=5)
+            except Exception:  # noqa: BLE001
+                p.kill()
+                p.wait()
+            try:
+                p.stdout.close()
+            except Exception:  # noqa: BLE001
+                pass
+        self.procs, self.started = [], []
+
+
 class LibraryIndex:
     """Keeps the searchable copy of the library's tags up to date.
 
@@ -211,9 +308,14 @@ class LibraryIndex:
     any exception for unreadable files, which are indexed with an ``error``.
     """
 
-    def __init__(self, root: Path, db_path: Path | None, describe: Describe, rescan_seconds: float = RESCAN_SECONDS):
+    def __init__(self, root: Path, db_path: Path | None, describe: Describe, rescan_seconds: float = RESCAN_SECONDS,
+                 parallel: Callable[[str, list[tuple[str, int, int]]], list] | None = None, workers: int = 0):
+        """``parallel`` (a picklable function: (root, [(rel, mtime, size)]) -> [(rel, mtime, size, track)])
+        lets big scans use ``workers`` processes; 0/1 workers reads everything here."""
         self.root = Path(os.path.abspath(root))
         self.describe = describe
+        self.parallel = parallel
+        self.workers = workers
         self.rescan_seconds = rescan_seconds
         self._lock = threading.Lock()  # guards the connection
         self.version = 0  # goes up whenever a file is added, changed or removed (for caches)
@@ -250,7 +352,7 @@ class LibraryIndex:
             """
             CREATE TABLE IF NOT EXISTS files (
                 id INTEGER PRIMARY KEY, path TEXT NOT NULL UNIQUE, mtime INTEGER, size INTEGER,
-                text TEXT, track BLOB NOT NULL);
+                text TEXT, track BLOB NOT NULL, nkey TEXT NOT NULL DEFAULT '');
             CREATE TABLE IF NOT EXISTS keys (id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE);
             -- One row per file and tag; tag names are stored once, in "keys".
             CREATE TABLE IF NOT EXISTS tags (
@@ -283,11 +385,11 @@ class LibraryIndex:
                 if row:
                     file_id = row[0]
                     cur.execute("DELETE FROM tags WHERE file=?", (file_id,))
-                    cur.execute("UPDATE files SET mtime=?, size=?, text=?, track=? WHERE id=?",
-                                (mtime, size, text, _pack(track), file_id))
+                    cur.execute("UPDATE files SET mtime=?, size=?, text=?, track=?, nkey=? WHERE id=?",
+                                (mtime, size, text, _pack(track), natural_sort_text(rel), file_id))
                 else:
-                    cur.execute("INSERT INTO files(path, mtime, size, text, track) VALUES (?,?,?,?,?)",
-                                (rel, mtime, size, text, _pack(track)))
+                    cur.execute("INSERT INTO files(path, mtime, size, text, track, nkey) VALUES (?,?,?,?,?,?)",
+                                (rel, mtime, size, text, _pack(track), natural_sort_text(rel)))
                     file_id = cur.lastrowid
                 merged: dict[str, list[str]] = {}  # "Genre" and "genre" are the same tag
                 for k, vals in tags.items():
@@ -312,6 +414,14 @@ class LibraryIndex:
                     self.db.execute("DELETE FROM files WHERE id=?", (row[0],))
             self.db.commit()
             self.version += 1
+
+    def _read_item(self, item: tuple[str, int, int]) -> tuple[str, int, int, dict]:
+        rel, mtime, size = item
+        try:
+            track = self.describe(self.root / rel, rel)
+        except Exception as exc:  # noqa: BLE001 - one bad file must not stop the scan
+            track = {"path": rel, "name": rel.rsplit("/", 1)[-1], "error": str(exc) or type(exc).__name__}
+        return rel, mtime, size, track
 
     def _read(self, rel: str, st: os.stat_result) -> tuple[str, int, int, dict]:
         try:
@@ -356,23 +466,48 @@ class LibraryIndex:
             return
         self._scanning, self._seen = True, 0
         started = time.monotonic()
+        pool = None
         try:
             with self._lock:
                 known = {p: (m, s) for p, m, s in self.db.execute("SELECT path, mtime, size FROM files")}
             present: set[str] = set()
             batch: list[tuple[str, int, int, dict]] = []
             changed = 0
+            pending: list[tuple[str, int, int]] = []  # waiting to be read (in a helper, once it's worth it)
+
+            def store(rows: list) -> None:
+                nonlocal changed, batch
+                batch.extend(rows)
+                if len(batch) >= BATCH:
+                    self._store(batch)
+                    changed += len(batch)
+                    batch = []
+
+            def read_here(items: list) -> list:
+                return [self._read_item(i) for i in items]
+
             for rel, st in self._walk():
                 present.add(rel)
                 self._seen += 1
                 if known.get(rel) == (st.st_mtime_ns, st.st_size):
                     continue
-                batch.append(self._read(rel, st))
-                if len(batch) >= BATCH:
-                    self._store(batch)
-                    changed += len(batch)
-                    batch = []
+                pending.append((rel, st.st_mtime_ns, st.st_size))
+                if pool is None and len(pending) >= PAR_START and self.parallel and self.workers > 1:
+                    pool = _Workers(self.workers, read_here) or None
+                if pool is not None and len(pending) >= PAR_CHUNK:
+                    store(pool.submit(str(self.root), pending))  # bounded: one job per helper at a time
+                    pending = []
+                elif pool is None and len(pending) >= PAR_START:
+                    store([self._read_item(i) for i in pending])  # no workers: read here, in order
+                    pending = []
                 self._flush_dirty()  # edits made during a long first scan show up quickly
+            if pool is not None:
+                if pending:
+                    store(pool.submit(str(self.root), pending))
+                    pending = []
+                store(pool.finish())
+                pool.close()
+            store([self._read_item(i) for i in pending])
             if batch:
                 self._store(batch)
                 changed += len(batch)
@@ -388,6 +523,8 @@ class LibraryIndex:
                     log.info("Library index: %d files, %d updated, %d removed (%.1fs)",
                              len(present), changed, len(gone), time.monotonic() - started)
         finally:
+            if pool is not None:
+                pool.close()  # never leave helpers behind, even if the scan stopped half-way
             self._scanning = False
 
     def mark_dirty(self, rels: Iterable[str]) -> None:
@@ -461,6 +598,32 @@ class LibraryIndex:
             rows = self.db.execute("SELECT path, track FROM files ORDER BY path").fetchall()
         return [(p, _unpack(t)) for p, t in rows]
 
+    def stored(self, rels: list[str]) -> dict[str, tuple[int, int, dict]]:
+        """What the index has for these files: path -> (mtime_ns, size, details)."""
+        out: dict[str, tuple[int, int, dict]] = {}
+        for i in range(0, len(rels), 900):  # SQLite's limit on query parameters
+            chunk = rels[i:i + 900]
+            q = "SELECT path, mtime, size, track FROM files WHERE path IN (" + ",".join("?" * len(chunk)) + ")"
+            with self._lock:
+                rows = self.db.execute(q, chunk).fetchall()
+            for path, mtime, size, blob in rows:
+                out[path] = (mtime, size, _unpack(blob))
+        return out
+
+    def iter_tracks(self, chunk: int = 2000):
+        """Every indexed track (path, details) in path order, read a chunk at a time, so even a
+        huge library is never all in memory at once (and indexing isn't blocked meanwhile)."""
+        last = ""
+        while True:
+            with self._lock:
+                rows = self.db.execute("SELECT path, track FROM files WHERE path > ? ORDER BY path LIMIT ?",
+                                       (last, chunk)).fetchall()
+            if not rows:
+                return
+            for path, blob in rows:
+                yield path, _unpack(blob)
+            last = rows[-1][0]
+
     def paths_with_any(self, keys: Iterable[str]) -> set[str]:
         """Files that have at least one of these tags (by name, any case)."""
         with self._lock:
@@ -482,19 +645,20 @@ class LibraryIndex:
         self._flush_dirty()
         sql = ["SELECT path FROM files WHERE 1"]
         args: list[str] = []
+        # instr() (in C) rules most rows out before the Python word check runs on what's left.
         for word in query.words:
-            sql.append("AND wm(text, ?)")
-            args.append(sfold(word))
+            sql.append("AND instr(text, ?) AND wm(text, ?)")
+            args += [sfold(word), sfold(word)]
         for clause in query.clauses:
             needles = [sfold(v) for v in clause.values]
             if not needles:
                 continue
             sql.append("AND id IN (SELECT file FROM tags WHERE key=(SELECT id FROM keys WHERE name=?) AND ("
-                       + " OR ".join(["wm(value, ?)"] * len(needles)) + "))")
-            args += [clause.key, *needles]
+                       + " OR ".join(["(instr(value, ?) AND wm(value, ?))"] * len(needles)) + "))")
+            args += [clause.key, *[x for n in needles for x in (n, n)]]
+        sql.append("ORDER BY nkey")  # library order ("Disc 2" before "Disc 10"), sorted by SQLite
         with self._lock:
             paths = [p for (p,) in self.db.execute(" ".join(sql), args)]
-        paths.sort(key=natural_key)
         shown = paths[:limit]
         with self._lock:
             tracks = {}

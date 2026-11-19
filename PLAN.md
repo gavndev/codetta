@@ -105,5 +105,15 @@ Find music on Soulseek from inside Codetta; it lands in the inbox and is reviewe
 - [x] **Task 12.5: "Find in slskd" button** on album pages, hollow like Find in MusicBrainz (slskd icon; "Find" on phones, like MusicBrainz: the icons tell them apart). Builds the query from the album's tags (album artist + album), falling back to parent folder + folder name when untagged, and opens the search bar with the `!slskd` chip and that text so it can be edited before sending (decided 2026-11-18). The download is an **upgrade**: when it's better (lossless over lossy, higher bitrate) or more complete, the review offers to replace the existing album; the old files go to a trash folder in the config folder so the replace can be undone.
 - [x] **Task 12.6: Preferences.** Formats in order (default decided 2026-11-18: FLAC/lossless first, MP3 320 fallback, the review says which you got), lossy allowed or not, minimum bitrate, search timeout, max results, auto vs review, blocklist manager. Everything slskd's search and download API allows, exposed only where it's useful.
 
+## Phase 13: Scale (v0.8): big libraries and mass operations
+- [x] **Task 13.1: Measure.** A synthetic 105,000-track library (2,000 artists x 5 albums x 10 tracks + a 5,000-file folder) and a benchmark of every heavy path (scan, browse, search, health, organize, batch edit, memory, page drawing).
+- [x] **Task 13.2: Faster first scan.** Helper processes (`python -m codetta.core.describe`, JSON over pipes) read files in parallel: 139 s -> 34 s. Threads were measured 3x slower (GIL), so processes; multiprocessing was avoided (it re-imports the launching script).
+- [x] **Task 13.3: Folders from the index.** Unchanged files (same mtime and size) come from the index, not the file: a 5,000-file folder 6.5 s -> 0.25 s.
+- [x] **Task 13.4: Library health at scale.** Streams the index album by album (memory 500 -> 130 MB), cached text folding, paged answers, stale-while-revalidate.
+- [x] **Task 13.5: Search at scale.** Stored natural sort key (schema 4) and an instr() pre-filter: worst case 1.5 s -> 0.26 s.
+- [x] **Task 13.6: Batch edits.** 4 writer threads (writes wait on the disk), reuse the indexed cover, one fewer read per file: 1,000 files 10.7 s -> 5.6 s.
+- [x] **Task 13.7: Page drawing.** Icons cloned from a cache, long lists drawn in batches, health "Show more" appends.
+- [ ] **Task 13.8: Next:** mass uploads (drag a folder of files in), mass downloads (Soulseek queue of many albums), and the same measurements on a Raspberry Pi / hard drive.
+
 ## Later (ideas, not scheduled)
 - First-run welcome card after account creation: confirms the library was found and is writable, plus three quick tips.

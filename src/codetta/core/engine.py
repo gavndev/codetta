@@ -187,7 +187,8 @@ class MetadataEngine:
             channels=channels or None,
         )
 
-    def update_tags(self, path: str | Path, changes: Mapping[str, TagValue]) -> TrackMetadata:
+    def update_tags(self, path: str | Path, changes: Mapping[str, TagValue],
+                    before: dict | None = None) -> TrackMetadata:
         """Apply ``changes`` to the tags of ``path`` and return the new metadata.
 
         ``changes`` maps tag names to new values. Tags not mentioned are left
@@ -211,6 +212,8 @@ class MetadataEngine:
         """
         path = Path(path)
         original = self.load_metadata(path)  # validates path and format
+        if before is not None:
+            before["tags"] = original.tags  # the tags as they were (for undo), without reading the file twice
         normalized = {key.lower(): _normalize_value(value) for key, value in changes.items()}
         _check_changes(normalized)
         if not normalized:

@@ -96,3 +96,20 @@ change from the activity log.
 - One account per Codetta instance.
 - Raw `.aac`, Monkey's Audio (`.ape`) and Musepack (`.mpc`) files aren't supported yet.
 - Custom tag names (beyond Codetta's field list) work in FLAC, Ogg, Opus, WavPack and WMA files, not in ID3 or MP4 formats.
+
+**How big a library can it handle?**
+It's tested on a made-up library of 105,000 tracks (2,000 artists, 10,000 albums,
+plus one folder of 5,000 loose files) on a 6-core machine with 6 GB of memory:
+
+| | |
+|---|---|
+| First read of the whole library | about 35 seconds (in the background; everything works meanwhile) |
+| Opening a folder of 5,000 tracks | first rows in under a second |
+| Searching all 105,000 tracks | 60 to 260 ms |
+| Library health over 10,000 albums | about 4 seconds the first time; then instant, refreshed in the background |
+| Changing a tag on 1,000 files at once | about 6 seconds (each one a safe write), one undo |
+| Memory | about 130 MB |
+
+Bigger libraries work the same way, a little slower. On a Raspberry Pi or a
+hard drive, expect the first read and big edits to take a few times longer.
+

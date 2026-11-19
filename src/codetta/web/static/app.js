@@ -146,12 +146,37 @@ const ICONS = {
   paste: '<svg viewBox="0 0 20 20"><rect x="4.5" y="4" width="11" height="13" rx="2"/><path d="M8 4V3h4v1"/><path d="M7.5 9h5M7.5 12h3"/></svg>',
 };
 
+const iconCache = new Map(); // each icon is parsed once, then cloned (a big folder draws thousands)
+
 function icon(name) {
-  const t = document.createElement("template");
-  t.innerHTML = ICONS[name].trim();
-  const svg = t.content.firstChild;
-  svg.setAttribute("aria-hidden", "true");
-  return svg;
+  let svg = iconCache.get(name);
+  if (!svg) {
+    const t = document.createElement("template");
+    t.innerHTML = ICONS[name].trim();
+    svg = t.content.firstChild;
+    svg.setAttribute("aria-hidden", "true");
+    iconCache.set(name, svg);
+  }
+  return svg.cloneNode(true);
+}
+
+/** Draw a long list without freezing the page: the first screenful at once, the rest in
+ *  small batches between frames. A newer draw of the same list cancels the old one. */
+function drawInBatches(container, items, build, { head = [], first = 120, batch = 250, done = null } = {}) {
+  const gen = (container.drawGen = (container.drawGen || 0) + 1);
+  container.replaceChildren(...head, ...items.slice(0, first).map(build));
+  let i = first;
+  if (i >= items.length) { done?.(); return; }
+  const step = () => {
+    if (container.drawGen !== gen) return; // the list was redrawn meanwhile
+    const frag = document.createDocumentFragment();
+    for (const it of items.slice(i, i + batch)) frag.append(build(it));
+    container.append(frag);
+    i += batch;
+    done?.();
+    if (i < items.length) setTimeout(step, 0);
+  };
+  setTimeout(step, 0);
 }
 
 // ---- API -----------------------------------------------------------------------------
@@ -1021,12 +1046,12 @@ function renderFolders() {
   const folders = (state.folder?.folders || []).filter((f) => !q || fold(f.name).includes(q));
   const list = folderView() === "list";
   els.folders.classList.toggle("as-list", list);
-  els.folders.replaceChildren(...folders.map((f) =>
+  drawInBatches(els.folders, folders, (f) =>
     h("a", { class: "folder", href: hashFor(f.path), title: f.name },
       icon("folder"),
       h("span", { class: "folder-name" }, f.name),
       list ? h("span", { class: "folder-meta" }, folderSummary(f)) : null,
-      list ? icon("chevron") : null)));
+      list ? icon("chevron") : null));
 }
 
 function renderTracks() {
@@ -1100,21 +1125,28 @@ function renderTracks() {
   els.tracks.style.setProperty("--cols", cols(true));
   els.tracks.style.setProperty("--cols-mid", cols(false));
 
-  const out = [];
+  // What to draw, in order: disc separators and tracks (built lazily, a batch at a time).
+  const items = [];
   let lastDisc = null;
   for (const t of tracks) {
     const disc = discs && !t.error ? discs.discOf(t) : null;
     if (discs && disc !== lastDisc && disc !== null) {
-      const subtitle = first(t, "discsubtitle");
-      out.push(h("div", { class: "disc-head", role: "row", dataset: { disc: String(disc) } },
-        h("span", { class: "disc-spin" }, icon("disc")),
-        h("span", { class: "disc-name" }, `Disc ${disc}`),
-        subtitle ? h("span", { class: "disc-sub", dir: "auto" }, subtitle) : null));
+      items.push({ discHead: disc, t });
       lastDisc = disc;
     }
-    out.push(trackRow(t, { oneAlbum, albumArtist, disc }));
+    items.push({ t, disc });
   }
-  els.tracks.replaceChildren(head, ...out);
+  const build = (it) => {
+    if (it.discHead != null) {
+      const subtitle = first(it.t, "discsubtitle");
+      return h("div", { class: "disc-head", role: "row", dataset: { disc: String(it.discHead) } },
+        h("span", { class: "disc-spin" }, icon("disc")),
+        h("span", { class: "disc-name" }, `Disc ${it.discHead}`),
+        subtitle ? h("span", { class: "disc-sub", dir: "auto" }, subtitle) : null);
+    }
+    return trackRow(it.t, { oneAlbum, albumArtist, disc: it.disc });
+  };
+  drawInBatches(els.tracks, items, build, { head: [head], done: () => { updateRowStates(); syncPlayer(); } });
   updateRowStates();
   syncPlayer();
 }
@@ -4267,7 +4299,7 @@ async function openHealth(view = "issues") {
 
 async function loadHealth() {
   try {
-    health.data = await api("GET", "/api/library-health");
+    health.data = await api("GET", `/api/library-health?category=${encodeURIComponent(health.filter)}`);
   } catch (err) {
     setKids($("#health-body"), h("div", { class: "error-box" }, err.message));
     return;
@@ -4399,7 +4431,7 @@ function renderHealth() {
     "aria-pressed": String(health.view === view), onclick: () => { health.view = health.view === view ? "issues" : view; renderHealth(); } }, label);
   setKids($("#health-foot"),
     tab("settings", "Checks"),
-    d.ignored.length || health.view === "ignored" ? tab("ignored", `Ignored (${d.ignored.length})`) : null,
+    d.ignored_total || health.view === "ignored" ? tab("ignored", `Ignored (${(d.ignored_total ?? d.ignored.length).toLocaleString()})`) : null,
     h("span", { class: "spacer" }), close);
   if (health.view === "settings") { setKids(body, renderHealthSettings()); return; }
   if (health.view === "ignored") {
@@ -4407,10 +4439,25 @@ function renderHealth() {
       d.ignored.length ? h("div", { class: "inbox-list" }, d.ignored.map((i) => healthItem(i, true))) : null);
     return;
   }
-  const shown = health.filter === "all" ? d.issues : d.issues.filter((i) => i.category === health.filter);
-  if (health.filter !== "all" && !shown.length) health.filter = "all";
+  // The server sends a page of issues for the chosen kind; "Show more" asks for the next.
+  const shown = d.issues;
   const chip = (id, label, count) => h("button", { class: `health-chip${health.filter === id ? " on" : ""}`, type: "button",
-    "aria-pressed": String(health.filter === id), onclick: () => { health.filter = id; renderHealth(); } }, label, h("span", {}, String(count)));
+    "aria-pressed": String(health.filter === id), onclick: () => { health.filter = id; loadHealth(); } }, label, h("span", {}, String(count)));
+  const more = shown.length < (d.shown_total ?? shown.length)
+    ? h("button", { class: "btn health-more", type: "button", onclick: async (e) => {
+      const b = e.currentTarget; b.disabled = true; b.textContent = "Loading…";
+      try {
+        const have = health.data.issues.length; // counted now: Show more can be pressed again and again
+        const next = await api("GET", `/api/library-health?category=${encodeURIComponent(health.filter)}&offset=${have}`);
+        health.data.issues = health.data.issues.concat(next.issues);
+        const list = $("#health-body .health-list");
+        if (list) {
+          list.append(...next.issues.map((i) => healthItem(i)));
+          const left = d.shown_total - health.data.issues.length;
+          if (left > 0) { b.disabled = false; b.textContent = `Show more (${left.toLocaleString()} left)`; } else b.remove();
+        } else renderHealth();
+      } catch (err) { toast(err.message, "error"); b.disabled = false; b.textContent = "Show more"; }
+    } }, `Show more (${(d.shown_total - shown.length).toLocaleString()} left)`) : null;
   setKids(body,
     h("p", { class: "mb-lead" },
       d.indexing ? "Codetta is still reading your library, so this list may grow. " : "",
@@ -4420,7 +4467,8 @@ function renderHealth() {
     d.count ? h("div", { class: "health-chips", role: "group", "aria-label": "Show" },
       chip("all", "All", d.count),
       d.categories.filter((c) => c.count).map((c) => chip(c.id, c.label, c.count))) : null,
-    shown.length ? h("div", { class: "inbox-list health-list" }, shown.map((i) => healthItem(i))) : null);
+    shown.length ? h("div", { class: "inbox-list health-list" }, shown.map((i) => healthItem(i))) : null,
+    more);
 }
 
 // ---- Notifications: the bell -------------------------------------------------------------------------

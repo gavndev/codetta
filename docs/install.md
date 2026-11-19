@@ -11,7 +11,7 @@ to big libraries:
 | | Typical |
 |---|---|
 | Download (image) | about 100 MB, for Intel/AMD and ARM |
-| Memory | about 70 MB (a little more while it first reads your library) |
+| Memory | about 70 MB for a typical library; about 130 MB at 100,000 tracks (plus short-lived helpers while it first reads a big library) |
 | Search index | about 2 KB per track (10 MB for 5,000 tracks) |
 | When idle | no CPU and no disk activity, so your drives can sleep |
 
