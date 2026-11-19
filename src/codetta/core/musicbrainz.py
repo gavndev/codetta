@@ -159,6 +159,9 @@ def credit_ids(credits: list | None) -> list[str]:
 # --- The client -------------------------------------------------------------------------
 
 Fetcher = Callable[[str], object]  # url -> parsed JSON, or None for 404
+RETRY_WAITS = (2.0, 4.0)  # seconds before the 2nd and 3rd try when MusicBrainz is busy or slow
+MAX_RETRY_WAIT = 15.0  # never wait longer than this for one "Retry-After"
+MB_TIMEOUT = 20  # big releases with credits can take MusicBrainz well over 8 seconds
 
 
 class MusicBrainz:
@@ -180,7 +183,7 @@ class MusicBrainz:
                 self._cache.move_to_end(url)
                 return self._cache[url]
         with self._rate_lock:  # one request at a time, at most one per min_interval
-            for attempt in (1, 2):
+            for attempt in range(1, len(RETRY_WAITS) + 2):
                 wait = self._last + self.min_interval - self._clock()
                 if wait > 0:
                     self._sleep(wait)
@@ -188,10 +191,12 @@ class MusicBrainz:
                     data = self.fetch(url)
                     break
                 except ProviderError as exc:
-                    # "Busy" (503): MusicBrainz asks clients to slow down. Wait a little longer, try once more.
-                    if attempt == 2 or "busy" not in str(exc).lower():
+                    # Busy (503/429), timed out or dropped: MusicBrainz is often briefly overloaded.
+                    # Back off (as long as it asks, within reason) and try again, a few times.
+                    if not getattr(exc, "transient", False) or attempt > len(RETRY_WAITS):
                         raise
-                    self._sleep(1.5 * self.min_interval)
+                    asked = getattr(exc, "retry_after", None)
+                    self._sleep(min(MAX_RETRY_WAIT, asked) if asked else RETRY_WAITS[attempt - 1])
                 finally:
                     self._last = self._clock()
         with self._cache_lock:

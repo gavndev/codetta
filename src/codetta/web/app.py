@@ -126,6 +126,7 @@ from codetta.core.musicbrainz import (
     ID_LABELS as MB_ID_LABELS,
     MAX_MB_BYTES,
     MB_BASE,
+    MB_TIMEOUT,
     MBID_RE,
     DEFAULT_OFF as MB_DEFAULT_OFF,
     FileInfo,
@@ -562,7 +563,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         mb_mirror += "/ws/2"
     mb = MusicBrainz(
         fetch_mb or (lambda url: http_get_json(url, user_agent, max_bytes=MAX_MB_BYTES, service="MusicBrainz",
-                                               allow_http=mb_mirror is not None)),
+                                               allow_http=mb_mirror is not None, timeout=MB_TIMEOUT)),
         base=mb_mirror or MB_BASE,
         min_interval=0 if mb_mirror else 1.0,  # musicbrainz.org allows one request a second
     )

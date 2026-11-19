@@ -117,3 +117,37 @@ def test_lookup_can_be_turned_off(client_for):
     assert c.get("/api/lyrics/lookup", params={"path": "a.flac"}).status_code == 403
     assert c.get("/api/status").json()["lyrics_lookup"] is False
     assert svc.urls == []  # nothing was sent anywhere
+
+
+def test_busy_and_unreachable_answers_are_marked_worth_retrying(monkeypatch):
+    import email.message
+    import urllib.error
+
+    from codetta.core import providers
+
+    def busy(req, timeout):
+        assert timeout == 20  # the caller's timeout is used
+        headers = email.message.Message()
+        headers["Retry-After"] = "3"
+        raise urllib.error.HTTPError(req.full_url, 503, "busy", headers, None)
+
+    monkeypatch.setattr(providers._opener, "open", busy)
+    with pytest.raises(ProviderError) as err:
+        providers.http_get("https://musicbrainz.org/ws/2/x", "UA", service="MusicBrainz", timeout=20)
+    assert err.value.transient and err.value.retry_after == 3.0
+
+    def bad_request(req, timeout):
+        raise urllib.error.HTTPError(req.full_url, 400, "bad", email.message.Message(), None)
+
+    monkeypatch.setattr(providers._opener, "open", bad_request)
+    with pytest.raises(ProviderError) as err:
+        providers.http_get("https://musicbrainz.org/ws/2/x", "UA", service="MusicBrainz")
+    assert not err.value.transient
+
+    def down(req, timeout):
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr(providers._opener, "open", down)
+    with pytest.raises(ProviderError) as err:
+        providers.http_get("https://musicbrainz.org/ws/2/x", "UA", service="MusicBrainz")
+    assert err.value.transient and err.value.retry_after is None

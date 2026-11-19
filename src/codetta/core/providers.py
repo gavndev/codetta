@@ -26,7 +26,22 @@ TIMEOUT = 8
 
 
 class ProviderError(Exception):
-    """The provider couldn't be reached or answered with something unusable."""
+    """The provider couldn't be reached or answered with something unusable.
+
+    ``transient``: worth trying again shortly (busy, timed out, connection dropped);
+    ``retry_after``: seconds the service asked us to wait, if it said."""
+
+    def __init__(self, message: str, *, transient: bool = False, retry_after: float | None = None) -> None:
+        super().__init__(message)
+        self.transient = transient
+        self.retry_after = retry_after
+
+
+def _retry_after(exc: urllib.error.HTTPError) -> float | None:
+    try:
+        return max(0.0, float(exc.headers.get("Retry-After", "")))
+    except (TypeError, ValueError, AttributeError):
+        return None  # missing, or an HTTP date (not worth parsing: we cap the wait anyway)
 
 
 @dataclass
@@ -70,7 +85,7 @@ _opener = urllib.request.build_opener(_HttpsOnlyRedirects)
 
 
 def http_get(url: str, user_agent: str, *, accept: str = "application/json", max_bytes: int = MAX_RESPONSE_BYTES,
-             service: str = "the lyrics service", allow_http: bool = False) -> bytes | None:
+             service: str = "the lyrics service", allow_http: bool = False, timeout: float = TIMEOUT) -> bytes | None:
     """GET a provider URL, size- and time-limited. None means 404 (not found).
 
     Only https, unless ``allow_http`` (a self-hosted mirror the admin set up)."""
@@ -78,16 +93,17 @@ def http_get(url: str, user_agent: str, *, accept: str = "application/json", max
         raise ProviderError("Providers must use https")
     req = urllib.request.Request(url, headers={"User-Agent": user_agent, "Accept": accept})
     try:
-        with _opener.open(req, timeout=TIMEOUT) as res:  # nosec B310: http(s) only, fixed provider hosts
+        with _opener.open(req, timeout=timeout) as res:  # nosec B310: http(s) only, fixed provider hosts
             data = res.read(max_bytes + 1)
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
             return None
-        if exc.code in (429, 503):
-            raise ProviderError(f"{service.capitalize()} is busy right now. Try again in a moment.") from exc
+        if exc.code in (429, 502, 503, 504):
+            raise ProviderError(f"{service.capitalize()} is busy right now. Try again in a moment.",
+                                transient=True, retry_after=_retry_after(exc)) from exc
         raise ProviderError(f"{service.capitalize()} answered with an error ({exc.code})") from exc
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
-        raise ProviderError(f"Couldn't reach {service}. Is the server online?") from exc
+        raise ProviderError(f"Couldn't reach {service}. Is the server online?", transient=True) from exc
     if len(data) > max_bytes:
         raise ProviderError(f"{service.capitalize()} sent an unexpectedly large answer")
     return data
@@ -127,9 +143,9 @@ def http_post_json(url: str, user_agent: str, form: dict[str, str], *, service: 
 
 
 def http_get_json(url: str, user_agent: str, *, max_bytes: int = MAX_RESPONSE_BYTES,
-                  service: str = "the lyrics service", allow_http: bool = False) -> object:
+                  service: str = "the lyrics service", allow_http: bool = False, timeout: float = TIMEOUT) -> object:
     """GET a JSON document (None for 404)."""
-    data = http_get(url, user_agent, max_bytes=max_bytes, service=service, allow_http=allow_http)
+    data = http_get(url, user_agent, max_bytes=max_bytes, service=service, allow_http=allow_http, timeout=timeout)
     if data is None:
         return None
     try:

@@ -212,6 +212,44 @@ def test_rate_limit_and_cache():
     assert len(fake.urls) == 2  # the second lookup came from the cache
 
 
+def test_busy_or_slow_musicbrainz_is_retried_with_backoff():
+    now = [100.0]
+    slept = []
+    answers = [ProviderError("MusicBrainz is busy right now.", transient=True),
+               ProviderError("Couldn't reach MusicBrainz.", transient=True, retry_after=60), ALBUM]
+
+    def flaky(url):
+        a = answers.pop(0)
+        if isinstance(a, Exception):
+            raise a
+        return a
+
+    mb = MusicBrainz(flaky, clock=lambda: now[0], sleep=lambda s: (slept.append(s), now.__setitem__(0, now[0] + s)))
+    assert mb.release(REL)["id"] == REL
+    assert 2.0 in slept  # the first back-off
+    assert 15.0 in slept and 60 not in slept  # "Retry-After: 60" honoured, but capped
+
+
+def test_musicbrainz_gives_up_after_three_tries_and_never_retries_real_errors():
+    calls = []
+
+    def always(exc):
+        def fetch(url):
+            calls.append(url)
+            raise exc
+        return fetch
+
+    mb = MusicBrainz(always(ProviderError("busy", transient=True)), sleep=lambda s: None)
+    with pytest.raises(ProviderError):
+        mb.release(REL)
+    assert len(calls) == 3
+    calls.clear()
+    mb = MusicBrainz(always(ProviderError("answered with an error (400)")), sleep=lambda s: None)
+    with pytest.raises(ProviderError):
+        mb.release(REL)
+    assert len(calls) == 1
+
+
 def test_search_query_is_escaped():
     fake = FakeMB()
     MusicBrainz(fake, min_interval=0).search('AC/DC: "Live"', "Guns N' Roses")
