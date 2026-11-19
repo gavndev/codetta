@@ -13,6 +13,8 @@ All notable changes to Codetta. Versions follow [Semantic Versioning](https://se
 - **Fixed:** a double tap on Undo could run the same undo twice, and undoing a move whose folder no longer exists showed a server error instead of saying why.
 - **Fixed:** after saving, going back to a search or a grid could still show the old tags or cover until you reloaded.
 - **Fixed:** a MusicBrainz match that saved the tags but not the cover left search and Library health showing the old tags.
+- **Fixed:** pressing Ctrl/Cmd+S twice quickly saved everything twice (and logged it twice). A save already under way now just carries on.
+- The "/" shortcut for search no longer jumps behind an open dialog.
 - **Library health's one-tap fixes** check the album again first if anything changed since the list was made.
 - **What's new** shows its links properly (they opened as plain text before) and they now open on GitHub.
 

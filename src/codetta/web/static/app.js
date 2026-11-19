@@ -2744,7 +2744,12 @@ async function saveToFolder() {
 
 async function saveEditor(targetPaths = null) {
   const ed = state.editor;
-  if (!pendingCount(ed)) return;
+  if (!pendingCount(ed) || ed.saving) return; // a second Ctrl+S mid-save would write everything twice
+  ed.saving = true;
+  try { await saveEditorNow(ed, targetPaths); } finally { ed.saving = false; }
+}
+
+async function saveEditorNow(ed, targetPaths) {
   const paths = targetPaths || ed.paths;
   const changes = {};
   for (const [key, c] of ed.changes) {
@@ -5326,7 +5331,7 @@ function bindEvents() {
       saveEditor();
     } else if (e.key === "Escape" && state.editor && !document.querySelector("dialog[open]")) {
       closeEditor();
-    } else if (e.key === "/" && !e.target.closest("input, textarea, select")) {
+    } else if (e.key === "/" && !e.target.closest("input, textarea, select, [contenteditable]") && !document.querySelector("dialog[open]")) {
       e.preventDefault();
       els.filter.focus();
     }
