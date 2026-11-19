@@ -37,6 +37,7 @@ Settings (environment variables):
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import re
@@ -77,6 +78,7 @@ from codetta.core.health import _base_artist as base_artist
 from codetta.core.health import fold as health_fold
 from codetta.core.health import run as health_run
 from codetta.core.describe import describe_file, describe_many
+from codetta.core.fileinfo import file_info, folder_info
 from codetta.core.plugins import ActionError, PluginManager
 from codetta.core.index import LibraryIndex, parse_query
 from codetta.core import changelog
@@ -96,11 +98,13 @@ from codetta.core.inbox import (
     InboxStore,
 )
 from codetta.core.inbox import signature as inbox_signature
+from codetta.core.library import DELETED
 from codetta.core.library import INBOX as INBOX_ALIAS
 from codetta.core.library import Library, LibraryPathError, TooManyFilesError, audio_files, count_contents
 from codetta.core.organize import (
     DEFAULT_PATTERN,
     PRESETS as ORGANIZE_PRESETS,
+    SIDECAR_SUFFIXES,
     Move,
     PatternError,
     Source,
@@ -471,6 +475,19 @@ class PluginToggleIn(BaseModel):
     enabled: bool
 
 
+class FilesIn(BaseModel):
+    paths: list[Annotated[str, Field(max_length=MAX_PATH_CHARS)]] = Field(min_length=1, max_length=MAX_PATHS_PER_REQUEST)
+
+
+class FilesMoveIn(FilesIn):
+    to: str = Field(max_length=MAX_PATH_CHARS)  # a folder in the library ("" = the top)
+
+
+class FileRenameIn(BaseModel):
+    path: str = Field(min_length=1, max_length=MAX_PATH_CHARS)
+    name: str = Field(min_length=1, max_length=255)
+
+
 class FolderRenameIn(BaseModel):
     path: str = Field(min_length=1, max_length=MAX_PATH_CHARS)
     name: str = Field(min_length=1, max_length=255)
@@ -549,7 +566,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
                 "acoustid": settings.acoustid, "slskd": settings.slskd},
     )
     updates = UpdateChecker(VERSION, settings.update_repo, lambda: connections.enabled("updates"), fetch_release)
-    library = Library(settings.music_dir, settings.inbox_dir, settings.config_dir / "replaced")
+    library = Library(settings.music_dir, settings.inbox_dir, settings.config_dir / "replaced", settings.config_dir / "deleted")
     _migrate_presets_folder(settings.config_dir)
     store = PresetStore(settings.config_dir / "presets")
     engine = MetadataEngine()
@@ -597,6 +614,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             pass
         lib_index.start()  # builds/refreshes the search index in the background
         prune_replaced(settings.config_dir / "replaced")  # upgrades' old albums, after 30 days
+        prune_replaced(settings.config_dir / "deleted")  # "Recently deleted", after 30 days
         watcher = threading.Thread(target=app.state.inbox_watch, name="codetta-inbox-watch", daemon=True)
         watcher.start()  # sleeps; only looks at the inbox if "check every 15 minutes" is on
         app.state.soulseek_start()  # carries on with downloads that were under way
@@ -1839,6 +1857,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             if time.time() - last_prune > 86400:
                 last_prune = time.time()
                 prune_replaced(settings.config_dir / "replaced")
+                prune_replaced(settings.config_dir / "deleted")
             if inbox.settings.watch and inbox.settings.folder and library.exists():
                 try:
                     inbox.sync(library)
@@ -2642,6 +2661,134 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         lib_index.mark_dirty([p for pair in pairs for p in pair])
         art_cache.clear()
         return {"path": dest, "moved": len(pairs), "failed": len(failed)}
+
+    # --- One file or folder at a time (the right-click / long-press menu) --------------------
+
+    def _join(folder: str, name: str) -> str:
+        return f"{folder}/{name}" if folder else name
+
+    def _parent(rel: str) -> str:
+        return rel.rsplit("/", 1)[0] if "/" in rel else ""
+
+    def entry_moves(rel: str, new_rel: str) -> list[Move]:
+        """Moves that put a file (with its .lrc) or a whole folder at ``new_rel``."""
+        src = library.resolve(rel)
+        if src.is_dir():
+            moves = []
+            for dirpath, _, names in os.walk(src):
+                for n in sorted(names):
+                    r = library.relative(Path(dirpath) / n)
+                    moves.append(Move(r, new_rel + r[len(rel):], "move"))
+            return moves
+        if not src.is_file():
+            raise HTTPException(404, f"“{rel.rsplit('/', 1)[-1]}” isn't there any more.")
+        m = Move(rel, new_rel, "move")
+        src_stem, dst_stem = os.path.splitext(rel)[0], os.path.splitext(new_rel)[0]
+        for suffix in SIDECAR_SUFFIXES:  # lyrics files follow their song
+            if library.resolve(src_stem + suffix).is_file() and not os.path.lexists(library.resolve(dst_stem + suffix)):
+                m.companions.append((src_stem + suffix, dst_stem + suffix))
+        return [m]
+
+    def run_moves(moves: list[Move], kind: str, message: str, changes: list[dict]) -> dict:
+        """Do the moves (nothing is ever overwritten), log them as one undoable entry, refresh."""
+        results = apply_moves(library.resolve, moves)
+        pairs = [p for r in results if r.ok for p in r.moved]
+        failed = [r for r in results if not r.ok]
+        if pairs:
+            activity.add(kind, message, ok=not failed, files=[b for _, b in pairs], changes=changes,
+                         errors=[{"path": r.src, "error": r.error or ""} for r in failed],
+                         undo={"type": "moves", "moves": [list(p) for p in pairs]})
+        lib_index.mark_dirty([p for pair in pairs for p in pair if not p.startswith("@")])
+        art_cache.clear()
+        return {"moved": len([r for r in results if r.ok]), "failed": len(failed),
+                "errors": [{"path": r.src, "error": r.error or ""} for r in failed][:20]}
+
+    def library_entries(paths: list[str]) -> list[str]:
+        rels = [p.strip().strip("/") for p in _unique(paths)]
+        for rel in rels:
+            if not rel or rel.startswith("@"):
+                raise HTTPException(422, "Choose files or folders inside your music folder.")
+            library.resolve(rel)  # rejects anything outside the library
+        return rels
+
+    @app.post("/api/files/move")
+    def move_entries(body: FilesMoveIn) -> dict:
+        """Move files and folders into another folder (like Organize: nothing is overwritten, one undo)."""
+        require_library()
+        to = body.to.strip().strip("/")
+        if to.startswith("@") or not library.resolve(to).is_dir():
+            raise HTTPException(404, "That folder isn't there any more.")
+        moves = []
+        rels = library_entries(body.paths)
+        for rel in rels:
+            if to == rel or to.startswith(rel + "/"):
+                raise HTTPException(422, "A folder can't go inside itself.")
+            if _parent(rel) != to:
+                moves += entry_moves(rel, _join(to, rel.rsplit("/", 1)[-1]))
+        where = f"“{to.rsplit('/', 1)[-1]}”" if to else "the top of your library"
+        what = f"“{rels[0].rsplit('/', 1)[-1]}”" if len(rels) == 1 else f"{len(rels)} items"
+        if not moves:
+            return {"moved": 0, "failed": 0, "errors": []}
+        return run_moves(moves, "organize", f"Moved {what} to {where}", [{"key": "folder", "old": _parent(rels[0]), "new": to}])
+
+    @app.post("/api/files/rename")
+    def rename_entry(body: FileRenameIn) -> dict:
+        """Rename one file (its extension stays; its .lrc follows). Folders use /api/folders/rename."""
+        require_library()
+        (rel,) = library_entries([body.path])
+        src = library.resolve(rel)
+        if src.is_dir():
+            return rename_folder(FolderRenameIn(path=rel, name=body.name))
+        ext = src.suffix
+        stem = body.name.strip()
+        if ext and stem.lower().endswith(ext.lower()):
+            stem = stem[: -len(ext)]
+        new_name = safe_name(stem) + ext
+        new_rel = _join(_parent(rel), new_name)
+        if new_rel == rel:
+            return {"path": rel, "moved": 0, "failed": 0, "errors": []}
+        target = library.resolve(new_rel)
+        if os.path.lexists(target) and not (new_rel.casefold() == rel.casefold() and target.samefile(src)):
+            raise HTTPException(409, f"There's already a file called “{new_name}” here.")
+        out = run_moves(entry_moves(rel, new_rel), "organize", f"Renamed “{src.name}” to “{new_name}”",
+                        [{"key": "name", "old": src.name, "new": new_name}])
+        return {"path": new_rel if out["moved"] else rel, **out}
+
+    @app.post("/api/files/delete")
+    def delete_entries(body: FilesIn) -> dict:
+        """Move files and folders to "Recently deleted" (kept 30 days in the config folder).
+        Nothing is erased: Activity can put them back."""
+        require_library()
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        rels = library_entries(body.paths)
+        moves = [m for rel in rels for m in entry_moves(rel, f"{DELETED}/{stamp}/{rel}")]
+        what = f"“{rels[0].rsplit('/', 1)[-1]}”" if len(rels) == 1 else f"{len(rels)} items"
+        out = run_moves(moves, "delete", f"Deleted {what} (in Recently deleted for 30 days)",
+                        [{"key": "location", "old": _parent(rels[0]), "new": "(recently deleted)"}])
+        for rel in rels:  # a deleted folder's empty subfolders go too
+            src = library.resolve(rel)
+            if src.is_dir():
+                for dirpath, _, _ in sorted(os.walk(src), key=lambda x: -len(x[0])):
+                    with contextlib.suppress(OSError):
+                        os.rmdir(dirpath)
+        return out
+
+    @app.get("/api/files/info")
+    def entry_info(path: str = Query(..., max_length=MAX_PATH_CHARS, description="File or folder, relative to the music folder")) -> dict:
+        """Get info: format, quality, size and dates of a file, or what a folder holds."""
+        require_library()
+        target = library.resolve(path)
+        info = folder_info(target) if target.is_dir() else file_info(engine, target)
+        return {"path": path.strip("/"), **info}
+
+    @app.get("/api/folders")
+    def list_subfolders(path: str = Query("", max_length=MAX_PATH_CHARS, description="Folder, relative to the music folder")) -> dict:
+        """Just the subfolders of one folder (for the "Move to" picker): no tags are read."""
+        require_library()
+        if path.strip("/").startswith("@"):
+            raise HTTPException(422, "Choose a folder inside your music folder.")
+        listing = library.list_folder(path)
+        return {"path": listing.path, "folders": [{"name": f.rsplit("/", 1)[-1], "path": f} for f in listing.folders]}
 
     def apply_per_file(per_file: dict[str, dict], message: str) -> tuple[list[str], list[dict]]:
         """Write different tag changes to each file (safe writes, a few at once) and log them as

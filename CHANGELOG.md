@@ -4,6 +4,10 @@ All notable changes to Codetta. Versions follow [Semantic Versioning](https://se
 
 ## Unreleased (0.8.5)
 
+- **Right-click menu (long press on phones):** for any track or folder: Rename, Move to, Select, Actions, Get info, Find in MusicBrainz, Find in slskd and Delete. It's small and quick, opens right where you clicked, and works on a selection too.
+  - **Get info** shows what the tags don't: format, bit depth, sample rate, bitrate, file size, tag type, cover size and location.
+  - **Delete** asks twice, then moves things to *Recently deleted* for 30 days instead of erasing them, and Activity can bring them back.
+  - **Move to** and **Rename** work like Organize: nothing is ever overwritten, lyrics files follow their song, and one tap undoes it.
 - **Explicit and Clean presets:** mark a folder or a selection as explicit or clean in one go. They set the advisory tag Navidrome and Apple Music read (1 = explicit, 2 = clean), in every format, including Apple's own field in M4A files. The tag also shows in the editor as **Explicit**, under Release.
 
 ## 0.8.4 (2026-11-19)

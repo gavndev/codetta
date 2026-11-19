@@ -110,6 +110,9 @@ function openDialog(dialog) {
 }
 
 const ICONS = {
+  info: '<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7.5"/><path d="M10 9v5M10 6.2v.1"/></svg>',
+  trash: '<svg viewBox="0 0 20 20"><path d="M3.5 5.5h13M8 5.5V4h4v1.5M5.5 5.5l.8 10.5h7.4l.8-10.5M8.5 8.5v5M11.5 8.5v5"/></svg>',
+  move: '<svg viewBox="0 0 20 20"><path d="M2.5 5.5a1.5 1.5 0 0 1 1.5-1.5h3.6l1.8 2H16a1.5 1.5 0 0 1 1.5 1.5v7A1.5 1.5 0 0 1 16 16H4a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M8 11h5m-2-2 2 2-2 2"/></svg>',
   folder: '<svg viewBox="0 0 20 20"><path d="M2.5 5.5a1.5 1.5 0 0 1 1.5-1.5h3.6l1.8 2H16a1.5 1.5 0 0 1 1.5 1.5v7A1.5 1.5 0 0 1 16 16H4a1.5 1.5 0 0 1-1.5-1.5z"/></svg>',
   close: '<svg viewBox="0 0 20 20"><path d="m5 5 10 10M15 5 5 15"/></svg>',
   clear: '<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="m7.5 7.5 5 5m0-5-5 5"/></svg>',
@@ -1308,7 +1311,7 @@ function renderFolders() {
   const list = folderView() === "list";
   els.folders.classList.toggle("as-list", list);
   drawInBatches(els.folders, folders, (f) => list
-    ? h("a", { class: "folder", href: hashFor(f.path), title: f.name },
+    ? h("a", { class: "folder", href: hashFor(f.path), title: f.name, "data-path": f.path },
       icon("folder"), h("span", { class: "folder-name" }, f.name),
       h("span", { class: "folder-meta" }, folderSummary(f)), icon("chevron"))
     : h("a", { class: "folder", href: hashFor(f.path), title: f.name, "data-path": f.path },
@@ -5286,6 +5289,7 @@ function bindEvents() {
     if (e.key === "codetta-clipboard") { state.clipboard = loadClipboard(); if (state.editor) renderToolbar(); }
   });
 
+  setupContextMenu();
   $("#sel-clear").addEventListener("click", () => { state.selected.clear(); updateRowStates(); renderSelectionBar(); });
   $("#sel-edit").addEventListener("click", () => openEditor([...state.selected]));
   $("#sel-preset").addEventListener("click", () => openApply("selection"));
@@ -5746,3 +5750,242 @@ async function startApp() {
 }
 
 boot();
+
+// ---- Context menu: right-click on a computer, a long press on a phone ---------------------------------
+//
+// One small menu for a track or a folder: Rename, Move to, Select, Actions, Get info, Find in
+// MusicBrainz / slskd, Delete. Moves and deletes go through the same safe mover as Organize
+// (nothing overwritten, one undo); Delete sends things to "Recently deleted" for 30 days.
+
+const ctx = { menu: null, openedAt: 0, press: null, suppressClick: false };
+const LONG_PRESS_MS = 500;
+
+function closeContextMenu() {
+  ctx.menu?.remove();
+  ctx.menu = null;
+}
+
+function openContextMenu(x, y, items, { touch = false } = {}) {
+  closeContextMenu();
+  document.querySelector(".tools-menu")?.remove();
+  const menu = h("div", { class: "tools-menu ctx-menu", role: "menu" }, items.filter(Boolean).map((t) => t === "-"
+    ? h("div", { class: "ctx-sep", role: "separator" })
+    : h("button", { class: `tools-item${t.danger ? " danger" : ""}`, type: "button", role: "menuitem",
+      onclick: () => { closeContextMenu(); t.run(); } }, icon(t.icon), t.label)));
+  document.body.append(menu);
+  // Next to the pointer, but always fully on screen.
+  const left = Math.min(Math.max(8, x), window.innerWidth - menu.offsetWidth - 8);
+  const top = Math.min(Math.max(8, y), window.innerHeight - menu.offsetHeight - 8);
+  Object.assign(menu.style, { left: `${left}px`, top: `${top}px` });
+  menu.style.transformOrigin = `${x - left}px ${y - top}px`;
+  replay(menu, "opening");
+  ctx.menu = menu;
+  ctx.openedAt = Date.now();
+  if (!touch) menu.querySelector("button")?.focus({ preventScroll: true }); // arrow keys work at once; no ring after a long press
+  const away = (e) => { if (!menu.contains(e.target)) { closeContextMenu(); off(); } };
+  const key = (e) => {
+    if (e.key === "Escape") { closeContextMenu(); off(); return; }
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      const btns = [...menu.querySelectorAll("button")];
+      const i = btns.indexOf(document.activeElement);
+      btns[(i + (e.key === "ArrowDown" ? 1 : btns.length - 1)) % btns.length]?.focus();
+      e.preventDefault();
+    }
+  };
+  const off = () => { document.removeEventListener("pointerdown", away, true); document.removeEventListener("keydown", key, true);
+    window.removeEventListener("scroll", scrolled, true); };
+  const scrolled = () => { closeContextMenu(); off(); };
+  setTimeout(() => {
+    document.addEventListener("pointerdown", away, true);
+    document.addEventListener("keydown", key, true);
+    window.addEventListener("scroll", scrolled, true);
+  }, 0);
+}
+
+const baseOf = (p) => p.split("/").pop();
+const stemOf = (name) => (name.includes(".") ? name.slice(0, name.lastIndexOf(".")) : name);
+
+async function afterFileChange(paths = []) {
+  folderCache.clear(); folderCovers.clear();
+  if (state.editor && state.editor.paths.some((p) => paths.some((q) => p === q || p.startsWith(`${q}/`)))) closeEditor(true);
+  for (const p of paths) state.selected.delete(p);
+  renderSelectionBar();
+  refreshActivity();
+  await loadFolder(state.path, { keepScroll: true });
+}
+
+function trackMenu(t) {
+  const many = state.selected.has(t.path) && state.selected.size > 1;
+  const paths = many ? [...state.selected] : [t.path];
+  const title = first(t, "title") || t.name;
+  const label = many ? plural(paths.length, "selected track") : `“${title}”`;
+  const artist = first(t, "artist") || first(t, "albumartist");
+  return [
+    many ? null : { icon: "rename", label: "Rename…", run: () => renameEntry(t.path, false) },
+    { icon: "move", label: "Move to…", run: () => moveEntries(paths, label) },
+    many ? null : { icon: "select", label: "Select", run: () => { if (isPhone()) setSelectMode(true); toggleSelect(t.path, true, false); } },
+    { icon: "wand", label: "Actions…", run: () => openActions({ paths }, label) },
+    many ? null : { icon: "info", label: "Get info", run: () => showInfo(t.path) },
+    state.status?.musicbrainz ? { icon: "musicbrainz", label: "Find in MusicBrainz", run: () => openMusicBrainzFor({ body: { paths }, label }) } : null,
+    !many && skReady() ? { icon: "slskd", label: "Find in slskd", run: () => slskdFor([artist, title].filter(Boolean).join(" ")) } : null,
+    "-",
+    { icon: "trash", label: "Delete…", danger: true, run: () => deleteEntries(paths, label) },
+  ];
+}
+
+function folderMenu(path) {
+  const name = baseOf(path);
+  const parts = path.split("/");
+  return [
+    { icon: "rename", label: "Rename…", run: () => renameEntry(path, true) },
+    { icon: "move", label: "Move to…", run: () => moveEntries([path], `“${name}”`) },
+    { icon: "info", label: "Get info", run: () => showInfo(path) },
+    state.status?.musicbrainz ? { icon: "musicbrainz", label: "Find in MusicBrainz", run: () => openMusicBrainzFor({ body: { folder: path }, label: `“${name}”` }) } : null,
+    skReady() ? { icon: "slskd", label: "Find in slskd", run: () => slskdFor(parts.slice(-2).join(" ").replace(/\s*[([]\d{4}[)\]]\s*/g, " ").trim()) } : null,
+    "-",
+    { icon: "trash", label: "Delete…", danger: true, run: () => deleteEntries([path], `“${name}”`) },
+  ];
+}
+
+function slskdFor(query) {
+  els.filter.value = query;
+  setBang(true, "");
+  els.filter.focus();
+  els.filter.select();
+}
+
+async function renameEntry(path, isFolder) {
+  if (!(await confirmDiscard())) return;
+  const name = baseOf(path);
+  const ext = isFolder || !name.includes(".") ? "" : name.slice(name.lastIndexOf("."));
+  const input = h("input", { type: "text", value: isFolder ? name : stemOf(name), maxlength: "255", dir: "auto", spellcheck: "false", autocomplete: "off", class: "rename-input" });
+  setTimeout(() => { input.focus(); input.select(); }, 80);
+  const ok = await ask({ title: isFolder ? "Rename folder" : "Rename file",
+    message: isFolder ? "Every file moves with it. Nothing is overwritten, and Activity can undo it."
+      : `The ${ext || "file"} extension stays, and a lyrics file with the same name follows. Activity can undo it.`,
+    details: h("label", { class: "field" }, h("span", { class: "field-label" }, "New name"), input), confirmLabel: "Rename" });
+  const value = input.value.trim();
+  if (!ok || !value || value === (isFolder ? name : stemOf(name))) return;
+  try {
+    const r = await api("POST", isFolder ? "/api/folders/rename" : "/api/files/rename", { path, name: value });
+    toast(r.failed ? `${r.failed} file(s) couldn't move` : `Renamed to “${baseOf(r.path)}”`, r.failed ? "error" : "success");
+    await afterFileChange([path]);
+  } catch (err) { toast(err.message, "error"); }
+}
+
+async function moveEntries(paths, label) {
+  if (!(await confirmDiscard())) return;
+  const from = paths[0].includes("/") ? paths[0].slice(0, paths[0].lastIndexOf("/")) : "";
+  const pick = { path: from };
+  const box = h("div", { class: "picker" });
+  const draw = async () => {
+    let data;
+    try { data = await api("GET", `/api/folders?path=${encodeURIComponent(pick.path)}`); } catch (err) { setKids(box, h("p", { class: "error-box" }, err.message)); return; }
+    const crumbs = pick.path ? pick.path.split("/") : [];
+    setKids(box,
+      h("div", { class: "picker-head" },
+        pick.path ? h("button", { class: "icon-btn", type: "button", "aria-label": "Up one folder",
+          onclick: () => { pick.path = crumbs.slice(0, -1).join("/"); draw(); } }, icon("chevron")) : null,
+        h("strong", { class: "picker-where" }, crumbs.length ? crumbs[crumbs.length - 1] : "Library")),
+      h("div", { class: "picker-list" }, data.folders.length
+        ? data.folders.map((f) => h("button", { class: "picker-item", type: "button", disabled: paths.includes(f.path),
+          onclick: () => { pick.path = f.path; draw(); } }, icon("folder"), h("span", {}, f.name), icon("chevron")))
+        : h("p", { class: "hint" }, "No folders inside. Move here, or go up.")));
+  };
+  draw();
+  const ok = await ask({ title: `Move ${label}`, message: "Pick the folder it goes into. Nothing is overwritten, and Activity can undo it.",
+    details: box, confirmLabel: "Move here" });
+  if (!ok) return;
+  try {
+    const r = await api("POST", "/api/files/move", { paths, to: pick.path });
+    if (!r.moved && !r.failed) toast("It's already in that folder.");
+    else toast(r.failed ? `Moved ${r.moved}, ${r.failed} couldn't move: ${r.errors[0]?.error || ""}` : `Moved to “${pick.path ? baseOf(pick.path) : "Library"}”`, r.failed ? "error" : "success");
+    await afterFileChange(paths);
+  } catch (err) { toast(err.message, "error"); }
+}
+
+async function deleteEntries(paths, label) {
+  if (!(await confirmDiscard())) return;
+  // Two questions on purpose: deleting is the one thing worth a second look.
+  if (!(await ask({ title: `Delete ${label}?`, danger: true, confirmLabel: "Delete",
+    message: "It moves to Recently deleted, where it's kept for 30 days. Activity can bring it back." }))) return;
+  if (!(await ask({ title: "Are you sure?", danger: true, confirmLabel: "Yes, delete",
+    message: `${label[0].toUpperCase()}${label.slice(1)} will leave your library now.` }))) return;
+  try {
+    const r = await api("POST", "/api/files/delete", { paths });
+    toast(r.failed ? `${r.failed} file(s) couldn't be deleted` : `Deleted ${label}. Undo is in Activity.`, r.failed ? "error" : "success");
+    await afterFileChange(paths);
+  } catch (err) { toast(err.message, "error"); }
+}
+
+const fmtBytes = (n) => (n >= 1e9 ? `${(n / 1e9).toFixed(2)} GB` : n >= 1e6 ? `${(n / 1e6).toFixed(1)} MB` : n >= 1e3 ? `${Math.round(n / 1e3)} KB` : `${n} bytes`);
+
+async function showInfo(path) {
+  let d;
+  try { d = await api("GET", `/api/files/info?path=${encodeURIComponent(path)}`); } catch (err) { toast(err.message, "error"); return; }
+  const when = new Date(d.modified * 1000).toLocaleString();
+  const rows = d.kind === "folder" ? [
+    ["Contains", `${plural(d.audio, "song")}${d.files - d.audio ? `, ${plural(d.files - d.audio, "other file")}` : ""}${d.capped ? " (counted the first 20,000)" : ""}`],
+    ["Folders inside", String(d.folders)],
+    ["Size", fmtBytes(d.size)],
+    ["Modified", when],
+    ["Location", d.path || "Library"],
+  ] : [
+    ["Format", [d.format?.toUpperCase(), d.codec && d.codec.toLowerCase() !== d.format ? d.codec : null].filter(Boolean).join(" · ")],
+    ["Length", d.duration ? `${Math.floor(d.duration / 60)}:${String(Math.round(d.duration % 60)).padStart(2, "0")}` : "Unknown"],
+    ["Quality", [d.bits_per_sample ? `${d.bits_per_sample}-bit` : null, d.sample_rate ? `${(d.sample_rate / 1000).toFixed(1).replace(/\.0$/, "")} kHz` : null,
+      d.bitrate ? `${Math.round(d.bitrate / 1000)} kbps` : null, d.channels === 2 ? "Stereo" : d.channels === 1 ? "Mono" : d.channels ? `${d.channels} channels` : null].filter(Boolean).join(" · ")],
+    ["Size", fmtBytes(d.size)],
+    ["Tags", d.tag_kind ? `${d.tag_kind}, ${plural(d.tag_count, "value")}` : "None"],
+    ["Cover", d.art ? `${d.art.width && d.art.height ? `${d.art.width} × ${d.art.height}, ` : ""}${d.art.mime.replace("image/", "").toUpperCase()}, ${fmtBytes(d.art.size)}` : "None"],
+    ["Modified", when],
+    ["Location", d.path],
+  ];
+  await ask({ title: d.name || "Library", details: h("dl", { class: "info-list" }, rows.map(([k, v]) => [h("dt", {}, k), h("dd", { dir: "auto" }, v || "—")])),
+    confirmLabel: "Done", cancelLabel: "Copy location" }).then((done) => {
+    if (done === false) navigator.clipboard?.writeText(d.path).then(() => toast("Location copied"), () => {});
+  });
+}
+
+function contextTarget(el) {
+  const row = el.closest(".track-row:not(.head)");
+  if (row?.dataset.path) { const t = trackByPath(row.dataset.path); return t && !t.error ? { items: () => trackMenu(t) } : null; }
+  const folder = el.closest(".folder[data-path]");
+  if (folder && !folder.dataset.path.startsWith("@")) return { items: () => folderMenu(folder.dataset.path) };
+  return null;
+}
+
+function setupContextMenu() {
+  for (const host of [els.tracks, els.folders]) {
+    host.addEventListener("contextmenu", (e) => {
+      const target = contextTarget(e.target);
+      if (!target || state.folder?.mb) return;
+      e.preventDefault();
+      if (Date.now() - ctx.openedAt < 700) return; // a long press already opened it (Android fires both)
+      openContextMenu(e.clientX, e.clientY, target.items());
+    });
+    host.addEventListener("pointerdown", (e) => {
+      if (e.pointerType === "mouse" || state.folder?.mb) return;
+      const target = contextTarget(e.target);
+      if (!target) return;
+      const start = { x: e.clientX, y: e.clientY };
+      clearTimeout(ctx.press?.timer);
+      ctx.press = { start, timer: setTimeout(() => {
+        ctx.press = null;
+        ctx.suppressClick = true; // the finger lifting must not also open the track
+        navigator.vibrate?.(10);
+        openContextMenu(start.x, start.y, target.items(), { touch: true });
+      }, LONG_PRESS_MS) };
+    });
+    const cancel = (e) => {
+      if (!ctx.press) return;
+      if (e.type === "pointermove" && Math.hypot(e.clientX - ctx.press.start.x, e.clientY - ctx.press.start.y) < 10) return;
+      clearTimeout(ctx.press.timer);
+      ctx.press = null;
+    };
+    for (const type of ["pointermove", "pointerup", "pointercancel"]) host.addEventListener(type, cancel);
+    host.addEventListener("click", (e) => {
+      if (ctx.suppressClick) { ctx.suppressClick = false; e.preventDefault(); e.stopPropagation(); }
+    }, true);
+  }
+}

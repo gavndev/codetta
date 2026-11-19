@@ -2759,3 +2759,34 @@ body:has(.selection-bar:not([hidden])):has(.now-playing:not([hidden])) .browser 
 
 /* A sheet focused as a whole when it opens (see openDialog): no ring around the whole sheet. */
 dialog:focus { outline: none; }
+
+/* ---- Context menu (right-click / long press) -------------------------------------------------- */
+.ctx-menu { position: fixed; z-index: 60; min-width: 196px; max-width: min(280px, calc(100vw - 16px)); }
+.ctx-sep { height: 1px; margin: 4px 8px; background: var(--rule); }
+.tools-item.danger { color: var(--danger, #c0392b); }
+.tools-item.danger svg { color: currentColor; }
+@media (hover: none) {
+  /* A long press opens Codetta's menu, not the phone's text-selection pop-up. */
+  .track-row, .folder { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+}
+
+/* "Move to": a small folder picker inside the confirmation sheet. */
+.picker { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-top: 4px; }
+.picker-head { display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 10px; border-bottom: 1px solid var(--rule); background: var(--hover); }
+.picker-where { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.picker-list { max-height: min(46vh, 320px); overflow-y: auto; }
+.picker-item { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 0 12px;
+  border: 0; border-bottom: 1px solid var(--rule); background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.picker-item:last-child { border-bottom: 0; }
+.picker-item span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.picker-item svg { width: 16px; height: 16px; color: var(--accent); flex: none; }
+.picker-item svg:last-child { color: var(--faint); }
+.picker-item:disabled { opacity: 0.4; cursor: default; }
+@media (hover: hover) { .picker-item:not(:disabled):hover { background: var(--hover); } }
+.picker .hint { padding: 12px; margin: 0; }
+
+/* Get info */
+.info-list { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 16px; margin: 4px 0 0; font-size: 14px; }
+.info-list dt { color: var(--muted); }
+.info-list dd { margin: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.picker-head .icon-btn svg { transform: rotate(180deg); } /* a chevron pointing back: up one folder */

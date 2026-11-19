@@ -114,7 +114,10 @@ def test_symlinked_folder_outside_library_is_followed_only_as_documented(env):
     # A symlink placed inside the library by its owner is followed (that's how
     # people link music on other disks), but nothing can create such links via the API.
     routes = {p for _, p in all_routes(env["app"])}
-    assert not any("link" in p or "upload" in p or "file" in p for p in routes)
+    assert not any("link" in p or "upload" in p for p in routes)
+    # The only "file" routes are the right-click menu's: they move, rename and set files aside
+    # inside the library (through the same mover as Organize), and can't create links or new files.
+    assert {p for p in routes if "file" in p} == {"/api/files/move", "/api/files/rename", "/api/files/delete", "/api/files/info"}
 
 
 # --- 3. Malicious content stays inert --------------------------------------------------------------

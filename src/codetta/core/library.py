@@ -33,16 +33,19 @@ class FolderListing:
 
 INBOX = "@inbox"  # paths starting with this live in the inbox folder, outside the library
 REPLACED = "@replaced"  # albums an upgrade replaced (kept in the config folder so it can be undone)
+DELETED = "@deleted"  # "Recently deleted": files you deleted, kept in the config folder for 30 days
 
 
 class Library:
-    def __init__(self, root: str | Path, inbox: str | Path | None = None, replaced: str | Path | None = None) -> None:
+    def __init__(self, root: str | Path, inbox: str | Path | None = None, replaced: str | Path | None = None,
+                 deleted: str | Path | None = None) -> None:
         # Normalise without resolving symlinks: a library that links to music
         # on other disks is normal, and the engine follows links when writing.
         self.root = Path(os.path.abspath(root))
         # Optional second folder (e.g. slskd's downloads), addressed as "@inbox/...".
         self.inbox = Path(os.path.abspath(inbox)) if inbox else None
         self.replaced = Path(os.path.abspath(replaced)) if replaced else None
+        self.deleted = Path(os.path.abspath(deleted)) if deleted else None
 
     def inbox_available(self) -> bool:
         return self.inbox is not None and self.inbox.is_dir()
@@ -63,6 +66,8 @@ class Library:
             return self.inbox.joinpath(*rel.parts[1:])
         if rel.parts and rel.parts[0] == REPLACED and self.replaced is not None:
             return self.replaced.joinpath(*rel.parts[1:])
+        if rel.parts and rel.parts[0] == DELETED and self.deleted is not None:
+            return self.deleted.joinpath(*rel.parts[1:])
         if rel.parts and rel.parts[0].startswith("@"):
             raise LibraryPathError(f"Unknown folder: {rel.parts[0]}")
         return self.root.joinpath(*rel.parts)
@@ -76,6 +81,9 @@ class Library:
         if self.replaced is not None and path.is_relative_to(self.replaced) and not path.is_relative_to(self.root):
             rel = path.relative_to(self.replaced).as_posix()
             return REPLACED if rel == "." else f"{REPLACED}/{rel}"
+        if self.deleted is not None and path.is_relative_to(self.deleted) and not path.is_relative_to(self.root):
+            rel = path.relative_to(self.deleted).as_posix()
+            return DELETED if rel == "." else f"{DELETED}/{rel}"
         rel = path.relative_to(self.root).as_posix()
         return "" if rel == "." else rel
 
