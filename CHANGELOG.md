@@ -2,7 +2,7 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
-## Unreleased (0.8.0)
+## 0.8.0 (2026-11-18)
 
 - **Big libraries, much faster** (measured on 105,000 tracks):
   - Reading your library the first time is about **4× faster** (139 → 34 seconds): helper processes share the work, then stop. `CODETTA_INDEX_WORKERS` sets how many.
