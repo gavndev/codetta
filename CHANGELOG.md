@@ -2,7 +2,7 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
-## Unreleased (0.8.5)
+## 0.8.5 (2026-11-19)
 
 - **Right-click menu (long press on phones):** for any track or folder: Rename, Move to, Select, Actions, Get info, Find in MusicBrainz, Find in slskd and Delete. It's small and quick, opens right where you clicked, and works on a selection too.
   - **Get info** shows what the tags don't: format, bit depth, sample rate, bitrate, file size, tag type, cover size and location.
