@@ -36,3 +36,9 @@ codetta-config/
 
 # Per-server Docker settings (e.g. your music path)
 docker-compose.override.yml
+
+# Snap builds
+*.snap
+
+# Claude Code personal settings
+.claude/settings.local.json

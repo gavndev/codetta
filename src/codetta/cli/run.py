@@ -35,10 +35,12 @@ def default_config_dir() -> Path:
 
 
 def default_music_dir() -> Path:
+    # In a snap, HOME is the snap's own folder (~/snap/codetta/<n>): the real one is SNAP_REAL_HOME.
+    home = Path(os.environ.get("SNAP_REAL_HOME") or Path.home())
     for name in ("Music", "music"):
-        if (Path.home() / name).is_dir():
-            return Path.home() / name
-    return Path.home() / "Music"
+        if (home / name).is_dir():
+            return home / name
+    return home / "Music"
 
 
 def _free(host: str, port: int) -> bool:

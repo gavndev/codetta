@@ -1,0 +1,50 @@
+# The snap: `sudo snap install codetta`, then `codetta` (opens your Music folder in the browser).
+# Built for amd64 and arm64 by the snapcraft.io build service on every push to main (edge channel);
+# promote a tested build to stable on snapcraft.io. Local build: `snapcraft pack` (needs LXD).
+name: codetta
+title: Codetta
+summary: A private, self-hosted music library manager
+description: |
+  Codetta looks after a local music library (FLAC, MP3, M4A, OGG, Opus, WAV,
+  AIFF, WMA and more) from your browser: edit tags for one track or a whole
+  album, match albums on MusicBrainz, batch edit, rename and organize files,
+  and undo anything from the activity log.
+
+  Run `codetta` to open your Music folder at http://localhost:8111, or
+  `codetta /path/to/music` for another folder. Music on an external drive
+  (/media, /mnt) needs: sudo snap connect codetta:removable-media
+
+  No tracking, no ads, and no internet connection until you switch on an
+  online feature.
+website: https://github.com/gavndev/codetta
+source-code: https://github.com/gavndev/codetta
+issues: https://github.com/gavndev/codetta/issues
+contact: https://github.com/gavndev/codetta/issues
+license: AGPL-3.0-or-later
+icon: src/codetta/web/static/icons/codetta.png
+adopt-info: codetta
+base: core26   # Ubuntu 26.04: Python 3.14
+grade: stable
+confinement: strict
+platforms:
+  amd64:
+  arm64:
+
+apps:
+  codetta:
+    command: bin/codetta
+    plugs:
+      - home             # your Music folder
+      - removable-media  # music on /media or /mnt (connect it by hand, see above)
+      - network          # MusicBrainz and the other opt-in lookups
+      - network-bind     # serve the page
+
+parts:
+  codetta:
+    plugin: python
+    source: .
+    stage-packages:
+      - python3-venv     # core26 has the standard library but no python3 program
+    override-pull: |
+      craftctl default
+      craftctl set version="$(grep -m1 '^version' pyproject.toml | cut -d'"' -f2)"

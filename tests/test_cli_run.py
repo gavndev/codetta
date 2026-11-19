@@ -76,6 +76,15 @@ def test_config_folder_per_system(monkeypatch, tmp_path):
     assert run.default_config_dir() == tmp_path / "snap" / "config"
 
 
+def test_music_folder_in_a_snap_is_the_real_home(monkeypatch, tmp_path):
+    (tmp_path / "real" / "Music").mkdir(parents=True)
+    monkeypatch.setattr(run.Path, "home", lambda: tmp_path / "snap" / "codetta" / "12")
+    monkeypatch.setenv("SNAP_REAL_HOME", str(tmp_path / "real"))
+    assert run.default_music_dir() == tmp_path / "real" / "Music"
+    monkeypatch.delenv("SNAP_REAL_HOME")
+    assert run.default_music_dir() == tmp_path / "snap" / "codetta" / "12" / "Music"
+
+
 def test_admin_commands_use_the_same_config_folder(monkeypatch, tmp_path):
     seen = []
     import codetta.cli.__main__ as admin

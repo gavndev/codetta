@@ -113,7 +113,18 @@ pipx install codetta
 codetta
 ```
 
-That opens `http://localhost:8111` with your Music folder. Other folders and options:
+On Ubuntu and other Linux systems with snaps, no Python needed:
+
+```sh
+sudo snap install codetta
+codetta
+# music on an external drive (/media, /mnt)? allow it once:
+sudo snap connect codetta:removable-media
+```
+
+The snap updates itself; its settings live in `~/snap/codetta/common/config`.
+
+Either way, `codetta` opens `http://localhost:8111` with your Music folder. Other folders and options:
 
 ```sh
 codetta ~/Music/FLAC          # another folder

@@ -2,6 +2,10 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
+## Unreleased (0.8.2)
+
+- **Snap:** `sudo snap install codetta` on Ubuntu and other Linux systems, for Intel/AMD and ARM. It updates itself. See [On your own computer](docs/install.md#on-your-own-computer).
+
 ## 0.8.1 (2026-11-19)
 
 - **Run it on your own computer:** no server or Docker needed. `pipx install codetta`, then `codetta` opens your Music folder in the browser (Linux and macOS; Windows support is coming). `codetta set-password` and `codetta sign-out-all` work there too. See [On your own computer](docs/install.md#on-your-own-computer).
