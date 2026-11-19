@@ -556,3 +556,58 @@ def test_rename_folder_case_only(batch_client):
     c, music = batch_client
     r = c.post("/api/folders/rename", json={"path": "Artist/Album", "name": "ALBUM"}).json()
     assert r["path"] == "Artist/ALBUM" and (music / "Artist" / "ALBUM" / "01.flac").exists()
+
+
+# --- Moving files (Organize, Rename folder, the inbox) ------------------------------------------
+
+
+def test_a_move_never_replaces_a_file_that_appears_at_the_last_moment(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    from codetta.core.organize import Move, apply_moves
+    (tmp_path / "a").mkdir()
+    (tmp_path / "a" / "song.flac").write_bytes(b"mine")
+    target = tmp_path / "b" / "song.flac"
+    real_mkdir = Path.mkdir
+
+    def mkdir_then_race(self, *args, **kwargs):  # after Codetta checked the name was free...
+        real_mkdir(self, *args, **kwargs)
+        if self == target.parent and not target.exists():
+            target.write_bytes(b"someone else's")  # ...a download finishes with the same name
+
+    monkeypatch.setattr(Path, "mkdir", mkdir_then_race)
+    (r,) = apply_moves(tmp_path, [Move("a/song.flac", "b/song.flac", "move")])
+    assert not r.ok and "already has that name" in r.error
+    assert target.read_bytes() == b"someone else's"  # a plain rename would have replaced it
+    assert (tmp_path / "a" / "song.flac").read_bytes() == b"mine"
+
+
+def test_moving_across_disks_works_with_names_at_the_length_limit(tmp_path):
+    from codetta.core.organize import _copy_then_remove
+    name = "x" * 245 + ".flac"  # 250 bytes: a longer temporary name would be refused by the filesystem
+    a = tmp_path / "from" / name
+    a.parent.mkdir()
+    a.write_bytes(b"audio")
+    b = tmp_path / "to" / name
+    b.parent.mkdir()
+    _copy_then_remove(a, b)
+    assert b.read_bytes() == b"audio" and not a.exists()
+    assert not [p for p in b.parent.iterdir() if p.name.startswith(".codetta-move-")]
+
+
+def test_undo_of_a_move_whose_folder_is_gone_says_so(tmp_path):
+    import json
+
+    from fastapi.testclient import TestClient
+
+    from codetta.web.app import Settings, create_app
+    music, config = tmp_path / "music", tmp_path / "config"
+    music.mkdir()
+    config.mkdir()
+    entry = {"id": 1, "time": "2026-11-19T00:00:00+00:00", "kind": "inbox", "ok": True, "message": "Filed an album",
+             "files": ["A/01.flac"], "file_count": 1, "changes": [], "errors": [],
+             "undo": {"type": "moves", "moves": [["@inbox/new/01.flac", "A/01.flac"]]}}
+    (config / "activity.jsonl").write_text(json.dumps(entry) + "\n")
+    with TestClient(create_app(Settings(music_dir=music, config_dir=config, auth=False))) as c:
+        res = c.post("/api/activity/1/undo")
+    assert res.status_code == 409 and "can't be undone" in res.json()["detail"]  # not a bare server error

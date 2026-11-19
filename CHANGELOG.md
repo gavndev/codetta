@@ -7,6 +7,13 @@ All notable changes to Codetta. Versions follow [Semantic Versioning](https://se
 - **Covers in the grid view:** switch the Library to the grid and every folder shows the cover of an album inside it, artists included. Nothing extra is read from your disk: the covers come from the search index.
 - **Easier to tap on phones:** every button, field and toggle is now at least 44 points tall, as Apple recommends. The search bar responds anywhere you tap it, not just on a thin strip in the middle.
 - **Selecting tracks on a phone:** the bar at the bottom no longer runs off the screen. Preset, Replace and Actions now share a "…" menu next to Edit.
+- **Safer moves:** Organize, Rename folder and the inbox now move a file in a way that can never replace another file that appears at the same name at the last moment (say, a download finishing). Very long file names also move between disks correctly now.
+- **Saves survive power cuts better:** after a file is safely swapped in, its folder is flushed to disk too.
+- **Fixed:** filing the same inbox album twice at once (a double tap, or "File all" while it was filing itself) could mark a successfully filed album as failed. A second request is now turned away.
+- **Fixed:** a double tap on Undo could run the same undo twice, and undoing a move whose folder no longer exists showed a server error instead of saying why.
+- **Fixed:** after saving, going back to a search or a grid could still show the old tags or cover until you reloaded.
+- **Fixed:** a MusicBrainz match that saved the tags but not the cover left search and Library health showing the old tags.
+- **Library health's one-tap fixes** check the album again first if anything changed since the list was made.
 - **What's new** shows its links properly (they opened as plain text before) and they now open on GitHub.
 
 ## 0.8.3 (2026-11-19)

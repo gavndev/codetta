@@ -43,7 +43,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from codetta.core.engine import SUPPORTED_EXTENSIONS
-from codetta.core.library import _is_valid_text, _sort_text, natural_key
+from codetta.core.library import _is_valid_text, _sort_text
 from codetta.core.tagmap import FIELDS
 
 log = logging.getLogger("codetta.index")

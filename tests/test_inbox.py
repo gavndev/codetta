@@ -36,10 +36,10 @@ def music(tmp_path):
 def make_client(music, tmp_path):
     opened = []
 
-    def make(online=True, fake=None):
+    def make(online=True, fake=None, art=None):
         app = create_app(Settings(music_dir=music, config_dir=tmp_path / "config", inbox_settle_seconds=0,
                                   inbox_dir=tmp_path / "downloads"),
-                         fetch_mb=fake or FakeMB(), fetch_art=lambda url: None)
+                         fetch_mb=fake or FakeMB(), fetch_art=art or (lambda url: None))
         c = TestClient(app)
         c.__enter__()
         opened.append(c)
@@ -296,3 +296,23 @@ def test_inbox_path_cannot_escape(make_client):
     assert c.put("/api/inbox/settings", json={"folder": "@inbox/../../etc"}).status_code == 400
     assert c.put("/api/inbox/settings", json={"folder": "@nowhere"}).status_code in (400, 422)
     assert c.get("/api/track", params={"path": "@inbox/../../../etc/passwd"}).status_code == 400
+
+
+def test_an_album_is_never_filed_twice_at_once(make_client, music):
+    import threading
+
+    def slow_cover(url):  # filing waits on the Cover Art Archive for a moment
+        time.sleep(1.0)
+        return None
+
+    c = make_client(art=slow_cover)
+    c.put("/api/inbox/settings", json={"folder": "Downloads"})
+    g = settle(c)["groups"][0]
+    first = {}
+    t = threading.Thread(target=lambda: first.update(c.post("/api/inbox/accept", json={"key": g["key"], "release": REL}).json()))
+    t.start()
+    time.sleep(0.4)  # the first tap is busy filing
+    second = c.post("/api/inbox/accept", json={"key": g["key"], "release": REL})
+    t.join()
+    assert second.status_code == 409 and "already being filed" in second.json()["detail"]
+    assert first["status"] == "filed"  # the first one finished normally, not marked as failed

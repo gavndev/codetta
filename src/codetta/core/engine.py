@@ -306,6 +306,7 @@ class MetadataEngine:
             # client still seeding it) keeps the original bytes.
             os.replace(temp_path, target)
             temp_path = None
+            _fsync_dir(target.parent)  # and the new name too, so a power cut can't undo the swap
         except OSError as exc:
             raise MetadataError(f"Could not write to {path}: {exc}") from exc
         finally:
@@ -457,6 +458,21 @@ def _normalize_value(value: TagValue) -> list[str]:
         return [value] if value else []
     values = [str(v) for v in value]
     return [] if all(v == "" for v in values) else values
+
+
+def _fsync_dir(folder: Path) -> None:
+    """Flush a folder's entries (a rename) to disk. Best effort: not every system or
+    filesystem supports it (Windows, some network shares), and the data is already safe."""
+    try:
+        fd = os.open(folder, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
+    except OSError:
+        pass
+    finally:
+        os.close(fd)
 
 
 def _copy_ownership(source: Path, dest: Path) -> None:

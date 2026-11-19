@@ -2783,6 +2783,10 @@ async function saveEditor(targetPaths = null) {
     updateSaveButton();
     return;
   }
+  // Other folders the page remembers (a search, the album's parent in the grid) still hold the
+  // old tags and covers: forget them, so going back shows what's on disk now.
+  for (const key of [...folderCache.keys()]) if (key !== state.path) folderCache.delete(key);
+  folderCovers.clear();
   if (state.editor !== ed) return; // closed meanwhile
   ed.errors = failures;
   ed.copyMode = false;

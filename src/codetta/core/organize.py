@@ -22,8 +22,11 @@ every move (see ``undo_moves``).
 
 from __future__ import annotations
 
+import contextlib
+import errno
 import os
 import re
+import secrets
 import shutil
 import threading
 import unicodedata
@@ -361,18 +364,40 @@ def _move_one(root: Root, src: str, dst: str) -> None:
     if os.path.lexists(b) and not _same_file(a, b):
         raise FileExistsError("A different file already has that name")
     b.parent.mkdir(parents=True, exist_ok=True)
+    if not a.is_dir() and not _same_file(a, b) and _link_then_unlink(a, b):
+        return
     try:
         os.rename(a, b)  # same filesystem: instant, and the file itself is never rewritten
     except OSError as exc:
-        if exc.errno != 18:  # EXDEV: another disk or mount (e.g. the inbox folder)
+        if exc.errno != errno.EXDEV:  # another disk or mount (e.g. the inbox folder)
             raise
         _copy_then_remove(a, b)
+
+
+def _link_then_unlink(a: Path, b: Path) -> bool:
+    """Move a file without any chance of replacing one that appeared at ``b`` a moment ago
+    (a plain rename would silently overwrite it). True when done; False when hard links
+    aren't possible here (another disk, exFAT, some network shares), so the caller renames."""
+    try:
+        os.link(a, b, follow_symlinks=False)
+    except FileExistsError:
+        raise FileExistsError("A different file already has that name") from None
+    except OSError:
+        return False
+    try:
+        os.unlink(a)
+    except OSError:
+        with contextlib.suppress(OSError):
+            os.unlink(b)  # couldn't let go of the old name: put things back as they were
+        raise
+    return True
 
 
 def _copy_then_remove(a: Path, b: Path) -> None:
     """Move across disks: copy to a temporary name next to the target, check
     it, give it its real name, and only then delete the original."""
-    tmp = b.with_name(f".codetta-move-{os.getpid()}-{b.name}")
+    # A short temporary name: the real one may already be at the 255-byte limit.
+    tmp = b.with_name(f".codetta-move-{os.getpid()}-{secrets.token_hex(4)}{b.suffix[:16]}")
     try:
         if a.is_dir() and not a.is_symlink():
             shutil.copytree(a, tmp, symlinks=True)

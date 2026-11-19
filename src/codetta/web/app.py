@@ -1392,7 +1392,8 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         undo = parts[0] if len(parts) == 1 else {"type": "multi", "parts": parts} if parts else None
         if results:
             _log_musicbrainz(activity, summary, proposal["files"], results, bool(art_undo), undo)
-        lib_index.mark_dirty(r["path"] for r in results if r["ok"])
+        # Every file that changed, including one whose tags saved but cover didn't.
+        lib_index.mark_dirty({r["path"] for r in results if r["ok"]} | set(tag_undo) | set(art_undo))
         return {
             "release": summary,
             "results": results,
@@ -1702,6 +1703,8 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             if exact and inbox_auto(key):
                 inbox_file(key, automatic=True)
         except HTTPException as exc:
+            if exc.status_code == 409 and key in inbox_filing:
+                return  # someone tapped "File" a moment earlier: that filing carries on
             inbox.update(key, status=INBOX_ERROR, title=title, artist=artist, note=str(exc.detail))
 
     def inbox_auto(key: str) -> bool:
@@ -1712,7 +1715,23 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             return not soulseek_store.settings.review
         return inbox.settings.auto
 
+    inbox_filing: set[str] = set()
+    inbox_filing_lock = threading.Lock()
+
     def inbox_file(key: str, release: str | None = None, recordings: dict | None = None, automatic: bool = False) -> dict:
+        """File one album. A second request for the same album while it's being filed (a double
+        tap, or "File all" while it's filing itself) is turned away instead of running twice."""
+        with inbox_filing_lock:
+            if key in inbox_filing:
+                raise HTTPException(409, "This album is already being filed.")
+            inbox_filing.add(key)
+        try:
+            return inbox_file_locked(key, release, recordings, automatic)
+        finally:
+            with inbox_filing_lock:
+                inbox_filing.discard(key)
+
+    def inbox_file_locked(key: str, release: str | None, recordings: dict | None, automatic: bool) -> dict:
         g = inbox.groups.get(key)
         if g is None:
             raise HTTPException(404, "That album is no longer in the inbox")
@@ -1926,7 +1945,13 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         """File every confident match in one go."""
         require_library()
         keys = [g.key for g in list(inbox.groups.values()) if g.status == READY]
-        filed = sum(inbox_file(k)["status"] == FILED for k in keys)
+        filed = 0
+        for k in keys:
+            try:
+                filed += inbox_file(k)["status"] == FILED
+            except HTTPException as exc:
+                if exc.status_code != 409:  # 409: already being filed, by itself or another tap
+                    raise
         return {"filed": filed, "total": len(keys), "inbox": inbox_out()}
 
     @app.post("/api/inbox/skip")
@@ -2452,6 +2477,10 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         require_library()
         if not health_store.enabled:
             raise HTTPException(409, "Library health is switched off.")
+        with health_lock:
+            stale = health_cache["key"] != lib_index.version
+        if stale:  # the library changed since this list was made: check again before writing anything
+            health_compute()
         issue = next((i for i in health_data()["issues"] if i["id"] == body.id), None)
         if issue is None:
             raise HTTPException(404, "That issue is gone (fixed already?)")
@@ -2654,10 +2683,16 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         lib_index.mark_dirty(done)
         return done, failed
 
+    undo_lock = threading.Lock()  # one undo at a time: a double tap can't run the same undo twice
+
     @app.post("/api/activity/{entry_id}/undo")
     def undo(entry_id: int) -> dict:
         """Reverse a logged change. Files edited again since are left alone."""
         require_library()
+        with undo_lock:
+            return undo_locked(entry_id)
+
+    def undo_locked(entry_id: int) -> dict:
         entry = activity.get(entry_id)
         if entry is None:
             raise HTTPException(404, "That change is no longer in the activity log")
@@ -2665,7 +2700,10 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             raise HTTPException(422, "This change can't be undone")
         if activity.is_undone(entry_id):
             raise HTTPException(409, "This change has already been undone")
-        outcome = undo_change(engine, library.resolve, art_store, entry["undo"])
+        try:
+            outcome = undo_change(engine, library.resolve, art_store, entry["undo"])
+        except LibraryPathError as exc:  # e.g. it moved files in the inbox, and there's no inbox folder now
+            raise HTTPException(409, f"This change can't be undone any more: {exc}") from exc
         lib_index.mark_dirty(r.path for r in outcome.results if r.ok)
         if entry["undo"].get("type") == "moves" and outcome.reverse:
             lib_index.mark_dirty(p for pair in outcome.reverse["moves"] for p in pair if not p.startswith("@"))
