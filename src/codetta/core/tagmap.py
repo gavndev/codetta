@@ -89,6 +89,9 @@ FIELDS: tuple[Field, ...] = (
     Field("releasecountry", "Release country", "Release"),
     Field("discsubtitle", "Disc subtitle", "Release"),
     Field("compilation", "Compilation (1 = yes)", "Release"),
+    # Explicit content, the way Navidrome (OpenSubsonic explicitStatus) and Apple Music read it:
+    # 1 = explicit, 2 = clean, 0 = not rated.
+    Field("itunesadvisory", "Explicit (1 = explicit, 2 = clean)", "Release"),
     Field("titlesort", "Title sort", "Sorting"),
     Field("artistsort", "Artist sort", "Sorting"),
     Field("albumsort", "Album sort", "Sorting"),
@@ -337,6 +340,7 @@ EasyID3.RegisterTextKey("movementname", "MVNM")
 EasyID3.RegisterTXXXKey("work", "WORK")
 EasyID3.RegisterTXXXKey("showmovement", "SHOWMOVEMENT")
 EasyID3.RegisterTXXXKey("script", "SCRIPT")
+EasyID3.RegisterTXXXKey("itunesadvisory", "ITUNESADVISORY")
 
 
 def _register_id3_movement() -> None:
@@ -533,6 +537,26 @@ def _register_mp4_compilation() -> None:
 
 
 _register_mp4_compilation()
+
+
+def _register_mp4_advisory() -> None:
+    """``itunesadvisory`` -> Apple's ``rtng`` atom (a number): "1" explicit, "2" clean, "0" none."""
+
+    def get(tags, key):
+        return [str(v) for v in tags["rtng"]]
+
+    def set_(tags, key, value):
+        if len(value) != 1 or value[0] not in ("0", "1", "2", "4"):
+            raise ValueError("explicit must be 1 (explicit), 2 (clean) or 0 (not rated)")
+        tags["rtng"] = [int(value[0])]
+
+    def delete(tags, key):
+        del tags["rtng"]
+
+    EasyMP4Tags.RegisterKey("itunesadvisory", get, set_, delete)
+
+
+_register_mp4_advisory()
 
 
 _FIELD_KEYS = frozenset(f.key for f in FIELDS)

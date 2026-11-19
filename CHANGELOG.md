@@ -2,6 +2,10 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
+## Unreleased (0.8.5)
+
+- **Explicit and Clean presets:** mark a folder or a selection as explicit or clean in one go. They set the advisory tag Navidrome and Apple Music read (1 = explicit, 2 = clean), in every format, including Apple's own field in M4A files. The tag also shows in the editor as **Explicit**, under Release.
+
 ## 0.8.4 (2026-11-19)
 
 - **Covers in the grid view:** switch the Library to the grid and every folder shows the cover of an album inside it, artists included. Nothing extra is read from your disk: the covers come from the search index.

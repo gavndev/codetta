@@ -426,6 +426,22 @@ def default_presets() -> list[Preset]:
             },
         ),
         Preset(
+            name="Explicit",
+            description=(
+                "Marks tracks as explicit, so Navidrome and other players show the "
+                "explicit badge. Apply to a folder or to selected tracks."
+            ),
+            tags={"itunesadvisory": "1"},
+        ),
+        Preset(
+            name="Clean",
+            description=(
+                "Marks tracks as the clean version, so Navidrome and other players "
+                "show them as clean. Apply to a folder or to selected tracks."
+            ),
+            tags={"itunesadvisory": "2"},
+        ),
+        Preset(
             name="Full Credits",
             description=(
                 "The extra detail Navidrome / OpenSubsonic clients can show: credits, "

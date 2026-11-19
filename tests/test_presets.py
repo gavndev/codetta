@@ -103,7 +103,7 @@ def test_dict_round_trip_keeps_single_values_readable():
 
 def test_default_presets_are_valid():
     names = [lo.name for lo in default_presets()]
-    assert names == ["Single", "Album Folder", "Full Credits"]
+    assert names == ["Single", "Album Folder", "Explicit", "Clean", "Full Credits"]
 
 
 # --- PresetStore --------------------------------------------------------------
@@ -163,7 +163,7 @@ def test_install_defaults_does_not_overwrite_user_edits(tmp_path):
 
     added = store.install_defaults()
 
-    assert [lo.name for lo in added] == ["Album Folder", "Full Credits"]
+    assert [lo.name for lo in added] == ["Album Folder", "Explicit", "Clean", "Full Credits"]
     assert store.get("Single").tags == {"genre": ["Mine"]}
     assert store.install_defaults() == []
 
@@ -411,3 +411,25 @@ def test_old_loadouts_folder_moves_to_presets(tmp_path):
     (tmp_path / "music").mkdir()
     create_app(Settings(music_dir=tmp_path / "music", config_dir=tmp_path / "config", auth=False))
     assert not old.exists() and (tmp_path / "config" / "presets" / "my-preset.json").is_file()
+
+
+@pytest.mark.parametrize("name, value", [("Explicit", "1"), ("Clean", "2")])
+def test_explicit_and_clean_presets_mark_a_whole_folder(tmp_path, name, value):
+    """1 = explicit, 2 = clean: the advisory tag Navidrome (OpenSubsonic explicitStatus) and Apple Music read."""
+    import shutil
+
+    import mutagen
+
+    from codetta.core.engine import MetadataEngine
+    from codetta.core.presets import apply_preset_to_folder, default_presets
+    from tests.conftest import FIXTURES_DIR, SAMPLE_FILES
+    for f in SAMPLE_FILES:
+        shutil.copy2(FIXTURES_DIR / f, tmp_path / f)
+    preset = next(p for p in default_presets() if p.name == name)
+    engine = MetadataEngine()
+    results = apply_preset_to_folder(engine, preset, tmp_path, mode="overwrite")
+    assert not [r.error for r in results if r.error]
+    for f in SAMPLE_FILES:
+        assert engine.load_metadata(tmp_path / f).tags["itunesadvisory"] == [value], f
+    assert mutagen.File(tmp_path / "sample.m4a")["rtng"] == [int(value)]  # Apple's own atom in M4A
+    assert mutagen.File(tmp_path / "sample.mp3")["TXXX:ITUNESADVISORY"].text == [value]

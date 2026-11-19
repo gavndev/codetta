@@ -213,7 +213,7 @@ def test_update_requires_paths(client):
 
 def test_default_presets_installed_on_startup(client):
     names = [lo["name"] for lo in client.get("/api/presets").json()]
-    assert names == ["Album Folder", "Full Credits", "Single"]
+    assert names == ["Album Folder", "Clean", "Explicit", "Full Credits", "Single"]
 
 
 def test_create_edit_rename_delete_preset(client):
