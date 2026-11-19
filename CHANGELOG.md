@@ -2,7 +2,9 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
-## 0.8.2 (2026-11-19)
+## 0.8.3 (2026-11-19)
+
+(0.8.2 was tagged but never released: our tests caught the Library health bug below just in time.)
 
 - **Snap:** `sudo snap install codetta` on Ubuntu and other Linux systems, for Intel/AMD and ARM. It updates itself. See [On your own computer](docs/install.md#on-your-own-computer).
 - **MusicBrainz, more patient:** when it's busy or slow, Codetta now waits longer (20 seconds instead of 8), tries up to three times with a growing pause, and waits as long as MusicBrainz asks. Fewer "busy" and "couldn't reach" errors.
