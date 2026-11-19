@@ -72,6 +72,26 @@ The albums are real releases, tagged from MusicBrainz with their Cover Art Archi
 the audio files are silent stand-ins. Remake them with the scripts in the maintainer's notes
 (`docs/listing/screenshots.md`).
 
+## Snap Store (snapcraft.io → My snaps → codetta → Listing)
+
+| Field | Value |
+|---|---|
+| Icon | `codetta-icon-256.png` (the 512 px `src/codetta/web/static/icons/codetta.png`, scaled to 256) |
+| Banner | 1920 × 640, from `kit/banner.html` (`kit/shoot_banner.py`) |
+| Screenshots | `hero-light.jpg`, `album-light.png`, `editor-light.png`, `actions.png`, `health.png` |
+| Video | none |
+| Title | Codetta |
+| Primary category | Music and Audio |
+| Secondary category | Server and Cloud |
+| Summary | A private, self-hosted music library manager |
+| Description | from `snap/snapcraft.yaml` (filled in automatically) |
+| Website | https://github.com/gavndev/codetta |
+| Source code | https://github.com/gavndev/codetta |
+| Issues | https://github.com/gavndev/codetta/issues |
+| Contact | https://github.com/gavndev/codetta/issues |
+| Donations | (leave empty unless there's a sponsor page) |
+| License | AGPL-3.0-or-later |
+
 ## Other directories
 
 - **selfh.st apps** (https://selfh.st/apps/): name, the short description above, GitHub link, AGPL-3.0, Docker. Icon request already open: https://github.com/selfhst/icons/discussions/1098.
