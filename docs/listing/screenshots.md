@@ -34,6 +34,21 @@ You need `ffmpeg`, the dev environment (`source .venv/bin/activate`) and
    Save the PNGs as JPEG (quality 88) as `hero-light.jpg` / `hero-dark.jpg`: the Snap Store's
    limit is 2 MB per image.
 
+   **The animated README header** (`docs/media/hero-{light,dark}.gif`, about 3 MB each): the
+   covers drop in one by one, hold, and fade for the loop. 105 frames over 7 seconds, then a
+   GIF with a palette built from whole frames (a palette from only the moving parts loses the
+   teal logo square):
+
+   ```sh
+   mkdir $W/hero/f-light
+   uv run --no-project --with playwright python docs/listing/kit/hero_frames.py $W/hero light 105
+   ffmpeg -framerate 15 -i $W/hero/f-light/%04d.png -vf "scale=1200:-1:flags=lanczos,split[a][b];\
+   [a]palettegen=max_colors=256:stats_mode=full[p];[b][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle" \
+     -loop 0 docs/media/hero-light.gif
+   ```
+
+   (A slow drift of the whole wall looks lovely but makes a 26 MB GIF: every frame is new pixels.)
+
 3. **The app**: start Codetta on `$W/music` at port 8118 with a fresh config folder, create the
    account `alex` / `correct horse 1`, finish the setup steps (`POST /api/onboarding/<step>`) and
    turn MusicBrainz on (`PUT /api/connections`), then:

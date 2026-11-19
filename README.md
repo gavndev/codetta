@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/hero-dark.jpg">
-    <img src="docs/screenshots/hero-light.jpg" alt="Codetta: your music library, looked after. Fix tags, match albums on MusicBrainz and organize your files, from any browser." width="900">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/media/hero-dark.gif">
+    <img src="docs/media/hero-light.gif" alt="Codetta: your music library, looked after. Fix tags, match albums on MusicBrainz and organize your files, from any browser." width="900">
   </picture>
 </p>
 
