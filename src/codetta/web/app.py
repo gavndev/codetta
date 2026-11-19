@@ -79,6 +79,7 @@ from codetta.core.health import fold as health_fold
 from codetta.core.health import run as health_run
 from codetta.core.describe import describe_file, describe_many
 from codetta.core.fileinfo import file_info, folder_info
+from codetta.core.logbuffer import shared_buffer
 from codetta.core.plugins import ActionError, PluginManager
 from codetta.core.index import LibraryIndex, parse_query
 from codetta.core import changelog
@@ -180,7 +181,7 @@ from codetta.core.presets import (
     apply_preset_to_folder,
     slugify,
 )
-from codetta.core.tagmap import FIELDS, is_tag_supported
+from codetta.core.tagmap import FIELDS, is_tag_supported, native_names
 from codetta.core.undo import ArtStore, art_hashes, sha256, undo_change
 from codetta.core.updates import DEFAULT_REPO, Fetcher, UpdateChecker, fetch_latest_release
 from codetta.web.security import GuardMiddleware, SelectiveGZip
@@ -739,7 +740,8 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             raise HTTPException(503, str(exc), headers={"Retry-After": "5"}) from exc
         if account is None:
             limiter.failed(client_key(request))
-            log.warning("Failed sign-in for %r from %s", body.username, client_key(request))
+            # Never the typed username: people sometimes type their password into that box.
+            log.warning("Failed sign-in from %s", client_key(request))
             raise HTTPException(401, "Wrong username or password")
         limiter.succeeded(client_key(request))
         if needs_rehash(account.password_hash) and not accounts.managed_by_env:
@@ -2780,6 +2782,20 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         target = library.resolve(path)
         info = folder_info(target) if target.is_dir() else file_info(engine, target)
         return {"path": path.strip("/"), **info}
+
+    log_buffer = shared_buffer()
+
+    @app.get("/api/logs")
+    def server_log(after: int = Query(0, ge=0, description="Only lines after this id")) -> dict:
+        """Advanced mode: Codetta's own recent log lines (memory only, the last 500), for the live view.
+        No visitor records, and anything shaped like a secret is masked."""
+        lines = log_buffer.since(after)
+        return {"lines": lines, "last": lines[-1]["id"] if lines else after}
+
+    @app.get("/api/tagnames")
+    def tag_names(format: str = Query(..., max_length=20, description="A file format, e.g. flac, mp3, m4a")) -> dict:
+        """Advanced mode: how this format stores each of Codetta's fields (None: it can't)."""
+        return {"format": format, "names": native_names(format.lower(), [f.key for f in FIELDS])}
 
     @app.get("/api/folders")
     def list_subfolders(path: str = Query("", max_length=MAX_PATH_CHARS, description="Folder, relative to the music folder")) -> dict:

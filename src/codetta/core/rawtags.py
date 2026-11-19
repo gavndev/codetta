@@ -59,7 +59,9 @@ def raw_tags(audio, format_name: str) -> tuple[str, list[dict]]:
         for key, frame in (tags or {}).items():
             if frame.FrameID == "APIC":
                 entries.append(_picture(key, frame.mime, frame.data, frame.type))
-            elif hasattr(frame, "text") or hasattr(frame, "people") or hasattr(frame, "url"):
+            elif hasattr(frame, "people"):  # TIPL / TMCL: "producer: Name; mixer: Name"
+                entries.append(_text(key, "; ".join(f"{role}: {name}" for role, name in frame.people)))
+            elif hasattr(frame, "text") or hasattr(frame, "url"):
                 entries.append(_text(key, str(frame)))
             else:
                 data = getattr(frame, "data", b"")
@@ -71,6 +73,8 @@ def raw_tags(audio, format_name: str) -> tuple[str, list[dict]]:
                 for c in values:
                     entries.append(_picture(key, "image/png" if c.imageformat == 14 else "image/jpeg", bytes(c)))
                 continue
+            if not isinstance(values, list):  # single-value atoms: cpil (compilation), pgap, hdvd... are a plain bool/int
+                values = [values]
             shown = []
             for v in values:
                 if isinstance(v, MP4FreeForm):

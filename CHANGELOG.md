@@ -6,8 +6,15 @@ All notable changes to Codetta. Versions follow [Semantic Versioning](https://se
 
 - **Right-click menu (long press on phones):** for any track or folder: Rename, Move to, Select, Actions, Get info, Find in MusicBrainz, Find in slskd and Delete. It's small and quick, opens right where you clicked, and works on a selection too.
   - **Get info** shows what the tags don't: format, bit depth, sample rate, bitrate, file size, tag type, cover size and location.
-  - **Delete** asks twice, then moves things to *Recently deleted* for 30 days instead of erasing them, and Activity can bring them back.
+  - **Delete** asks once, then moves things to *Recently deleted* for 30 days instead of erasing them, and Activity can bring them back.
+  - The MusicBrainz and slskd entries keep their colours.
   - **Move to** and **Rename** work like Organize: nothing is ever overwritten, lyrics files follow their song, and one tap undoes it.
+- **Advanced mode, deeper:** switch it on in the account menu for a closer look at your files.
+  - Every field in the editor shows how this file actually stores it, in a code font: `TPE1` in an MP3, `©ART` in an M4A, `ARTIST` in a FLAC, or "not in WMA" when the format can't hold it.
+  - **Get info** adds the encoder, how many of Codetta's fields the format can store, and the file's full location on the server.
+  - **Server log:** a live view of Codetta's own log (what `docker logs` shows) at the bottom of the account menu. It's kept in memory only, only you can see it, it never includes who visited, and anything that looks like a key or password is masked.
+- **Fixed:** the raw tag view in Advanced mode failed on M4A files marked as a compilation, and showed production credits in MP3s as unreadable code.
+- **Privacy:** a failed sign-in no longer writes the typed username to the log (people sometimes type their password there by mistake).
 - **Explicit and Clean presets:** mark a folder or a selection as explicit or clean in one go. They set the advisory tag Navidrome and Apple Music read (1 = explicit, 2 = clean), in every format, including Apple's own field in M4A files. The tag also shows in the editor as **Explicit**, under Release.
 
 ## 0.8.4 (2026-11-19)

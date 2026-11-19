@@ -105,3 +105,56 @@ def test_the_menu_routes_need_sign_in(tmp_path):
         for method, url in [("post", "/api/files/move"), ("post", "/api/files/rename"), ("post", "/api/files/delete"),
                             ("get", "/api/files/info?path=x"), ("get", "/api/folders")]:
             assert getattr(c, method)(url, json={}).status_code == 401 if method == "post" else c.get(url).status_code == 401
+
+
+# --- Advanced mode -------------------------------------------------------------------------------
+
+
+def test_in_file_tag_names_per_format(setup):
+    c, _, _ = setup
+    mp3 = c.get("/api/tagnames", params={"format": "mp3"}).json()["names"]
+    assert mp3["artist"] == "TPE1" and mp3["albumartist"] == "TPE2" and mp3["itunesadvisory"] == "TXXX:ITUNESADVISORY"
+    assert mp3["producer"] == "TIPL" and mp3["originaldate"] == "TDOR"
+    m4a = c.get("/api/tagnames", params={"format": "m4a"}).json()["names"]
+    assert m4a["artist"] == "©ART" and m4a["itunesadvisory"] == "rtng" and m4a["compilation"] == "cpil"
+    assert c.get("/api/tagnames", params={"format": "flac"}).json()["names"]["albumartist"] == "ALBUMARTIST"
+    assert set(c.get("/api/tagnames", params={"format": "nope"}).json()["names"].values()) == {None}
+
+
+def test_get_info_has_the_power_user_details(setup):
+    c, music, _ = setup
+    f = c.get("/api/files/info", params={"path": "Artist/Album/01 Song.flac"}).json()
+    assert f["encoder"] and f["fields_supported"] == f["fields_total"] and f["fields_unsupported"] == []
+    assert f["on_disk"] == str(music / "Artist" / "Album" / "01 Song.flac")
+
+
+def test_server_log_is_private_masks_secrets_and_never_lists_visitors(setup, tmp_path):
+    import logging
+    c, _, _ = setup
+    logging.getLogger("codetta").warning("talking to slskd with api_key=SUPERSECRET and Bearer abc.def")
+    logging.getLogger("uvicorn.access").info('100.64.0.7:5000 - "GET / HTTP/1.1" 200')
+    lines = c.get("/api/logs").json()["lines"]
+    text = "\n".join(l["message"] for l in lines)
+    assert "api_key=•••" in text and "SUPERSECRET" not in text and "abc.def" not in text
+    assert "100.64.0.7" not in text  # access lines are never kept
+    after = lines[-1]["id"]
+    logging.getLogger("codetta").info("one more line")
+    newer = c.get("/api/logs", params={"after": after}).json()["lines"]
+    assert "one more line" in [l["message"] for l in newer]  # background jobs may log at the same moment
+    assert all(l["id"] > after for l in newer)  # nothing already seen comes again
+    with TestClient(create_app(Settings(music_dir=tmp_path, config_dir=tmp_path / "c2"))) as anon:
+        assert anon.get("/api/logs").status_code == 401 and anon.get("/api/tagnames?format=mp3").status_code == 401
+
+
+def test_raw_view_handles_m4a_compilations_and_mp3_credits(tmp_path):
+    from codetta.core.engine import MetadataEngine, _open_raw
+    from codetta.core.rawtags import raw_tags
+    engine = MetadataEngine()
+    shutil.copy2(FIXTURES_DIR / "sample.m4a", tmp_path / "a.m4a")
+    engine.update_tags(tmp_path / "a.m4a", {"compilation": "1"})
+    audio, fmt = _open_raw(tmp_path / "a.m4a")
+    assert ("cpil", "True") in {(e["name"], e["value"]) for e in raw_tags(audio, fmt)[1]}  # used to crash
+    shutil.copy2(FIXTURES_DIR / "sample.mp3", tmp_path / "b.mp3")
+    engine.update_tags(tmp_path / "b.mp3", {"producer": "Pat"})
+    audio, fmt = _open_raw(tmp_path / "b.mp3")
+    assert {e["name"]: e["value"] for e in raw_tags(audio, fmt)[1]}["TIPL"] == "producer: Pat"

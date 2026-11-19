@@ -2246,6 +2246,72 @@ function setAdvanced(on) {
   state.advanced = on;
   try { localStorage.setItem("codetta-advanced", on ? "1" : "0"); } catch { /* per-browser preference only */ }
   if (state.editor) renderEditor();
+  syncLogTile();
+}
+
+// Advanced mode: next to each field, how this file really stores it ("TPE1", "©ART", "ARTIST").
+const tagNameCache = new Map(); // format -> {key: name | null}, or a pending promise
+
+function editorFormat() {
+  const formats = new Set((state.editor?.paths || []).map((p) => trackByPath(p)?.format).filter(Boolean));
+  return formats.size === 1 ? [...formats][0] : null; // several formats at once: names would differ
+}
+
+function nativeTag(key) {
+  if (!state.advanced) return null;
+  const format = editorFormat();
+  if (!format) return null;
+  const names = tagNameCache.get(format);
+  if (!names) {
+    tagNameCache.set(format, api("GET", `/api/tagnames?format=${encodeURIComponent(format)}`)
+      .then((r) => { tagNameCache.set(format, r.names); if (state.editor && editorFormat() === format) renderEditor(); })
+      .catch(() => tagNameCache.delete(format)));
+    return null;
+  }
+  if (names instanceof Promise) return null;
+  if (!(key in names)) return null; // a tag Codetta has no fixed name for (custom): shown as typed
+  const name = names[key];
+  return name
+    ? h("code", { class: "native-name", title: `Stored in this ${format.toUpperCase()} file as ${name}` }, name)
+    : h("code", { class: "native-name none", title: `${format.toUpperCase()} files can't store this field` }, `not in ${format.toUpperCase()}`);
+}
+
+// Advanced mode: Codetta's own server log (what `docker logs` shows), live, at the bottom of Account.
+const serverLog = { last: 0, timer: null };
+
+function syncLogTile() {
+  const tile = $("#log-tile");
+  if (!tile) return;
+  tile.hidden = !state.advanced;
+  if (!state.advanced) { tile.open = false; stopLogPolling(); }
+}
+
+function stopLogPolling() {
+  clearTimeout(serverLog.timer);
+  serverLog.timer = null;
+}
+
+async function pollLog() {
+  stopLogPolling();
+  const tile = $("#log-tile");
+  if (!tile?.open || !$("#account-dialog").open) return;
+  try {
+    const r = await api("GET", `/api/logs?after=${serverLog.last}`);
+    const list = $("#log-lines");
+    const stick = list.scrollTop + list.clientHeight >= list.scrollHeight - 8; // follow new lines unless you scrolled up
+    for (const line of r.lines) {
+      const t = new Date(line.time * 1000);
+      list.append(h("div", { class: `log-line ${line.level}` },
+        h("span", { class: "log-time" }, t.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })),
+        h("span", { class: "log-level" }, line.level === "warning" ? "warn" : line.level),
+        h("span", { class: "log-msg" }, line.message)));
+    }
+    while (list.childElementCount > 500) list.firstElementChild.remove();
+    serverLog.last = r.last;
+    $("#log-empty").hidden = list.childElementCount > 0;
+    if (stick) list.scrollTop = list.scrollHeight;
+  } catch { /* signed out or offline: try again on the next tick */ }
+  serverLog.timer = setTimeout(pollLog, 2000);
 }
 
 // ---- Editor toolbar: copy & paste tags ---------------------------------------------------------
@@ -2583,7 +2649,7 @@ function fieldEl(field, model) {
   wrap.append(
     h("label", { class: "field-label", for: copyBox ? null : id, title: `Tag name: ${key}` }, copyBox, field.label,
       hasSuggestions ? h("span", { class: "spark", title: "Suggestions from this folder — click into the field" }, icon("spark")) : null,
-      flag),
+      flag, nativeTag(key)),
     isLong ? input : h("div", { class: "input-wrap" }, input, clearBtn, suggestBox),
     hintEl,
   );
@@ -5290,6 +5356,9 @@ function bindEvents() {
   });
 
   setupContextMenu();
+  $("#log-tile").addEventListener("toggle", () => { if ($("#log-tile").open) pollLog(); else stopLogPolling(); });
+  $("#account-dialog").addEventListener("close", stopLogPolling);
+  syncLogTile();
   $("#sel-clear").addEventListener("click", () => { state.selected.clear(); updateRowStates(); renderSelectionBar(); });
   $("#sel-edit").addEventListener("click", () => openEditor([...state.selected]));
   $("#sel-preset").addEventListener("click", () => openApply("selection"));
@@ -5765,7 +5834,7 @@ function closeContextMenu() {
   ctx.menu = null;
 }
 
-function openContextMenu(x, y, items, { touch = false } = {}) {
+function openContextMenu(x, y, items) {
   closeContextMenu();
   document.querySelector(".tools-menu")?.remove();
   const menu = h("div", { class: "tools-menu ctx-menu", role: "menu" }, items.filter(Boolean).map((t) => t === "-"
@@ -5781,7 +5850,8 @@ function openContextMenu(x, y, items, { touch = false } = {}) {
   replay(menu, "opening");
   ctx.menu = menu;
   ctx.openedAt = Date.now();
-  if (!touch) menu.querySelector("button")?.focus({ preventScroll: true }); // arrow keys work at once; no ring after a long press
+  // No focus on open (a ring around the first item after a click looks like a selection);
+  // the first arrow key moves into the menu instead.
   const away = (e) => { if (!menu.contains(e.target)) { closeContextMenu(); off(); } };
   const key = (e) => {
     if (e.key === "Escape") { closeContextMenu(); off(); return; }
@@ -5906,14 +5976,12 @@ async function moveEntries(paths, label) {
 
 async function deleteEntries(paths, label) {
   if (!(await confirmDiscard())) return;
-  // Two questions on purpose: deleting is the one thing worth a second look.
-  if (!(await ask({ title: `Delete ${label}?`, danger: true, confirmLabel: "Delete",
-    message: "It moves to Recently deleted, where it's kept for 30 days. Activity can bring it back." }))) return;
-  if (!(await ask({ title: "Are you sure?", danger: true, confirmLabel: "Yes, delete",
-    message: `${label[0].toUpperCase()}${label.slice(1)} will leave your library now.` }))) return;
+  // One question: nothing is erased, so there's always a way back.
+  if (!(await ask({ title: `Delete ${label}?`, danger: true, confirmLabel: "Move to Recently deleted",
+    message: "It leaves your library and goes to Recently deleted, where it's kept for 30 days. Activity can put it back." }))) return;
   try {
     const r = await api("POST", "/api/files/delete", { paths });
-    toast(r.failed ? `${r.failed} file(s) couldn't be deleted` : `Deleted ${label}. Undo is in Activity.`, r.failed ? "error" : "success");
+    toast(r.failed ? `${r.failed} file(s) couldn't be deleted` : `Moved ${label} to Recently deleted. Undo is in Activity.`, r.failed ? "error" : "success");
     await afterFileChange(paths);
   } catch (err) { toast(err.message, "error"); }
 }
@@ -5930,6 +5998,7 @@ async function showInfo(path) {
     ["Size", fmtBytes(d.size)],
     ["Modified", when],
     ["Location", d.path || "Library"],
+    ...(state.advanced ? [["On disk", d.on_disk]] : []),
   ] : [
     ["Format", [d.format?.toUpperCase(), d.codec && d.codec.toLowerCase() !== d.format ? d.codec : null].filter(Boolean).join(" · ")],
     ["Length", d.duration ? `${Math.floor(d.duration / 60)}:${String(Math.round(d.duration % 60)).padStart(2, "0")}` : "Unknown"],
@@ -5940,6 +6009,12 @@ async function showInfo(path) {
     ["Cover", d.art ? `${d.art.width && d.art.height ? `${d.art.width} × ${d.art.height}, ` : ""}${d.art.mime.replace("image/", "").toUpperCase()}, ${fmtBytes(d.art.size)}` : "None"],
     ["Modified", when],
     ["Location", d.path],
+    ...(state.advanced ? [
+      ["Encoder", d.encoder || "Not recorded"],
+      ["Fields", d.fields_unsupported.length ? `${d.fields_supported} of ${d.fields_total} can be stored (not: ${d.fields_unsupported.join(", ")})`
+        : `All ${d.fields_total} of Codetta's fields can be stored`],
+      ["On disk", d.on_disk],
+    ] : []),
   ];
   await ask({ title: d.name || "Library", details: h("dl", { class: "info-list" }, rows.map(([k, v]) => [h("dt", {}, k), h("dd", { dir: "auto" }, v || "—")])),
     confirmLabel: "Done", cancelLabel: "Copy location" }).then((done) => {
@@ -5974,7 +6049,7 @@ function setupContextMenu() {
         ctx.press = null;
         ctx.suppressClick = true; // the finger lifting must not also open the track
         navigator.vibrate?.(10);
-        openContextMenu(start.x, start.y, target.items(), { touch: true });
+        openContextMenu(start.x, start.y, target.items());
       }, LONG_PRESS_MS) };
     });
     const cancel = (e) => {

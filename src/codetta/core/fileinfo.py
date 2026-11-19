@@ -7,6 +7,7 @@ from pathlib import Path
 
 from codetta.core.engine import SUPPORTED_EXTENSIONS, MetadataEngine, _open_raw
 from codetta.core.artwork import read_picture
+from codetta.core.tagmap import FIELDS, is_tag_supported
 
 MAX_FOLDER_FILES = 20_000  # counting stops here, so a huge folder answers quickly
 
@@ -23,6 +24,23 @@ def _tag_kind(audio) -> str | None:
     return {"VCFLACDict": "Vorbis comments", "VComment": "Vorbis comments", "OggVCommentDict": "Vorbis comments",
             "OggOpusVComment": "Vorbis comments", "OggFLACVComment": "Vorbis comments", "OggSpeexVComment": "Vorbis comments",
             "MP4Tags": "MP4 atoms", "APEv2": "APEv2", "ASFTags": "ASF attributes"}.get(name, name)
+
+
+def _encoder(audio) -> str | None:
+    """What made the file ("LAME 3.100", "Lavf62.3.100"...), when it says."""
+    tags = getattr(audio, "tags", None)
+    if not tags:
+        return None
+    for key in ("TSSE", "TENC", "©too", "encoder", "ENCODER", "Encoder", "WM/EncodingSettings", "WM/ToolName"):
+        try:
+            value = tags.get(key) if hasattr(tags, "get") else None
+        except (KeyError, ValueError, TypeError):
+            value = None
+        if value:
+            text = str(value[0] if isinstance(value, list) else value)
+            if text.strip():
+                return text.strip()[:120]
+    return None
 
 
 def file_info(engine: MetadataEngine, path: Path) -> dict:
@@ -48,6 +66,11 @@ def file_info(engine: MetadataEngine, path: Path) -> dict:
         "tag_kind": _tag_kind(audio),
         "tag_count": sum(len(v) for v in meta.tags.values()),
         "art": {"mime": art.mime, "width": art.width, "height": art.height, "size": len(art.data)} if art else None,
+        "encoder": _encoder(audio),
+        "fields_supported": sum(is_tag_supported(meta.format or "", f.key) for f in FIELDS),
+        "fields_total": len(FIELDS),
+        "fields_unsupported": [f.label for f in FIELDS if not is_tag_supported(meta.format or "", f.key)],
+        "on_disk": str(path),
     }
 
 
@@ -73,4 +96,4 @@ def folder_info(path: Path) -> dict:
         if capped:
             break
     return {"kind": "folder", "name": path.name, "files": files, "audio": audio, "folders": folders,
-            "size": size, "capped": capped, "modified": int(path.stat().st_mtime)}
+            "size": size, "capped": capped, "modified": int(path.stat().st_mtime), "on_disk": str(path)}

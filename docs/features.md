@@ -179,7 +179,7 @@ small menu of what you can do with just that item:
 - **Select** (starts a selection with that track), **Actions** on just that track.
 - **Get info:** format, bit depth, sample rate, bitrate, size, tag type, cover size and where it is.
 - **Find in MusicBrainz** and **Find in slskd** for that track or folder.
-- **Delete**, after two confirmations. Nothing is erased: deleted files go to *Recently
+- **Delete**, after one confirmation. Nothing is erased: deleted files go to *Recently
   deleted* in Codetta's config folder for 30 days, and Activity can bring them back.
 
 With several tracks selected, right-click one of them to move, run an action on, or delete them all.

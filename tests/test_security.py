@@ -543,3 +543,18 @@ def test_inputs_are_validated(client):
     assert c.put("/api/slskd/settings", json={"url": "slskd:5030", "api_key": "short"}).status_code == 422
     assert c.put("/api/slskd/settings", json={"url": "slskd:5030", "api_key": "has a space in it"}).status_code == 422
     assert c.put("/api/slskd/settings", json={"url": "http://192.168.1.50:5030"}).status_code == 200
+
+
+def test_failed_sign_in_never_logs_the_typed_username(tmp_path, caplog):
+    """People sometimes type their password into the username box: that must never reach the log."""
+    import logging
+
+    from fastapi.testclient import TestClient
+
+    from codetta.web.app import Settings, create_app
+    with TestClient(create_app(Settings(music_dir=tmp_path, config_dir=tmp_path / "c"))) as c:
+        c.post("/api/auth/setup", json={"username": "owner", "password": "correct horse 1"})
+        c.post("/api/auth/logout")
+        with caplog.at_level(logging.WARNING, logger="codetta"):
+            c.post("/api/auth/login", json={"username": "my-real-password-oops", "password": "wrong"})
+    assert "Failed sign-in" in caplog.text and "my-real-password-oops" not in caplog.text

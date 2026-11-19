@@ -560,3 +560,56 @@ _register_mp4_advisory()
 
 
 _FIELD_KEYS = frozenset(f.key for f in FIELDS)
+
+
+# --- In-file names (Advanced mode) ----------------------------------------------------------------
+
+# ID3 frames / MP4 atoms that mutagen handles with its own code, so they can't be read from
+# its registrations below.
+_ID3_SPECIAL = {"comment": "COMM", "lyrics": "USLT", "movement": "MVIN", "movementtotal": "MVIN",
+                "date": "TDRC", "genre": "TCON", "tracknumber": "TRCK", "discnumber": "TPOS",
+                "originaldate": "TDOR", "albumartistsort": "TSO2",
+                # Production credits share one "involved people" frame, one role each.
+                "producer": "TIPL", "engineer": "TIPL", "mixer": "TIPL", "djmixer": "TIPL"}
+_MP4_SPECIAL = {"compilation": "cpil", "itunesadvisory": "rtng", "tracknumber": "trkn", "discnumber": "disk",
+                "bpm": "tmpo", "movementtotal": "©mvc"}
+
+
+def _closure_name(fn) -> str | None:
+    """The frame or atom name a mutagen key function was registered with."""
+    for cell in getattr(fn, "__closure__", None) or ():
+        try:
+            value = cell.cell_contents
+        except ValueError:
+            continue
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
+def native_name(format_name: str, key: str) -> str | None:
+    """How a file of ``format_name`` stores the tag ``key``: "TPE1", "©ART", "ARTIST",
+    "WM/AlbumArtist"... None when this format can't store it."""
+    key = key.lower()
+    if not is_tag_supported(format_name, key):
+        return None
+    if format_name in VORBIS_FORMATS:
+        return key.upper()
+    if format_name in ID3_FORMATS:
+        fn = EasyID3.Get.get(key)
+        name = _ID3_SPECIAL.get(key) or (_closure_name(fn) if fn else None)
+        return name or f"TXXX:{key.upper()}"
+    if format_name in MP4_FORMATS or format_name == "m4b":
+        fn = EasyMP4Tags.Get.get(key)
+        name = _MP4_SPECIAL.get(key) or (_closure_name(fn) if fn else None)
+        return name or f"----:com.apple.iTunes:{key.upper()}"
+    if format_name in APE_FORMATS:
+        return _APE_NAMES.get(key) or (key.title() if key in _FIELD_KEYS else key)
+    if format_name in ASF_FORMATS:
+        return _ASF_NAMES.get(key, key)
+    return None
+
+
+def native_names(format_name: str, keys) -> dict[str, str | None]:
+    """``native_name`` for each key (None: this format can't store it)."""
+    return {k: native_name(format_name, k) for k in keys}

@@ -16,6 +16,13 @@
   <script src="/static/theme.js?v=1"></script>
 </head>
 <body>
+  <!-- Shared colour gradients for small logos (the MusicBrainz and slskd icons in menus). -->
+  <svg class="svg-defs" width="0" height="0" aria-hidden="true" focusable="false">
+    <defs>
+      <linearGradient id="mb-grad" gradientUnits="userSpaceOnUse" x1="4" y1="4" x2="28" y2="28"><stop offset="0" stop-color="#ba478f"/><stop offset="1" stop-color="#eb743b"/></linearGradient>
+      <linearGradient id="sk-grad" gradientUnits="userSpaceOnUse" x1="3" y1="3" x2="18" y2="17"><stop offset="0" stop-color="#1f7ae0"/><stop offset="1" stop-color="#4cc0ff"/></linearGradient>
+    </defs>
+  </svg>
   <!-- Sign in / first-run setup. Shown over the app; the app keeps its state underneath. -->
   <div class="auth" id="auth" hidden>
     <form class="auth-card" id="auth-form" method="post" action="#">
@@ -330,6 +337,17 @@
         </form>
         <p class="hint" id="pw-env-note" hidden>The password is set by the <code>CODETTA_PASSWORD</code> environment variable, so it can only be changed there.</p>
       </section>
+
+      <details class="cc-tile log-tile" id="log-tile" hidden>
+        <summary>
+          <span class="switch-text">
+            <span class="switch-title">Server log</span>
+            <span class="switch-sub">Live, what <code>docker logs</code> shows. Kept in memory only.</span>
+          </span>
+        </summary>
+        <div class="log-lines" id="log-lines" role="log" aria-live="off" tabindex="0"></div>
+        <p class="hint" id="log-empty">Nothing logged yet.</p>
+      </details>
 
       <div class="cc-foot">
         <button class="btn danger" type="button" id="sign-out">Sign out</button>

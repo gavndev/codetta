@@ -2790,3 +2790,41 @@ dialog:focus { outline: none; }
 .info-list dt { color: var(--muted); }
 .info-list dd { margin: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .picker-head .icon-btn svg { transform: rotate(180deg); } /* a chevron pointing back: up one folder */
+
+/* ---- Advanced mode ------------------------------------------------------------------------------ */
+.native-name {
+  margin-left: auto; padding: 1px 6px; border-radius: 4px; background: var(--hover); color: var(--muted);
+  font: 500 11px/1.5 ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  letter-spacing: 0; text-transform: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 62%;
+}
+.native-name.none { opacity: 0.6; font-style: italic; }
+.field-label:has(.native-name) { display: flex; align-items: center; gap: 6px; }
+
+.log-tile > summary { list-style: none; cursor: pointer; display: flex; align-items: center; min-height: 52px; }
+.log-tile > summary::-webkit-details-marker { display: none; }
+.log-tile > summary::after { content: ""; margin-left: auto; width: 7px; height: 7px; border: solid var(--faint); border-width: 0 1.8px 1.8px 0; transform: rotate(45deg); transition: transform var(--dur) var(--ease-out); }
+.log-tile[open] > summary::after { transform: rotate(-135deg); }
+.log-lines {
+  max-height: 260px; overflow: auto; margin-top: 8px; padding: 8px 10px; border-radius: 8px;
+  background: var(--bg); border: 1px solid var(--border);
+  font: 11.5px/1.55 ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+.log-line { display: grid; grid-template-columns: auto 3.6em minmax(0, 1fr); gap: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.log-time { color: var(--faint); }
+.log-level { color: var(--muted); }
+.log-line.warning .log-level { color: #c98a00; }
+.log-line.error .log-level, .log-line.critical .log-level { color: var(--danger); }
+.log-tile #log-empty { margin: 8px 2px 0; }
+
+/* MusicBrainz and slskd keep their colours in menus: a gradient like the !mb / !slskd chips. */
+.svg-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+.tools-item svg.mb-logo, .tools-item svg.sk-logo { stroke: none; }
+.tools-item .mb-logo .mb-l, .tools-item .mb-logo .mb-r { fill: url(#mb-grad); }
+.tools-item .mb-logo .mb-cut { fill: var(--surface-raised); opacity: 0.85; }
+.tools-item .sk-logo .sk-vane { fill: url(#sk-grad); }
+.tools-item .sk-logo .sk-quill { stroke: #1f7ae0; }
+@media (min-width: 761px) {
+  /* Desktop: labels sit in a narrow column beside the fields, so the in-file name goes under the label. */
+  .field-label:has(.native-name) { flex-direction: column; align-items: flex-start; gap: 3px; }
+  .native-name { margin-left: 0; max-width: 100%; }
+}
