@@ -13,7 +13,7 @@
 
 <p align="center">
   <img alt="Status: alpha" src="https://img.shields.io/badge/status-alpha-f59e0b">
-  <img alt="Version 0.8.3" src="https://img.shields.io/badge/version-0.8.3-0e7c74">
+  <img alt="Version 0.8.4" src="https://img.shields.io/badge/version-0.8.4-0e7c74">
   <a href="LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-555"></a>
   <img alt="Python 3.14" src="https://img.shields.io/badge/python-3.14-3776ab">
   <a href="https://github.com/gavndev/codetta/actions/workflows/ci.yml"><img alt="Tests" src="https://github.com/gavndev/codetta/actions/workflows/ci.yml/badge.svg"></a>
@@ -84,8 +84,8 @@ Runs on Intel/AMD and ARM, from a Raspberry Pi 4 up: about a 100 MB download
 and 70 MB of memory (about 130 MB at 100,000 tracks), and no disk activity when idle. The
 [install guide](docs/install.md) walks through every step, including updates.
 
-No server? Run it on your own computer instead:
-`pipx install codetta`, then `codetta`
+No server? Run it on your own computer instead: `pipx install codetta`
+(or `sudo snap install codetta` on Ubuntu), then `codetta`
 ([details](docs/install.md#on-your-own-computer)).
 
 ## What Codetta does
@@ -231,14 +231,15 @@ light and dark themes. [See every feature →](docs/features.md)
 
 ## What's new
 
-**0.6.x:** a security sweep and a faster app (compressed pages, quicker
-folders), download progress in the inbox, a roomier top bar on phones, and an
-optional slskd integration.
-**0.5.0:** the import inbox, Organize (rename and move from a pattern), quick
-listen with a now-playing pill, multi-disc albums, setup steps, What's new and
-notifications.
-**0.4.0:** offline unless you opt in; Match on MusicBrainz and identify by
-sound with AcoustID. All changes are in the [changelog](CHANGELOG.md).
+**0.8.x:** big libraries made fast (100,000 tracks in 130 MB), Find & replace,
+Actions and plugins, Rename folder; run it on your own computer with pipx or
+the snap; covers in the grid view, proper touch targets on phones, and safer
+moves, saves and undo.
+**0.7.x:** Library health, `!mb` to explore MusicBrainz, frosted glass, Tag
+Presets, and a player with a queue and synced lyrics.
+**Earlier:** the import inbox, Organize, quick listen, MusicBrainz matching and
+identify by sound, an optional slskd integration. Everything is in the
+[changelog](CHANGELOG.md).
 
 ## License
 
@@ -251,4 +252,5 @@ Built with [mutagen](https://github.com/quodlibet/mutagen),
 [Schibsted Grotesk](https://github.com/schibsted/schibsted-grotesk) typeface.
 Tag mappings follow [MusicBrainz Picard](https://picard.musicbrainz.org/docs/mappings/).
 The optional Soulseek integration talks to [slskd](https://github.com/slskd/slskd) over its API.
-The artists and albums in the screenshots are made up.
+The header and screenshots show real releases for illustration (the covers belong to their
+artists and labels; the audio files are silent stand-ins); the feature GIFs use made-up music.

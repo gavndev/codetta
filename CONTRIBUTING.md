@@ -25,9 +25,8 @@ services:
     image: codetta:local
 ```
 
-Always use a **copy** of some music while developing. Contributor notes are in
-[`CLAUDE.md`](CLAUDE.md), the plan in [`PLAN.md`](PLAN.md), and logo files and
-colours in [`docs/brand`](docs/brand).
+Always use a **copy** of some music while developing. Logo files and colours
+are in [`docs/brand`](docs/brand).
 
 ## Before opening a pull request
 

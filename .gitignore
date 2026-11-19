@@ -40,5 +40,12 @@ docker-compose.override.yml
 # Snap builds
 *.snap
 
-# Claude Code personal settings
-.claude/settings.local.json
+
+# Maintainer and AI-assistant working files: kept on the maintainer's computer, never published
+CLAUDE.md
+PLAN.md
+DESIGN.md
+PRODUCT.md
+.impeccable/
+.claude/
+docs/listing/

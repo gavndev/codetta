@@ -2,7 +2,7 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
-## Unreleased (0.8.4)
+## 0.8.4 (2026-11-19)
 
 - **Covers in the grid view:** switch the Library to the grid and every folder shows the cover of an album inside it, artists included. Nothing extra is read from your disk: the covers come from the search index.
 - **Easier to tap on phones:** every button, field and toggle is now at least 44 points tall, as Apple recommends. The search bar responds anywhere you tap it, not just on a thin strip in the middle.
