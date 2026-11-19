@@ -231,15 +231,10 @@ light and dark themes. [See every feature →](docs/features.md)
 
 ## What's new
 
-**0.8.x:** big libraries made fast (100,000 tracks in 130 MB), Find & replace,
-Actions and plugins, Rename folder; run it on your own computer with pipx or
-the snap; covers in the grid view, proper touch targets on phones, and safer
-moves, saves and undo.
-**0.7.x:** Library health, `!mb` to explore MusicBrainz, frosted glass, Tag
-Presets, and a player with a queue and synced lyrics.
-**Earlier:** the import inbox, Organize, quick listen, MusicBrainz matching and
-identify by sound, an optional slskd integration. Everything is in the
-[changelog](CHANGELOG.md).
+Every change is in the [changelog](CHANGELOG.md); each version's notes are also on
+[GitHub Releases](https://github.com/gavndev/codetta/releases). Inside Codetta,
+**What's new** (in the account menu, or the link in the footer) shows the same notes for the
+version you're running.
 
 ## License
 
