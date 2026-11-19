@@ -48,7 +48,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -349,6 +349,10 @@ MAX_ORGANIZE = 5000  # files planned/moved in one request  # files fingerprinted
 def _unique(paths: list[str]) -> list[str]:
     """Drop repeated paths (keeping order), so a file is never processed twice."""
     return list(dict.fromkeys(paths))
+
+
+class FolderCoversIn(BaseModel):
+    paths: list[Annotated[str, Field(max_length=MAX_PATH_CHARS)]] = Field(max_length=200)
 
 
 class UpdateIn(BaseModel):
@@ -1012,6 +1016,20 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             skipped=listing.skipped,
             tracks=tracks_out(listing.files),
         )
+
+    @app.post("/api/folder-covers")
+    def folder_covers(body: FolderCoversIn) -> dict:
+        """A cover for each folder in the grid: a track inside it with embedded art (from the
+        search index, so nothing is read from disk). The page shows it with /api/art."""
+        require_library()
+        folders = []
+        for rel in body.paths:
+            try:
+                folders.append(library.relative(library.resolve(rel)))  # rejects anything outside the library
+            except (LibraryPathError, ValueError):
+                continue
+        found = lib_index.cover_tracks(f for f in folders if not f.startswith("@"))
+        return {"covers": {f: {"path": p, "hash": h} for f, (p, h) in found.items()}}
 
     @app.get("/api/track", response_model=TrackOut)
     def get_track(path: str = Query(..., max_length=MAX_PATH_CHARS, description="File, relative to the music folder")):

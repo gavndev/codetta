@@ -1971,6 +1971,7 @@ body:has(.now-playing:not([hidden])) .browser { padding-bottom: 120px; }
 .news-version h3 { font-size: 15px; font-weight: 800; display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
 .news-date { font-size: 12px; font-weight: 500; color: var(--muted); }
 .news-version ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+.news-version a { color: var(--accent); text-underline-offset: 2px; }
 .news-version li { line-height: 1.45; }
 .news-version code { font-family: var(--mono); font-size: 12px; background: var(--hover); padding: 0 4px; border-radius: 3px; overflow-wrap: anywhere; }
 .news-more { min-height: 36px; }
@@ -2682,3 +2683,76 @@ dialog.player-sheet { width: min(480px, calc(100vw - 32px)); }
   .btn.icon-expand.tool-more { display: inline-flex; }
 }
 .btn.icon-expand.tool-more .icon-expand-label { display: none; }
+
+/* ---- Phones: 44px touch targets everywhere (Apple's minimum) ------------------------ */
+@media (max-width: 760px) {
+  .icon-btn { width: 44px; height: 44px; }
+  .topbar-actions > .icon-btn { margin-left: -8px; }      /* same visual spacing as before */
+  .brand { min-width: 44px; min-height: 44px; justify-content: center; padding: 0; }
+  input[type="text"], input:not([type]), input[type="password"], input[type="search"], select { height: 44px; }
+  .search { height: 44px; }
+  .search input { height: 100%; }                          /* the whole bar takes the tap, not a 25px strip */
+  .auth-card input, .auth-submit { height: 44px; }
+  .credit-news { padding: 13px 6px; margin: -13px -6px; }  /* a small link with a full-size touch area */
+  .crumbs a:nth-last-of-type(2) { min-height: 44px; }
+  .view-toggle .icon-btn { width: 44px; height: 40px; }
+  .btn.icon-expand { width: 44px; height: 44px; min-width: 44px; }
+  .folder-actions .mb-find-inner { height: 41px; }
+  .play-btn { height: 44px; min-width: 44px; border-radius: 22px; }
+  .btn { min-height: 44px; }
+  /* The selection bar: count, Clear, "…" (Preset, Replace, Actions) and Edit fit on one row. */
+  #sel-preset, #sel-replace, #sel-actions { display: none; }
+  .selection-bar { gap: 10px; padding-left: 14px; }
+  #selection-count { white-space: nowrap; }
+}
+
+/* Selection bar and playing bar both showing: keep the last rows clear of them. */
+body:has(.selection-bar:not([hidden])):has(.now-playing:not([hidden])) .browser { padding-bottom: 190px; }
+
+/* ---- Grid view: covers ---------------------------------------------------------------- */
+.folders:not(.as-list) { grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 24px 22px; }
+.folders:not(.as-list) .folder {
+  flex-direction: column; align-items: stretch; gap: 10px; min-height: 0; padding: 0;
+  border: 0; background: transparent; font-size: 15px; font-weight: 700; letter-spacing: -0.01em;
+}
+@media (hover: hover) { .folders:not(.as-list) .folder:hover { background: transparent; } }
+.folder-cover {
+  aspect-ratio: 1; border-radius: 4px; overflow: hidden; display: grid; place-items: center;
+  background: var(--hover); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 8px 20px -10px rgba(0, 0, 0, 0.35);
+  transition: transform var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out);
+}
+.folder-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.folders:not(.as-list) .folder-cover svg { width: 30%; height: 30%; color: var(--faint); }
+@media (hover: hover) {
+  .folders:not(.as-list) .folder:hover .folder-cover { transform: translateY(-3px); box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08), 0 16px 30px -12px rgba(0, 0, 0, 0.45); }
+}
+.folders:not(.as-list) .folder:active .folder-cover { transform: scale(0.98); }
+.folder-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.folder-text .folder-meta { font-size: 13px; font-weight: 400; letter-spacing: 0; }
+@media (max-width: 760px) {
+  .folders:not(.as-list) { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 14px; border-top: 0; }
+  .folders:not(.as-list) .folder { border: 0; min-height: 0; }
+}
+
+/* Phones: the smaller controls get full-size touch areas too (looks stay the same where possible). */
+@media (max-width: 760px) {
+  .view-toggle { padding: 0; }
+  .view-toggle .icon-btn { width: 44px; height: 44px; }
+  .input-wrap input { padding-right: 46px; }
+  .input-wrap .clear { right: 0; width: 44px; height: 44px; }  /* the "clear" cross fills the field's end */
+  .segmented span { height: 40px; }                            /* + the control's 2px inset = a 44px row */
+  .chip-btn, .health-chip { min-height: 44px; }
+  .link-btn { min-height: 44px; padding: 0 4px; }
+  summary { min-height: 44px; display: flex; align-items: center; }
+  .np-close, .np-next { width: 44px; height: 44px; }
+  .ps-tabs button { min-height: 44px; }
+  #conn-toggle, #plugins-toggle, #pw-toggle { min-height: 52px; }
+  .credit-news { padding: 14px 6px; margin: -14px -6px; }
+}
+@media (max-width: 760px) {
+  .activity-head { min-height: 44px; }
+  .sk-files summary { min-height: 44px; }
+  /* Checkbox rows ("Match case", "Remember this pattern"): the whole row is the tap target. */
+  label:has(> input[type="checkbox"]:not([role="switch"])) { min-height: 44px; display: inline-flex; align-items: center; }
+  .ps-seek { height: 44px; }  /* the player sheet's slider: easy to grab with a thumb */
+}

@@ -628,6 +628,23 @@ class LibraryIndex:
                 yield path, _unpack(blob)
             last = rows[-1][0]
 
+    def cover_tracks(self, folders: Iterable[str], look: int = 30) -> dict[str, tuple[str, str]]:
+        """For each folder, a track inside it (at any depth) that has embedded art:
+        folder -> (track path, art hash). Reads the index only (no file is opened); looks at the
+        first ``look`` tracks of each folder, so a huge folder never makes this slow."""
+        out: dict[str, tuple[str, str]] = {}
+        with self._lock:
+            for folder in folders:
+                lo, hi = (folder + "/", folder + "0") if folder else ("", "\U0010ffff")  # "0" sorts right after "/"
+                rows = self.db.execute("SELECT path, track FROM files WHERE path >= ? AND path < ? ORDER BY path LIMIT ?",
+                                       (lo, hi, look)).fetchall()
+                for path, blob in rows:
+                    art = _unpack(blob).get("art") or {}
+                    if art.get("hash"):
+                        out[folder] = (path, art["hash"])
+                        break
+        return out
+
     def paths_with_any(self, keys: Iterable[str]) -> set[str]:
         """Files that have at least one of these tags (by name, any case)."""
         with self._lock:

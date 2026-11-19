@@ -1037,7 +1037,7 @@ async function applyAction() {
     const d = await api("POST", `/api/actions/${encodeURIComponent(act.chosen)}/run`, { ...act.target, dry_run: false });
     closeDialog($("#actions-dialog"));
     toast(d.failed ? `Changed ${d.changed}, ${d.failed} couldn't be changed` : `Changed ${plural(d.changed, "track")}`, d.failed ? "error" : "success");
-    folderCache.clear();
+    folderCache.clear(); folderCovers.clear();
     refreshActivity();
     loadFolder(state.path, { keepScroll: true });
   } catch (err) { toast(err.message, "error"); go.disabled = false; go.textContent = "Apply"; }
@@ -1155,7 +1155,7 @@ async function applyReplace() {
     const d = await api("POST", "/api/tracks/replace", replaceBody(false));
     closeDialog($("#replace-dialog"));
     toast(d.failed ? `Changed ${d.changed}, ${d.failed} couldn't be changed` : `Changed ${plural(d.changed, "track")}`, d.failed ? "error" : "success");
-    folderCache.clear();
+    folderCache.clear(); folderCovers.clear();
     refreshActivity();
     loadFolder(state.path, { keepScroll: true });
   } catch (err) { toast(err.message, "error"); go.disabled = false; go.textContent = "Replace"; }
@@ -1172,7 +1172,7 @@ async function renameFolder() {
   try {
     const r = await api("POST", "/api/folders/rename", { path: state.path, name });
     toast(r.failed ? `Moved ${r.moved}, ${r.failed} couldn't move` : `Renamed to “${r.path.split("/").pop()}”`, r.failed ? "error" : "success");
-    folderCache.clear();
+    folderCache.clear(); folderCovers.clear();
     refreshActivity();
     navigate(r.path);
   } catch (err) { toast(err.message, "error"); }
@@ -1300,12 +1300,39 @@ function renderFolders() {
   const folders = (state.folder?.folders || []).filter((f) => !q || fold(f.name).includes(q));
   const list = folderView() === "list";
   els.folders.classList.toggle("as-list", list);
-  drawInBatches(els.folders, folders, (f) =>
-    h("a", { class: "folder", href: hashFor(f.path), title: f.name },
-      icon("folder"),
-      h("span", { class: "folder-name" }, f.name),
-      list ? h("span", { class: "folder-meta" }, folderSummary(f)) : null,
-      list ? icon("chevron") : null));
+  drawInBatches(els.folders, folders, (f) => list
+    ? h("a", { class: "folder", href: hashFor(f.path), title: f.name },
+      icon("folder"), h("span", { class: "folder-name" }, f.name),
+      h("span", { class: "folder-meta" }, folderSummary(f)), icon("chevron"))
+    : h("a", { class: "folder", href: hashFor(f.path), title: f.name, "data-path": f.path },
+      h("span", { class: "folder-cover" }, folderCoverImg(f.path) || icon("folder")),
+      h("span", { class: "folder-text" }, h("span", { class: "folder-name" }, f.name),
+        h("span", { class: "folder-meta" }, folderSummary(f)))));
+  if (!list) loadFolderCovers(folders.map((f) => f.path));
+}
+
+// Grid view: each folder shows the cover of a track inside it (found in the search index).
+const folderCovers = new Map(); // folder path -> {path, hash} | null (none found)
+
+function folderCoverImg(folder) {
+  const c = folderCovers.get(folder);
+  return c ? h("img", { src: `/api/art?path=${encodeURIComponent(c.path)}&v=${c.hash}`, alt: "", loading: "lazy", decoding: "async",
+    onerror: (e) => e.currentTarget.replaceWith(icon("folder")) }) : null;
+}
+
+async function loadFolderCovers(paths) {
+  const todo = paths.filter((p) => !folderCovers.has(p) && !p.startsWith("@"));
+  for (let i = 0; i < todo.length; i += 200) {
+    const chunk = todo.slice(i, i + 200);
+    let found = {};
+    try { found = (await api("POST", "/api/folder-covers", { paths: chunk })).covers; } catch { return; }
+    for (const p of chunk) {
+      folderCovers.set(p, found[p] || null);
+      const img = found[p] && folderCoverImg(p);
+      const slot = img && els.folders.querySelector(`.folder[data-path="${CSS.escape(p)}"] .folder-cover`);
+      if (slot) slot.replaceChildren(img);
+    }
+  }
 }
 
 function renderTracks() {
@@ -3057,7 +3084,7 @@ async function undoEntry(e) {
     toast(err.message, "error");
   }
   await reloadActivity();
-  folderCache.clear(); // other folders may hold stale tags now
+  folderCache.clear(); folderCovers.clear(); // other folders may hold stale tags now
   await loadFolder(state.path, { keepScroll: true });
 }
 
@@ -3685,7 +3712,7 @@ async function mbApply() {
     if (res.cover_error) toast(`Cover art wasn't added: ${res.cover_error}`, "error");
     if (mb.onWritten) { const done = mb.onWritten; mb.onWritten = null; done(mb.release); }
     refreshActivity();
-    folderCache.clear();
+    folderCache.clear(); folderCovers.clear();
     await loadFolder(state.path, { keepScroll: true });
   } catch (err) {
     toast(err.message, "error");
@@ -3858,16 +3885,19 @@ function afterSetup() {
 
 let newsData = null;
 
-/** Changelog text -> nodes: **bold**, `code` and https links; everything else stays plain text. */
+const REPO_FILE_URL = "https://github.com/gavndev/codetta/blob/main/";
+
+/** Changelog text -> nodes: **bold**, `code` and links; everything else stays plain text. Links are
+ * https, or a file in Codetta's repository ("docs/install.md#…"), which opens on GitHub. */
 function mdInline(text) {
   const out = [];
-  const re = /\*\*([^*]+)\*\*|`([^`]+)`|\[([^\]]+)\]\((https:\/\/[^)\s]+)\)/g;
+  const re = /\*\*([^*]+)\*\*|`([^`]+)`|\[([^\]]+)\]\((https:\/\/[^)\s]+|[A-Za-z0-9_][A-Za-z0-9_./-]*(?:#[A-Za-z0-9_-]+)?)\)/g;
   let last = 0;
   for (const m of text.matchAll(re)) {
     if (m.index > last) out.push(text.slice(last, m.index));
     if (m[1]) out.push(h("strong", {}, m[1]));
     else if (m[2]) out.push(h("code", {}, m[2]));
-    else out.push(h("a", { href: m[4], target: "_blank", rel: "noopener noreferrer" }, m[3]));
+    else out.push(h("a", { href: m[4].startsWith("https://") ? m[4] : REPO_FILE_URL + m[4], target: "_blank", rel: "noopener noreferrer" }, m[3]));
     last = m.index + m[0].length;
   }
   out.push(text.slice(last));
@@ -3939,7 +3969,7 @@ async function inboxAction(url, body, done) {
     inboxState.data = res.inbox || res;
     if (done) done(res);
     renderInbox();
-    folderCache.clear();
+    folderCache.clear(); folderCovers.clear();
     refreshActivity();
     if (inboxState.data.running) inboxState.timer = setTimeout(loadInbox, 1500);
     setTimeout(pollNotifications, 2000);
@@ -4244,7 +4274,7 @@ async function skAction(method, url, body, done) {
     sk.data = res;
     if (done) done(res);
     if ($("#soulseek-dialog").open) renderSoulseek();
-    folderCache.clear();
+    folderCache.clear(); folderCovers.clear();
     refreshActivity();
     refreshInboxBadge();
     clearTimeout(sk.timer);
@@ -4576,7 +4606,7 @@ async function healthFix(issue) {
   try {
     const res = await api("POST", "/api/library-health/fix", { id: issue.id });
     toast(res.failed ? `Fixed ${res.fixed}, ${res.failed} couldn't be changed` : "Fixed", res.failed ? "error" : "success");
-    folderCache.clear();
+    folderCache.clear(); folderCovers.clear();
     refreshActivity();
     afterHealthChange(res.health);
   } catch (err) { toast(err.message, "error"); }
@@ -4997,7 +5027,7 @@ async function orgApply() {
     else toast(`Organized ${plural(res.moved, "file")}. Undo is in the activity log.`, "success");
     state.selected.clear();
     renderSelectionBar();
-    folderCache.clear();
+    folderCache.clear(); folderCovers.clear();
     refreshActivity();
     // If this folder was emptied by the move, go to where the music went.
     const first = res.results.find((r) => r.ok);
@@ -5246,6 +5276,14 @@ function bindEvents() {
   $("#sel-actions").addEventListener("click", () => openActions({ paths: [...state.selected] }, `${plural(state.selected.size, "selected track")}`));
   $("#plugins-toggle").addEventListener("click", () => setPluginsOpen($("#plugins-body").hidden));
   $("#sel-replace").addEventListener("click", () => openReplace({ paths: [...state.selected] }, `${plural(state.selected.size, "selected track")}`));
+  // Phones: the bar can't fit five buttons, so Preset, Replace and Actions share a "…" menu.
+  const selMore = iconButton("more", "More", () => openToolsMenu(selMore, [
+    { icon: "preset", label: "Apply preset", run: () => $("#sel-preset").click() },
+    { icon: "replace", label: "Find & replace", run: () => $("#sel-replace").click() },
+    { icon: "wand", label: "Actions", run: () => $("#sel-actions").click() },
+  ]), { cls: "sel-more phone-only" });
+  selMore.id = "sel-more";
+  $("#sel-edit").before(selMore);
   $("#manage-btn").addEventListener("click", openManage);
   $("#cc-theme").addEventListener("click", () => { $("#theme-btn").click(); syncAccountTiles(); });
   $("#pw-toggle").addEventListener("click", () => setPasswordOpen($("#password-form").hidden));

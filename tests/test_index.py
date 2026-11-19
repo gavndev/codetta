@@ -354,3 +354,28 @@ def test_stored_sort_key_orders_like_natural_sort():
              "東京/1.flac", "Track 100.mp3", "Track 99.mp3"]
     random.Random(1).shuffle(names)
     assert sorted(names, key=natural_sort_text) == sorted(names, key=natural_key)
+
+
+def test_folder_covers_come_from_a_track_inside_with_art(tmp_path):
+    from tests.conftest import FIXTURES_DIR as FX
+    root = tmp_path / "music"
+    engine = MetadataEngine()
+    for rel, art in [("Artist/Album/01.flac", True), ("Artist/Album/02.flac", True), ("Bare/Album/01.flac", False)]:
+        p = root / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(FIXTURES_DIR / "sample.flac", p)
+        if art:
+            engine.update_artwork(p, (FX / "cover.png").read_bytes())
+    app = create_app(Settings(music_dir=root, config_dir=tmp_path / "config", auth=False))
+    with TestClient(app) as c:
+        end = time.time() + 10
+        while c.get("/api/library-health/summary").json()["indexing"]:
+            assert time.time() < end
+            time.sleep(0.05)
+        covers = c.post("/api/folder-covers", json={"paths": ["Artist", "Artist/Album", "Bare", "../outside", "/etc"]}).json()["covers"]
+        assert covers["Artist"]["path"] == "Artist/Album/01.flac" and covers["Artist/Album"]["path"] == "Artist/Album/01.flac"
+        assert covers["Artist"]["hash"]
+        assert "Bare" not in covers  # no art anywhere inside
+        assert set(covers) == {"Artist", "Artist/Album"}  # paths outside the library are simply ignored
+        assert c.get("/api/art", params={"path": covers["Artist"]["path"]}).status_code == 200
+        assert c.post("/api/folder-covers", json={"paths": ["x"] * 201}).status_code == 422  # one grid page at a time
