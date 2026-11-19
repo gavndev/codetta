@@ -129,5 +129,11 @@ Goal: a true competitor, honestly listable with these AlternativeTo boxes: Open 
 - [x] **14.6 Bug:** after applying a MusicBrainz match, the album's track order didn't follow the new numbers (single-disc albums were listed by file name; only multi-disc albums were sorted). Now any folder whose tracks all have distinct numbers is listed by track number; refreshes after a change never reuse an earlier request.
 - [x] **14.7 Listing kit:** `docs/listing/README.md` (AlternativeTo answers with a reason for every feature box, other directories, awesome-selfhosted line from 2027-03-17), icon pointer, 12 fresh screenshots in `docs/screenshots/` (light/dark, health, search, actions, phone). README comparison updated (plugins, runs on your computer). Submitting the listings is the user's step.
 
+## Phase 15: UI/UX and bug review (2026-11-19)
+- [x] **15.1 UI sweep:** 26 scenes in Chromium and Firefox (desktop, light/dark, 1024–1440 wide) and at iPhone sizes: no console/JS/HTTP errors. Fixed: phone touch targets (now ≥ 44 pt everywhere, search bar taps anywhere), selection bar running off phones ("…" menu), What's new links, grid view covers (`/api/folder-covers`).
+- [x] **15.2 Real write flows in the browser:** edit + double Ctrl+S, undo from Activity, multi-edit, Actions, Find & replace, Rename folder, Health fix, each checked on disk and undone (17/17).
+- [x] **15.3 Bug review:** moves can't replace a file that appears at the last moment (link + unlink), short temp names, folder fsync after the safe swap, undo serialized + clear 409, inbox album never filed twice at once, Health fix re-checks when stale, MusicBrainz marks every touched file dirty, page forgets stale folders after a save, no double save from the keyboard, presets carry on past an unreadable file.
+- [ ] **15.4 WebKit (real iPhone engine) sweep:** needs `sudo apt-get install libevent-2.1-7t64 libavif16 libmanette-0.2-0` on the dev machine, then run the sweep's webkit configs.
+
 ## Later (ideas, not scheduled)
 - First-run welcome card after account creation: confirms the library was found and is writable, plus three quick tips.

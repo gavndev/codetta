@@ -15,6 +15,7 @@ All notable changes to Codetta. Versions follow [Semantic Versioning](https://se
 - **Fixed:** a MusicBrainz match that saved the tags but not the cover left search and Library health showing the old tags.
 - **Fixed:** pressing Ctrl/Cmd+S twice quickly saved everything twice (and logged it twice). A save already under way now just carries on.
 - The "/" shortcut for search no longer jumps behind an open dialog.
+- **Fixed:** applying a Tag Preset to a folder stopped part-way if one file couldn't be opened (say, a permissions problem), and the files it had already changed weren't in Activity, so they couldn't be undone. Now that one file is reported and the rest carry on, all undoable.
 - **Library health's one-tap fixes** check the album again first if anything changed since the list was made.
 - **What's new** shows its links properly (they opened as plain text before) and they now open on GitHub.
 

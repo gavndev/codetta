@@ -299,7 +299,7 @@ def _apply_one(
         result.previous = {k: list(current.tags.get(k, [])) for k in changes}
         if changes and not dry_run:
             engine.update_tags(path, changes)
-    except (MetadataError, FileNotFoundError) as exc:
+    except (MetadataError, OSError) as exc:  # any one file failing (unreadable, no permission) never stops the rest
         result.applied = {}
         result.error = str(exc)
     return result

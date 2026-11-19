@@ -611,3 +611,24 @@ def test_undo_of_a_move_whose_folder_is_gone_says_so(tmp_path):
     with TestClient(create_app(Settings(music_dir=music, config_dir=config, auth=False))) as c:
         res = c.post("/api/activity/1/undo")
     assert res.status_code == 409 and "can't be undone" in res.json()["detail"]  # not a bare server error
+
+
+def test_a_preset_carries_on_past_a_file_it_cannot_open(tmp_path, monkeypatch):
+    """One unreadable file used to end the whole request part-way: the files before it were
+    changed but never logged, so they couldn't be undone."""
+    from codetta.core.presets import Preset, apply_preset_to_folder
+    engine = MetadataEngine()
+    for name in ("1.flac", "2.flac", "3.flac"):
+        shutil.copy2(FIXTURES_DIR / "sample.flac", tmp_path / name)
+    real = engine.load_metadata
+
+    def flaky(path, *a, **k):
+        if str(path).endswith("2.flac"):
+            raise PermissionError(13, "Permission denied", str(path))
+        return real(path, *a, **k)
+
+    monkeypatch.setattr(engine, "load_metadata", flaky)
+    results = apply_preset_to_folder(engine, Preset(name="T", tags={"genre": ["Ambient"]}), tmp_path, mode="overwrite")
+    by_name = {r.path.name: r for r in results}
+    assert by_name["2.flac"].error and "Permission" in by_name["2.flac"].error
+    assert by_name["1.flac"].applied == {"genre": ["Ambient"]} and by_name["3.flac"].applied == {"genre": ["Ambient"]}
