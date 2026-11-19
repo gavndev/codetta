@@ -13,7 +13,7 @@
 
 <p align="center">
   <img alt="Status: alpha" src="https://img.shields.io/badge/status-alpha-f59e0b">
-  <img alt="Version 0.8.0" src="https://img.shields.io/badge/version-0.8.0-0e7c74">
+  <img alt="Version 0.8.1" src="https://img.shields.io/badge/version-0.8.1-0e7c74">
   <a href="LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-555"></a>
   <img alt="Python 3.14" src="https://img.shields.io/badge/python-3.14-3776ab">
   <a href="https://github.com/gavndev/codetta/actions/workflows/ci.yml"><img alt="Tests" src="https://github.com/gavndev/codetta/actions/workflows/ci.yml/badge.svg"></a>
@@ -82,7 +82,7 @@ and 70 MB of memory (about 130 MB at 100,000 tracks), and no disk activity when 
 [install guide](docs/install.md) walks through every step, including updates.
 
 No server? Run it on your own computer instead:
-`pipx install git+https://github.com/gavndev/codetta`, then `codetta`
+`pipx install codetta`, then `codetta`
 ([details](docs/install.md#on-your-own-computer)).
 
 ## What Codetta does

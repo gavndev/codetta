@@ -16,7 +16,7 @@ to big libraries:
 | When idle | no CPU and no disk activity, so your drives can sleep |
 
 > **No server?** Codetta also runs on your own computer (Linux or macOS;
-> Windows support is new), straight from your Music folder. See
+> Windows support is coming), straight from your Music folder. See
 > [On your own computer](#on-your-own-computer) below.
 
 ## 1. Back up your library
@@ -108,8 +108,8 @@ You need [Python 3.14](https://www.python.org/downloads/) or newer and
 [pipx](https://pipx.pypa.io/) (or [uv](https://docs.astral.sh/uv/)):
 
 ```sh
-pipx install git+https://github.com/gavndev/codetta
-# or: uv tool install git+https://github.com/gavndev/codetta
+pipx install codetta
+# or: uv tool install codetta
 codetta
 ```
 

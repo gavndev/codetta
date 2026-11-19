@@ -20,7 +20,7 @@ is [`src/codetta/web/static/icons/codetta.png`](../../src/codetta/web/static/ico
 
 **Full description:**
 
-> Codetta looks after a local music library (FLAC, MP3, M4A, OGG, Opus, WAV, AIFF, WMA and more, 15 file types) from your browser. Run it on a home server with Docker, or on your own computer with one command, and open it on your laptop or phone.
+> Codetta looks after a local music library (FLAC, MP3, M4A, OGG, Opus, WAV, AIFF, WMA and more, 15 file types) from your browser. Run it on a home server with Docker, or on your own computer (Linux, macOS) with `pipx install codetta`, and open it on your laptop or phone.
 >
 > Edit tags for one track or a whole album at once, add cover art, and match albums on MusicBrainz (optionally by audio fingerprint) with a review of every change before anything is written. Batch tools include Find & replace in tags (with regex), one-tap tidy-ups like "Clean up titles" and Title Case, Tag Presets, and Organize, which renames and moves files into folders from their tags with a preview. An inbox matches and files new downloads, Library health finds missing covers, missing tags and duplicates, and search covers the whole library by tag.
 >
@@ -30,7 +30,7 @@ is [`src/codetta/web/static/icons/codetta.png`](../../src/codetta/web/static/ico
 
 **Pricing:** Free
 
-**Platforms:** Self-Hosted, Linux, Mac, Windows (new; tell users to report issues), Docker, Online (web app). Add Python/PyPI once it's on PyPI.
+**Platforms:** Self-Hosted, Linux, Mac, Docker, Online (web app), Python (PyPI: `pipx install codetta`). Add Windows once it's tested there.
 
 **Categories / tags:** Music tag editor, Music organizer, Audio metadata, MusicBrainz, Self-hosted, Homelab, Navidrome companion.
 
