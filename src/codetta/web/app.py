@@ -2314,7 +2314,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     # --- Library health -------------------------------------------------------------------------
 
     health_store = HealthStore(settings.config_dir / "health.json")
-    health_cache: dict = {"key": None, "data": None, "at": 0.0, "fixed": {}}
+    health_cache: dict = {"key": None, "data": None, "at": 0.0, "fixed": {}, "complete": False}
     health_lock = threading.Lock()
 
     health_compute_lock = threading.Lock()
@@ -2323,12 +2323,13 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     def health_compute() -> None:
         with health_compute_lock:
             key = lib_index.version
+            complete = lib_index.status().ready  # made from the whole library, not mid-way through the first scan
             inbox_folder = inbox.settings.folder
             skip = [inbox_folder] if inbox_folder and not inbox_folder.startswith("@") else []
             data = health_run(lib_index.iter_tracks(), folder_has_image(library.resolve),
                               lib_index.paths_with_any(MB_RELEASE_KEYS), skip)
             with health_lock:
-                health_cache.update(data=data, key=key, at=time.time())
+                health_cache.update(data=data, key=key, at=time.time(), complete=complete)
 
     def health_data() -> dict:
         """Every issue. The first check waits for the answer; after that, a change to the library
@@ -2337,7 +2338,8 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         with health_lock:
             data = health_cache["data"]
             stale = health_cache["key"] != lib_index.version or time.time() - health_cache["at"] > 600
-        if data is None:
+            partial = not health_cache["complete"] and lib_index.status().ready
+        if data is None or partial:  # never show an answer from half a library once the whole one is read
             health_compute()
         elif stale and not (health_worker["thread"] and health_worker["thread"].is_alive()):
             health_worker["thread"] = threading.Thread(target=health_compute, name="codetta-health", daemon=True)

@@ -7,6 +7,7 @@ All notable changes to Codetta. Versions follow [Semantic Versioning](https://se
 - **Snap:** `sudo snap install codetta` on Ubuntu and other Linux systems, for Intel/AMD and ARM. It updates itself. See [On your own computer](docs/install.md#on-your-own-computer).
 - **MusicBrainz, more patient:** when it's busy or slow, Codetta now waits longer (20 seconds instead of 8), tries up to three times with a growing pause, and waits as long as MusicBrainz asks. Fewer "busy" and "couldn't reach" errors.
 - **Fixed:** Library health said every album "isn't matched on MusicBrainz yet", even matched ones. Your search index is rebuilt once after updating so it can tell them apart.
+- **Fixed:** right after Codetta first reads your library, Library health could briefly show an incomplete list from part-way through. It now waits for the full answer.
 - New screenshots and an animated README header, with real albums.
 
 ## 0.8.1 (2026-11-19)
