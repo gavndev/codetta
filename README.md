@@ -255,9 +255,17 @@ Codetta is an early alpha hobby project, so feedback from real libraries makes a
 
 ## License
 
+
 Codetta is free software under the [GNU AGPL v3.0](LICENSE) (or later): use it,
 study it, change it and share it. If you run a modified version for others, you
 must share your changes under the same license.
+
+Codetta was created by Gavin Griggs. 
+Copyright (C) 2026 Gavin Griggs and contributors.
+
+
+## More
+
 
 Built with [mutagen](https://github.com/quodlibet/mutagen),
 [FastAPI](https://fastapi.tiangolo.com/) and the
