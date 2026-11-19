@@ -14,6 +14,7 @@ from pathlib import Path
 CANDIDATES = (
     Path(__file__).resolve().parents[3] / "CHANGELOG.md",  # source checkout
     Path("/opt/codetta/CHANGELOG.md"),  # Docker image
+    Path(__file__).resolve().parents[1] / "CHANGELOG.md",  # installed package (pipx, Homebrew, snap...)
 )
 _HEADING = re.compile(r"^##\s+(.+?)\s*$")
 _VERSION = re.compile(r"^(?:Unreleased\s*\()?v?(\d+(?:\.\d+)*)\)?(?:\s*\((\d{4}-\d{2}-\d{2})\))?")

@@ -5,7 +5,21 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "codetta"
 version = "0.8.0"
-description = "Self-hosted music metadata editor for homelab audio libraries"
+description = "A private, self-hosted music library manager: tags, MusicBrainz matching, batch editing and organizing, in your browser"
+readme = "README.md"
+authors = [{ name = "Gavin Griggs" }]
+keywords = ["music", "tags", "tagger", "metadata", "musicbrainz", "flac", "id3", "self-hosted", "library", "organizer"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Web Environment",
+    "Framework :: FastAPI",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Multimedia :: Sound/Audio",
+    "Topic :: Multimedia :: Sound/Audio :: Editors",
+]
 license = "AGPL-3.0-or-later"
 license-files = ["LICENSE"]
 requires-python = ">=3.14"
@@ -14,6 +28,15 @@ dependencies = [
     "fastapi>=0.163",
     "uvicorn>=0.54",
 ]
+
+[project.urls]
+Homepage = "https://github.com/gavndev/codetta"
+Documentation = "https://github.com/gavndev/codetta/tree/main/docs"
+Changelog = "https://github.com/gavndev/codetta/blob/main/CHANGELOG.md"
+Issues = "https://github.com/gavndev/codetta/issues"
+
+[project.scripts]
+codetta = "codetta.cli.run:main"
 
 [project.optional-dependencies]
 dev = [
@@ -25,7 +48,7 @@ dev = [
 where = ["src"]
 
 [tool.setuptools.package-data]
-codetta = ["web/static/*", "web/static/fonts/*", "web/static/icons/*"]
+codetta = ["web/static/*", "web/static/fonts/*", "web/static/icons/*", "CHANGELOG.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

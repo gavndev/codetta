@@ -15,6 +15,10 @@ to big libraries:
 | Search index | about 2 KB per track (10 MB for 5,000 tracks) |
 | When idle | no CPU and no disk activity, so your drives can sleep |
 
+> **No server?** Codetta also runs on your own computer (Linux or macOS;
+> Windows support is new), straight from your Music folder. See
+> [On your own computer](#on-your-own-computer) below.
+
 ## 1. Back up your library
 
 If you don't have a backup of your music yet, make one now. Codetta is
@@ -96,6 +100,37 @@ To stay on a specific version, change `latest` in `docker-compose.yml` to a
 version number such as `0.1.0`. Codetta never updates itself. That would mean giving it control of Docker,
 and with it the rest of your server. Your account, presets and activity log
 live in `./codetta-config` and are kept across updates.
+
+## On your own computer
+
+Without Docker, Codetta runs as a normal program and opens in your browser.
+You need [Python 3.14](https://www.python.org/downloads/) or newer and
+[pipx](https://pipx.pypa.io/) (or [uv](https://docs.astral.sh/uv/)):
+
+```sh
+pipx install git+https://github.com/gavndev/codetta
+# or: uv tool install git+https://github.com/gavndev/codetta
+codetta
+```
+
+That opens `http://localhost:8111` with your Music folder. Other folders and options:
+
+```sh
+codetta ~/Music/FLAC          # another folder
+codetta --host 0.0.0.0        # also reachable from your phone on the same Wi-Fi
+codetta --port 8200 --no-browser
+codetta set-password          # create the account, or reset its password
+codetta sign-out-all          # sign out every browser
+```
+
+By default it only listens on your own computer. Your account, presets and
+search index are kept in your user's app-data folder (`~/.config/codetta` on
+Linux, `~/Library/Application Support/Codetta` on macOS, `%APPDATA%\Codetta`
+on Windows), or wherever `--config` / `CODETTA_CONFIG_DIR` says. Every
+[setting](configuration.md) works as an environment variable here too.
+
+Update with `pipx upgrade codetta` (or `uv tool upgrade codetta`), remove
+with `pipx uninstall codetta`; your library and settings stay where they are.
 
 ## Signing in
 

@@ -17,11 +17,12 @@ WORKDIR /src
 
 # Install dependencies first (cached until pyproject.toml changes)...
 COPY pyproject.toml ./
-RUN mkdir -p src/codetta && touch src/codetta/__init__.py \
+RUN mkdir -p src/codetta && touch src/codetta/__init__.py README.md \
     && pip --python /opt/venv/bin/python install . \
     && pip --python /opt/venv/bin/python uninstall -y codetta
 
-# ...then Codetta itself.
+# ...then Codetta itself (src/codetta/CHANGELOG.md links to the CHANGELOG.md beside the README).
+COPY README.md CHANGELOG.md ./
 COPY src ./src
 RUN pip --python /opt/venv/bin/python install --no-deps . \
     && find /opt/venv -name "*.dist-info" -prune -o -type d -name tests -prune -exec rm -rf {} +

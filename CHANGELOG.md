@@ -2,6 +2,11 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
+## Unreleased (0.8.1)
+
+- **Run it on your own computer:** no server or Docker needed. `pipx install git+https://github.com/gavndev/codetta`, then `codetta` opens your Music folder in the browser (Linux and macOS; Windows is new, so please report anything odd). `codetta set-password` and `codetta sign-out-all` work there too. See [On your own computer](docs/install.md#on-your-own-computer).
+- **Fixed:** an album now lists its tracks by track number, not file name, so after a MusicBrainz match renumbers them they're in the right order straight away.
+
 ## 0.8.0 (2026-11-18)
 
 - **Big libraries, much faster** (measured on 105,000 tracks):

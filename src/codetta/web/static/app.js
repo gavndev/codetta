@@ -569,6 +569,7 @@ async function loadFolder(path, { keepScroll = false } = {}) {
   if (state.folder && navigating) scrollMemory.set(state.path, els.browser.scrollTop);
 
   const cached = navigating ? folderCache.get(path) : null;
+  if (keepScroll) inflight.delete(path); // a refresh after a change: never reuse a request from before it
   let loadingTimer = null;
   if (!cached && navigating && isMbKey(path)) {
     // MusicBrainz takes a few seconds (one request a second): say so instead of a frozen page.
@@ -713,14 +714,29 @@ function discInfo(f = state.folder) {
   return info;
 }
 
+const trackNum = (t) => parseInt(first(t, "tracknumber"), 10);
+
+/** A single-disc album in track-number order: every track numbered, no number twice. Folders
+ * of loose files (all "1", or some unnumbered) keep their file-name order. */
+const numberedCache = new WeakMap();
+function numberedAlbum(f = state.folder) {
+  if (!f || f.search || f.mb) return false;
+  if (numberedCache.has(f)) return numberedCache.get(f);
+  const nums = f.tracks.filter((t) => !t.error).map(trackNum);
+  const yes = nums.length > 1 && nums.every(Number.isInteger) && new Set(nums).size === nums.length;
+  numberedCache.set(f, yes);
+  return yes;
+}
+
 function visibleTracks() {
   const tracks = (state.folder?.tracks || []).filter(matchesFilter);
   const discs = discInfo();
-  if (!discs) return tracks;
-  // Group by disc, then track number; files without numbers keep their place within the disc.
+  if (!discs && !numberedAlbum()) return tracks;
+  // By disc, then track number (the tags, not the file names: a MusicBrainz match can renumber
+  // tracks); files without numbers keep their place within the disc.
   const order = new Map(tracks.map((t, i) => [t, i]));
-  const num = (t) => parseInt(first(t, "tracknumber"), 10);
-  const key = (t) => [t.error ? Infinity : discs.discOf(t), Number.isInteger(num(t)) ? num(t) : Infinity, order.get(t)];
+  const discOf = discs ? discs.discOf : () => 0;
+  const key = (t) => [t.error ? Infinity : discOf(t), Number.isInteger(trackNum(t)) ? trackNum(t) : Infinity, order.get(t)];
   return [...tracks].sort((a, b) => {
     const [x, y] = [key(a), key(b)];
     return x[0] - y[0] || x[1] - y[1] || x[2] - y[2];

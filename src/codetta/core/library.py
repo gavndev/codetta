@@ -71,12 +71,12 @@ class Library:
         """The library-relative form of ``path`` (always with forward slashes)."""
         path = Path(os.path.abspath(path))
         if self.inbox is not None and path.is_relative_to(self.inbox) and not path.is_relative_to(self.root):
-            rel = PurePosixPath(path.relative_to(self.inbox)).as_posix()
+            rel = path.relative_to(self.inbox).as_posix()
             return INBOX if rel == "." else f"{INBOX}/{rel}"
         if self.replaced is not None and path.is_relative_to(self.replaced) and not path.is_relative_to(self.root):
-            rel = PurePosixPath(path.relative_to(self.replaced)).as_posix()
+            rel = path.relative_to(self.replaced).as_posix()
             return REPLACED if rel == "." else f"{REPLACED}/{rel}"
-        rel = PurePosixPath(path.relative_to(self.root)).as_posix()
+        rel = path.relative_to(self.root).as_posix()
         return "" if rel == "." else rel
 
     def list_folder(self, relative: str = "") -> FolderListing:

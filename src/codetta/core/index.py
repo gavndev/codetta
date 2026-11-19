@@ -233,7 +233,10 @@ class _Workers:
         self.procs = []
         for _ in range(n):
             try:
-                self.procs.append(subprocess.Popen([sys.executable, "-m", "codetta.core.describe"], stdin=subprocess.PIPE,
+                # A packaged app (one .exe) has no "python -m": it starts itself in helper mode instead.
+                cmd = [sys.executable, "--codetta-describe-worker"] if getattr(sys, "frozen", False) else \
+                    [sys.executable, "-m", "codetta.core.describe"]
+                self.procs.append(subprocess.Popen(cmd, stdin=subprocess.PIPE,
                                                    stdout=subprocess.PIPE, text=True, encoding="utf-8", bufsize=1))
             except OSError as exc:
                 log.warning("Couldn't start an index helper: %s", exc)

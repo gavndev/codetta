@@ -81,6 +81,10 @@ Runs on Intel/AMD and ARM, from a Raspberry Pi 4 up: about a 100 MB download
 and 70 MB of memory (about 130 MB at 100,000 tracks), and no disk activity when idle. The
 [install guide](docs/install.md) walks through every step, including updates.
 
+No server? Run it on your own computer instead:
+`pipx install git+https://github.com/gavndev/codetta`, then `codetta`
+([details](docs/install.md#on-your-own-computer)).
+
 ## What Codetta does
 
 ### Fix a whole album in one go
@@ -185,7 +189,7 @@ light and dark themes. [See every feature →](docs/features.md)
 
 | | **Codetta** | [MusicBrainz Picard](https://picard.musicbrainz.org/) | [beets](https://beets.io/) | [Metadata Remote](https://github.com/wow-signal-dev/metadata-remote) |
 |---|---|---|---|---|
-| What it is | Web app on your server | Desktop app | Command-line library manager | Web app on your server |
+| What it is | Web app on your server (or your own computer) | Desktop app | Command-line library manager | Web app on your server |
 | Use it from your phone | ✅ Designed for it | ❌ | ❌ | ➖ Responsive layout |
 | Runs in Docker | ✅ Official image | ➖ Community images | ➖ Community images | ✅ Official image |
 | Built-in sign-in | ✅ | – (local app) | – (local app) | ❌ Use a reverse proxy |
@@ -197,7 +201,7 @@ light and dark themes. [See every feature →](docs/features.md)
 | Undo | ✅ Kept across restarts | ❌ | ❌ | ✅ Until restart |
 | Search the whole library by tag | ✅ | ➖ | ✅ Query language | ➖ Filtering |
 | Play tracks | ✅ In the browser | ➖ Basic player | ➖ Via external player | ✅ In the browser |
-| Plugins | ➖ Opt-in connections (MusicBrainz, AcoustID, LRCLIB, optional slskd) | ✅ | ✅ | ❌ |
+| Plugins | ✅ Actions on tracks ([plugin API](docs/plugins.md), off until enabled), plus opt-in connections | ✅ | ✅ | ❌ |
 | Formats | 15 file types | 20+ | Most common formats | 9 |
 | License | AGPL-3.0 | GPL-2.0 | MIT | AGPL-3.0 |
 

@@ -2,7 +2,10 @@
 #   1. runs the tests,
 #   2. builds the image for Intel/AMD and ARM servers and pushes it to
 #      ghcr.io/gavndev/codetta (tags: 0.1.0, 0.1, latest),
-#   3. creates the GitHub release with that version's notes from CHANGELOG.md.
+#   3. creates the GitHub release with that version's notes from CHANGELOG.md,
+#   4. publishes the Python package to PyPI (`pipx install codetta`), once it's switched on:
+#      on pypi.org add a "trusted publisher" (project codetta, this repo, workflow release.yml,
+#      environment pypi), then set the repository variable PYPI_PUBLISH to true.
 name: Release
 
 on:
@@ -71,6 +74,9 @@ jobs:
           awk -v v="$version" '$0 ~ "^## "v"( |$)" {on=1; next} on && /^## / {exit} on' CHANGELOG.md > notes.md
           printf '\n---\n**Install or update:** `docker compose pull && docker compose up -d` (image `ghcr.io/%s:%s`)\n' \
             "$GITHUB_REPOSITORY" "$version" >> notes.md
+          if [ "${{ vars.PYPI_PUBLISH }}" = "true" ]; then
+            printf '\nOn your own computer: `pipx install codetta` (update: `pipx upgrade codetta`)\n' >> notes.md
+          fi
           cat notes.md
       - name: Create the release
         env:
@@ -79,3 +85,19 @@ jobs:
           flags=""
           case "$GITHUB_REF_NAME" in *-*) flags="--prerelease";; esac
           gh release create "$GITHUB_REF_NAME" --title "Codetta ${GITHUB_REF_NAME#v}" --notes-file notes.md $flags
+
+  pypi:
+    needs: image   # after the tests and the tag/version check
+    if: vars.PYPI_PUBLISH == 'true'
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write   # trusted publishing: no PyPI password stored anywhere
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - name: Build the package
+        run: pip install build && python -m build
+      - uses: pypa/gh-action-pypi-publish@release/v1
