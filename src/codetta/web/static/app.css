@@ -2756,3 +2756,6 @@ body:has(.selection-bar:not([hidden])):has(.now-playing:not([hidden])) .browser 
   label:has(> input[type="checkbox"]:not([role="switch"])) { min-height: 44px; display: inline-flex; align-items: center; }
   .ps-seek { height: 44px; }  /* the player sheet's slider: easy to grab with a thumb */
 }
+
+/* A sheet focused as a whole when it opens (see openDialog): no ring around the whole sheet. */
+dialog:focus { outline: none; }

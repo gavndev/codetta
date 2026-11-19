@@ -100,6 +100,13 @@ function openDialog(dialog) {
     return;
   }
   dialog.showModal();
+  // The browser focuses the first control, usually the close button, and Safari then draws a
+  // focus ring around it even after a tap. Focus the sheet itself instead (Tab still goes
+  // straight to the first control); a field meant to get focus (autofocus) keeps it.
+  if (document.activeElement?.matches("[data-close], .sheet-head .icon-btn")) {
+    dialog.tabIndex = -1;
+    dialog.focus({ preventScroll: true });
+  }
 }
 
 const ICONS = {
@@ -3917,7 +3924,7 @@ async function openNews({ latestOnly = false } = {}) {
   try { newsData = newsData || await api("GET", "/api/changelog"); } catch (err) { toast(err.message, "error"); return; }
   const versions = newsData.versions;
   const section = (v) => h("section", { class: "news-version" },
-    h("h3", {}, v.unreleased ? `Coming in ${v.version}` : `Version ${v.version}`,
+    h("h3", {}, v.unreleased ? (/\d/.test(v.version) ? `Coming in ${v.version}` : "Coming next") : `Version ${v.version}`,
       v.date ? h("span", { class: "news-date" }, new Date(`${v.date}T12:00:00`).toLocaleDateString([], { day: "numeric", month: "long", year: "numeric" })) : null),
     h("ul", {}, v.items.map((item) => h("li", {}, mdInline(item)))));
   const body = $("#news-body");

@@ -133,7 +133,7 @@ Goal: a true competitor, honestly listable with these AlternativeTo boxes: Open 
 - [x] **15.1 UI sweep:** 26 scenes in Chromium and Firefox (desktop, light/dark, 1024–1440 wide) and at iPhone sizes: no console/JS/HTTP errors. Fixed: phone touch targets (now ≥ 44 pt everywhere, search bar taps anywhere), selection bar running off phones ("…" menu), What's new links, grid view covers (`/api/folder-covers`).
 - [x] **15.2 Real write flows in the browser:** edit + double Ctrl+S, undo from Activity, multi-edit, Actions, Find & replace, Rename folder, Health fix, each checked on disk and undone (17/17).
 - [x] **15.3 Bug review:** moves can't replace a file that appears at the last moment (link + unlink), short temp names, folder fsync after the safe swap, undo serialized + clear 409, inbox album never filed twice at once, Health fix re-checks when stale, MusicBrainz marks every touched file dirty, page forgets stale folders after a save, no double save from the keyboard, presets carry on past an unreadable file.
-- [ ] **15.4 WebKit (real iPhone engine) sweep:** needs `sudo apt-get install libevent-2.1-7t64 libavif16 libmanette-0.2-0` on the dev machine, then run the sweep's webkit configs.
+- [x] **15.4 WebKit (iPhone engine) sweep:** iPhone 15 and SE sizes and desktop Safari: no JS/HTTP errors or layout problems. Fixed: a focus ring around the close button every time a sheet opened (focus now goes to the sheet), and "Coming in Unreleased" in What's new. Headless WebKit on Linux doesn't draw backdrop blur, so the frosted glass can only be judged on a real iPhone.
 
 ## Later (ideas, not scheduled)
 - First-run welcome card after account creation: confirms the library was found and is writable, plus three quick tips.
