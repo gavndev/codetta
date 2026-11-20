@@ -111,7 +111,7 @@ def test_uncertain_matches_wait_for_review(make_client, music):
     c = make_client()
     c.put("/api/inbox/settings", json={"folder": "Downloads", "auto": True})
     g = settle(c)["groups"][0]
-    assert g["status"] == "review" and "Check" in g["note"]
+    assert g["status"] == "review" and "isn't sure" in g["note"]
     assert (music / ALBUM_DIR / "01.flac").exists()  # nothing moved
 
 

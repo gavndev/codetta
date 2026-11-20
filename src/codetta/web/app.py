@@ -155,6 +155,10 @@ from codetta.core.musicbrainz import (
     group_summary,
     pick_release,
     tracklist,
+    clean_artist,
+    clean_title,
+    song_from_name,
+    song_releases,
 )
 from codetta.core.providers import LRCLib, ProviderError, TrackQuery, http_get, http_get_json, http_post_json
 from codetta.core.rawtags import read_raw
@@ -1220,6 +1224,34 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         current = most_common(f.albumid for f in infos if MBID_RE.match(f.albumid))
         mb_error = None
         found = []
+        # One loose song with no album tag (a single download, a YouTube rip): look for the song,
+        # not an album, and offer the album it's from. Junk like "(Official Audio)" is cleaned off.
+        song = None
+        if len(infos) == 1 and not album and not body.release.strip() and not current:
+            f = infos[0]
+            t, a = clean_title(f.title), clean_artist(f.artist or f.albumartist)
+            if not t:
+                t, a2 = song_from_name(f.path)
+                a = a or a2
+            if t:
+                song = (t, a)
+                artist = a
+        if song and connections.enabled("musicbrainz"):
+            try:
+                hits = song_releases(mb.search_recordings(*song), song[0], song[1], infos[0].duration)
+            except ProviderError as exc:
+                hits, mb_error = [], str(exc)
+            if hits:
+                candidates = []
+                for hit in hits:
+                    c = summarize(hit["release"])
+                    c.update(score=hit["score"], current=False, single=True)
+                    candidates.append(c)
+                return {"query": {"album": "", "artist": song[1], "title": song[0], "files": 1}, "current": None,
+                        "candidates": candidates, "recordings": {infos[0].path: _unique([h["recording"] for h in hits])},
+                        "note": None}
+        if song:
+            album = song[0]  # nothing found as a song: it may be a single of the same name
         try:
             if body.release.strip():
                 found = [get_release(mb_release_id(body.release))]
@@ -1255,7 +1287,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         if not body.release.strip():
             candidates.sort(key=lambda c: (not c["current"], -c["score"]))
         return {"query": {"album": album, "artist": artist, "files": len(rels)}, "current": current or None,
-                "candidates": candidates, "note": f"MusicBrainz didn't answer ({mb_error}), so these come from other sources." if mb_error else None}
+                "candidates": candidates, "recordings": {}, "note": f"MusicBrainz didn't answer ({mb_error}), so these come from other sources." if mb_error else None}
 
     @app.post("/api/musicbrainz/identify")
     def mb_identify(body: MBTarget) -> dict:
@@ -1776,6 +1808,15 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         return (most_common(f.album for f in infos),
                 most_common(f.albumartist or f.artist for f in infos))
 
+    def confident_match(best: dict, files: list[dict]) -> bool:
+        """Sure enough to write without asking: every track paired for certain, and the release fits
+        (a whole album: same number of tracks; one loose song: the song itself fits closely)."""
+        if not files or not all(f["track"] and f["confidence"] == "high" for f in files):
+            return False
+        if best.get("single"):
+            return best["score"] >= 90
+        return best.get("track_count") == len(files) and best["score"] >= 85
+
     def inbox_match(key: str) -> None:
         g = inbox.update(key, status=MATCHING, note="")
         if g is None:
@@ -1787,7 +1828,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             return
         try:
             found = mb_search(MBSearchIn(paths=g.paths)) if (title or artist) else {"candidates": []}
-            cands, recordings = found["candidates"], {}
+            cands, recordings = found["candidates"], found.get("recordings") or {}
             sound = (connections.enabled("acoustid") and connections.enabled("musicbrainz")
                      and fingerprinter.available and len(g.paths) <= MAX_IDENTIFY)
             if sound and (not cands or cands[0]["score"] < 85):
@@ -1796,16 +1837,15 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
                     cands, recordings = heard["candidates"], heard["recordings"]
             if not cands:
                 inbox.update(key, status=NO_MATCH, title=title, artist=artist,
-                             note="Not found online. Review it to search by hand, or file it by its own tags.")
+                             note="Couldn't find this online. Tap Search to look for it yourself, or keep its own tags.")
                 return
             best = cands[0]
             proposal = mb_preview(MBProposalIn(paths=g.paths, release=best["id"], recordings=recordings))
             files = [f for f in proposal["files"] if not f["error"]]
-            exact = (all(f["track"] and f["confidence"] == "high" for f in files)
-                     and best.get("track_count") == len(files) and best["score"] >= 85)
+            exact = confident_match(best, files)
             inbox.update(key, status=READY if exact else REVIEW, title=best["title"], artist=best["artist"],
                          release=best, score=best["score"], recordings=recordings,
-                         note="" if exact else "Check the match: not every track lines up for certain.")
+                         note="" if exact else "Codetta isn't sure this is the right album. Tap Review to check.")
             if exact and inbox_auto(key):
                 inbox_file(key, automatic=True)
         except HTTPException as exc:
@@ -1962,7 +2002,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
 
     care = care_mod.LibraryCareStore(settings.config_dir / "library-care.json")
     care_wake = threading.Event()
-    care_worker: dict = {"thread": None, "albums": []}
+    care_worker: dict = {"thread": None, "albums": [], "at": 0.0, "current": None, "gen": 0}
 
     def care_album_folders() -> list[str]:
         """Folders that hold audio, from the search index (no disk walk); never the inbox."""
@@ -1975,74 +2015,130 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             folders.add(parent)
         return sorted(folders)
 
+    def care_match(paths: list[str]) -> tuple[str, str, str, bool]:
+        """Match one album (or one loose song) and tag it if Codetta is sure.
+        Returns (status, note for people, title, tagged)."""
+        found = mb_search(MBSearchIn(paths=paths))
+        cands = found["candidates"]
+        if not cands:
+            return care_mod.REVIEW, "Couldn't find it online", "", False
+        best = cands[0]
+        title = f"{best['title']} · {best['artist']}"
+        recs = found.get("recordings") or {}
+        proposal = mb_preview(MBProposalIn(paths=paths, release=best["id"], recordings=recs))
+        files = [f for f in proposal["files"] if not f["error"]]
+        if not confident_match(best, files):
+            return care_mod.REVIEW, f"Not sure it's the right album ({best['score']}% match)", title, False
+        res = mb_apply(MBProposalIn(paths=paths, release=best["id"], recordings=recs))
+        if res["failed"]:
+            return care_mod.ERROR, f"{res['failed']} song(s) couldn't be changed", title, False
+        return care_mod.TAGGED, "", title, True
+
     def care_one(folder: str) -> None:
         try:
             paths = audio_files(library, folder, False, 500)
         except (LibraryPathError, OSError):
-            care.record(folder, care_mod.SKIPPED, "No longer there")
+            care.forget(folder)
             return
         if not paths:
-            care.record(folder, care_mod.SKIPPED)
+            care.forget(folder)
             return
-        known = lib_index.stored(paths)
-        matched = all((known.get(p, (0, 0, {}))[2].get("tags") or {}).get("musicbrainz_albumid") for p in paths)
-        status, note, title, tagged = care_mod.SKIPPED, "", "", matched
+        care_worker["current"] = folder
+        known = {p: (v[2].get("tags") or {}) for p, v in lib_index.stored(paths).items()}
+        first = lambda p, k: ((known.get(p) or {}).get(k) or [""])[0]  # noqa: E731
+        matched = all(first(p, "musicbrainz_albumid") for p in paths)
         online = connections.enabled("musicbrainz") or catalogs.available()
-        if not matched and online:
-            found = mb_search(MBSearchIn(paths=paths))
-            cands = found["candidates"]
-            if not cands:
-                status, note = care_mod.REVIEW, "Not found online"
-            else:
-                best = cands[0]
-                title = f"{best['title']} · {best['artist']}"
-                proposal = mb_preview(MBProposalIn(paths=paths, release=best["id"]))
-                files = [f for f in proposal["files"] if not f["error"]]
-                exact = (files and all(f["track"] and f["confidence"] == "high" for f in files)
-                         and best.get("track_count") == len(files) and best["score"] >= 85)
-                if exact:
-                    res = mb_apply(MBProposalIn(paths=paths, release=best["id"]))
-                    tagged = not res["failed"]
-                    status = care_mod.TAGGED if tagged else care_mod.ERROR
-                    note = "" if tagged else f"{res['failed']} file(s) couldn't be tagged"
-                else:
-                    status, note = care_mod.REVIEW, f"Best guess {best['score']}%, not certain enough to write"
+        albums = {first(p, "album").casefold() for p in paths}
+        loose = len(paths) > 1 and (len(albums) > 1 or albums == {""})  # songs from different albums
+        status, note, title, tagged = care_mod.SKIPPED, "", "", paths if matched else []
+        if not matched and not online:
+            status, note = care_mod.REVIEW, "Turn on MusicBrainz (Account → Connections) to match it"
+        elif not matched and loose:
+            # A folder of loose songs: each one is matched as a song, on its own.
+            tagged = []
+            for p in paths:
+                if first(p, "musicbrainz_albumid"):
+                    tagged.append(p)
+                    continue
+                *_, ok = care_match([p])
+                if ok:
+                    tagged.append(p)
+            status = care_mod.TAGGED if len(tagged) == len(paths) else care_mod.REVIEW
+            note = "" if status == care_mod.TAGGED else f"Loose songs: {len(tagged)} of {len(paths)} matched"
         elif not matched:
-            status, note = care_mod.REVIEW, "Online lookups are off, so it can't be matched"
+            status, note, title, ok = care_match(paths)
+            tagged = paths if ok else []
+        elif len(albums) > 1 and online and len({first(p, "musicbrainz_albumid") for p in paths}) == 1:
+            # Matched before, but the songs disagree on the album's name ("Rumours" and "Rumours
+            # (2004 Remaster)"): write them again from that same release so they agree.
+            rid = first(paths[0], "musicbrainz_albumid")
+            proposal = mb_preview(MBProposalIn(paths=paths, release=rid))
+            files = [f for f in proposal["files"] if not f["error"]]
+            if files and all(f["track"] and f["confidence"] == "high" for f in files):
+                # Only the album's name (and its artist): the year and the rest stay as they are.
+                res = mb_apply(MBProposalIn(paths=paths, release=rid, fields=["album", "albumartist"], cover="none"))
+                status = care_mod.TAGGED if not res["failed"] else care_mod.ERROR
+                title = f"{proposal['release']['title']} · {proposal['release']['artist']}" if proposal.get("release") else ""
+            else:
+                status, note, tagged = care_mod.REVIEW, "Its songs have different album names", []
+        if care.mode == "full" and tagged:
+            # Never split an album: if its songs would land in different folders, leave them be.
+            dests = {m["dst"].rsplit("/", 1)[0] for m in organize_preview(OrganizeIn(paths=tagged))["moves"]
+                     if m["status"] in ("move", "same")}
+            if len(dests) > 1:
+                care.record(folder, care_mod.REVIEW, "Its songs would end up in different folders, so it wasn't moved", title)
+                return
         if care.mode == "full" and tagged:  # names and folders only ever come from a confident match
-            org = organize_apply(OrganizeIn(paths=paths))
+            org = organize_apply(OrganizeIn(paths=tagged))
             if org["moved"]:
-                status = care_mod.ORGANIZED
-                moved_to = next(r["dst"] for r in org["results"] if r["ok"]).rsplit("/", 1)[0]
-                if moved_to != folder:
-                    care.record(moved_to, care_mod.ORGANIZED, title=title)  # its new home is done too
+                if status in (care_mod.SKIPPED, care_mod.TAGGED):
+                    status = care_mod.ORGANIZED
+                for r in org["results"]:
+                    if r["ok"]:
+                        new = r["dst"].rsplit("/", 1)[0]
+                        if new != folder:
+                            care.record(new, care_mod.ORGANIZED, title=title)  # its new home is done
+                remaining = [p for p in paths if p not in {r["src"] for r in org["results"] if r["ok"]}]
+                if not remaining:
+                    care.forget(folder)  # everything moved out: the old folder is gone
+                    return
         care.record(folder, status, note, title)
 
     def care_run() -> None:
-        while care.mode != "off" and not care.paused:
-            if not lib_index.status().ready:  # the first scan comes first
-                if care_wake.wait(5):
-                    care_wake.clear()
-                continue
-            albums = care_album_folders()
-            care_worker["albums"] = albums
-            todo = [f for f in albums if f not in care.albums]
-            if not todo:
-                return
-            for folder in todo:
-                if care.mode == "off" or care.paused:
+        try:
+            while care.mode != "off" and not care.paused:
+                if not lib_index.status().ready:  # the first scan comes first
+                    if care_wake.wait(5):
+                        care_wake.clear()
+                    continue
+                gen = care_worker["gen"]  # a new choice (or "try again") restarts the pass
+                albums = care_album_folders()
+                care_worker["albums"], care_worker["at"] = albums, time.monotonic()
+                todo = [f for f in albums if f not in care.albums]
+                if not todo:
+                    care.end()
                     return
-                try:
-                    care_one(folder)
-                except HTTPException as exc:
-                    care.record(folder, care_mod.ERROR, str(exc.detail))
-                except Exception as exc:  # noqa: BLE001 - one album never stops the rest
-                    log.warning("Library care: %s: %s", folder, exc)
-                    care.record(folder, care_mod.ERROR, "Something went wrong with this album")
-                if care_wake.wait(settings.care_pause_seconds):  # a gentle pace (online lookups are rate limited)
-                    care_wake.clear()
+                care.begin()
+                for folder in todo:
                     if care.mode == "off" or care.paused:
                         return
+                    if care_worker["gen"] != gen:
+                        break
+                    try:
+                        care_one(folder)
+                    except HTTPException as exc:
+                        care.record(folder, care_mod.ERROR, str(exc.detail))
+                    except Exception as exc:  # noqa: BLE001 - one album never stops the rest
+                        log.warning("Tidy up: %s: %s", folder, exc)
+                        care.record(folder, care_mod.ERROR, "Something went wrong with this album")
+                    if care_wake.wait(settings.care_pause_seconds):  # a gentle pace (online lookups are rate limited)
+                        care_wake.clear()
+                        if care.mode == "off" or care.paused:
+                            return
+                if care_wake.wait(2):  # let the index catch up with the moves before looking again
+                    care_wake.clear()
+        finally:
+            care_worker["current"] = None
 
     def care_start() -> None:
         t = care_worker["thread"]
@@ -2055,9 +2151,10 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     app.state.care_stop = care_wake.set
 
     def care_out() -> dict:
-        albums = care_worker["albums"] or care_album_folders()
+        if not care_worker.get("albums") or time.monotonic() - care_worker.get("at", 0) > 10:
+            care_worker["albums"], care_worker["at"] = care_album_folders(), time.monotonic()
         t = care_worker["thread"]
-        return care.summary(len(albums)) | {"running": bool(t and t.is_alive())}
+        return care.summary(care_worker["albums"]) | {"running": bool(t and t.is_alive()), "current": care_worker.get("current")}
 
     @app.get("/api/library-care")
     def library_care() -> dict:
@@ -2070,9 +2167,9 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         """Choose how Codetta looks after the library (off / tags / full), or pause and resume."""
         require_library()
         care.set(body.mode, body.paused)
-        if care.mode == "off" or care.paused:
-            care_wake.set()
-        else:
+        care_worker["gen"] += 1
+        care_wake.set()  # a running pass notices right away
+        if care.mode != "off" and not care.paused:
             care_start()
         return care_out()
 
@@ -2081,6 +2178,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         """Look at one album again (after you've fixed it, or to retry)."""
         require_library()
         care.forget(body.folder.strip().strip("/"))
+        care_worker["gen"] += 1
         care_start()
         return care_out()
 

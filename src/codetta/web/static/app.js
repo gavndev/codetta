@@ -69,7 +69,8 @@ function ask({ title, message = "", details = null, confirmLabel = "OK", cancelL
     setKids($("#confirm-body"), message ? h("p", { class: "confirm-msg" }, message) : null, details);
     ok.textContent = confirmLabel;
     ok.className = `btn ${danger ? "danger-fill" : "primary"}`;
-    cancel.textContent = cancelLabel;
+    cancel.hidden = cancelLabel == null;
+    cancel.textContent = cancelLabel ?? "";
     let settled = false;
     const finish = (value) => {
       if (settled) return;
@@ -3880,8 +3881,8 @@ async function renderSetupStep(step) {
   } else if (step === "library") {
     const pick = careChoices("off");
     setKids(form, setupLogo(), stepCount(),
-      h("h1", {}, "How should Codetta look after your library?"),
-      h("p", { class: "auth-sub" }, "Codetta can tag (and organize) the music you already have, one album at a time in the background. Only confident matches are written, the rest wait for you, and everything can be undone."),
+      h("h1", {}, "Should Codetta tidy up your library?"),
+      h("p", { class: "auth-sub" }, "Codetta can go through the music you already have, one album at a time, and fix it for you. It only changes an album when it's sure, and you can undo anything."),
       pick.box,
       h("button", { class: "btn primary auth-submit", type: "submit" }, "Continue"),
       h("p", { class: "auth-foot" }, "You can change this any time in the account menu → Tidy up."));
@@ -4042,7 +4043,7 @@ async function openNews({ latestOnly = false } = {}) {
 
 const inboxState = { data: null, timer: null, settingsOpen: false };
 const INBOX_LABELS = {
-  downloading: "Still arriving", waiting: "Waiting", matching: "Looking up…", ready: "Ready to file", review: "Needs a look", nomatch: "Not found",
+  downloading: "Still arriving", waiting: "Waiting", matching: "Looking up…", ready: "Ready", review: "Not sure", nomatch: "Not found",
   local: "Files by its tags", filed: "Filed", skipped: "Skipped", error: "Problem",
 };
 const inboxPending = (d) => (d?.groups || []).filter((g) => !["filed", "skipped"].includes(g.status)).length;
@@ -4141,8 +4142,8 @@ function renderInbox() {
     const accept = () => inboxAction("/api/inbox/accept", { key: g.key }, (res) =>
       toast(res.status === "filed" ? `Filed in ${res.moved_to || "your library"}` : res.note, res.status === "filed" ? "success" : "error"));
     if (g.status === "ready") actions.push(btn("File", accept, true), btn("Review", () => reviewInboxGroup(g)));
-    else if (g.status === "review") actions.push(btn("Review", () => reviewInboxGroup(g), true), btn("File with this match", accept));
-    else if (g.status === "nomatch") actions.push(btn("Search", () => reviewInboxGroup(g), true), btn("File by its tags", accept));
+    else if (g.status === "review") actions.push(btn("Review", () => reviewInboxGroup(g), true), btn("Use this match", accept));
+    else if (g.status === "nomatch") actions.push(btn("Search", () => reviewInboxGroup(g), true), btn("Keep its own tags", accept));
     else if (g.status === "local") actions.push(btn("File", accept, true));
     else if (g.status === "error") actions.push(btn("Try again", () => inboxAction("/api/inbox/rematch", { key: g.key })), d.online ? btn("Review", () => reviewInboxGroup(g)) : null);
     else if (g.status === "skipped") actions.push(btn("Look again", () => inboxAction("/api/inbox/rematch", { key: g.key })));
@@ -4713,34 +4714,54 @@ async function updateHealthSlot(force = false) {
 // ---- Tidy up (internally "library care"): tagging and organizing the existing library, gradually ---------------------------
 
 const CARE_MODES = [
-  { mode: "off", title: "Leave my files as they are", sub: "Nothing changes unless you do it yourself. You can still match and organize any album by hand." },
-  { mode: "tags", title: "Fix tags only", sub: "Codetta matches each album online and writes its tags. File names and folders stay exactly as they are." },
-  { mode: "full", title: "Tags, file names and folders", sub: "Tags first, then each album is renamed and moved with your folder pattern. Only after a confident match, never from a guess." },
+  { mode: "off", title: "Leave my files alone", short: "Off", sub: "Codetta won't change anything on its own." },
+  { mode: "tags", title: "Fix tags only", short: "Fixing tags", sub: "Codetta looks up each album and fixes its tags (names, artists, years, covers). File names and folders stay the same." },
+  { mode: "full", title: "Fix tags, names and folders", short: "Fixing tags, names and folders", sub: "Codetta fixes the tags, then renames the files and puts each album in a tidy folder." },
 ];
 let care = null;
+const careMode = (m) => CARE_MODES.find((x) => x.mode === m) || CARE_MODES[0];
+const clock = (t) => new Date(t * 1000).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
 async function loadCare() {
   try { care = await api("GET", "/api/library-care"); } catch { care = null; }
   const sub = $("#care-sub");
-  if (sub && care) sub.textContent = care.mode === "off" ? "Off: your files stay as they are" : CARE_MODES.find((m) => m.mode === care.mode).title;
+  if (sub && care) sub.textContent = careMode(care.mode).short;
   return care;
+}
+
+/** Where Tidy up is, in a few plain words. */
+function careStatus(c) {
+  const of = `${c.done} of ${plural(c.total, "album")}`;
+  if (c.paused) return { text: `Paused · ${of} checked`, busy: false };
+  if (c.finished && c.done >= c.total) return { text: `Finished · all ${plural(c.total, "album")} checked`, busy: false };
+  if (c.running) return { text: `Working · ${of} checked`, busy: true };
+  return { text: `Getting ready · ${of} checked`, busy: true };
+}
+
+function careBar(c) {
+  const pct = c.total ? Math.round((c.done / c.total) * 100) : 0;
+  const bar = h("div", { class: "care-bar", role: "progressbar", "aria-label": "Tidy up progress",
+    "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(pct) }, h("span", {}));
+  bar.firstChild.style.width = `${Math.max(c.done ? 2 : 0, pct)}%`;
+  return bar;
 }
 
 async function updateCareSlot() {
   const slot = $("#care-slot");
   await loadCare();
   if (!care || care.mode === "off" || state.path !== "" || state.folder?.search) { slot.hidden = true; return; }
-  const left = Math.max(0, care.total - care.done);
-  const sub = care.paused ? `Paused · ${care.done} of ${plural(care.total, "album")} done`
-    : left ? `${care.done} of ${plural(care.total, "album")} done${care.running ? "" : " · waiting"}` : `All ${plural(care.total, "album")} done`;
-  const look = care.counts.review + care.counts.error;
-  setKids(slot, h("button", { class: `health-card${look ? " has-issues" : ""}`, type: "button", onclick: openCare },
+  const st = careStatus(care);
+  const need = care.counts.review + care.counts.error;
+  setKids(slot, h("button", { class: `health-card care-card${need ? " has-issues" : ""}`, type: "button", onclick: openCare },
     h("span", { class: "health-card-icon" }, icon("layers")),
-    h("span", { class: "health-card-text" }, h("strong", {}, "Tidy up"), h("span", {}, sub)),
-    look ? h("span", { class: "health-card-count", title: "Need a look" }, String(look)) : null,
+    h("span", { class: "health-card-text" }, h("strong", {}, "Tidy up"), h("span", {}, st.text),
+      st.busy || care.paused ? careBar(care) : null),
+    need ? h("span", { class: "health-card-count", title: "Need you" }, String(need)) : null,
     icon("chevron")));
   slot.hidden = false;
-  if (care.running && !care.paused) { clearTimeout(updateCareSlot.t); updateCareSlot.t = setTimeout(updateCareSlot, 8000); }
+  clearTimeout(updateCareSlot.t);
+  // Every few seconds while it works; once a minute otherwise (new albums can start it again).
+  updateCareSlot.t = setTimeout(() => { if (!$("#care-slot").hidden && !document.hidden) updateCareSlot(); }, st.busy ? 5000 : 60000);
 }
 
 function careChoices(current) {
@@ -4754,8 +4775,8 @@ function careChoices(current) {
 async function chooseCare() {
   await loadCare();
   const pick = careChoices(care?.mode || "off");
-  const ok = await ask({ title: "How should Codetta look after your library?", details: pick.box, confirmLabel: "Save",
-    message: "It works through your albums one at a time in the background. Every change shows in Activity and can be undone." });
+  const ok = await ask({ title: "Tidy up", details: pick.box, confirmLabel: "Save",
+    message: "Codetta goes through your music one album at a time. It only changes an album when it's sure it found the right one, and you can undo anything in Activity." });
   if (!ok) return;
   try { care = await api("PUT", "/api/library-care", { mode: pick.value(), paused: false }); toast("Saved", "success"); } catch (err) { toast(err.message, "error"); }
   updateCareSlot();
@@ -4764,19 +4785,34 @@ async function chooseCare() {
 async function openCare() {
   await loadCare();
   if (!care) return;
+  const st = careStatus(care);
+  const n = care.counts;
+  const fixed = n.tagged + n.organized;
+  const need = n.review + n.error;
+  const stat = (num, label, cls = "") => h("div", { class: `care-stat ${cls}` }, h("strong", {}, String(num)), h("span", {}, label));
+  const when = [care.started ? `Started ${clock(care.started)}` : null,
+    care.finished && care.done >= care.total ? `Finished ${clock(care.finished)}` : care.current && st.busy ? `Now: ${care.current.split("/").pop()}` : null].filter(Boolean).join(" · ");
   const list = care.review.length ? h("ul", { class: "care-review" }, care.review.map((r) => h("li", {},
-    h("span", { class: "care-folder", dir: "auto" }, h("strong", {}, r.title || r.folder.split("/").pop()), h("span", {}, `${r.folder} · ${r.note}`)),
+    h("span", { class: "care-folder", dir: "auto" }, h("strong", {}, r.folder.split("/").pop() || r.folder), h("span", {}, r.note)),
     h("button", { class: "btn small", type: "button", onclick: () => { closeDialog($("#confirm-dialog")); navigate(r.folder); } }, "Open"),
-    h("button", { class: "link-btn", type: "button", onclick: async () => { care = await api("POST", "/api/library-care/again", { folder: r.folder }); toast("It's back in the queue"); } }, "Look again"))))
-    : h("p", { class: "hint" }, "Nothing needs a look.");
+    h("button", { class: "link-btn", type: "button", onclick: async (e) => {
+      care = await api("POST", "/api/library-care/again", { folder: r.folder });
+      e.target.closest("li").remove(); toast("Codetta will try it again");
+    } }, "Try again"))))
+    : null;
   const pause = h("button", { class: "btn small", type: "button", onclick: async () => {
     care = await api("PUT", "/api/library-care", { paused: !care.paused }); closeDialog($("#confirm-dialog")); updateCareSlot();
   } }, care.paused ? "Resume" : "Pause");
   const change = h("button", { class: "btn small", type: "button", onclick: () => { closeDialog($("#confirm-dialog")); setTimeout(chooseCare, 250); } }, "Change");
-  await ask({ title: "Tidy up", confirmLabel: "Done", cancelLabel: "Close",
-    message: `${CARE_MODES.find((m) => m.mode === care.mode).title}. ${care.done} of ${plural(care.total, "album")} looked at: ${care.counts.tagged + care.counts.organized} matched${care.counts.organized ? ` (${care.counts.organized} also organized)` : ""}, ${care.counts.skipped} already fine.`,
-    details: h("div", { class: "care-sheet" }, h("div", { class: "care-actions" }, pause, change),
-      h("h3", { class: "field-label" }, `Need a look (${care.counts.review + care.counts.error})`), list) });
+  await ask({ title: "Tidy up", confirmLabel: "Done", cancelLabel: null,
+    details: h("div", { class: "care-sheet" },
+      h("p", { class: "care-mode" }, careMode(care.mode).title),
+      h("div", { class: "care-progress" }, h("span", {}, st.text), careBar(care), when ? h("span", { class: "care-when" }, when) : null),
+      h("div", { class: "care-stats" }, stat(fixed, "fixed"), stat(n.skipped, "already fine"), stat(need, "need you", need ? "warn" : "")),
+      h("div", { class: "care-actions" }, pause, change),
+      need ? h("h3", { class: "field-label" }, "These need you") : null,
+      need ? h("p", { class: "hint" }, "Codetta wasn't sure about these, so it left them alone. Open one to pick the right album yourself.") : null,
+      list) });
 }
 
 async function openHealth(view = "issues") {

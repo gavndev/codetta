@@ -2879,3 +2879,19 @@ dialog:focus { outline: none; }
 .inbox-chip.owned { border: 0; cursor: pointer; font-family: inherit; background: color-mix(in oklab, #d97706 16%, transparent); color: #b45309; }
 :root[data-theme="dark"] .inbox-chip.owned { color: #fbbf24; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .inbox-chip.owned { color: #fbbf24; } }
+
+/* Tidy up: progress */
+.care-card .health-card-text { min-width: 0; flex: 1; }
+.care-bar { height: 4px; border-radius: 2px; background: var(--hover); overflow: hidden; margin-top: 6px; width: 100%; max-width: 360px; }
+.care-bar > span { display: block; height: 100%; width: 0; background: var(--spot); border-radius: 2px; transition: width 400ms ease; }
+.care-mode { margin: 0 0 10px; font-weight: 600; }
+.care-progress { display: grid; gap: 6px; font-size: 14px; }
+.care-progress .care-bar { max-width: none; height: 6px; border-radius: 3px; margin: 0; }
+.care-when { font-size: 12.5px; color: var(--muted); }
+.care-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 14px 0 12px; }
+.care-stat { display: grid; padding: 10px 12px; border-radius: 10px; background: var(--hover); }
+.care-stat strong { font-size: 20px; line-height: 1.2; }
+.care-stat span { font-size: 12.5px; color: var(--muted); }
+.care-stat.warn strong { color: #b45309; }
+:root[data-theme="dark"] .care-stat.warn strong { color: #fbbf24; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .care-stat.warn strong { color: #fbbf24; } }

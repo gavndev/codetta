@@ -63,6 +63,10 @@ def test_full_care_tags_then_organizes(album_dir, tmp_path):  # noqa: F811
     assert d["counts"]["organized"] >= 1
     assert (album_dir / "Coda Tester" / "Fixture Album (2024)" / "01 Opening.flac").exists()
     assert not (album_dir / FOLDER).exists()
+    time.sleep(0.3)
+    d = c.get("/api/library-care").json()
+    assert d["done"] <= d["total"]  # a moved album counts once, in its new folder
+    assert d["started"] and d["finished"] and d["finished"] >= d["started"]
     c.__exit__(None, None, None)
 
 
@@ -86,4 +90,20 @@ def test_pause_stops_and_off_is_the_default_choice(album_dir, tmp_path):  # noqa
     d = c.put("/api/library-care", json={"mode": "tags", "paused": True}).json()
     assert d["paused"] and not d["running"] and d["done"] == 0
     assert c.put("/api/library-care", json={"mode": "everything"}).status_code == 422
+    c.__exit__(None, None, None)
+
+
+def test_an_album_is_never_split_across_folders(album_dir, tmp_path):  # noqa: F811
+    # Matched before, but one song's album name differs ("Rumours" / "Rumours (2004 Remaster)").
+    engine = MetadataEngine()
+    for n, f in enumerate(sorted((album_dir / FOLDER).iterdir()), 1):
+        engine.update_tags(f, {"musicbrainz_albumid": REL, "artist": "Coda Tester", "albumartist": "Coda Tester",
+                               "album": "Fixture Album (Remaster)" if n == 3 else "Fixture Album", "date": "1999"})
+    c = client(album_dir, tmp_path)
+    c.put("/api/library-care", json={"mode": "full"})
+    wait_done(c)
+    folders = {p.parent for p in album_dir.rglob("*.flac")} | {p.parent for p in album_dir.rglob("*.mp3")} \
+        | {p.parent for p in album_dir.rglob("*.m4a")}
+    assert len(folders) == 1, folders  # the names were made to agree first, so it moved as one album
+    assert "(1999)" in next(iter(folders)).name  # and only the name was rewritten: the year stayed
     c.__exit__(None, None, None)
