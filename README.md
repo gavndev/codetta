@@ -44,7 +44,8 @@
 
 If you run your own music server, you know the drill: a SoundCloud download
 with no tags, an album where every track spells the artist differently, a
-folder of loose files that shows up as *Unknown Album*. I created this tool for home server users like myself who are looking for more granular control over their library. Honestly, it's my hobby project that I thought could be useful to others.
+folder of loose files that shows up as *Unknown Album*. I made Codetta for home server users like me who want finer control over their
+library. It's my hobby project, and I thought it could be useful to others too.
 
 Codetta lives on your server, next to your music. **Open it on your laptop or
 your phone, pick a track or a whole album, fix what's wrong and hit Save.**
@@ -54,8 +55,16 @@ be matched and filed for you. Your files are updated **safely**, anything
 Codetta does can be **undone**, and [Navidrome](https://www.navidrome.org/)
 and other music apps pick up the changes on their next scan.
 
-> **Codetta is in beta.** It's careful with your files and used daily on real libraries, but
-> keep a backup of your music, as you would with any tool that edits files.
+> [!NOTE]
+> **Codetta 0.9.0: now in beta.** The biggest release yet:
+> - **Tidy up** looks after the music you already have, album by album in the background, with a preview first.
+> - **Album editions:** pick the original year, format and country you prefer, and switch editions in one tap.
+> - **Loose songs** (a single download, a YouTube rip) are matched to the album they came from.
+> - **Import** music from your computer or phone, and **Recently deleted** keeps anything you remove for 30 days.
+> - A search bar with ideas from your own library, Deezer and iTunes as backup album sources, and a calmer Soulseek.
+>
+> Everything is in the [changelog](CHANGELOG.md). Codetta is careful with your files and used daily on real
+> libraries, but keep a backup of your music, as you would with any tool that edits files.
 
 > **Codetta is AI-Assisted.** I understand the controversy surrounding AI usage in software. I prioritize transparency, hence the disclaimer for those who do not favor AI. This project is assisted by Claude Opus 5.5.
 
@@ -81,7 +90,7 @@ docker compose up -d
 ```
 
 Open `http://<your-server>:8111` and create your account. A few short setup
-steps follow (online features, folder naming, the inbox, optional
+steps follow (online features, folder naming, Tidy up, the inbox, optional
 integrations). Each can be skipped and changed later.
 
 Runs on Intel/AMD and ARM, from a Raspberry Pi 4 up: about a 100 MB download
@@ -200,10 +209,13 @@ route.
 
 ### Made for your phone
 
+Big touch targets, a full-screen editor sheet, and covers straight from your
+photo library. Add it to your home screen and it opens like an app.
+
 <p align="center">
-  <img src="docs/screenshots/phone-album.png" alt="Album view on a phone" width="240">
+  <img src="docs/media/phone.webp" alt="Opening an album on a phone, editing a genre and saving" width="260">
   &nbsp;
-  <img src="docs/screenshots/phone-editor.png" alt="Track editor on a phone" width="240">
+  <img src="docs/screenshots/phone-album.png" alt="Album view on a phone" width="260">
 </p>
 
 ### Optional: Soulseek through slskd
@@ -259,6 +271,8 @@ light and dark themes. [See every feature →](docs/features.md)
 
 - **Refresh from MusicBrainz:** pick up corrections made since an album was matched.
 - **ReplayGain:** volume levelling, opt-in.
+- **More ways to install:** Windows and Homebrew.
+- **A home on the web:** a small, simple website for Codetta.
 
 ## What's new
 
@@ -301,4 +315,4 @@ Built with [mutagen](https://github.com/quodlibet/mutagen),
 Tag mappings follow [MusicBrainz Picard](https://picard.musicbrainz.org/docs/mappings/).
 The optional Soulseek integration talks to [slskd](https://github.com/slskd/slskd) over its API.
 The header and screenshots show real releases for illustration (the covers belong to their
-artists and labels; the audio files are silent stand-ins); the feature GIFs use made-up music.
+artists and labels; the audio files are silent stand-ins), and so do the feature clips.

@@ -48,7 +48,7 @@ albums. You always get a preview first, and you choose whether to only fill
 empty tags or overwrite them.
 
 <p align="center">
-  <img src="media/presets.gif" alt="Previewing the Single preset on a folder of loose downloads, then applying it to five files" width="900">
+  <img src="media/presets.webp" alt="Previewing the Single preset on a folder of loose downloads, then applying it to five files" width="900">
 </p>
 
 ## Undo anything
@@ -59,7 +59,7 @@ if you change it back. Files that were edited again since are left alone,
 never overwritten.
 
 <p align="center">
-  <img src="media/undo.gif" alt="Changing the genre of ten tracks at once, then undoing all ten from the activity log" width="900">
+  <img src="media/undo.webp" alt="Changing the genre of ten tracks at once, then undoing all ten from the activity log" width="900">
 </p>
 
 ## Made for your phone too
@@ -69,7 +69,7 @@ targets, a full-screen editor sheet, **Select** mode like the Photos app, and
 covers straight from your photo library (HEIC included).
 
 <p align="center">
-  <img src="media/phone.gif" alt="Opening an album on a phone, editing a genre and saving" width="260">
+  <img src="media/phone.webp" alt="Opening an album on a phone, editing a genre and saving" width="260">
   &nbsp;
   <img src="screenshots/phone-album.png" alt="Album view on a phone" width="260">
   &nbsp;

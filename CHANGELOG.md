@@ -2,10 +2,9 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
-## Unreleased (0.9.0)
+## 0.9.0 (2026-11-20)
 
 Codetta is now in **beta**.
-
 
 - **Already in your library:** albums in the inbox that you already have (the same release, or the same album and artist) get a label that opens the copy you have, so a duplicate download is easy to spot and remove.
 - **Remove from the inbox:** any album in the inbox can be removed (its files go to Recently deleted), so leftovers never need a trip to the server.
