@@ -2100,6 +2100,37 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             sk_transfers["at"] = time.time()
         return sk_transfers["list"]
 
+    owned_cache: dict[tuple, tuple[float, dict | None]] = {}
+
+    def inbox_owned(g) -> dict | None:
+        """Is this album already in the library (same release, or same album and artist)? Reads the
+        search index only; remembered for a minute so the Inbox can refresh often."""
+        rid = (g.release or {}).get("id") or ""
+        ck = (g.key, rid, g.title, g.artist)
+        hit = owned_cache.get(ck)
+        if hit and time.monotonic() - hit[0] < 60:
+            return hit[1]
+        found: set[str] = set()
+        if rid and not is_catalog_id(rid):
+            found = lib_index.paths_where("musicbrainz_albumid", rid)
+        if not found and g.title and g.artist:
+            found = lib_index.paths_where("album", g.title) & (
+                lib_index.paths_where("albumartist", g.artist) | lib_index.paths_where("artist", g.artist))
+        base = inbox.settings.folder
+        mine = set(g.paths)
+        found = {p for p in found if not p.startswith("@") and p not in mine and not (base and p.startswith(base + "/"))}
+        out = None
+        if found:
+            folders: dict[str, int] = {}
+            for p in found:
+                folders[p.rsplit("/", 1)[0] if "/" in p else ""] = folders.get(p.rsplit("/", 1)[0] if "/" in p else "", 0) + 1
+            folder, n = max(folders.items(), key=lambda kv: kv[1])
+            out = {"folder": folder, "tracks": n}
+        owned_cache[ck] = (time.monotonic(), out)
+        if len(owned_cache) > 500:
+            owned_cache.clear()
+        return out
+
     def inbox_out() -> dict:
         transfers = inbox_transfers()
         with inbox.lock:
@@ -2126,6 +2157,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
                 "groups": [{"key": g.key, "files": len(g.paths), "paths": g.paths[:1000], "status": g.status,
                             "title": g.title, "artist": g.artist, "release": g.release, "score": g.score,
                             "recordings": g.recordings, "note": g.note, "dest": g.dest,
+                            "owned": inbox_owned(g) if g.status not in (FILED, DOWNLOADING) else None,
                             "transfer": folder_progress(transfers, {p.rsplit("/", 1)[-1] for p in g.paths})
                                         if transfers and g.status == DOWNLOADING else None} for g in groups],
             }

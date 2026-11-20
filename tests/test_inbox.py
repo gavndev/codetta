@@ -328,3 +328,15 @@ def test_remove_from_the_inbox_sends_files_to_recently_deleted(make_client, musi
     assert list((tmp_path / "config" / "deleted").rglob("01.flac"))
     entry = c.get("/api/activity").json()[0]
     assert entry["kind"] == "delete" and entry["can_undo"]
+
+
+def test_an_album_you_already_have_is_labelled(make_client, music):
+    shutil.copytree(music / ALBUM_DIR, music / "Library" / "Have it")
+    c = make_client(online=False)
+    end = time.time() + 10
+    while c.get("/api/library-health/summary").json()["indexing"]:
+        assert time.time() < end
+        time.sleep(0.05)
+    c.put("/api/inbox/settings", json={"folder": "Downloads"})
+    g = settle(c)["groups"][0]
+    assert g["owned"] == {"folder": "Library/Have it", "tracks": 3}

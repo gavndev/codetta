@@ -4166,7 +4166,10 @@ function renderInbox() {
         h("div", { class: "mb-cand-meta" }, [rel ? mbMeta(rel) : "", `${plural(g.files, "file")} in ${inboxLabel(g.key)}`].filter(Boolean).join(" · ")),
         h("div", { class: "inbox-status" },
           h("span", { class: `inbox-chip ${g.status}` }, INBOX_LABELS[g.status] || g.status, g.score != null && g.status !== "filed" ? ` · ${g.score}%` : ""),
-          g.note && !g.transfer ? h("span", { class: "inbox-note" }, g.note) : null),
+          g.note && !g.transfer ? h("span", { class: "inbox-note" }, g.note) : null,
+          g.owned ? h("button", { class: "inbox-chip owned", type: "button", title: `Open ${g.owned.folder}`,
+            onclick: () => { closeDialog($("#inbox-dialog")); navigate(g.owned.folder); } },
+          `Already in your library (${plural(g.owned.tracks, "track")})`) : null),
         g.transfer ? progressBar(g.transfer.progress, [
           `${g.transfer.finished} of ${plural(g.transfer.files, "file")}`, etaText(g.transfer.eta)].filter(Boolean).join(" · ")) : null),
       h("div", { class: "inbox-actions" }, actions));

@@ -2876,3 +2876,6 @@ dialog:focus { outline: none; }
 @media (max-width: 760px) { .trash-item { flex-wrap: wrap; } .trash-actions { width: 100%; justify-content: flex-end; } }
 .link-btn.danger-text { color: var(--danger); }
 .sheet.small.confirm:has(.trash-list), .sheet.small.confirm:has(.care-sheet) { width: min(640px, calc(100vw - 24px)); max-width: none; }
+.inbox-chip.owned { border: 0; cursor: pointer; font-family: inherit; background: color-mix(in oklab, #d97706 16%, transparent); color: #b45309; }
+:root[data-theme="dark"] .inbox-chip.owned { color: #fbbf24; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .inbox-chip.owned { color: #fbbf24; } }

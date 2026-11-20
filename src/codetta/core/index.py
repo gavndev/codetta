@@ -655,6 +655,19 @@ class LibraryIndex:
                  + ",".join("?" * len(ids)) + ")")
             return {p for (p,) in self.db.execute(q, ids)}
 
+    def paths_where(self, key: str, value: str, limit: int = 5000) -> set[str]:
+        """Files whose ``key`` tag is ``value`` (any case or accents; one of several values counts)."""
+        want = sfold(value)
+        with self._lock:
+            kid = self._key_ids.get(key.lower())
+            if kid is None or not want:
+                return set()
+            rows = self.db.execute(
+                "SELECT f.path FROM tags t JOIN files f ON f.id = t.file WHERE t.key = ? "
+                "AND instr(char(31) || t.value || char(31), char(31) || ? || char(31)) > 0 LIMIT ?",
+                (kid, want, limit)).fetchall()
+        return {p for (p,) in rows}
+
     def has_key(self, key: str) -> bool:
         with self._lock:
             return key in self._key_ids
