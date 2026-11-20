@@ -3876,6 +3876,19 @@ async function renderSetupStep(step) {
       try { await api("PUT", "/api/organize/settings", { pattern: chosen }); } catch (err) { toast(err.message, "error"); return; }
       finishStep(step);
     };
+  } else if (step === "library") {
+    const pick = careChoices("off");
+    setKids(form, setupLogo(), stepCount(),
+      h("h1", {}, "How should Codetta look after your library?"),
+      h("p", { class: "auth-sub" }, "Codetta can tag (and organize) the music you already have, one album at a time in the background. Only confident matches are written, the rest wait for you, and everything can be undone."),
+      pick.box,
+      h("button", { class: "btn primary auth-submit", type: "submit" }, "Continue"),
+      h("p", { class: "auth-foot" }, "You can change this any time in the account menu → Library care."));
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      try { await api("PUT", "/api/library-care", { mode: pick.value() }); } catch (err) { toast(err.message, "error"); return; }
+      finishStep(step);
+    };
   } else if (step === "health") {
     setKids(form, setupLogo(), stepCount(),
       h("h1", {}, "Check your library for problems?"),
@@ -4666,6 +4679,76 @@ async function updateHealthSlot(force = false) {
     s.count ? h("span", { class: "health-card-count" }, String(s.count > 999 ? "999+" : s.count)) : null,
     icon("chevron")));
   slot.hidden = false;
+  updateCareSlot();
+}
+
+// ---- Library care: tagging and organizing the existing library, gradually ---------------------------
+
+const CARE_MODES = [
+  { mode: "off", title: "Leave my files as they are", sub: "Nothing changes unless you do it yourself. You can still match and organize any album by hand." },
+  { mode: "tags", title: "Fix tags only", sub: "Codetta matches each album online and writes its tags. File names and folders stay exactly as they are." },
+  { mode: "full", title: "Tags, file names and folders", sub: "Tags first, then each album is renamed and moved with your folder pattern. Only after a confident match, never from a guess." },
+];
+let care = null;
+
+async function loadCare() {
+  try { care = await api("GET", "/api/library-care"); } catch { care = null; }
+  const sub = $("#care-sub");
+  if (sub && care) sub.textContent = care.mode === "off" ? "Off: your files stay as they are" : CARE_MODES.find((m) => m.mode === care.mode).title;
+  return care;
+}
+
+async function updateCareSlot() {
+  const slot = $("#care-slot");
+  await loadCare();
+  if (!care || care.mode === "off" || state.path !== "" || state.folder?.search) { slot.hidden = true; return; }
+  const left = Math.max(0, care.total - care.done);
+  const sub = care.paused ? `Paused · ${care.done} of ${plural(care.total, "album")} done`
+    : left ? `${care.done} of ${plural(care.total, "album")} done${care.running ? "" : " · waiting"}` : `All ${plural(care.total, "album")} done`;
+  const look = care.counts.review + care.counts.error;
+  setKids(slot, h("button", { class: `health-card${look ? " has-issues" : ""}`, type: "button", onclick: openCare },
+    h("span", { class: "health-card-icon" }, icon("layers")),
+    h("span", { class: "health-card-text" }, h("strong", {}, "Library care"), h("span", {}, sub)),
+    look ? h("span", { class: "health-card-count", title: "Need a look" }, String(look)) : null,
+    icon("chevron")));
+  slot.hidden = false;
+  if (care.running && !care.paused) { clearTimeout(updateCareSlot.t); updateCareSlot.t = setTimeout(updateCareSlot, 8000); }
+}
+
+function careChoices(current) {
+  let chosen = current;
+  const box = h("fieldset", { class: "choices" }, CARE_MODES.map((m) => h("label", { class: "choice" },
+    h("input", { type: "radio", name: "care-mode", value: m.mode, checked: m.mode === current, onchange: () => { chosen = m.mode; } }),
+    h("span", { class: "choice-body" }, h("span", { class: "choice-title" }, m.title), h("span", { class: "choice-sub" }, m.sub)))));
+  return { box, value: () => chosen };
+}
+
+async function chooseCare() {
+  await loadCare();
+  const pick = careChoices(care?.mode || "off");
+  const ok = await ask({ title: "How should Codetta look after your library?", details: pick.box, confirmLabel: "Save",
+    message: "It works through your albums one at a time in the background. Every change shows in Activity and can be undone." });
+  if (!ok) return;
+  try { care = await api("PUT", "/api/library-care", { mode: pick.value(), paused: false }); toast("Saved", "success"); } catch (err) { toast(err.message, "error"); }
+  updateCareSlot();
+}
+
+async function openCare() {
+  await loadCare();
+  if (!care) return;
+  const list = care.review.length ? h("ul", { class: "care-review" }, care.review.map((r) => h("li", {},
+    h("span", { class: "care-folder", dir: "auto" }, h("strong", {}, r.title || r.folder.split("/").pop()), h("span", {}, `${r.folder} · ${r.note}`)),
+    h("button", { class: "btn small", type: "button", onclick: () => { closeDialog($("#confirm-dialog")); navigate(r.folder); } }, "Open"),
+    h("button", { class: "link-btn", type: "button", onclick: async () => { care = await api("POST", "/api/library-care/again", { folder: r.folder }); toast("It's back in the queue"); } }, "Look again"))))
+    : h("p", { class: "hint" }, "Nothing needs a look.");
+  const pause = h("button", { class: "btn small", type: "button", onclick: async () => {
+    care = await api("PUT", "/api/library-care", { paused: !care.paused }); closeDialog($("#confirm-dialog")); updateCareSlot();
+  } }, care.paused ? "Resume" : "Pause");
+  const change = h("button", { class: "btn small", type: "button", onclick: () => { closeDialog($("#confirm-dialog")); setTimeout(chooseCare, 250); } }, "Change");
+  await ask({ title: "Library care", confirmLabel: "Done", cancelLabel: "Close",
+    message: `${CARE_MODES.find((m) => m.mode === care.mode).title}. ${care.done} of ${plural(care.total, "album")} looked at: ${care.counts.tagged + care.counts.organized} matched${care.counts.organized ? ` (${care.counts.organized} also organized)` : ""}, ${care.counts.skipped} already fine.`,
+    details: h("div", { class: "care-sheet" }, h("div", { class: "care-actions" }, pause, change),
+      h("h3", { class: "field-label" }, `Need a look (${care.counts.review + care.counts.error})`), list) });
 }
 
 async function openHealth(view = "issues") {
@@ -5367,6 +5450,7 @@ function bindEvents() {
   });
 
   setupContextMenu();
+  $("#care-toggle").addEventListener("click", () => { closeDialog($("#account-dialog")); setTimeout(chooseCare, 250); });
   $("#log-tile").addEventListener("toggle", () => { if ($("#log-tile").open) pollLog(); else stopLogPolling(); });
   $("#account-dialog").addEventListener("close", stopLogPolling);
   syncLogTile();

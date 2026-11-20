@@ -2834,3 +2834,12 @@ dialog:focus { outline: none; }
 .src-badge.deezer { background: linear-gradient(115deg, #a238ff, #ff5e5e); }
 .src-badge.itunes { background: linear-gradient(115deg, #fa233b, #fb5c74); }
 .mb-note { margin: 0 0 8px; }
+
+/* Library care */
+.choice-sub { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+.care-actions { display: flex; gap: 8px; margin: 4px 0 12px; }
+.care-review { list-style: none; margin: 6px 0 0; padding: 0; max-height: 46vh; overflow-y: auto; }
+.care-review li { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--rule); }
+.care-folder { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.care-folder strong, .care-folder span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.care-folder span { font-size: 12.5px; color: var(--muted); }

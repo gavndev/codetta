@@ -80,6 +80,7 @@ from codetta.core.health import run as health_run
 from codetta.core.describe import describe_file, describe_many
 from codetta.core.fileinfo import file_info, folder_info
 from codetta.core.catalogs import Catalogs, is_catalog_id
+from codetta.core import librarycare as care_mod
 from codetta.core.logbuffer import shared_buffer
 from codetta.core.plugins import ActionError, PluginManager
 from codetta.core.index import LibraryIndex, parse_query
@@ -231,6 +232,7 @@ class Settings:
     inbox_dir: Path | None = None  # a downloads folder outside the library (e.g. slskd's), used as "@inbox"
     inbox_settle_seconds: float = 120  # wait this long after a file changes (downloads still arriving)
     slskd_poll_seconds: float = 4  # how often a Soulseek request under way is checked on
+    care_pause_seconds: float = 2  # Library care: the pause between albums (online lookups are rate limited)
     index_workers: int = 0  # processes that help a big index scan (0: one fewer than the CPUs, up to 4)
     update_repo: str = DEFAULT_REPO
     allowed_hosts: tuple[str, ...] = ()  # empty = answer to any host name
@@ -478,6 +480,15 @@ class PluginToggleIn(BaseModel):
     enabled: bool
 
 
+class LibraryCareIn(BaseModel):
+    mode: Literal["off", "tags", "full"] | None = None
+    paused: bool | None = None
+
+
+class LibraryCareFolderIn(BaseModel):
+    folder: str = Field(max_length=MAX_PATH_CHARS)
+
+
 class FilesIn(BaseModel):
     paths: list[Annotated[str, Field(max_length=MAX_PATH_CHARS)]] = Field(min_length=1, max_length=MAX_PATHS_PER_REQUEST)
 
@@ -625,7 +636,9 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         watcher = threading.Thread(target=app.state.inbox_watch, name="codetta-inbox-watch", daemon=True)
         watcher.start()  # sleeps; only looks at the inbox if "check every 15 minutes" is on
         app.state.soulseek_start()  # carries on with downloads that were under way
+        app.state.care_start()  # Library care carries on where it left off (if it's switched on)
         yield
+        app.state.care_stop()
         inbox_wake.set()
         app.state.soulseek_stop()
         try:
@@ -1725,7 +1738,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         steps = []
         if connections.needs_choice:
             steps.append("connections")
-        steps += [s for s in ("organize", "inbox", "health", "slskd") if s not in onboarding.done]
+        steps += [s for s in ("organize", "library", "inbox", "health", "slskd") if s not in onboarding.done]
         return {"steps": steps}
 
     @app.post("/api/onboarding/{step}")
@@ -1932,6 +1945,132 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
                     log.warning("Inbox check failed: %s", exc)
 
     app.state.inbox_watch = inbox_watch  # started in lifespan
+
+    # --- Library care: tagging and organizing the existing library, gradually ------------------
+
+    care = care_mod.LibraryCareStore(settings.config_dir / "library-care.json")
+    care_wake = threading.Event()
+    care_worker: dict = {"thread": None, "albums": []}
+
+    def care_album_folders() -> list[str]:
+        """Folders that hold audio, from the search index (no disk walk); never the inbox."""
+        base = inbox.settings.folder
+        folders = set()
+        for path, _ in lib_index.iter_tracks():
+            parent = path.rsplit("/", 1)[0] if "/" in path else ""
+            if parent.startswith("@") or (base and (parent == base or parent.startswith(base + "/"))):
+                continue
+            folders.add(parent)
+        return sorted(folders)
+
+    def care_one(folder: str) -> None:
+        try:
+            paths = audio_files(library, folder, False, 500)
+        except (LibraryPathError, OSError):
+            care.record(folder, care_mod.SKIPPED, "No longer there")
+            return
+        if not paths:
+            care.record(folder, care_mod.SKIPPED)
+            return
+        known = lib_index.stored(paths)
+        matched = all((known.get(p, (0, 0, {}))[2].get("tags") or {}).get("musicbrainz_albumid") for p in paths)
+        status, note, title, tagged = care_mod.SKIPPED, "", "", matched
+        online = connections.enabled("musicbrainz") or catalogs.available()
+        if not matched and online:
+            found = mb_search(MBSearchIn(paths=paths))
+            cands = found["candidates"]
+            if not cands:
+                status, note = care_mod.REVIEW, "Not found online"
+            else:
+                best = cands[0]
+                title = f"{best['title']} · {best['artist']}"
+                proposal = mb_preview(MBProposalIn(paths=paths, release=best["id"]))
+                files = [f for f in proposal["files"] if not f["error"]]
+                exact = (files and all(f["track"] and f["confidence"] == "high" for f in files)
+                         and best.get("track_count") == len(files) and best["score"] >= 85)
+                if exact:
+                    res = mb_apply(MBProposalIn(paths=paths, release=best["id"]))
+                    tagged = not res["failed"]
+                    status = care_mod.TAGGED if tagged else care_mod.ERROR
+                    note = "" if tagged else f"{res['failed']} file(s) couldn't be tagged"
+                else:
+                    status, note = care_mod.REVIEW, f"Best guess {best['score']}%, not certain enough to write"
+        elif not matched:
+            status, note = care_mod.REVIEW, "Online lookups are off, so it can't be matched"
+        if care.mode == "full" and tagged:  # names and folders only ever come from a confident match
+            org = organize_apply(OrganizeIn(paths=paths))
+            if org["moved"]:
+                status = care_mod.ORGANIZED
+                moved_to = next(r["dst"] for r in org["results"] if r["ok"]).rsplit("/", 1)[0]
+                if moved_to != folder:
+                    care.record(moved_to, care_mod.ORGANIZED, title=title)  # its new home is done too
+        care.record(folder, status, note, title)
+
+    def care_run() -> None:
+        while care.mode != "off" and not care.paused:
+            if not lib_index.status().ready:  # the first scan comes first
+                if care_wake.wait(5):
+                    care_wake.clear()
+                continue
+            albums = care_album_folders()
+            care_worker["albums"] = albums
+            todo = [f for f in albums if f not in care.albums]
+            if not todo:
+                return
+            for folder in todo:
+                if care.mode == "off" or care.paused:
+                    return
+                try:
+                    care_one(folder)
+                except HTTPException as exc:
+                    care.record(folder, care_mod.ERROR, str(exc.detail))
+                except Exception as exc:  # noqa: BLE001 - one album never stops the rest
+                    log.warning("Library care: %s: %s", folder, exc)
+                    care.record(folder, care_mod.ERROR, "Something went wrong with this album")
+                if care_wake.wait(settings.care_pause_seconds):  # a gentle pace (online lookups are rate limited)
+                    care_wake.clear()
+                    if care.mode == "off" or care.paused:
+                        return
+
+    def care_start() -> None:
+        t = care_worker["thread"]
+        if care.mode != "off" and not care.paused and (t is None or not t.is_alive()):
+            care_wake.clear()
+            care_worker["thread"] = threading.Thread(target=care_run, name="codetta-library-care", daemon=True)
+            care_worker["thread"].start()
+
+    app.state.care_start = care_start
+    app.state.care_stop = care_wake.set
+
+    def care_out() -> dict:
+        albums = care_worker["albums"] or care_album_folders()
+        t = care_worker["thread"]
+        return care.summary(len(albums)) | {"running": bool(t and t.is_alive())}
+
+    @app.get("/api/library-care")
+    def library_care() -> dict:
+        """Library care's choice and progress: albums done, and the ones that need a look."""
+        require_library()
+        return care_out()
+
+    @app.put("/api/library-care")
+    def set_library_care(body: LibraryCareIn) -> dict:
+        """Choose how Codetta looks after the library (off / tags / full), or pause and resume."""
+        require_library()
+        care.set(body.mode, body.paused)
+        if care.mode == "off" or care.paused:
+            care_wake.set()
+        else:
+            care_start()
+        return care_out()
+
+    @app.post("/api/library-care/again")
+    def library_care_again(body: LibraryCareFolderIn) -> dict:
+        """Look at one album again (after you've fixed it, or to retry)."""
+        require_library()
+        care.forget(body.folder.strip().strip("/"))
+        care_start()
+        return care_out()
 
     sk_transfers: dict = {"at": 0.0, "list": []}
 
