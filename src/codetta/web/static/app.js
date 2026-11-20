@@ -1,6 +1,6 @@
 // Codetta UI — plain JavaScript, no framework, no build step.
 //
-// Talks to the JSON API in codetta/web/app.py. The current folder lives in the
+// Talks to the JSON API in codetta/web/routes/ (one module per area). The current folder lives in the
 // URL hash (#/Artist/Album), so the back button and refresh work.
 
 // ---- Tiny DOM helpers ----------------------------------------------------------

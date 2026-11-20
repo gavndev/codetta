@@ -8,7 +8,7 @@ away (confident matches, if the user allows it) or waits for a review.
 library with the saved pattern, each an ordinary undoable activity entry.
 
 This module only knows about groups and their state; the matching and filing
-use the same code as "Find in MusicBrainz" and "Organize" (see web/app.py).
+use the same code as "Find in MusicBrainz" and "Organize" (see web/routes/inbox.py).
 State lives in ``inbox.json`` in the config folder.
 """
 
