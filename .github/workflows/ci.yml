@@ -11,12 +11,18 @@ permissions:
 
 jobs:
   tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.14: the snap (core26) and many pipx installs. 3.15: the Docker image.
+        python: ["3.14", "3.15"]
+    name: tests (Python ${{ matrix.python }})
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.14"
+          python-version: ${{ matrix.python }}
           cache: pip
       - run: pip install -e ".[dev]"
       - run: pytest -q
