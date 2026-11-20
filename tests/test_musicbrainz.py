@@ -654,6 +654,19 @@ def test_edition_fit_orders_but_never_adds_certainty():
         edition_fit({"title": "Album", "track_count": 12, "formats": "CD"}, prefs, files=12)
 
 
+def test_a_cd_r_is_never_the_edition_codetta_prefers():
+    """Frank Ocean's "nights" was filed on a CD-R of Blonde with the default settings: CD-Rs are promos,
+    bootlegs or made-to-order copies. Any real release fits better, whatever format is preferred."""
+    from codetta.core.editions import EditionPrefs, edition_fit
+    cdr = {"formats": "CD-R", "country": "XW", "status": "Official"}
+    for fmt in ("any", "cd", "digital", "vinyl"):
+        prefs = EditionPrefs(format=fmt)
+        for real in ("Digital Media", "CD", "12\" Vinyl"):
+            assert edition_fit(cdr, prefs) < edition_fit({"formats": real, "country": "XW", "status": "Official"}, prefs), (fmt, real)
+    # A set with a real CD in it isn't marked down.
+    assert edition_fit({"formats": "CD + CD-R"}, EditionPrefs()) == edition_fit({"formats": "CD"}, EditionPrefs())
+
+
 def test_a_loose_songs_edition_follows_preferences_not_a_length_nudge():
     """Hyperballad came in on Post's DualDisc DVD side, because that recording's length was a few seconds
     closer to a lyric video's. Inside one album, the preferred (audio) edition wins."""

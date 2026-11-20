@@ -248,6 +248,34 @@ def _is_top(folder: str) -> bool:
     """The music folder itself, or a root alias like "@inbox": never removed."""
     return folder == "" or ("/" not in folder and folder.startswith("@"))
 
+_NUMBERING = re.compile(r"^\s*\d{1,3}(?:[-.]\d{1,3})?(?:\s*[-.]\s*|\s+|_)")  # "02 ", "1-02 ", "02. ", "02 - "
+
+
+def _song_key(stem: str) -> str:
+    return " ".join(_NUMBERING.sub("", stem).casefold().split())
+
+
+def _same_song_there(dst_path: Path, seen: dict[Path, dict[str, str]]) -> str | None:
+    """A file already in ``dst_path``'s folder that is the same song in another format ("02 Dreams.flac"
+    for "02 Dreams.mp3", or "1-02 Dreams.flac" with other numbering). Same-format files are never
+    counted: two tracks can share a title ("Interlude")."""
+    folder = dst_path.parent
+    if folder not in seen:
+        found: dict[str, str] = {}
+        try:
+            for e in os.scandir(folder):
+                ext = os.path.splitext(e.name)[1].lower()
+                if ext in SUPPORTED_EXTENSIONS and e.is_file():
+                    found.setdefault(f"{_song_key(os.path.splitext(e.name)[0])}\0{ext}", e.name)
+        except OSError:
+            pass
+        seen[folder] = found
+    key, ext = _song_key(dst_path.stem), dst_path.suffix.lower()
+    if not key:
+        return None
+    return next((name for k, name in seen[folder].items() if k.split("\0")[0] == key and k.split("\0")[1] != ext), None)
+
+
 # --- Planning -------------------------------------------------------------------------------
 
 
@@ -287,6 +315,7 @@ def plan_moves(root: Root, sources: list[Source], pattern: str) -> list[Move]:
     multi = multi_disc_albums(sources)
     moves: list[Move] = []
     claimed: dict[str, str] = {}  # destination (case-folded) -> source that takes it
+    folder_songs: dict[Path, dict[str, str]] = {}  # songs already in each destination folder
     needs_names = any(t.split("|")[0].strip().lower() in ("albumartist", "artist", "album")
                       for t in _TOKEN.findall(pattern))
     for s in sources:
@@ -308,6 +337,11 @@ def plan_moves(root: Root, sources: list[Source], pattern: str) -> list[Move]:
             continue
         if os.path.lexists(dst_path) and not _same_file(src_path, dst_path):
             moves.append(Move(s.rel, dst, "conflict", "A different file already has that name"))
+            continue
+        twin = _same_song_there(dst_path, folder_songs)
+        if twin:
+            # "02 Dreams.mp3" next to "02 Dreams.flac" would be the same song twice in one album.
+            moves.append(Move(s.rel, dst, "conflict", f"The same song is already there as {twin}"))
             continue
         claimed[key] = s.rel
         moves.append(Move(s.rel, dst, "move"))

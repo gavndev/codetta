@@ -26,6 +26,8 @@ FORMATS = {"any": "", "digital": "digital media", "cd": "cd", "vinyl": "vinyl"}
 # Whole words, so "CD" doesn't match a promo "CD-R"; "2×CD", "Enhanced CD" and '12" Vinyl' still do.
 _FORMAT_RE = {k: re.compile(rf"(?<![\w-]){re.escape(v)}(?![\w-])", re.IGNORECASE) for k, v in FORMATS.items() if v}
 _VIDEO = re.compile(r"dvd|blu-ray|vhs|video", re.IGNORECASE)  # a video-only edition isn't the music
+# CD-Rs on MusicBrainz are nearly always promos, bootlegs or made-to-order copies, not the release.
+_CDR = re.compile(r"(?<![\w-])cd-r(?![\w-])", re.IGNORECASE)
 _AUDIO = re.compile(r"(?<![\w-])(?:cd|sacd|hdcd|dvd-audio|vinyl|digital media|cassette)(?![\w-])", re.IGNORECASE)
 _DELUXE = re.compile(r"\b(deluxe|expanded|anniversary|bonus|special|collector'?s|super)\b", re.IGNORECASE)
 
@@ -100,6 +102,8 @@ def edition_fit(summary: dict, prefs: EditionPrefs, files: int | None = None) ->
         fit -= 3
     if _VIDEO.search(formats) and not _AUDIO.search(formats):
         fit -= 4
+    if _CDR.search(formats) and not _AUDIO.search(formats):
+        fit -= 2
     if (summary.get("status") or "").lower() == "official":
         fit += 1
     return fit

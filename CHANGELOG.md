@@ -4,6 +4,9 @@ All notable changes to Codetta. Versions follow [Semantic Versioning](https://se
 
 ## Unreleased (0.9.1)
 
+- **Fixed:** Tidy up never filed a folder of loose songs (a Downloads folder, say). It matched each song to its album, then refused to move them because they'd land in different folders, a rule meant for albums. Loose songs now go to their own albums, and songs that share an album still never split.
+- **Fixed:** Organize, Tidy up and the inbox could put a song next to the same song in another format ("02 Dreams.mp3" beside the album's "02 Dreams.flac"). That file now stays where it is, with the reason, even when the two are numbered differently.
+- **Fixed:** with the default settings, a song could be matched to a CD-R edition (usually a promo or bootleg), like "nights" on a CD-R of Blond. CD-R-only editions are now never preferred over a real release.
 - **Polish:** sheets have the same breathing room between their message and what follows (Album editions and Report a problem were cramped on phones), Recently deleted has one Done button instead of Close and Done, and Report a problem names the install type plainly (Docker, snap, pipx, pip or a source checkout).
 - **Tidy up:** when an album isn't moved because its songs would land in different folders, the note now names those folders (for example "Rumours (1977)" and "Rumours (2004 Remaster) (1977)"), so the odd song out is easy to find.
 - **Fixed:** importing a file with a very long name cut off its extension, so it no longer counted as music. Long names are now shortened before the extension.

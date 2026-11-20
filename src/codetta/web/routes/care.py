@@ -28,6 +28,7 @@ def register(app, shared) -> None:
     library = shared.library
     mb_apply = shared.mb_apply
     mb_preview = shared.mb_preview
+    mb_read = shared.mb_read
     mb_search = shared.mb_search
     organize_apply = shared.organize_apply
     organize_preview = shared.organize_preview
@@ -85,6 +86,7 @@ def register(app, shared) -> None:
         online = connections.enabled("musicbrainz") or catalogs.available()
         albums = {first(p, "album").casefold() for p in paths}
         loose = len(paths) > 1 and (len(albums) > 1 or albums == {""})  # songs from different albums
+        ids = {first(p, "musicbrainz_albumid") for p in paths}
         status, note, title, tagged = care_mod.SKIPPED, "", "", paths if matched else []
         if not matched and not online:
             status, note = care_mod.REVIEW, "Turn on MusicBrainz (Account → Connections) to match it"
@@ -116,7 +118,21 @@ def register(app, shared) -> None:
                 title = f"{proposal['release']['title']} · {proposal['release']['artist']}" if proposal.get("release") else ""
             else:
                 status, note, tagged = care_mod.REVIEW, "Its songs have different album names", []
-        if care.mode == "full" and tagged:
+        if care.mode == "full" and tagged and loose and (not matched or len(ids) > 1):
+            # Loose songs go to their own albums, so different folders are expected. Songs that
+            # share an album still never split: if they would, those stay where they are.
+            dest = {m["src"]: m["dst"].rsplit("/", 1)[0] for m in organize_preview(OrganizeIn(paths=tagged))["moves"]
+                    if m["status"] in ("move", "same")}
+            infos, _, _ = mb_read(tagged)
+            album_of = {f.path: (f.album.casefold(), (f.albumartist or f.artist).casefold()) for f in infos}
+            folders_of: dict[tuple, set] = {}
+            for p in tagged:
+                folders_of.setdefault(album_of.get(p), set()).add(dest.get(p))
+            held = {a for a, ds in folders_of.items() if len(ds) > 1}
+            if held:
+                tagged = [p for p in tagged if album_of.get(p) not in held]
+                status, note = care_mod.REVIEW, f"Loose songs: {len(paths) - len(tagged)} would split an album, so they stayed"
+        elif care.mode == "full" and tagged:
             # Never split an album: if its songs would land in different folders, leave them be.
             dests = {m["dst"].rsplit("/", 1)[0] for m in organize_preview(OrganizeIn(paths=tagged))["moves"]
                      if m["status"] in ("move", "same")}
@@ -129,6 +145,10 @@ def register(app, shared) -> None:
                 return
         if care.mode == "full" and tagged:  # names and folders only ever come from a confident match
             org = organize_apply(OrganizeIn(paths=tagged))
+            taken = sum(1 for h in org["held"] if h["status"] == "conflict")
+            if taken:
+                also = f"{taken} {'is' if taken == 1 else 'are'} already in your library, so {'it' if taken == 1 else 'they'} stayed"
+                note = f"{note}; {also[0].lower()}{also[1:]}" if note else also
             if org["moved"]:
                 if status in (care_mod.SKIPPED, care_mod.TAGGED):
                     status = care_mod.ORGANIZED

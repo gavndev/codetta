@@ -137,3 +137,60 @@ def test_a_split_album_says_which_folders_it_would_go_to(album_dir, tmp_path):  
     assert "“Fixture Album (1999)”" in note and "“Fixture Album (Remaster) (1999)”" in note
     assert {p.parent for p in (album_dir / FOLDER).iterdir()} == {album_dir / FOLDER}  # nothing moved
     c.__exit__(None, None, None)
+
+
+def test_loose_songs_go_to_their_own_albums_but_never_split_one(tmp_path):
+    """A folder of loose songs (each already matched to a different album) is filed song by song.
+    Different folders are expected there; two songs of the same album that would land in different
+    folders stay put."""
+    music = tmp_path / "music"
+    loose = music / "Downloads"
+    loose.mkdir(parents=True)
+    engine = MetadataEngine()
+    songs = [  # file, artist, album, year, album id
+        ("a.flac", "Björk", "Post", "1995", "rel-post"),
+        ("b.flac", "Frank Ocean", "Blonde", "2016", "rel-blonde"),
+        ("c.flac", "Fleetwood Mac", "Rumours", "1977", "rel-rumours-1977"),
+        ("d.flac", "Fleetwood Mac", "Rumours", "2004", "rel-rumours-2004"),  # same album, other year
+    ]
+    for i, (name, artist, album, year, rid) in enumerate(songs, 1):
+        shutil.copy2(FIXTURES_DIR / "sample.flac", loose / name)
+        engine.update_tags(loose / name, {"title": f"Song {i}", "artist": artist, "albumartist": artist, "album": album,
+                                          "date": year, "tracknumber": "1", "musicbrainz_albumid": rid})
+    c = client(music, tmp_path)
+    c.put("/api/connections", json={"enabled": {"musicbrainz": False}})
+    c.put("/api/library-care", json={"mode": "full"})
+    d = wait_done(c)
+    assert (music / "Björk" / "Post (1995)").is_dir() and (music / "Frank Ocean" / "Blonde (2016)").is_dir()
+    assert {p.name for p in loose.iterdir()} == {"c.flac", "d.flac"}  # Rumours would split: both stay
+    note = next(r["note"] for r in d["review"] if r["folder"] == "Downloads")
+    assert "2 would split an album" in note
+    c.__exit__(None, None, None)
+
+
+def test_a_loose_song_already_in_the_library_stays_and_says_so(tmp_path):
+    """Filing a downloaded MP3 next to the album's FLAC of the same song would make a duplicate."""
+    music = tmp_path / "music"
+    album, loose = music / "Björk" / "Post (1995)", music / "Downloads"
+    album.mkdir(parents=True)
+    loose.mkdir()
+    engine = MetadataEngine()
+    tags = {"title": "Hyper-Ballad", "artist": "Björk", "albumartist": "Björk", "album": "Post", "date": "1995",
+            "tracknumber": "2"}
+    shutil.copy2(FIXTURES_DIR / "sample.flac", album / "02 Hyper-Ballad.flac")
+    engine.update_tags(album / "02 Hyper-Ballad.flac", {**tags, "musicbrainz_albumid": "rel-post"})
+    shutil.copy2(FIXTURES_DIR / "sample.mp3", loose / "bjork - hyperballad.mp3")
+    engine.update_tags(loose / "bjork - hyperballad.mp3", {**tags, "musicbrainz_albumid": "rel-post-2"})
+    shutil.copy2(FIXTURES_DIR / "sample.flac", loose / "other.flac")
+    engine.update_tags(loose / "other.flac", {"title": "Nights", "artist": "Frank Ocean", "albumartist": "Frank Ocean",
+                                              "album": "Blond", "date": "2016", "tracknumber": "9", "musicbrainz_albumid": "rel-blond"})
+    c = client(music, tmp_path)
+    c.put("/api/connections", json={"enabled": {"musicbrainz": False}})
+    c.put("/api/library-care", json={"mode": "full"})
+    d = wait_done(c)
+    assert (loose / "bjork - hyperballad.mp3").exists()  # the album's FLAC is the same song
+    assert not list(album.glob("*.mp3"))
+    assert list((music / "Frank Ocean" / "Blond (2016)").glob("*Nights.flac"))  # a new song is filed
+    downloads = next(r for r in [*d["review"], *d.get("recent", [])] if r["folder"] == "Downloads") if d["review"] else None
+    assert downloads is None or "already in your library" in downloads["note"]
+    c.__exit__(None, None, None)

@@ -145,6 +145,23 @@ def test_conflicts_are_never_overwritten(lib):
     assert (lib / "Coda Collective/Fixture Album (2024)/03 Test Track.flac").read_bytes() == b"appeared meanwhile"
 
 
+def test_the_same_song_in_another_format_is_never_added_beside_it(lib):
+    """Tidy up filed a downloaded "02 Dreams.mp3" into Rumours next to the album's "02 Dreams.flac":
+    the same song twice. A file whose song is already there under another extension is held."""
+    touch(lib, "Downloads/rip/a.mp3", b"download")
+    touch(lib, "Coda Collective/Fixture Album (2024)/03 Test Track.flac", b"the album's copy")
+    moves = plan_moves(lib, [src("Downloads/rip/a.mp3", **ALBUM)], DEFAULT_PATTERN)
+    assert moves[0].status == "conflict" and "03 Test Track.flac" in moves[0].reason
+    # Other numbering is still the same song; another title, or the same title in the same format, isn't.
+    (lib / "Coda Collective/Fixture Album (2024)/03 Test Track.flac").rename(lib / "Coda Collective/Fixture Album (2024)/1-03 Test Track.flac")
+    assert plan_moves(lib, [src("Downloads/rip/a.mp3", **ALBUM)], DEFAULT_PATTERN)[0].status == "conflict"
+    touch(lib, "Downloads/rip/b.flac")
+    assert plan_moves(lib, [src("Downloads/rip/b.flac", **{**ALBUM, "tracknumber": "9"})], DEFAULT_PATTERN)[0].status == "move"
+    # A different song in that folder is fine.
+    moves = plan_moves(lib, [src("Downloads/rip/a.mp3", **{**ALBUM, "tracknumber": "4", "title": "Other"})], DEFAULT_PATTERN)
+    assert moves[0].status == "move"
+
+
 def test_already_in_place(lib):
     touch(lib, "Coda Collective/Fixture Album (2024)/03 Test Track.flac")
     moves = plan_moves(lib, [src("Coda Collective/Fixture Album (2024)/03 Test Track.flac", **ALBUM)], DEFAULT_PATTERN)
