@@ -1,6 +1,7 @@
 """The right-click / long-press menu: Rename, Move to, Delete (to Recently deleted), Get info."""
 
 import shutil
+import time
 
 import pytest
 from fastapi.testclient import TestClient
@@ -210,3 +211,15 @@ def test_putting_back_never_overwrites(setup):
     bid = c.get("/api/deleted").json()["items"][0]["id"]
     r = c.post("/api/deleted/restore", json={"ids": [bid]}).json()
     assert r["failed"] == 1 and (music / "Artist" / "Album" / "02 Other.mp3").read_bytes() == b"newer"
+
+
+def test_search_ideas_come_from_the_library(setup):
+    c, music, config = setup
+    end = time.time() + 10
+    while c.get("/api/library-health/summary").json()["indexing"]:
+        assert time.time() < end
+        time.sleep(0.05)
+    ideas = c.get("/api/search/ideas").json()
+    assert set(ideas) == {"artist", "album", "genre", "mood"}
+    assert all(isinstance(v, list) for v in ideas.values())
+    assert ideas["artist"] or ideas["album"]  # the test library has tagged tracks

@@ -112,6 +112,7 @@ function openDialog(dialog) {
 
 const ICONS = {
   upload: '<svg viewBox="0 0 20 20"><path d="M10 13V3.5M6 7.5l4-4 4 4M3.5 12.5v2A1.5 1.5 0 0 0 5 16h10a1.5 1.5 0 0 0 1.5-1.5v-2"/></svg>',
+  tag: '<svg viewBox="0 0 20 20"><path d="M3.5 4.5v4.8l7.2 7.2a1.4 1.4 0 0 0 2 0l3.8-3.8a1.4 1.4 0 0 0 0-2L9.3 3.5H4.5a1 1 0 0 0-1 1Z"/><circle cx="6.8" cy="6.8" r="1.1"/></svg>',
   info: '<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7.5"/><path d="M10 9v5M10 6.2v.1"/></svg>',
   trash: '<svg viewBox="0 0 20 20"><path d="M3.5 5.5h13M8 5.5V4h4v1.5M5.5 5.5l.8 10.5h7.4l.8-10.5M8.5 8.5v5M11.5 8.5v5"/></svg>',
   move: '<svg viewBox="0 0 20 20"><path d="M2.5 5.5a1.5 1.5 0 0 1 1.5-1.5h3.6l1.8 2H16a1.5 1.5 0 0 1 1.5 1.5v7A1.5 1.5 0 0 1 16 16H4a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M8 11h5m-2-2 2 2-2 2"/></svg>',
@@ -659,7 +660,8 @@ function showFolder(data, scrollTop) {
   }
   document.title = data.mb ? `${data.name} — Codetta` : isSearchKey(data.path) ? `${searchQuery(data.path)} — Search — Codetta`
     : data.path ? `${data.name} — Codetta` : "Codetta";
-  if (!bang.kind) els.filter.placeholder = filterPlaceholder();
+  if (!bang.kind) els.filter.placeholder = roll.on ? "" : filterPlaceholder();
+  syncRoll();
   renderBrowser();
   els.browser.scrollTop = scrollTop;
   updateSpot();
@@ -4277,6 +4279,7 @@ function setBang(kind, upgrade = "") {
   if (bang.kind) $("#search-wrap").classList.add("active");
   els.filter.placeholder = filterPlaceholder();
   els.filter.setAttribute("enterkeyhint", bang.kind ? "search" : "enter");
+  syncRoll();
   renderBangSuggestions();
 }
 
@@ -4305,19 +4308,101 @@ function renderBangSuggestions() {
   const typed = value.startsWith("!") ? value.slice(1).toLowerCase() : null;
   const items = Object.entries(BANGS).filter(([, b]) => b.available())
     .filter(([, b]) => typed === null || b.names.some((n) => n.startsWith(typed)));
-  const show = focused && !bang.kind && items.length && (value === "" || typed !== null);
+  const library = value === "" ? librarySuggestions() : [];
+  const show = focused && !bang.kind && (items.length || library.length) && (value === "" || typed !== null);
   if (!show) {
     if (!box.hidden && !box.classList.contains("closing")) playOut(box, "closing", () => { box.hidden = true; });
     return;
   }
-  setKids(box, h("p", { class: "bang-suggest-head" }, "Search somewhere else"),
+  setKids(box, items.length ? h("p", { class: "bang-suggest-head" }, "Search elsewhere") : null,
     items.map(([kind, b]) => h("button", { class: "bang-suggest-item", type: "button", role: "option",
       onpointerdown: (e) => e.preventDefault(), // keep the keyboard open
       onclick: () => { els.filter.value = els.filter.value.startsWith("!") ? "" : els.filter.value; setBang(kind); els.filter.focus(); } },
     h("span", { class: `bang-chip bang-${kind}` }, icon(b.icon), b.label),
     h("span", { class: "bang-suggest-about" }, b.about),
-    h("kbd", {}, `!${b.names[0]}`))));
+    h("kbd", {}, `!${b.names[0]}`))),
+    library.length ? h("p", { class: "bang-suggest-head" }, "Search your library") : null,
+    library.map((s) => h("button", { class: "bang-suggest-item lib-suggest-item", type: "button", role: "option",
+      onpointerdown: (e) => e.preventDefault(), // keep the keyboard open
+      onclick: () => { els.filter.value = s.insert; els.filter.focus(); renderBangSuggestions(); } },
+    h("span", { class: "lib-suggest-icon" }, icon(s.icon)),
+    h("span", { class: "lib-suggest-label" }, s.label),
+    s.example ? h("span", { class: "lib-suggest-example", dir: "auto" }, s.example) : null)));
   if (box.hidden) { box.classList.remove("closing"); box.hidden = false; replay(box, "opening"); }
+}
+
+// ---- Search ideas: real names from the library, rolling through the idle search bar ------------------
+
+const roll = { ideas: null, list: [], i: 0, timer: null, on: false };
+const shuffle = (a) => { a = [...a]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
+async function loadSearchIdeas() {
+  try { roll.ideas = await api("GET", "/api/search/ideas"); } catch { return; }
+  const d = roll.ideas;
+  const pools = [
+    shuffle(d.genre || []).map((v) => `Search genre: ${v.toLowerCase()}`),
+    shuffle(d.artist || []).map((v) => `Search ${v}`),
+    shuffle(d.mood || []).map((v) => `Search mood: ${v.toLowerCase()}`),
+    shuffle(d.album || []).map((v) => `Search album: ${v}`),
+  ].filter((p) => p.length);
+  const list = [];
+  for (let n = 0; pools.some((p) => p.length); n++) {
+    const pool = pools[n % pools.length];
+    if (pool.length) list.push(pool.shift());
+    if (list.length % 5 === 4) list.push("Search anything"); // back home now and then
+  }
+  roll.list = list;
+  roll.i = 0;
+  syncRoll();
+}
+
+/** "Search your library" suggestions: what you can type, with a real example from your music. */
+function librarySuggestions() {
+  const d = roll.ideas || {};
+  const pick = (a) => (a && a.length ? a[0] : "");
+  const tag = pick(d.genre) ? ["genre", pick(d.genre).toLowerCase()] : pick(d.mood) ? ["mood", pick(d.mood).toLowerCase()] : ["year", ""];
+  return [
+    { label: "Search artist", icon: "user", insert: "artist: ", example: pick(d.artist) && `artist: ${pick(d.artist)}` },
+    { label: "Search album", icon: "disc", insert: "album: ", example: pick(d.album) && `album: ${pick(d.album)}` },
+    { label: "Search tag", icon: "tag", insert: `${tag[0]}: `, example: tag[1] && `${tag[0]}: ${tag[1]}` },
+  ];
+}
+
+const rollIdle = () => roll.list.length && !els.filter.value && document.activeElement !== els.filter && !bang.kind
+  && !document.hidden && filterPlaceholder() === "Search anything";
+
+function rollShow(text, animate) {
+  const box = $("#search-roll");
+  const line = h("span", { class: `roll-line${animate ? " in" : ""}` }, h("span", {}, text));
+  const old = [...box.children];
+  for (const o of old) { o.classList.remove("in"); o.classList.add("out"); setTimeout(() => o.remove(), 600); }
+  box.append(line);
+  if (!animate) for (const o of old) o.remove();
+}
+
+/** Start or stop the rolling examples: only while the search bar is empty and not in use. */
+function syncRoll() {
+  const box = $("#search-roll");
+  if (!box) return;
+  if (!rollIdle()) {
+    clearTimeout(roll.timer);
+    if (roll.on) { roll.on = false; box.hidden = true; box.replaceChildren(); }
+    if (!bang.kind) els.filter.placeholder = filterPlaceholder();
+    return;
+  }
+  if (roll.on) return;
+  roll.on = true;
+  box.style.font = getComputedStyle(els.filter).font; // the same type as the real placeholder
+  els.filter.placeholder = "";
+  box.hidden = false;
+  rollShow("Search anything", false);
+  const next = () => {
+    if (!rollIdle()) { syncRoll(); return; }
+    rollShow(roll.list[roll.i++ % roll.list.length], true);
+    roll.timer = setTimeout(next, 3200);
+  };
+  clearTimeout(roll.timer);
+  roll.timer = setTimeout(next, 2600);
 }
 
 const enoughText = (q) => [...q].filter((c) => /[\p{L}\p{N}]/u.test(c)).length >= 2;
@@ -5456,6 +5541,7 @@ function bindEvents() {
   els.filter.addEventListener("input", () => {
     clearTimeout(filterTimer); // redraw once typing pauses, not on every keystroke
     if (bang.kind && /^\s/.test(els.filter.value)) els.filter.value = els.filter.value.trimStart(); // the space after "!mb"
+    syncRoll();
     renderBangSuggestions();
     if (takeBang() || bang.kind || els.filter.value.startsWith("!")) return; // a bang search, not a filter
     if (isSearch()) {
@@ -5812,10 +5898,11 @@ async function boot() {
   // The search bar widens while you use it; on phones a Cancel button slides in (like iOS).
   const wrap = $("#search-wrap");
   let blurTimer = null;
-  wrap.addEventListener("focusin", () => { clearTimeout(blurTimer); wrap.classList.add("active"); renderBangSuggestions(); });
+  wrap.addEventListener("focusin", () => { clearTimeout(blurTimer); wrap.classList.add("active"); syncRoll(); renderBangSuggestions(); });
   wrap.addEventListener("focusout", () => {
     blurTimer = setTimeout(() => {
       renderBangSuggestions();
+      syncRoll();
       if (!wrap.contains(document.activeElement) && !bang.kind && !els.filter.value) wrap.classList.remove("active");
     }, 120);
   });
@@ -5953,6 +6040,8 @@ async function copyText(text) {
 
 async function startApp() {
   appStarted = true;
+  loadSearchIdeas();
+  document.addEventListener("visibilitychange", syncRoll);
   $("#app").hidden = false;
   $("#account-btn").hidden = false; // with sign-in off it opens Settings (connections, advanced mode)
   if (!state.auth?.auth_enabled) { $("#account-btn").title = "Settings"; $("#account-btn").setAttribute("aria-label", "Settings"); }

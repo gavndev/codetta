@@ -655,6 +655,27 @@ class LibraryIndex:
                  + ",".join("?" * len(ids)) + ")")
             return {p for (p,) in self.db.execute(q, ids)}
 
+    def sample_values(self, keys: Iterable[str], tracks: int = 400, per_key: int = 12) -> dict[str, list[str]]:
+        """A few real values of each tag from a random handful of tracks (search ideas, examples).
+        Values keep their own spelling; "Various Artists" and very long values are left out."""
+        keys = [k.lower() for k in keys]
+        with self._lock:
+            rows = self.db.execute("SELECT track FROM files ORDER BY random() LIMIT ?", (tracks,)).fetchall()
+        out: dict[str, list[str]] = {k: [] for k in keys}
+        seen: dict[str, set[str]] = {k: set() for k in keys}
+        for (blob,) in rows:
+            tags = {k.lower(): v for k, v in (_unpack(blob).get("tags") or {}).items()}
+            for k in keys:
+                for v in (tags.get(k) or [])[:1]:
+                    v = v.strip()
+                    folded = sfold(v)
+                    if not folded or len(v) > 40 or folded in seen[k] or folded in ("various artists", "unknown"):
+                        continue
+                    if len(out[k]) < per_key:
+                        seen[k].add(folded)
+                        out[k].append(v)
+        return out
+
     def paths_where(self, key: str, value: str, limit: int = 5000) -> set[str]:
         """Files whose ``key`` tag is ``value`` (any case or accents; one of several values counts)."""
         want = sfold(value)

@@ -3311,6 +3311,23 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
                      changes=[{"key": "location", "old": "(recently deleted)", "new": "(gone)"}])
         return {"erased": gone, **recently_deleted()}
 
+    # --- Search ideas (the search bar's rolling examples) ----------------------------------------
+
+    ideas_cache: dict = {"at": -1e9, "data": None}
+
+    @app.get("/api/search/ideas")
+    def search_ideas() -> dict:
+        """Real artists, albums, genres and moods from your library, for the search bar's rolling
+        examples. A fresh random handful every 10 minutes; read from the index only."""
+        require_library()
+        if ideas_cache["data"] is None or time.monotonic() - ideas_cache["at"] > 600:
+            v = lib_index.sample_values(("albumartist", "artist", "album", "genre", "mood"))
+            artists = list(dict.fromkeys(v["albumartist"] + v["artist"]))[:12]
+            albums = list(dict.fromkeys(a for a in (clean_title(x) for x in v["album"]) if a))  # "Rumours (2004 Remaster)" -> "Rumours"
+            ideas_cache["data"] = {"artist": artists, "album": albums, "genre": v["genre"], "mood": v["mood"]}
+            ideas_cache["at"] = time.monotonic()
+        return ideas_cache["data"]
+
     log_buffer = shared_buffer()
 
     @app.get("/api/logs")
