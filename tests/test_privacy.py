@@ -21,7 +21,7 @@ TRACKERS = re.compile(r"google-analytics\.com|googletagmanager\.com|\bgtag\(|pla
 
 
 def test_no_tracking_code_anywhere():
-    for f in list((Path(__file__).parent.parent / "src" / "codetta").rglob("*.py")) + list(STATIC.glob("*.*")):
+    for f in list((Path(__file__).parent.parent / "src" / "codetta").rglob("*.py")) + list(STATIC.glob("*.*")) + list(STATIC.glob("js/*.js")):
         if f.suffix in (".py", ".js", ".html", ".css"):
             assert not TRACKERS.search(f.read_text("utf-8", errors="ignore")), f"tracking code in {f}"
 
@@ -29,7 +29,7 @@ def test_no_tracking_code_anywhere():
 def test_page_loads_nothing_from_other_sites():
     html = (STATIC / "index.html").read_text("utf-8")
     css = (STATIC / "app.css").read_text("utf-8")
-    js = (STATIC / "app.js").read_text("utf-8")
+    js = "\n".join(p.read_text("utf-8") for p in [STATIC / "app.js", *sorted((STATIC / "js").glob("*.js"))])
     # Scripts, styles, fonts and images: only from Codetta itself.
     assert not re.search(r'<(script|link|img|iframe)[^>]+(src|href)="(https?:)?//', html)
     assert not re.search(r'url\(\s*["\']?(https?:)?//', css) and "@import" not in css

@@ -134,7 +134,8 @@ def test_script_in_tags_is_stored_and_returned_as_plain_data(env):
 
 
 def test_ui_never_uses_html_sinks_for_data():
-    js = (FIXTURES_DIR.parent.parent / "src/codetta/web/static/app.js").read_text()
+    static = FIXTURES_DIR.parent.parent / "src/codetta/web/static"
+    js = "\n".join(p.read_text() for p in [static / "app.js", *sorted((static / "js").glob("*.js"))])
     # The only innerHTML use is for the app's own constant SVG icons.
     assert js.count("innerHTML") == 1 and "t.innerHTML = ICONS[name]" in js
     for sink in ("insertAdjacentHTML", "document.write", "eval(", "new Function", "outerHTML ="):

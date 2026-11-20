@@ -22,7 +22,7 @@ def client_for(tmp_path):
 def test_text_is_gzipped_media_is_not(tmp_path):
     c, _ = client_for(tmp_path)
     with c:
-        js = c.get("/static/app.js", headers={"Accept-Encoding": "gzip"})
+        js = c.get("/static/js/dom.js", headers={"Accept-Encoding": "gzip"})
         assert js.headers.get("content-encoding") == "gzip" and "accept-encoding" in js.headers.get("vary", "").lower()
         assert "function h(" in js.text  # still the same file once unpacked
         assert c.get("/", headers={"Accept-Encoding": "gzip"}).headers.get("content-encoding") == "gzip"
