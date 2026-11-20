@@ -120,3 +120,20 @@ def test_the_preview_shows_before_and_after_and_moves_nothing(album_dir, tmp_pat
     assert ex["from"].startswith(FOLDER) and "(2024)" in ex["to"]
     assert (album_dir / FOLDER / "01.flac").exists()  # nothing moved
     c.__exit__(None, None, None)
+
+
+def test_a_split_album_says_which_folders_it_would_go_to(album_dir, tmp_path):  # noqa: F811
+    """Matched before, but with MusicBrainz now off Tidy up can't make the names agree. It leaves the album where it
+    is and the note names the folders, so the cause (one song's album tag) is easy to spot."""
+    engine = MetadataEngine()
+    for n, f in enumerate(sorted((album_dir / FOLDER).iterdir()), 1):
+        engine.update_tags(f, {"musicbrainz_albumid": REL, "artist": "Coda Tester", "albumartist": "Coda Tester",
+                               "date": "1999", "album": "Fixture Album (Remaster)" if n == 2 else "Fixture Album"})
+    c = client(album_dir, tmp_path)
+    c.put("/api/connections", json={"enabled": {"musicbrainz": False}})
+    c.put("/api/library-care", json={"mode": "full"})
+    d = wait_done(c)
+    note = next(r["note"] for r in d["review"] if r["folder"] == FOLDER)
+    assert "“Fixture Album (1999)”" in note and "“Fixture Album (Remaster) (1999)”" in note
+    assert {p.parent for p in (album_dir / FOLDER).iterdir()} == {album_dir / FOLDER}  # nothing moved
+    c.__exit__(None, None, None)

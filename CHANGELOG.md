@@ -4,6 +4,7 @@ All notable changes to Codetta. Versions follow [Semantic Versioning](https://se
 
 ## Unreleased (0.9.1)
 
+- **Tidy up:** when an album isn't moved because its songs would land in different folders, the note now names those folders (for example "Rumours (1977)" and "Rumours (2004 Remaster) (1977)"), so the odd song out is easy to find.
 - **Fixed:** importing a file with a very long name cut off its extension, so it no longer counted as music. Long names are now shortened before the extension.
 - **Fixed:** after an import, files that stayed in the Imported folder were always said to have "not enough tags", even when the real reason was that the same song is already in your library. The message now gives the right reason.
 - **Import:** files over 2 GB are skipped up front with a clear message, and a dropped connection says so instead of "Failed to fetch".

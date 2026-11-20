@@ -121,7 +121,11 @@ def register(app, shared) -> None:
             dests = {m["dst"].rsplit("/", 1)[0] for m in organize_preview(OrganizeIn(paths=tagged))["moves"]
                      if m["status"] in ("move", "same")}
             if len(dests) > 1:
-                care.record(folder, care_mod.REVIEW, "Its songs would end up in different folders, so it wasn't moved", title)
+                names = sorted({d.rsplit("/", 1)[-1] for d in dests})
+                shown = " and ".join(f"“{n}”" for n in names[:2]) + (f" and {len(names) - 2} more" if len(names) > 2 else "")
+                care.record(folder, care_mod.REVIEW,
+                            f"Its songs would end up in different folders ({shown}), so it wasn't moved. "
+                            "Make their album tags match and it'll be tidied next time.", title)
                 return
         if care.mode == "full" and tagged:  # names and folders only ever come from a confident match
             org = organize_apply(OrganizeIn(paths=tagged))
