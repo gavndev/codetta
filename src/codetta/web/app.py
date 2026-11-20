@@ -79,6 +79,7 @@ from codetta.core.health import fold as health_fold
 from codetta.core.health import run as health_run
 from codetta.core.describe import describe_file, describe_many
 from codetta.core.fileinfo import file_info, folder_info
+from codetta.core.catalogs import Catalogs, is_catalog_id
 from codetta.core.logbuffer import shared_buffer
 from codetta.core.plugins import ActionError, PluginManager
 from codetta.core.index import LibraryIndex, parse_query
@@ -554,7 +555,7 @@ def _migrate_presets_folder(config_dir: Path) -> None:
 
 def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_latest_release,
                fetch_json=None, fetch_mb=None, fetch_art=None, post_acoustid=None, run_fpcalc=None,
-               slskd_request=None) -> FastAPI:
+               slskd_request=None, fetch_catalog=None) -> FastAPI:
     """``fetch_*`` replace the network in tests: LRCLIB and MusicBrainz take
     (url) -> parsed JSON or None, the Cover Art Archive (url) -> bytes or None,
     AcoustID (form) -> parsed JSON; ``run_fpcalc`` replaces running fpcalc;
@@ -590,6 +591,10 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         base=mb_mirror or MB_BASE,
         min_interval=0 if mb_mirror else 1.0,  # musicbrainz.org allows one request a second
     )
+    def catalog_fetch(url: str):
+        service = "Deezer" if "deezer" in url else "iTunes"
+        return http_get_json(url, user_agent, max_bytes=MAX_MB_BYTES, service=service)
+
     fpcalc_path = find_fpcalc(settings.fpcalc) or ("fpcalc" if run_fpcalc else None)
     fingerprinter = Fingerprinter(fpcalc_path, **({"run": run_fpcalc} if run_fpcalc else {}))
     acoustid = AcoustID(post_acoustid or (lambda form: http_post_json(ACOUSTID_URL, user_agent, form, service="AcoustID")),
@@ -959,6 +964,8 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             "music_dir_writable": library.exists() and os.access(library.root, os.W_OK),
             "lyrics_lookup": connections.enabled("lyrics"),
             "musicbrainz": connections.enabled("musicbrainz"),
+            # Album matching works with any of MusicBrainz, Deezer or iTunes switched on.
+            "matching": any(connections.enabled(c) for c in ("musicbrainz", "deezer", "itunes")),
         }
 
     # --- Connections (online features, all opt-in) ---------------------------------------
@@ -1149,7 +1156,26 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
                 counts[v] = counts.get(v, 0) + 1
         return max(counts, key=counts.get) if counts else ""
 
+    catalogs = Catalogs(fetch_catalog or catalog_fetch, connections.enabled)
+
+    def require_matching() -> None:
+        """Matching needs MusicBrainz, Deezer or iTunes (any one of them)."""
+        if not catalogs.available():
+            require_connection("musicbrainz")
+
+    def get_release(release_id: str) -> dict:
+        """A full release (with tracks) from whichever source the id belongs to."""
+        if is_catalog_id(release_id):
+            try:
+                return catalogs.release(release_id)
+            except LookupError as exc:
+                raise HTTPException(404, str(exc)) from exc
+        require_connection("musicbrainz")
+        return mb.release(release_id)
+
     def mb_release_id(text: str) -> str:
+        if is_catalog_id(text.strip()):
+            return text.strip()
         mbid = parse_release_id(text)
         if not mbid:
             raise HTTPException(422, "Paste a MusicBrainz release link (musicbrainz.org/release/…) or its ID.")
@@ -1158,18 +1184,21 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     @app.post("/api/musicbrainz/search")
     def mb_search(body: MBSearchIn) -> dict:
         """Find releases that could be this album. Sends only the album/artist
-        names (or the release ID you pasted) to MusicBrainz."""
-        require_connection("musicbrainz")
+        names (or the release ID you pasted) to MusicBrainz, and to Deezer / iTunes when they're on
+        and MusicBrainz is off, down, or not confident."""
+        require_matching()
         require_library()
         rels = mb_targets(body)
         infos, _, _ = mb_read(rels)
         album = body.album.strip() or most_common(f.album for f in infos)
         artist = body.artist.strip() or most_common(f.albumartist or f.artist for f in infos)
         current = most_common(f.albumid for f in infos if MBID_RE.match(f.albumid))
+        mb_error = None
+        found = []
         try:
             if body.release.strip():
-                found = [mb.release(mb_release_id(body.release))]
-            else:
+                found = [get_release(mb_release_id(body.release))]
+            elif connections.enabled("musicbrainz"):
                 found = mb.search(album, artist) if (album or artist) else []
                 if current and not body.album.strip() and not body.artist.strip() and all(r.get("id") != current for r in found):
                     try:  # already tagged with a release: offer it first
@@ -1177,17 +1206,31 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
                     except ProviderError:
                         pass
         except ProviderError as exc:
-            raise HTTPException(502, str(exc)) from exc
+            if not catalogs.available() or body.release.strip():
+                raise HTTPException(502, str(exc)) from exc
+            mb_error = str(exc)  # MusicBrainz is down: Deezer / iTunes can still answer
         candidates = []
         for r in found:
             c = summarize(r)
             c["score"] = score_candidate(c, infos, album, artist)
             c["current"] = c["id"] == current
             candidates.append(c)
+        if not body.release.strip() and catalogs.available() and (album or artist) \
+                and (not candidates or max(c["score"] for c in candidates) < 70):
+            # Fallback: MusicBrainz is off, down, has nothing, or nothing it has fits well.
+            try:
+                for r in catalogs.search(album, artist):
+                    c = summarize(r)
+                    c["score"] = score_candidate(c, infos, album, artist)
+                    c["current"] = False
+                    candidates.append(c)
+            except ProviderError as exc:
+                if not candidates:
+                    raise HTTPException(502, mb_error or str(exc)) from exc
         if not body.release.strip():
             candidates.sort(key=lambda c: (not c["current"], -c["score"]))
         return {"query": {"album": album, "artist": artist, "files": len(rels)}, "current": current or None,
-                "candidates": candidates}
+                "candidates": candidates, "note": f"MusicBrainz didn't answer ({mb_error}), so these come from other sources." if mb_error else None}
 
     @app.post("/api/musicbrainz/identify")
     def mb_identify(body: MBTarget) -> dict:
@@ -1254,12 +1297,12 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
 
     def mb_proposal(body: MBProposalIn) -> tuple[dict, dict]:
         """What applying this release would change, per file. Returns (proposal, release)."""
-        require_connection("musicbrainz")
+        require_matching()
         require_library()
         rels = mb_targets(body)
         mbid = mb_release_id(body.release)
         try:
-            release = mb.release(mbid)
+            release = get_release(mbid)
         except ProviderError as exc:
             raise HTTPException(502, str(exc)) from exc
         tracks = release_tracks(release)
@@ -1337,7 +1380,11 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         kind = "release"
         if mbid.startswith("rg:"):
             kind, mbid = "release-group", mbid[3:]
-        data = download_art(cover_url(mbid, size, kind=kind))
+        if is_catalog_id(mbid):  # Deezer / iTunes: their own cover (one size, fetched by the server)
+            url = catalogs.cover(mbid)
+            data = download_art(url) if url else None
+        else:
+            data = download_art(cover_url(mbid, size, kind=kind))
         if data is not None and sniff_image_type(data) not in ("image/jpeg", "image/png"):
             data = None  # only real JPEG/PNG covers are used (and served to the page)
         if size and size <= 500:  # only small thumbnails are kept (the candidate list)
@@ -1352,8 +1399,12 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
                  kind: Literal["release", "release-group"] = "release"):
         """A release's (or release group's) front cover from the Cover Art Archive, fetched
         by the server (so the page never loads anything from another site)."""
-        require_connection("musicbrainz")
-        if not MBID_RE.match(mbid) or size not in (250, 500):
+        catalog = is_catalog_id(mbid) and mbid.split(":", 1)[1].isdigit()
+        if catalog:
+            require_connection(mbid.split(":", 1)[0])
+        else:
+            require_connection("musicbrainz")
+        if not (MBID_RE.match(mbid) or catalog) or size not in (250, 500):
             raise HTTPException(422, "Not a release ID or thumbnail size")
         try:
             data = fetch_cover(("rg:" if kind == "release-group" else "") + mbid, size)
@@ -1372,11 +1423,19 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         art, art_error = None, None
         if any(f.get("cover") for f in proposal["files"]):
             try:
-                art = fetch_cover(summary["id"], 1200) or fetch_cover(summary["id"], None)
-                if art is None:
-                    art_error = "This release has no cover art on the Cover Art Archive"
+                art = fetch_cover(summary["id"], 1200) or (None if is_catalog_id(summary["id"]) else fetch_cover(summary["id"], None))
             except ProviderError as exc:
                 art_error = str(exc)
+            if art is None and not is_catalog_id(summary["id"]) and catalogs.available():
+                try:  # the Cover Art Archive has none: Deezer / iTunes often do
+                    url = catalogs.find_cover(summary["title"], summary["artist"])
+                    found = download_art(url) if url else None
+                    if found is not None and sniff_image_type(found) in ("image/jpeg", "image/png"):
+                        art, art_error = found, None
+                except ProviderError:
+                    pass
+            if art is None and art_error is None:
+                art_error = "No cover was found for this release"
         tag_undo, art_undo, results = {}, {}, []
         for f in proposal["files"]:
             rel = f["path"]
@@ -1697,21 +1756,22 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         if g is None:
             return
         title, artist = inbox_tags(g.paths)
-        if not connections.enabled("musicbrainz"):
+        if not connections.enabled("musicbrainz") and not catalogs.available():
             inbox.update(key, status=LOCAL, title=title, artist=artist,
                          note="Online lookups are off, so this files by its own tags.")
             return
         try:
             found = mb_search(MBSearchIn(paths=g.paths)) if (title or artist) else {"candidates": []}
             cands, recordings = found["candidates"], {}
-            sound = connections.enabled("acoustid") and fingerprinter.available and len(g.paths) <= MAX_IDENTIFY
+            sound = (connections.enabled("acoustid") and connections.enabled("musicbrainz")
+                     and fingerprinter.available and len(g.paths) <= MAX_IDENTIFY)
             if sound and (not cands or cands[0]["score"] < 85):
                 heard = mb_identify(MBTarget(paths=g.paths))
                 if heard["candidates"] and (not cands or heard["candidates"][0]["score"] >= cands[0]["score"]):
                     cands, recordings = heard["candidates"], heard["recordings"]
             if not cands:
                 inbox.update(key, status=NO_MATCH, title=title, artist=artist,
-                             note="Not found on MusicBrainz. Review it to search by hand, or file it by its own tags.")
+                             note="Not found online. Review it to search by hand, or file it by its own tags.")
                 return
             best = cands[0]
             proposal = mb_preview(MBProposalIn(paths=g.paths, release=best["id"], recordings=recordings))

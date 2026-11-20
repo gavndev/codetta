@@ -397,7 +397,9 @@ def summarize(rel: dict) -> dict:
         "mb_score": rel.get("score") if isinstance(rel.get("score"), int) else None,
         # Search results don't say; a full lookup does. None = unknown, try anyway.
         "has_cover": caa.get("front") if isinstance(caa.get("front"), bool) else None,
-        "url": f"https://musicbrainz.org/release/{rel.get('id')}",
+        "url": rel.get("_url") or f"https://musicbrainz.org/release/{rel.get('id')}",
+        "source": rel.get("_source") or "musicbrainz",
+        "cover": rel.get("_cover") or None,
     }
 
 
@@ -622,6 +624,8 @@ def album_tags(rel: dict) -> dict[str, list[str]]:
     genres = [g for g in (rel.get("genres") or rg.get("genres") or []) if isinstance(g, dict) and g.get("name")]
     genres.sort(key=lambda g: -(g.get("count") or 0))
     tags["genre"] = _unique(g["name"].title() for g in genres[:3])
+    if rel.get("_source"):  # Deezer / iTunes: their ids are not MusicBrainz IDs, so none are written
+        tags = {k: v for k, v in tags.items() if not k.startswith("musicbrainz_")}
     return tags
 
 
@@ -664,6 +668,8 @@ def track_tags(rel: dict, t: TrackRef, album: dict[str, list[str]] | None = None
     for k, v in credit_map.items():
         tags[k] = _unique(v)
     tags["musicbrainz_workid"] = _unique(work_ids)
+    if rel.get("_source"):  # Deezer / iTunes: never written as MusicBrainz IDs
+        tags = {k: v for k, v in tags.items() if not k.startswith("musicbrainz_")}
     return _without_placeholders({k: _unique(v) for k, v in tags.items() if _unique(v)})
 
 

@@ -4,6 +4,7 @@ All notable changes to Codetta. Versions follow [Semantic Versioning](https://se
 
 ## Unreleased (0.8.6)
 
+- **Deezer and iTunes as album sources:** two new opt-in connections (no account needed) for album details and big covers. They step in when MusicBrainz is off, down, or has nothing that fits (new releases often reach Deezer and iTunes first), in the same Find screen with the same per-file review and undo, and the inbox uses them too. Covers the Cover Art Archive doesn't have now come from them as well. Only the album and artist names you search for are sent, and nothing from them is written as a MusicBrainz ID.
 - **Soulseek: pick the source first.** After a search, Codetta lists the best sources with who's sharing, a free slot or their queue, their speed, the quality and every file, and waits for you to choose. Switch it off in Soulseek's settings to let the best source download by itself.
 - **Soulseek: lighter on slskd.** One request checks every download at once (instead of one per download), the same search twice shares one request, and if slskd stops answering Codetta waits a little longer each time instead of asking again and again.
 - **Soulseek: no more half albums in the inbox.** When a download gives up on one source and moves to another, or you cancel it, the files that already arrived go to Recently deleted instead of staying behind as a second, partial album. Blocklisting a download also sets its files aside there instead of erasing them.

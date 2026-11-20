@@ -803,7 +803,7 @@ function mbFindButton(where) {
     class: `mb-find ${where}`, type: "button", onclick: openMusicBrainz,
     "aria-label": "Find in MusicBrainz", title: "Find this album on MusicBrainz and review its tags before writing them",
   }, h("span", { class: "mb-find-inner" }, icon("musicbrainz"),
-    h("span", { class: "mb-find-long" }, "Find in MusicBrainz"), h("span", { class: "mb-find-short" }, "Find")));
+    h("span", { class: "mb-find-long" }, connectionOn("musicbrainz") ? "Find in MusicBrainz" : "Find album details"), h("span", { class: "mb-find-short" }, "Find")));
 }
 
 // ---- Explore MusicBrainz (the !mb bang): search results, artists, releases ---------------------------
@@ -1220,7 +1220,7 @@ function renderFolderHead() {
     const set = new Set(f.tracks.filter((t) => !t.error).map(listOf).filter(Boolean));
     return set.size === 1 ? [...set][0] : "";
   })();
-  const canMatch = f.tracks.length && state.status?.musicbrainz;
+  const canMatch = f.tracks.length && state.status?.matching;
   const canSoulseek = f.tracks.length && skReady() && !state.path.startsWith("@");
   const heading = coverTrack
     // A folder of tracks with a cover reads as the album's booklet spread.
@@ -3480,6 +3480,7 @@ function openMusicBrainzFor(target, { release = null, recordings = {}, onWritten
     release: null, proposal: null, pairs: {}, fields: null, mode: "overwrite", cover: "missing",
     openGroups: new Set(), openFiles: new Set(), recordings: recordings || {}, sound: null, onWritten,
   });
+  $("#mb-title").textContent = connectionOn("musicbrainz") ? "Match on MusicBrainz" : "Find album details";
   openDialog($("#mb-dialog"));
   if (release) mbPick(release);
   else mbSearch({});
@@ -3570,7 +3571,7 @@ function renderMbSearch() {
         ? "These tracks have no album or artist yet. Type what to search for, or identify them by sound."
         : "These tracks have no album or artist yet. Type what to search for above.");
   } else if (res) {
-    list = h("div", { class: "mb-cands", role: "list" }, res.candidates.map((c) => h("button", {
+    list = h("div", { class: "mb-cands", role: "list" }, res.note ? h("p", { class: "hint mb-note" }, res.note) : null, res.candidates.map((c) => h("button", {
       type: "button", class: "mb-cand", role: "listitem", onclick: () => mbPick(c.id),
     },
       mbThumb(c.id),
@@ -3579,7 +3580,8 @@ function renderMbSearch() {
         h("span", { class: "mb-cand-artist", dir: "auto" }, c.artist),
         h("span", { class: "mb-cand-meta" }, mbMeta(c)),
         c.heard != null ? h("span", { class: "mb-heard" }, `${c.heard} of your ${plural(res.total, "track")} ${c.heard === 1 ? "is" : "are"} on it`) : null,
-        c.current ? h("span", { class: "mb-current" }, h("span", { class: "badge" }, "Your files use this release")) : null),
+        c.current ? h("span", { class: "mb-current" }, h("span", { class: "badge" }, "Your files use this release")) : null,
+        c.source && c.source !== "musicbrainz" ? h("span", { class: `src-badge ${c.source}` }, c.source === "deezer" ? "From Deezer" : "From iTunes") : null),
       h("span", { class: "mb-cand-side" },
         h("span", { class: `mb-score ${c.score >= 85 ? "good" : c.score >= 60 ? "ok" : "low"}`, title: "How well this release fits these files" }, `${c.score}%`),
         h("span", { class: "mb-chev" }, icon("chevron"))))));
@@ -5903,7 +5905,7 @@ function trackMenu(t) {
     many ? null : { icon: "select", label: "Select", run: () => { if (isPhone()) setSelectMode(true); toggleSelect(t.path, true, false); } },
     { icon: "wand", label: "Actions…", run: () => openActions({ paths }, label) },
     many ? null : { icon: "info", label: "Get info", run: () => showInfo(t.path) },
-    state.status?.musicbrainz ? { icon: "musicbrainz", label: "Find in MusicBrainz", run: () => openMusicBrainzFor({ body: { paths }, label }) } : null,
+    state.status?.matching ? { icon: "musicbrainz", label: "Find in MusicBrainz", run: () => openMusicBrainzFor({ body: { paths }, label }) } : null,
     !many && skReady() ? { icon: "slskd", label: "Find in slskd", run: () => slskdFor([artist, title].filter(Boolean).join(" ")) } : null,
     "-",
     { icon: "trash", label: "Delete…", danger: true, run: () => deleteEntries(paths, label) },
@@ -5917,7 +5919,7 @@ function folderMenu(path) {
     { icon: "rename", label: "Rename…", run: () => renameEntry(path, true) },
     { icon: "move", label: "Move to…", run: () => moveEntries([path], `“${name}”`) },
     { icon: "info", label: "Get info", run: () => showInfo(path) },
-    state.status?.musicbrainz ? { icon: "musicbrainz", label: "Find in MusicBrainz", run: () => openMusicBrainzFor({ body: { folder: path }, label: `“${name}”` }) } : null,
+    state.status?.matching ? { icon: "musicbrainz", label: "Find in MusicBrainz", run: () => openMusicBrainzFor({ body: { folder: path }, label: `“${name}”` }) } : null,
     skReady() ? { icon: "slskd", label: "Find in slskd", run: () => slskdFor(parts.slice(-2).join(" ").replace(/\s*[([]\d{4}[)\]]\s*/g, " ").trim()) } : null,
     "-",
     { icon: "trash", label: "Delete…", danger: true, run: () => deleteEntries([path], `“${name}”`) },

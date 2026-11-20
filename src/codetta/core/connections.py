@@ -41,6 +41,20 @@ CONNECTIONS: tuple[Connection, ...] = (
         ("musicbrainz.org", "coverartarchive.org"), "MUSICBRAINZ",
     ),
     Connection(
+        "deezer", "Deezer",
+        "Album details and big covers from Deezer's catalogue, for albums MusicBrainz doesn't have "
+        "yet (new releases often appear here first), or when it's down. No account needed.",
+        "The album and artist names you search for, and the IDs of albums you pick.",
+        ("api.deezer.com", "cdn-images.dzcdn.net"), "DEEZER",
+    ),
+    Connection(
+        "itunes", "iTunes",
+        "Album details and high-resolution covers from Apple's iTunes catalogue, as another fallback "
+        "next to MusicBrainz and Deezer. No account needed.",
+        "The album and artist names you search for, and the IDs of albums you pick.",
+        ("itunes.apple.com", "is1-ssl.mzstatic.com"), "ITUNES",
+    ),
+    Connection(
         "acoustid", "AcoustID: identify by sound",
         "Recognise tracks by how they sound, even untagged ones, to find the right MusicBrainz "
         "release. Works together with MusicBrainz.",
