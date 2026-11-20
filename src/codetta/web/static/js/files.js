@@ -423,7 +423,7 @@ export async function openTrash() {
   const empty = d.items.length ? h("button", { class: "btn small danger", type: "button",
     onclick: () => { closeDialog($("#confirm-dialog")); setTimeout(() => trashErase(d.items.map((i) => i.id), d.files, "everything"), 250); } },
     `Empty (${plural(d.files, "file")})`) : null;
-  await ask({ title: "Recently deleted", confirmLabel: "Done", cancelLabel: "Close",
+  await ask({ title: "Recently deleted", confirmLabel: "Done", cancelLabel: null, // one way out: nothing here needs a choice
     message: d.items.length ? `${plural(d.files, "file")}, ${fmtBytes(d.size)}. Each item is removed for good ${d.keep_days} days after it was deleted.` : "",
     details: h("div", {}, box, empty ? h("div", { class: "trash-foot" }, empty) : null) });
 }

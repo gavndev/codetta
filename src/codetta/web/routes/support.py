@@ -44,12 +44,25 @@ def register(app, shared) -> None:
         lines = log_buffer.since(after)
         return {"lines": lines, "last": lines[-1]["id"] if lines else after}
 
+    def install_kind() -> str:
+        """How this Codetta was installed, in the words a bug report needs."""
+        import sys
+        if os.environ.get("SNAP"):
+            return "snap"
+        if Path("/.dockerenv").exists() or os.environ.get("CODETTA_IN_DOCKER"):
+            return "Docker"
+        if "pipx" in Path(sys.prefix).parts:
+            return "pipx"
+        if "site-packages" not in Path(__file__).parts:
+            return "source checkout"
+        return "pip"
+
     @app.get("/api/report")
     def problem_report() -> dict:
         """For "Report a problem": the version, how Codetta is installed, which connections are on,
         and recent warnings. No usernames; anything shaped like a secret is already masked."""
         import platform
-        install = "snap" if os.environ.get("SNAP") else "docker" if Path("/.dockerenv").exists() else "python"
+        install = install_kind()
         lines = [ln for ln in log_buffer.since(0) if ln.get("level") in ("warning", "error", "critical")][-30:]
         return {"version": VERSION, "install": install, "python": platform.python_version(), "system": platform.system(),
                 "connections": sorted(k for k in ("musicbrainz", "acoustid", "deezer", "itunes", "lyrics", "slskd", "updates")

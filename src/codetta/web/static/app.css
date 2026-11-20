@@ -719,6 +719,7 @@ dialog.sheet.small { width: min(420px, calc(100vw - 32px)); }
 /* Confirmation sheet */
 dialog.confirm .sheet-head { padding-bottom: 4px; }
 .confirm-msg { color: var(--muted); }
+.confirm-msg + * { margin-top: 14px; } /* breathing room between a sheet's message and what follows */
 dialog.confirm .change-list {
   list-style: none; margin: 10px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--hover);
   display: flex; flex-direction: column; gap: 6px; font-size: 13px; max-height: 40vh; overflow-y: auto;

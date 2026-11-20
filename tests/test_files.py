@@ -260,3 +260,11 @@ def test_a_blank_name_is_refused_not_turned_into_an_underscore(setup, name):
     r = c.post("/api/files/rename", json={"path": "Artist/Album/01 Song.flac", "name": name})
     assert r.status_code == 422
     assert (music / "Artist" / "Album" / "01 Song.flac").is_file()
+
+
+def test_report_a_problem_has_what_a_bug_report_needs(setup):
+    c, _, _ = setup
+    r = c.get("/api/report").json()
+    assert set(r) >= {"version", "install", "python", "system", "connections", "tracks", "tidy_up", "log"}
+    assert r["install"] in {"snap", "Docker", "pipx", "pip", "source checkout"}
+    assert isinstance(r["connections"], list) and isinstance(r["log"], list)
