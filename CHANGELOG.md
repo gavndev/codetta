@@ -2,6 +2,10 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
+## Unreleased (0.8.6)
+
+- **Fixed:** matching on MusicBrainz could rename real songs to "[unknown]". MusicBrainz lists songs it doesn't know yet (often unreleased tracks on a new soundtrack) as "[unknown]" by "[unknown]", and Codetta copied that over the file's own title and artist. Those placeholders are now ignored, so the file keeps its real names.
+
 ## 0.8.5 (2026-11-19)
 
 - **Right-click menu (long press on phones):** for any track or folder: Rename, Move to, Select, Actions, Get info, Find in MusicBrainz, Find in slskd and Delete. It's small and quick, opens right where you clicked, and works on a selection too.

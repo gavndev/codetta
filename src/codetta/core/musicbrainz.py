@@ -664,4 +664,19 @@ def track_tags(rel: dict, t: TrackRef, album: dict[str, list[str]] | None = None
     for k, v in credit_map.items():
         tags[k] = _unique(v)
     tags["musicbrainz_workid"] = _unique(work_ids)
-    return {k: _unique(v) for k, v in tags.items() if _unique(v)}
+    return _without_placeholders({k: _unique(v) for k, v in tags.items() if _unique(v)})
+
+
+# MusicBrainz's stand-ins for what it doesn't know yet (e.g. unreleased songs on a soundtrack listed
+# as "[unknown]" by "[unknown]"). They're not real names: a file keeps the title and artist it has.
+PLACEHOLDER_NAMES = frozenset({"[unknown]", "[untitled]", "[no artist]", "[unknown artist]", "[data]"})
+PLACEHOLDER_ARTIST_IDS = frozenset({"125ec42a-7229-4250-afc5-e057484327fe"})  # the "[unknown]" artist
+
+
+def _without_placeholders(tags: dict[str, list[str]]) -> dict[str, list[str]]:
+    out = {}
+    for key, values in tags.items():
+        kept = [v for v in values if v.strip().lower() not in PLACEHOLDER_NAMES and v.lower() not in PLACEHOLDER_ARTIST_IDS]
+        if kept:
+            out[key] = kept
+    return out

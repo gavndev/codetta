@@ -450,3 +450,17 @@ def test_paths_must_stay_in_the_library(make_client):
     assert res.status_code in (400, 200)
     if res.status_code == 200:  # reported per file, never read
         assert res.json()["files"][0]["error"]
+
+
+def test_musicbrainz_placeholders_never_replace_real_names():
+    """Unreleased songs on a release are listed as "[unknown]" by "[unknown]": a matched file must keep
+    its own title and artist instead of being renamed "[unknown]"."""
+    unknown = {"id": "125ec42a-7229-4250-afc5-e057484327fe", "name": "[unknown]", "sort-name": "[unknown]"}
+    rel = release(tracks=[track(1, "[unknown]", credit=[{"name": "[unknown]", "joinphrase": "", "artist": unknown}]),
+                          track(2, "Real Song")])
+    t1, t2 = release_tracks(rel)[:2]
+    tags = track_tags(rel, t1)
+    assert "title" not in tags and "artist" not in tags and "artists" not in tags
+    assert "musicbrainz_artistid" not in tags
+    assert tags["album"] == ["Fixture Album"] and tags["tracknumber"] == ["1/2"]  # the rest still applies
+    assert track_tags(rel, t2)["title"] == ["Real Song"]
