@@ -80,6 +80,7 @@ from codetta.core.health import run as health_run
 from codetta.core.describe import describe_file, describe_many
 from codetta.core.fileinfo import file_info, folder_info
 from codetta.core.catalogs import Catalogs, is_catalog_id
+from codetta.core import importer
 from codetta.core import librarycare as care_mod
 from codetta.core.logbuffer import shared_buffer
 from codetta.core.plugins import ActionError, PluginManager
@@ -487,6 +488,11 @@ class LibraryCareIn(BaseModel):
 
 class LibraryCareFolderIn(BaseModel):
     folder: str = Field(max_length=MAX_PATH_CHARS)
+
+
+class ImportDoneIn(BaseModel):
+    batch: str = Field(max_length=40)
+    paths: list[Annotated[str, Field(max_length=MAX_PATH_CHARS)]] = Field(max_length=10_000)
 
 
 class FilesIn(BaseModel):
@@ -3016,6 +3022,63 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         target = library.resolve(path)
         info = folder_info(target) if target.is_dir() else file_info(engine, target)
         return {"path": path.strip("/"), **info}
+
+    # --- Import: music added from your computer or phone ----------------------------------------
+
+    def import_root(batch: str) -> str:
+        """Where an import lands: the inbox (matched and filed like new music) or "Imported"."""
+        if not importer.BATCH_RE.match(batch):
+            raise HTTPException(422, "That import isn't valid.")
+        base = inbox.settings.folder
+        try:
+            usable = bool(base) and library.resolve(base).is_dir()
+        except LibraryPathError:
+            usable = False
+        return f"{base if usable else 'Imported'}/Import {batch}"
+
+    @app.put("/api/import")
+    async def import_file(request: Request, batch: str = Query(..., max_length=40),
+                          path: str = Query(..., max_length=MAX_PATH_CHARS, description="The file's name, or its path inside the folder you picked")) -> dict:
+        """Add one file (the request body), streamed to disk. Names are cleaned and nothing is overwritten."""
+        require_library()
+        root = import_root(batch)
+        try:
+            parts = importer.clean_parts(path)
+            target = await importer.receive_stream(library.resolve(root), parts, request.stream())
+        except importer.ImportError_ as exc:
+            raise HTTPException(413 if "bigger" in str(exc) else 422, str(exc)) from exc
+        except OSError as exc:
+            raise HTTPException(507 if getattr(exc, "errno", None) == 28 else 500, f"Couldn't save it: {exc.strerror or exc}") from exc
+        return {"path": library.relative(target), "audio": importer.is_audio(target.name)}
+
+    @app.post("/api/import/done")
+    def import_done(body: ImportDoneIn) -> dict:
+        """The import is complete: log it (undo sends it to Recently deleted), then hand the music to
+        the inbox, or organize it in the library."""
+        require_library()
+        root = import_root(body.batch)
+        rels = []
+        for p in _unique(body.paths):
+            try:
+                if p.startswith(root + "/") and library.resolve(p).is_file():
+                    rels.append(p)
+            except LibraryPathError:
+                continue
+        if not rels:
+            raise HTTPException(422, "Nothing from this import arrived.")
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        audio = [r for r in rels if importer.is_audio(r)]
+        activity.add("import", f"Imported {len(rels)} file{'s' if len(rels) != 1 else ''}", files=rels,
+                     changes=[{"key": "location", "old": "", "new": root}],
+                     undo={"type": "moves", "moves": [[f"{DELETED}/{stamp}/{r.lstrip('@')}", r] for r in rels]})
+        if root.startswith(inbox.settings.folder + "/") and inbox.settings.folder:
+            inbox.sync(library)
+            inbox_start()
+            return {"files": len(rels), "audio": len(audio), "where": "inbox", "folder": root}
+        lib_index.mark_dirty(rels)
+        org = organize_apply(OrganizeIn(paths=audio)) if audio else {"moved": 0, "held": []}
+        return {"files": len(rels), "audio": len(audio), "where": "library", "folder": root,
+                "organized": org["moved"], "stayed": len(org["held"])}
 
     log_buffer = shared_buffer()
 

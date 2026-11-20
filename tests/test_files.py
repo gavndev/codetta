@@ -158,3 +158,34 @@ def test_raw_view_handles_m4a_compilations_and_mp3_credits(tmp_path):
     engine.update_tags(tmp_path / "b.mp3", {"producer": "Pat"})
     audio, fmt = _open_raw(tmp_path / "b.mp3")
     assert {e["name"]: e["value"] for e in raw_tags(audio, fmt)[1]}["TIPL"] == "producer: Pat"
+
+
+# --- Import ---------------------------------------------------------------------------------------
+
+
+def test_import_into_the_library_is_organized_and_undoable(setup):
+    c, music, config = setup
+    data = (FIXTURES_DIR / "sample.flac").read_bytes()  # tagged "Coda Collective / Fixture Album"
+    r = c.put("/api/import", params={"batch": "test-0001", "path": "My Album/03 Track.flac"}, content=data).json()
+    assert r["audio"] and r["path"].startswith("Imported/Import test-0001/")
+    note = c.put("/api/import", params={"batch": "test-0001", "path": "My Album/notes.txt"}, content=b"hi").json()
+    assert note["audio"] is False  # not music: still imported (the page warns first)
+    done = c.post("/api/import/done", json={"batch": "test-0001", "paths": [r["path"], note["path"]]}).json()
+    assert done["where"] == "library" and done["organized"] == 1
+    placed = list((music / "Coda Collective").rglob("*.flac"))
+    assert len(placed) == 1
+    entry = next(e for e in c.get("/api/activity").json() if e["kind"] == "import")
+    assert entry["can_undo"] and "Imported 2 files" in entry["message"]
+
+
+def test_import_lands_in_the_inbox_when_there_is_one(setup):
+    c, music, config = setup
+    (music / "Downloads").mkdir()
+    c.put("/api/inbox/settings", json={"folder": "Downloads"})
+    r = c.put("/api/import", params={"batch": "test-0002", "path": "song.flac"}, content=(FIXTURES_DIR / "sample.flac").read_bytes()).json()
+    assert r["path"] == "Downloads/Import test-0002/song.flac"
+    done = c.post("/api/import/done", json={"batch": "test-0002", "paths": [r["path"]]}).json()
+    assert done["where"] == "inbox"
+    undo_latest(c)  # undo: the import goes to Recently deleted
+    assert not (music / "Downloads" / "Import test-0002" / "song.flac").exists()
+    assert list((config / "deleted").rglob("song.flac"))

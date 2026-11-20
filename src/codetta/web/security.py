@@ -19,6 +19,7 @@ from urllib.parse import urlsplit
 
 from codetta.core.artwork import MAX_ART_BYTES
 from codetta.core.avatar import MAX_AVATAR_BYTES
+from codetta.core.importer import MAX_IMPORT_BYTES
 
 KB = 1024
 MB = 1024 * KB
@@ -28,6 +29,7 @@ MB = 1024 * KB
 BODY_LIMITS = {
     "/api/art": MAX_ART_BYTES,
     "/api/account/avatar": MAX_AVATAR_BYTES,
+    "/api/import": MAX_IMPORT_BYTES,  # one music file per request, streamed to disk
 }
 DEFAULT_LIMIT = 1 * MB  # JSON: tag edits, presets, sign-in...
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
@@ -133,7 +135,7 @@ class GuardMiddleware:
 
 
 # Already compressed (images, fonts) or must stay byte-exact for seeking (audio): never gzipped.
-NO_GZIP_PATHS = ("/api/stream", "/api/art", "/api/account/avatar", "/api/musicbrainz/cover")
+NO_GZIP_PATHS = ("/api/stream", "/api/art", "/api/account/avatar", "/api/musicbrainz/cover", "/api/import")
 GZIP_STATIC = (".js", ".css", ".svg", ".html", ".json", ".txt", ".webmanifest")
 
 

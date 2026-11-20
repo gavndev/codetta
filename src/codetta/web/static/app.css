@@ -2850,3 +2850,17 @@ dialog:focus { outline: none; }
 .inbox-found.bad { color: var(--danger); } .inbox-found.bad::before { background: var(--danger); }
 :root[data-theme="dark"] .inbox-found.ok { color: #5fd08a; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .inbox-found.ok { color: #5fd08a; } }
+
+/* Import */
+.import-progress { position: fixed; left: 50%; bottom: max(18px, env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 70;
+  width: min(420px, calc(100vw - 24px)); padding: 12px 14px; border-radius: 14px; background: var(--surface-raised);
+  border: 1px solid var(--border); box-shadow: var(--shadow-lg); display: grid; gap: 8px; font-size: 13.5px; font-weight: 500; }
+.import-progress > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.import-bar { height: 4px; border-radius: 2px; background: var(--hover); overflow: hidden; }
+.import-bar > span { display: block; height: 100%; width: 0; background: var(--spot); transition: width 200ms ease; }
+.drop-veil { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: color-mix(in oklab, var(--bg) 70%, transparent);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); pointer-events: none; }
+.drop-veil > div { display: grid; justify-items: center; gap: 8px; padding: 28px 32px; border: 2px dashed var(--spot); border-radius: 18px;
+  background: var(--surface-raised); text-align: center; max-width: 340px; }
+.drop-veil svg { width: 34px; height: 34px; fill: none; stroke: var(--spot); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.drop-veil span { color: var(--muted); font-size: 13.5px; }

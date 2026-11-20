@@ -110,6 +110,7 @@ function openDialog(dialog) {
 }
 
 const ICONS = {
+  upload: '<svg viewBox="0 0 20 20"><path d="M10 13V3.5M6 7.5l4-4 4 4M3.5 12.5v2A1.5 1.5 0 0 0 5 16h10a1.5 1.5 0 0 0 1.5-1.5v-2"/></svg>',
   info: '<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7.5"/><path d="M10 9v5M10 6.2v.1"/></svg>',
   trash: '<svg viewBox="0 0 20 20"><path d="M3.5 5.5h13M8 5.5V4h4v1.5M5.5 5.5l.8 10.5h7.4l.8-10.5M8.5 8.5v5M11.5 8.5v5"/></svg>',
   move: '<svg viewBox="0 0 20 20"><path d="M2.5 5.5a1.5 1.5 0 0 1 1.5-1.5h3.6l1.8 2H16a1.5 1.5 0 0 1 1.5 1.5v7A1.5 1.5 0 0 1 16 16H4a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M8 11h5m-2-2 2 2-2 2"/></svg>',
@@ -4168,6 +4169,7 @@ function renderInbox() {
         ? `${pending ? plural(pending, "album") + " waiting" : "All caught up"} in ${inboxLabel(d.settings.folder)}.${d.downloading ? ` ${plural(d.downloading, "album")} still arriving: Codetta waits until the download finishes.` : ""}${d.settings.auto ? " Confident matches are filed automatically." : ""}`
         : `Nothing new in ${inboxLabel(d.settings.folder)}. When an album lands there, it shows up here.`),
       h("div", { class: "inbox-tools" },
+        h("button", { class: "btn small with-icon", type: "button", onclick: pickImport }, icon("upload"), "Import"),
         skReady() ? h("button", { class: "btn small with-icon", type: "button", onclick: () => { closeDialog($("#inbox-dialog")); openSoulseek(); } },
           icon("slskd"), "Soulseek") : null,
         h("button", { class: "btn small with-icon", type: "button", onclick: () => { inboxState.settingsOpen = true; renderInbox(); } },
@@ -5465,6 +5467,7 @@ function bindEvents() {
   });
 
   setupContextMenu();
+  setupDropImport();
   $("#care-toggle").addEventListener("click", () => { closeDialog($("#account-dialog")); setTimeout(chooseCare, 250); });
   $("#log-tile").addEventListener("toggle", () => { if ($("#log-tile").open) pollLog(); else stopLogPolling(); });
   $("#account-dialog").addEventListener("close", stopLogPolling);
@@ -6173,4 +6176,113 @@ function setupContextMenu() {
       if (ctx.suppressClick) { ctx.suppressClick = false; e.preventDefault(); e.stopPropagation(); }
     }, true);
   }
+}
+
+
+// ---- Import: add music from this computer or phone ----------------------------------------------------
+//
+// Files go up one at a time (streamed to disk on the server) into one folder per import: the inbox,
+// where they're matched and filed like new music, or "Imported" in the library, where Organize
+// places them. Anything that isn't audio gets a warning first, never a refusal.
+
+const AUDIO_EXT = /\.(flac|mp3|m4a|m4b|aac|ogg|oga|opus|wav|aif|aiff|dsf|wv|tta|mp2|wma|spx)$/i;
+
+function pickImport() {
+  const files = h("input", { type: "file", multiple: true, hidden: true });
+  const folder = h("input", { type: "file", multiple: true, hidden: true, webkitdirectory: true });
+  const take = (input, useFolders) => () => {
+    importFiles([...input.files].map((f) => ({ file: f, path: useFolders && f.webkitRelativePath ? f.webkitRelativePath : f.name })));
+    input.remove();
+  };
+  files.addEventListener("change", take(files, false));
+  folder.addEventListener("change", take(folder, true));
+  document.body.append(files, folder);
+  const canFolder = "webkitdirectory" in folder && !isPhone();
+  if (!canFolder) { files.click(); return; }
+  ask({ title: "Import music", message: "Pick some files, or a whole folder (an album, or several).",
+    confirmLabel: "Choose a folder", cancelLabel: "Choose files" }).then((wantFolder) => (wantFolder ? folder : files).click());
+}
+
+async function importFiles(list) {
+  list = list.filter((x) => x.file && !x.path.split("/").some((p) => p.startsWith(".")));
+  if (!list.length) return;
+  const other = list.filter((x) => !AUDIO_EXT.test(x.path));
+  if (other.length && !(await ask({ title: other.length === list.length ? "These aren't music files" : "Some of these aren't music",
+    message: `${plural(other.length, "file")} of ${list.length} ${other.length === 1 ? "isn't" : "aren't"} audio (${other.slice(0, 3).map((x) => x.path.split("/").pop()).join(", ")}${other.length > 3 ? "…" : ""}). ${other.length === 1 ? "It'll" : "They'll"} be imported too, next to the music.`,
+    confirmLabel: "Import anyway" }))) return;
+  const stamp = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
+  const batch = `${stamp}-${Math.random().toString(36).slice(2, 6)}`;
+  const bar = h("div", { class: "import-progress", role: "status" }, h("span", {}, "Importing…"), h("span", { class: "import-bar" }, h("span", {})));
+  document.body.append(bar);
+  const done = [];
+  let failed = 0;
+  for (const [i, x] of list.entries()) {
+    bar.firstChild.textContent = `Importing ${i + 1} of ${list.length}: ${x.path.split("/").pop()}`;
+    bar.lastChild.firstChild.style.width = `${Math.round((i / list.length) * 100)}%`;
+    try {
+      const res = await fetch(`/api/import?batch=${encodeURIComponent(batch)}&path=${encodeURIComponent(x.path)}`, { method: "PUT", body: x.file });
+      if (res.status === 401) { showAuth("login", "Your session ended. Sign in again, then import again."); break; }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || `Couldn't import ${x.path}`);
+      done.push(data.path);
+    } catch (err) {
+      failed += 1;
+      if (failed === 1) toast(err.message, "error");
+    }
+  }
+  bar.remove();
+  if (!done.length) return;
+  try {
+    const r = await api("POST", "/api/import/done", { batch, paths: done });
+    const extra = failed ? ` ${plural(failed, "file")} couldn't be imported.` : "";
+    if (r.where === "inbox") {
+      toast(`Imported ${plural(r.files, "file")} into your inbox: Codetta is matching ${r.files === 1 ? "it" : "them"}.${extra}`, failed ? "error" : "success");
+      if ($("#inbox-dialog").open) loadInbox();
+    } else {
+      toast(`Imported ${plural(r.files, "file")}${r.organized ? `, ${r.organized} placed with your folder pattern` : ""}${r.stayed ? `; ${r.stayed} stayed in “${r.folder}” (not enough tags)` : ""}.${extra}`, failed ? "error" : "success");
+    }
+    folderCache.clear(); folderCovers.clear();
+    refreshActivity();
+    loadFolder(state.path, { keepScroll: true });
+  } catch (err) { toast(err.message, "error"); }
+}
+
+// Drag music (files or whole folders) onto the page to import it.
+async function droppedFiles(dt) {
+  const out = [];
+  const walk = (entry, prefix) => new Promise((resolve) => {
+    if (entry.isFile) entry.file((f) => { out.push({ file: f, path: prefix + f.name }); resolve(); }, () => resolve());
+    else if (entry.isDirectory) {
+      const reader = entry.createReader();
+      const all = [];
+      const more = () => reader.readEntries(async (batch) => {
+        if (!batch.length) { for (const e of all) await walk(e, `${prefix}${entry.name}/`); resolve(); return; }
+        all.push(...batch);
+        more();
+      }, () => resolve());
+      more();
+    } else resolve();
+  });
+  const entries = [...(dt.items || [])].map((it) => it.webkitGetAsEntry?.()).filter(Boolean);
+  if (entries.length) { for (const e of entries) await walk(e, ""); return out; }
+  return [...dt.files].map((f) => ({ file: f, path: f.name }));
+}
+
+function setupDropImport() {
+  let depth = 0;
+  const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes("Files");
+  const veil = h("div", { class: "drop-veil", hidden: true }, h("div", {}, icon("upload"), h("strong", {}, "Drop to import"),
+    h("span", {}, "Music goes to your inbox (or Imported) and is matched and placed like new music.")));
+  document.body.append(veil);
+  document.addEventListener("dragenter", (e) => { if (!hasFiles(e) || !appStarted) return; depth += 1; veil.hidden = false; });
+  document.addEventListener("dragleave", (e) => { if (!hasFiles(e)) return; depth = Math.max(0, depth - 1); if (!depth) veil.hidden = true; });
+  document.addEventListener("dragover", (e) => { if (hasFiles(e)) e.preventDefault(); });
+  document.addEventListener("drop", async (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    depth = 0;
+    veil.hidden = true;
+    if (!appStarted) return;
+    importFiles(await droppedFiles(e.dataTransfer));
+  });
 }

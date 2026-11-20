@@ -558,3 +558,27 @@ def test_failed_sign_in_never_logs_the_typed_username(tmp_path, caplog):
         with caplog.at_level(logging.WARNING, logger="codetta"):
             c.post("/api/auth/login", json={"username": "my-real-password-oops", "password": "wrong"})
     assert "Failed sign-in" in caplog.text and "my-real-password-oops" not in caplog.text
+
+
+def test_import_names_can_never_escape_or_overwrite(tmp_path):
+    from fastapi.testclient import TestClient
+
+    from codetta.web.app import Settings, create_app
+    music = tmp_path / "music"
+    music.mkdir()
+    with TestClient(create_app(Settings(music_dir=music, config_dir=tmp_path / "c"))) as c:
+        assert c.put("/api/import", params={"batch": "abc-1234", "path": "x.flac"}, content=b"x").status_code == 401
+        c.post("/api/auth/setup", json={"username": "owner", "password": "correct horse 1"})
+        for evil in ("../../etc/passwd", "/etc/passwd", "..\\..\\boot.ini", "a/../../../x", "./.hidden"):
+            r = c.put("/api/import", params={"batch": "abc-1234", "path": evil}, content=b"data")
+            assert r.status_code == 200, evil
+            assert r.json()["path"].startswith("Imported/Import abc-1234/"), r.json()
+        assert not (tmp_path / "etc").exists() and not (music / "etc").exists()
+        assert not [p for p in (music / "Imported").rglob("*") if p.name.startswith(".")]  # never a hidden file
+        a = c.put("/api/import", params={"batch": "abc-1234", "path": "same.flac"}, content=b"first").json()["path"]
+        b = c.put("/api/import", params={"batch": "abc-1234", "path": "same.flac"}, content=b"second").json()["path"]
+        assert a != b and (music / a).read_bytes() == b"first"  # the second never replaces the first
+        assert c.put("/api/import", params={"batch": "../../x", "path": "a.flac"}, content=b"x").status_code == 422
+        big = c.put("/api/import", params={"batch": "abc-1234", "path": "big.flac"}, content=b"x",
+                    headers={"Content-Length": str(3 * 1024 * 1024 * 1024)})
+        assert big.status_code == 413  # refused before anything is read
