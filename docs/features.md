@@ -26,7 +26,7 @@ artist, album or tag, each with an example from your library) and for
 **Search elsewhere** (MusicBrainz, and slskd if you use it).
 
 <p align="center">
-  <img src="media/search.gif" alt="The idle search bar rolling through ideas from the library, then searching for artist Frank Ocean and genre hip hop" width="900">
+  <img src="media/search.gif" alt="The idle search bar rolling through ideas from the library, then searching for artist Frank Ocean and genre electronic" width="900">
 </p>
 
 ## Fix a whole album in one go

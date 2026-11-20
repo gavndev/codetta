@@ -117,7 +117,7 @@ album, tag) with examples from your own music.
 | `night drive` | words in the title, artist, album or file name |
 
 <p align="center">
-  <img src="docs/media/search.gif" alt="The idle search bar rolling through ideas from the library, then searching for artist Frank Ocean and genre hip hop" width="900">
+  <img src="docs/media/search.gif" alt="The idle search bar rolling through ideas from the library, then searching for artist Frank Ocean and genre electronic" width="900">
 </p>
 
 ### Match on MusicBrainz
