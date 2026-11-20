@@ -48,6 +48,10 @@ MAX_COMPONENT_BYTES = 200  # most filesystems allow 255 bytes per name; leave ro
 # Values used when a pattern's tag is empty, so a file never lands in "/".
 FALLBACKS = {"albumartist": "Unknown Artist", "artist": "Unknown Artist", "album": "Unknown Album"}
 SIDECAR_SUFFIXES = (".lrc",)  # follow their audio file when renamed
+# Stand-ins that aren't real names (MusicBrainz's "[unknown]", tags some rippers write): a pattern
+# treats them as empty, so a file is never named "[unknown]" or filed under "Unknown".
+PLACEHOLDERS = frozenset({"[unknown]", "[untitled]", "[no artist]", "unknown", "unknown artist", "unknown album",
+                          "untitled", "no title", "<unknown>", "?"})
 _TOKEN = re.compile(r"\{([^{}]*)\}")
 _OPTIONAL = re.compile(r"\[([^\[\]]*)\]")
 _UNSAFE = re.compile(r'[<>:"/\\|?*\x00-\x1f\x7f]')
@@ -141,7 +145,12 @@ class Source:
             return ext.lstrip(".").lower()
         if key == "filename":
             return stem
-        return _first(self.tags, key)
+        value = _first(self.tags, key)
+        return "" if value.strip().casefold() in PLACEHOLDERS else value
+
+    def placeable(self) -> bool:
+        """Does it have an artist or an album to be filed under? (Not just placeholders.)"""
+        return any(self.value(k, False) for k in ("albumartist", "artist", "album"))
 
 
 def _token_value(src: Source, expr: str, multi_disc: bool) -> str:
@@ -163,8 +172,13 @@ def render(pattern: str, src: Source, multi_disc: bool = False) -> str:
             return ""
         return part
 
+    components = _OPTIONAL.sub(optional, pattern).split("/")
+    ext = os.path.splitext(src.rel)[1].lower()
+    # No title: the file keeps its own name (in its new folder) instead of "03 03 - old name".
+    keep_name = "title" in [t.split("|")[0].strip().lower() for t in _TOKEN.findall(components[-1])] \
+        and not _token_value(src, "title", multi_disc)
     expanded_parts = []
-    for component in _OPTIONAL.sub(optional, pattern).split("/"):
+    for component in components:
         def fill(m: re.Match) -> str:
             expr = m.group(1)
             v = _token_value(src, expr, multi_disc)
@@ -176,7 +190,8 @@ def render(pattern: str, src: Source, multi_disc: bool = False) -> str:
             return v.replace("/", "_").replace("\\", "_")
 
         expanded_parts.append(_TOKEN.sub(fill, component))
-    ext = os.path.splitext(src.rel)[1].lower()
+    if keep_name:
+        expanded_parts[-1] = src.value("filename", multi_disc)
     folders = [safe_name(p) for p in expanded_parts[:-1] if p.strip()]
     name = safe_name(expanded_parts[-1], MAX_COMPONENT_BYTES - len(ext.encode()))
     return "/".join([*folders, name + ext])
@@ -272,7 +287,12 @@ def plan_moves(root: Root, sources: list[Source], pattern: str) -> list[Move]:
     multi = multi_disc_albums(sources)
     moves: list[Move] = []
     claimed: dict[str, str] = {}  # destination (case-folded) -> source that takes it
+    needs_names = any(t.split("|")[0].strip().lower() in ("albumartist", "artist", "album")
+                      for t in _TOKEN.findall(pattern))
     for s in sources:
+        if needs_names and not s.placeable():
+            moves.append(Move(s.rel, s.rel, "keep", "Not enough tags to place it (no artist or album), so it stays where it is"))
+            continue
         try:
             dst = render(pattern, s, album_key(s) in multi)
         except PatternError as exc:

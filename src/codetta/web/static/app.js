@@ -5084,24 +5084,26 @@ function renderOrganizePreview() {
   const c = p.counts;
   const moving = p.moves.filter((m) => m.status === "move");
   const problems = p.moves.filter((m) => m.status === "conflict" || m.status === "error");
+  const kept = p.moves.filter((m) => m.status === "keep");
   const summary = [];
   if (moving.length) summary.push(`${plural(moving.length, "file")} will move${p.extras ? `, plus ${plural(p.extras, "other file")} that come${p.extras === 1 ? "s" : ""} along (cover, lyrics, booklet…)` : ""}.`);
   else summary.push(c.same ? "Everything is already where this pattern puts it." : "Nothing to move.");
   if (c.same && moving.length) summary.push(`${plural(c.same, "file")} already in place.`);
   if (problems.length) summary.push(`${plural(problems.length, "file")} can't move (see below).`);
+  if (kept.length) summary.push(`${plural(kept.length, "file")} ${kept.length === 1 ? "stays" : "stay"} where ${kept.length === 1 ? "it is" : "they are"}: not enough tags to place ${kept.length === 1 ? "it" : "them"} (find ${kept.length === 1 ? "its" : "their"} details first).`);
   const unknown = moving.filter((m) => /(^|\/)Unknown (Artist|Album)\//.test(m.dst)).length;
   const warn = unknown ? h("p", { class: "org-warn" }, `${plural(unknown, "file")} ${unknown === 1 ? "has" : "have"} no artist or album tag, so ${unknown === 1 ? "it" : "they"} would go to “Unknown Artist” / “Unknown Album”. Tag ${unknown === 1 ? "it" : "them"} first (Find in MusicBrainz can help), or move them anyway.`) : null;
   const row = (m) => h("div", { class: `org-move ${m.status}` },
     h("div", { class: "org-from", dir: "auto" }, m.src),
-    h("div", { class: "org-to", dir: "auto" }, m.status === "error" ? "" : ["→ ", m.dst]),
+    h("div", { class: "org-to", dir: "auto" }, m.status === "error" || m.status === "keep" ? "" : ["→ ", m.dst]),
     m.reason ? h("div", { class: "note" }, m.reason) : null,
     m.companions.length ? h("div", { class: "note" }, `+ ${m.companions.map((x) => x.src.split("/").pop()).join(", ")}`) : null);
-  const shown = [...problems, ...moving].slice(0, 300);
+  const shown = [...problems, ...kept, ...moving].slice(0, 300);
   setKids(box,
     h("p", { class: "preview-summary" }, summary.join(" ")),
     warn,
     shown.length ? h("div", { class: "org-list" }, shown.map(row)) : null,
-    shown.length < problems.length + moving.length ? h("p", { class: "hint" }, `…and ${problems.length + moving.length - shown.length} more`) : null);
+    shown.length < problems.length + kept.length + moving.length ? h("p", { class: "hint" }, `…and ${problems.length + kept.length + moving.length - shown.length} more`) : null);
   go.disabled = !moving.length;
   go.textContent = moving.length ? `Move ${plural(moving.length, "file")}` : "Move";
 }

@@ -1682,7 +1682,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     def organize_preview(body: OrganizeIn) -> dict:
         """Where each file would go. Nothing is moved."""
         pattern, moves = organize_plan(body)
-        counts = {k: sum(m.status == k for m in moves) for k in ("move", "same", "conflict", "error")}
+        counts = {k: sum(m.status == k for m in moves) for k in ("move", "same", "keep", "conflict", "error")}
         return {"pattern": pattern, "counts": counts, "extras": sum(len(m.companions) for m in moves),
                 "moves": [m.to_dict() for m in moves]}
 
@@ -1712,7 +1712,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             "moved": len(ok), "failed": len(failed), "extras": len(moved) - len(ok),
             "results": [{"src": r.src, "dst": r.dst, "ok": r.ok, "error": r.error} for r in results],
             # Not attempted: the name is taken (maybe a duplicate) or the file couldn't be read.
-            "held": [{"src": m.src, "dst": m.dst, "reason": m.reason} for m in moves if m.status in ("conflict", "error")],
+            "held": [{"src": m.src, "dst": m.dst, "reason": m.reason} for m in moves if m.status in ("conflict", "error", "keep")],
         }
 
     # --- First-run setup -----------------------------------------------------------------
@@ -1829,9 +1829,12 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             ok = [r for r in org["results"] if r["ok"]]
             if ok:
                 moved_to = ok[0]["dst"].rsplit("/", 1)[0]
-            stuck = org["failed"] + len(org["held"])
+            untagged = sum("Not enough tags" in h["reason"] for h in org["held"])
+            stuck = org["failed"] + len(org["held"]) - untagged
             if stuck:
                 notes.append(f"{stuck} file(s) couldn't move: a file with that name is already in your library (a duplicate?)")
+            if untagged:
+                notes.append(f"{untagged} file(s) have no artist or album tags yet, so they stayed in the inbox")
         status = FILED if not notes else INBOX_ERROR
         if automatic:
             name = " by ".join(x for x in (f"“{g.title}”" if g.title else g.key.rsplit("/", 1)[-1], g.artist) if x)

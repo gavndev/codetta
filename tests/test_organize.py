@@ -233,3 +233,20 @@ def test_paths_outside_the_library_are_refused(client):
     res = client.post("/api/organize/preview", json={"paths": ["../../etc/passwd"]})
     assert res.status_code == 200 and res.json()["moves"][0]["status"] == "error"
     assert client.post("/api/organize/preview", json={"folder": "../.."}).status_code == 400
+
+
+def test_names_never_come_from_placeholders_or_go_unknown(tmp_path):
+    from codetta.core.organize import DEFAULT_PATTERN, Source, plan_moves, render
+    # "[unknown]" (MusicBrainz's stand-in) is treated as empty: the file keeps its own name.
+    s = Source("in/12 - Good Song.flac", {"title": ["[unknown]"], "artist": ["Artist"], "album": ["Album"],
+                                         "tracknumber": ["12"]}, "flac")
+    assert render(DEFAULT_PATTERN, s) == "Artist/Album/12 - Good Song.flac"
+    # No title at all: the old name, not "03 03 - ...".
+    s = Source("in/03 - Song.flac", {"artist": ["A"], "album": ["B"], "tracknumber": ["3"]}, "flac")
+    assert render(DEFAULT_PATTERN, s) == "A/B/03 - Song.flac"
+    # No artist and no album (only placeholders): it stays where it is.
+    (tmp_path / "in").mkdir()
+    (tmp_path / "in" / "x.flac").write_bytes(b"x")
+    s = Source("in/x.flac", {"artist": ["Unknown Artist"], "title": ["X"]}, "flac")
+    (m,) = plan_moves(tmp_path, [s], DEFAULT_PATTERN)
+    assert m.status == "keep" and m.dst == "in/x.flac" and "Not enough tags" in m.reason
