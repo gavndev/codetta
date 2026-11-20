@@ -1695,13 +1695,14 @@ dialog.sheet.wide { width: min(760px, calc(100vw - 32px)); }
 
 .mb-files { border-top: 1.5px solid var(--text); }
 .mb-file { padding: 10px 0; border-bottom: 1px solid var(--rule); }
+.mb-file.check { display: block; margin-top: 0; color: inherit; cursor: auto; } /* not the checkbox-label .check */
 .mb-file-head { display: grid; grid-template-columns: 20px minmax(0, 1fr) minmax(0, 46%); gap: 10px; align-items: center; }
 .mb-file-icon svg { width: 18px; height: 18px; display: block; }
 .mb-file.ok .mb-file-icon { color: var(--success); }
 .mb-file.check .mb-file-icon, .mb-file.skip .mb-file-icon { color: var(--warning); }
 .mb-file-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; unicode-bidi: plaintext; }
 .mb-file .note { font-size: 12px; color: var(--muted); margin: 4px 0 0 30px; }
-.mb-file.check .note:first-of-type, .mb-file.skip .note:first-of-type { color: var(--warning); }
+.mb-file.check .mb-file-head + .note, .mb-file.skip .mb-file-head + .note { color: var(--warning); }
 .mb-file.error .mb-file-name { color: var(--danger); }
 .mb-diff { margin: 4px 0 0 30px; }
 .mb-diff summary { font-size: 12px; color: var(--accent); cursor: pointer; min-height: 28px; display: inline-flex; align-items: center; }

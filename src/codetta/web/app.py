@@ -82,7 +82,7 @@ from codetta.core.fileinfo import file_info, folder_info
 from codetta.core.catalogs import Catalogs, is_catalog_id
 from codetta.core import importer
 from codetta.core import trash
-from codetta.core.editions import FORMATS as EDITION_FORMATS, EditionStore, edition_fit
+from codetta.core.editions import FORMATS as EDITION_FORMATS, EditionStore, edition_fit, padded_date
 from codetta.core import librarycare as care_mod
 from codetta.core.logbuffer import shared_buffer
 from codetta.core.plugins import ActionError, PluginManager
@@ -159,6 +159,7 @@ from codetta.core.musicbrainz import (
     clean_artist,
     clean_title,
     song_from_name,
+    similarity,
     song_releases,
 )
 from codetta.core.providers import LRCLib, ProviderError, TrackQuery, http_get, http_get_json, http_post_json
@@ -1210,6 +1211,36 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         require_connection("musicbrainz")
         return mb.release(release_id)
 
+    def better_edition(release: dict, recording: str, title: str, duration: float | None) -> tuple[dict, str]:
+        """A song search lists only a few editions of each album (Hyperballad came back on Post's DualDisc
+        DVD side, a video edit, not the CD). Look through every edition for one the preferences like
+        better that has this song: the same recording, or the same title at your file's length.
+        Keep what was found when nothing beats it or MusicBrainz won't say."""
+        group = (release.get("release-group") or {}).get("id") or ""
+        fit = lambda r: edition_fit(summarize(r), editions.prefs, 1)  # noqa: E731
+        here = fit(release)
+        try:
+            others = mb.releases_in_group(group) if MBID_RE.match(group) else []
+        except ProviderError:
+            return release, recording
+        ranked = sorted((r for r in others if r["id"] != release.get("id") and fit(r) > here),
+                        key=lambda r: (-fit(r), padded_date(r.get("date") or "")))
+        for r in ranked[:2]:
+            try:
+                full = mb.release(r["id"])
+            except ProviderError:
+                continue
+            tracks = [t for m in full.get("media") or [] for t in m.get("tracks") or []]
+            same = next((t for t in tracks if (t.get("recording") or {}).get("id") == recording), None)
+            if same is None and duration:
+                same = next((t for t in tracks if similarity(title, clean_title(t.get("title") or "")) >= 0.9
+                             and isinstance(t.get("length"), int) and abs(t["length"] / 1000 - duration) <= 10), None)
+            rec = (same or {}).get("recording") or {}
+            if MBID_RE.match(str(rec.get("id", ""))):
+                return ({**r, "release-group": release.get("release-group"),
+                         "artist-credit": r.get("artist-credit") or release.get("artist-credit")}, rec["id"])
+        return release, recording
+
     def mb_release_id(text: str) -> str:
         if is_catalog_id(text.strip()):
             return text.strip()
@@ -1251,6 +1282,8 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             except ProviderError as exc:
                 hits, mb_error = [], str(exc)
             if hits:
+                rel0, rec0 = better_edition(hits[0]["release"], hits[0]["recording"], song[0], infos[0].duration)
+                hits[0] = {**hits[0], "release": rel0, "recording": rec0}
                 candidates = []
                 for hit in hits:
                     c = summarize(hit["release"])
@@ -1320,8 +1353,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         out.sort(key=lambda c: (c["date"] or "9999", c["country"]))
         # Your preferences first, then the earliest edition (a bare "1977" counts as late in 1977, so a
         # dated original wins over an undated pressing from the same year).
-        pad = lambda d: (d or "9999") + "-99-99"[len(d or "9999") - 4:]  # noqa: E731
-        best = min(out, key=lambda c: (-c["fit"], pad(c["date"])), default=None)
+        best = min(out, key=lambda c: (-c["fit"], padded_date(c["date"])), default=None)
         for c in out:
             c["recommended"] = best is not None and c["id"] == best["id"]
         return {"title": group.get("title") or rel.get("title") or "", "first": group.get("first-release-date") or "",

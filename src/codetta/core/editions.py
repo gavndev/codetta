@@ -23,6 +23,10 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 FORMATS = {"any": "", "digital": "digital media", "cd": "cd", "vinyl": "vinyl"}
+# Whole words, so "CD" doesn't match a promo "CD-R"; "2×CD", "Enhanced CD" and '12" Vinyl' still do.
+_FORMAT_RE = {k: re.compile(rf"(?<![\w-]){re.escape(v)}(?![\w-])", re.IGNORECASE) for k, v in FORMATS.items() if v}
+_VIDEO = re.compile(r"dvd|blu-ray|vhs|video", re.IGNORECASE)  # a video-only edition isn't the music
+_AUDIO = re.compile(r"(?<![\w-])(?:cd|sacd|hdcd|dvd-audio|vinyl|digital media|cassette)(?![\w-])", re.IGNORECASE)
 _DELUXE = re.compile(r"\b(deluxe|expanded|anniversary|bonus|special|collector'?s|super)\b", re.IGNORECASE)
 
 
@@ -82,9 +86,9 @@ def edition_fit(summary: dict, prefs: EditionPrefs, files: int | None = None) ->
     """How well an edition (a candidate summary) fits the preferences: a small number used to order
     candidates, never added to how sure a match is. Higher is better."""
     fit = 0
-    want = FORMATS.get(prefs.format, "")
-    formats = (summary.get("formats") or "").lower()
-    if want and want in formats:
+    want = _FORMAT_RE.get(prefs.format)
+    formats = summary.get("formats") or ""
+    if want and want.search(formats):
         fit += 3
     if prefs.country:
         country = (summary.get("country") or "").upper()
@@ -94,6 +98,15 @@ def edition_fit(summary: dict, prefs: EditionPrefs, files: int | None = None) ->
             fit += 1
     if prefs.avoid_deluxe and is_deluxe(summary) and not (files and summary.get("track_count") == files):
         fit -= 3
+    if _VIDEO.search(formats) and not _AUDIO.search(formats):
+        fit -= 4
     if (summary.get("status") or "").lower() == "official":
         fit += 1
     return fit
+
+
+def padded_date(date: str) -> str:
+    """A date for sorting editions: a bare "1977" counts as late in 1977, so a dated original wins
+    over an undated pressing from the same year."""
+    d = date or "9999"
+    return d + "-99-99"[len(d) - 4:]

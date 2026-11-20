@@ -540,6 +540,69 @@ def test_a_loose_song_is_matched_as_a_song(tmp_path):
         assert searched and all("Middle" in u and "Official Audio" not in u for u in searched)  # cleaned title
 
 
+def test_a_loose_song_gets_the_edition_you_prefer_when_the_search_only_shows_another(tmp_path):
+    """The song search lists only a few editions per album; Codetta looks through the album's other
+    editions for a better one that has the same recording."""
+    music = tmp_path / "music"
+    (music / "Downloads").mkdir(parents=True)
+    f = music / "Downloads" / "Coda Tester - Middle (Lyrics).flac"
+    shutil.copy2(FIXTURES_DIR / "sample.flac", f)
+    MetadataEngine().update_tags(f, {"title": "Middle", "artist": "Coda Tester", "album": None, "albumartist": None})
+    dvd_id = "12121212-0000-4000-8000-000000000000"
+    dvd = release(mbid=dvd_id, discs=[{**ALBUM["media"][0], "format": "DualDisc (DVD-Video side)"}], date="2006-07-10")
+    fake = FakeMB(releases=(ALBUM, dvd))
+
+    def fetch(url):
+        u = urllib.parse.urlparse(url)
+        if u.path.endswith("/recording"):
+            t = ALBUM["media"][0]["tracks"][1]
+            return {"recordings": [{"id": t["recording"]["id"], "title": "Middle", "length": None,
+                                    "artist-credit": [{"name": "Coda Tester", "joinphrase": "", "artist": ARTIST}],
+                                    "releases": [summary_source(dvd)]}]}
+        if u.path.endswith("/release") and "release-group" in u.query:
+            return {"releases": [summary_source(dvd), summary_source(ALBUM)]}
+        return fake(url)
+    with TestClient(create_app(Settings(music_dir=music, config_dir=tmp_path / "c"), fetch_mb=fetch)) as c:
+        c.post("/api/auth/setup", json={"username": "owner", "password": PASSWORD})
+        c.put("/api/connections", json={"enabled": {"musicbrainz": True}})
+        res = c.post("/api/musicbrainz/search", json={"paths": ["Downloads/" + f.name]}).json()
+        assert res["candidates"][0]["id"] == REL  # the CD, not the DVD side
+        assert "CD" in res["candidates"][0]["formats"]
+
+
+def test_a_better_edition_can_hold_the_song_as_another_recording(tmp_path):
+    """On MusicBrainz the DVD side's song can be a video edit (another recording). The CD's track with
+    the same title at your file's length is the one, and its recording is what gets used."""
+    music = tmp_path / "music"
+    (music / "Downloads").mkdir(parents=True)
+    f = music / "Downloads" / "Coda Tester - Middle (Lyrics).flac"
+    shutil.copy2(FIXTURES_DIR / "sample.flac", f)  # 1 s long, like the CD's track
+    MetadataEngine().update_tags(f, {"title": "Middle", "artist": "Coda Tester", "album": None, "albumartist": None})
+    edit = {**track(2, "Middle", ms=60000), "recording": {"id": "cccccccc-0000-4000-8000-000000000002", "title": "Middle", "length": 60000}}
+    dvd_id = "12121212-0000-4000-8000-000000000000"
+    dvd = release(mbid=dvd_id, discs=[{"position": 1, "format": "DVD-Video", "track-count": 1, "tracks": [edit]}], date="2006-07-10")
+    fake = FakeMB(releases=(ALBUM, dvd))
+
+    def fetch(url):
+        u = urllib.parse.urlparse(url)
+        if u.path.endswith("/recording"):
+            return {"recordings": [{"id": edit["recording"]["id"], "title": "Middle", "length": 60000,
+                                    "artist-credit": [{"name": "Coda Tester", "joinphrase": "", "artist": ARTIST}],
+                                    "releases": [summary_source(dvd)]}]}
+        if u.path.endswith("/release") and "release-group" in u.query:
+            return {"releases": [summary_source(dvd), summary_source(ALBUM)]}
+        return fake(url)
+    with TestClient(create_app(Settings(music_dir=music, config_dir=tmp_path / "c"), fetch_mb=fetch)) as c:
+        c.post("/api/auth/setup", json={"username": "owner", "password": PASSWORD})
+        c.put("/api/connections", json={"enabled": {"musicbrainz": True}})
+        rel = "Downloads/" + f.name
+        res = c.post("/api/musicbrainz/search", json={"paths": [rel]}).json()
+        assert res["candidates"][0]["id"] == REL
+        assert res["recordings"][rel][0] == ALBUM["media"][0]["tracks"][1]["recording"]["id"]
+        prop = c.post("/api/musicbrainz/preview", json={"paths": [rel], "release": REL, "recordings": res["recordings"]}).json()
+        assert prop["files"][0]["track"]["title"] == "Middle" and prop["files"][0]["confidence"] == "high"
+
+
 # --- Editions ----------------------------------------------------------------------------------
 
 
@@ -589,3 +652,21 @@ def test_edition_fit_orders_but_never_adds_certainty():
         edition_fit({"formats": "Digital Media", "country": "US", "status": "Official"}, prefs)
     assert edition_fit({"title": "Album (Deluxe Edition)", "track_count": 20, "formats": "CD"}, prefs, files=12) < \
         edition_fit({"title": "Album", "track_count": 12, "formats": "CD"}, prefs, files=12)
+
+
+def test_a_loose_songs_edition_follows_preferences_not_a_length_nudge():
+    """Hyperballad came in on Post's DualDisc DVD side, because that recording's length was a few seconds
+    closer to a lyric video's. Inside one album, the preferred (audio) edition wins."""
+    from codetta.core.editions import EditionPrefs, edition_fit
+    from codetta.core.musicbrainz import song_releases
+    me = [{"name": "Coda Tester", "joinphrase": "", "artist": ARTIST}]
+    cd = _rel("77777771-0000-4000-8000-000000000000", "The Album", "1995", group="g-album") | {"media": [{"format": "CD", "track-count": 11}]}
+    dvd = _rel("77777772-0000-4000-8000-000000000000", "The Album", "1995", group="g-album") | {"media": [{"format": "DualDisc (DVD-Video side)", "track-count": 28}]}
+    recordings = [
+        {"id": "77777773-0000-4000-8000-000000000000", "title": "Song", "length": 310000, "artist-credit": me, "releases": [cd]},
+        {"id": "77777774-0000-4000-8000-000000000000", "title": "Song", "length": 300000, "artist-credit": me, "releases": [dvd]},
+    ]
+    prefs = EditionPrefs(format="any")
+    hits = song_releases(recordings, "Song", "Coda Tester", 300, prefer=lambda c: edition_fit(c, prefs, 1))
+    assert hits[0]["release"]["id"] == cd["id"]
+    assert edition_fit({"formats": "DualDisc (DVD-Video side)"}, prefs) < edition_fit({"formats": "CD"}, prefs)

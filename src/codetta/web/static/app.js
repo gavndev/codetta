@@ -4107,6 +4107,12 @@ const INBOX_LABELS = {
   local: "Files by its tags", filed: "Filed", skipped: "Skipped", error: "Problem",
 };
 const inboxPending = (d) => (d?.groups || []).filter((g) => !["filed", "skipped"].includes(g.status)).length;
+// "2 albums and 3 songs": a loose download is one song, not an album.
+const inboxWaitingText = (d) => {
+  const left = (d?.groups || []).filter((g) => !["filed", "skipped"].includes(g.status));
+  const songs = left.filter((g) => g.files === 1).length;
+  return [left.length - songs ? plural(left.length - songs, "album") : "", songs ? plural(songs, "song") : ""].filter(Boolean).join(" and ");
+};
 
 async function refreshInboxBadge(data = null) {
   try { data = data || await api("GET", "/api/inbox"); } catch { return; }
@@ -4238,7 +4244,7 @@ function renderInbox() {
   setKids(body,
     h("div", { class: "inbox-head" },
       h("p", { class: "mb-lead" }, d.groups.length
-        ? `${pending ? plural(pending, "album") + " waiting" : "All caught up"} in ${inboxLabel(d.settings.folder)}.${d.downloading ? ` ${plural(d.downloading, "album")} still arriving: Codetta waits until the download finishes.` : ""}${d.settings.auto ? " Confident matches are filed automatically." : ""}`
+        ? `${pending ? inboxWaitingText(d) + " waiting" : "All caught up"} in ${inboxLabel(d.settings.folder)}.${d.downloading ? ` ${plural(d.downloading, "album")} still arriving: Codetta waits until the download finishes.` : ""}${d.settings.auto ? " Confident matches are filed automatically." : ""}`
         : `Nothing new in ${inboxLabel(d.settings.folder)}. When an album lands there, it shows up here.`),
       h("div", { class: "inbox-tools" },
         h("button", { class: "btn small with-icon", type: "button", onclick: pickImport }, icon("upload"), "Import"),

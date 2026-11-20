@@ -529,8 +529,8 @@ def song_releases(recordings: list[dict], title: str, artist: str, duration: flo
     def rank(f: dict) -> tuple:  # the exact song by the same artist first, then the original album
         return (f["t"] < top_t - 0.05, f["a"] < top_a - 0.05, f["other"], f["release"].get("status") != "Official", bool(f["rg"].get("secondary-types")),
                 {"Album": 0, "Single": 1, "EP": 2}.get(f["rg"].get("primary-type"), 3), first[f["group"]],
-                -f["score"], -(prefer(summarize(f["release"])) if prefer else 0),  # within an album: the
-                f["release"].get("date") or "9999")  # preferred edition, else the first one
+                -(prefer(summarize(f["release"])) if prefer else 0), -f["score"],  # within an album: the
+                f["release"].get("date") or "9999")  # preferred edition (not a length nudge), else the first
 
     out, groups = [], set()
     for f in sorted((f for f in found if f["score"] >= top - 12), key=rank):
