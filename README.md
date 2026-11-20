@@ -13,12 +13,16 @@
 
 <p align="center">
   <img alt="Status: beta" src="https://img.shields.io/badge/status-beta-3b82f6">
-  <img alt="Version 0.8.5" src="https://img.shields.io/badge/version-0.8.5-0e7c74">
+  <img alt="Version 0.9.0" src="https://img.shields.io/badge/version-0.9.0-0e7c74">
   <a href="LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-555"></a>
   <img alt="Python 3.14" src="https://img.shields.io/badge/python-3.14-3776ab">
   <a href="https://github.com/gavndev/codetta/actions/workflows/ci.yml"><img alt="Tests" src="https://github.com/gavndev/codetta/actions/workflows/ci.yml/badge.svg"></a>
   <a href="https://github.com/gavndev/codetta/pkgs/container/codetta"><img alt="Docker image on ghcr.io" src="https://img.shields.io/badge/docker-ghcr.io-2496ed"></a>
   <img alt="Works great with Navidrome" src="https://img.shields.io/badge/works%20with-Navidrome-6c5ce7">
+</p>
+
+<p align="center">
+  <a href="https://alternativeto.net/software/codetta/about/?utm_source=badge&utm_medium=referral"><img alt="Codetta | AlternativeTo" src="https://alternativeto.net/static/badges/badge-compact-color.svg"></a>
 </p>
 
 <p align="center">
@@ -97,13 +101,14 @@ Select tracks and change only what you need, or fill in one track and
 art included. You see every change before anything is written.
 
 <p align="center">
-  <img src="docs/media/fix-an-album.gif" alt="Filling in album details and cover art on one track, then saving them to all five tracks in the folder" width="900">
+  <img src="docs/media/fix-an-album.gif" alt="Adding a genre and cover art on one track of Vespertine, then saving them to all twelve tracks in the folder" width="900">
 </p>
 
 ### Search your entire library by tag
 
 Type in the search box and press <kbd>Enter</kbd>. Results work like a folder,
-so you can edit them all at once.
+so you can edit them all at once. Tap the search box for shortcuts (artist,
+album, tag) with examples from your own music.
 
 | Type | Finds |
 |---|---|
@@ -112,14 +117,16 @@ so you can edit them all at once.
 | `night drive` | words in the title, artist, album or file name |
 
 <p align="center">
-  <img src="docs/media/search.gif" alt="Searching the library for genre synthwave or jazz, then for artist kosei, which finds Kōsei Mori" width="900">
+  <img src="docs/media/search.gif" alt="The idle search bar rolling through ideas from the library, then searching for artist Frank Ocean and genre hip hop" width="900">
 </p>
 
 ### Match on MusicBrainz
 
 Official titles, credits, dates, labels, catalog numbers, MusicBrainz IDs and
-cover art for any album folder. Compare editions, then review every change per
-file before anything is written. Untagged files are recognised by sound. When
+cover art for any album folder. Switch between every edition of an album, and
+choose which edition Codetta prefers (original year, format, country), then
+review every change per file before anything is written. Loose songs (a single
+download, a YouTube rip) are matched to the album they came from. Untagged files are recognised by sound. When
 MusicBrainz is down or doesn't know an album yet, Deezer and iTunes (optional,
 no account needed) step in with details and big covers.
 
@@ -129,12 +136,13 @@ no account needed) step in with details and big covers.
 `{albumartist}/{album} ({year})/{disctrack} {title}`. You see every move
 first, nothing is ever overwritten, and the whole thing can be undone.
 
-### Let Codetta look after it
+### Tidy up your library
 
 Choose once how Codetta should treat the music you already have: leave it as
-it is, fix tags only, or tags plus file names and folders. It then works
-through your albums one at a time in the background, writes only confident
-matches, and lists the rest for you. Every album can be undone.
+it is, fix tags only, or tags plus file names and folders (with a preview
+first). It then works through your albums one at a time in the background,
+with a progress bar, writes only confident matches, and lists the rest for
+you. Every album can be undone.
 
 ### Keep it healthy
 
@@ -236,8 +244,6 @@ light and dark themes. [See every feature →](docs/features.md)
 
 ## Roadmap
 
-- **Batch matching:** match many albums at once in the background, review the uncertain ones later.
-- **Edition preferences:** your preferred country, format (digital or CD) and release type when matching.
 - **Refresh from MusicBrainz:** pick up corrections made since an album was matched.
 - **ReplayGain:** volume levelling, opt-in.
 

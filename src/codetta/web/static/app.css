@@ -1583,7 +1583,7 @@ dialog.sheet.closing::backdrop { animation: fade-out 150ms ease forwards; }
 
 @media (min-width: 761px) {
   .editor .field { display: grid; grid-template-columns: 116px minmax(0, 1fr); column-gap: 14px; align-items: start; margin: 0; padding: 3px 0; }
-  .editor .field > .field-label { grid-column: 1; padding-top: 10px; margin: 0; flex-wrap: wrap; row-gap: 2px; }
+  .editor .field > .field-label { grid-column: 1; padding-top: 10px; margin: 0; flex-wrap: wrap; row-gap: 2px; min-width: 0; overflow-wrap: anywhere; }
   .editor .field > .field-label .flag { margin-left: 0; flex-basis: 100%; }
   .editor .field > :not(.field-label) { grid-column: 2; }
   .editor .row-2 { display: block; }
@@ -2633,7 +2633,8 @@ dialog.player-sheet { width: min(480px, calc(100vw - 32px)); }
 /* Glass, grounded: more body so what's behind stays a soft hint, never readable text.
    Menus inside the top bar can't blur the page on iOS (the bar is their backdrop), so they're near-solid. */
 :root { --glass-pane: color-mix(in oklab, var(--surface-raised) 88%, transparent); --glass-blur: saturate(160%) blur(28px); }
-.bang-suggest, .topbar .suggest { background: color-mix(in oklab, var(--surface-raised) 97%, transparent); }
+.bang-suggest { background: var(--surface-raised); }
+.topbar .suggest { background: color-mix(in oklab, var(--surface-raised) 97%, transparent); }
 .cc-panel { background: color-mix(in oklab, var(--surface-raised) 90%, transparent); }
 
 /* Find & replace */
