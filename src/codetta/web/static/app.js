@@ -4688,6 +4688,7 @@ const health = { summary: null, at: 0, data: null, filter: "all", view: "issues"
 const HEALTH_ICON = { splits: "rows", tracks: "disc", covers: "note", tags: "alert" };
 
 async function updateHealthSlot(force = false) {
+  updateCareSlot();
   const slot = $("#health-slot");
   const atRoot = state.folder && !state.folder.search && state.path === "";
   if (!atRoot) { slot.hidden = true; return; }
@@ -4704,7 +4705,6 @@ async function updateHealthSlot(force = false) {
     s.count ? h("span", { class: "health-card-count" }, String(s.count > 999 ? "999+" : s.count)) : null,
     icon("chevron")));
   slot.hidden = false;
-  updateCareSlot();
 }
 
 // ---- Library care: tagging and organizing the existing library, gradually ---------------------------

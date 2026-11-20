@@ -2875,3 +2875,4 @@ dialog:focus { outline: none; }
 .trash-foot { display: flex; justify-content: flex-end; margin-top: 12px; }
 @media (max-width: 760px) { .trash-item { flex-wrap: wrap; } .trash-actions { width: 100%; justify-content: flex-end; } }
 .link-btn.danger-text { color: var(--danger); }
+.sheet.small.confirm:has(.trash-list), .sheet.small.confirm:has(.care-sheet) { width: min(640px, calc(100vw - 24px)); max-width: none; }
