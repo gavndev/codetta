@@ -512,7 +512,7 @@ def test_soulseek_download_never_claims_an_older_album_with_the_same_file_names(
     with TestClient(app) as c:
         c.post("/api/auth/setup", json={"username": "listener", "password": "correct horse 1"})
         c.put("/api/connections", json={"enabled": {"slskd": True}})
-        c.put("/api/slskd/settings", json={"url": "slskd:5030", "api_key": "codetta-test-key-0001"})
+        c.put("/api/slskd/settings", json={"url": "slskd:5030", "api_key": "codetta-test-key-0001", "choose": False})
         c.put("/api/inbox/settings", json={"folder": "@inbox"})
         job = c.post("/api/slskd/search", json={"query": "Coda Tester Fixture Album"}).json()["job"]
         job = wait_for(c, job["id"], lambda j: j["status"] == "fetched")
