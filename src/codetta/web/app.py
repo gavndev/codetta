@@ -433,6 +433,7 @@ class SlskdSettingsIn(BaseModel):
     url: str = Field("", max_length=500)
     api_key: str | None = Field(default=None, max_length=500)  # None: keep the saved key
     review: bool = True
+    choose: bool = True  # pick the source before anything downloads
     lossless_only: bool = False
     min_bitrate: int = Field(320, ge=0, le=3000)
     search_seconds: int = Field(20, ge=5, le=120)
@@ -2052,6 +2053,9 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         while soulseek_store.active():
             try:
                 soulseek.tick(sk_locate)
+                for job in list(soulseek_store.jobs.values()):
+                    if job.leftovers:
+                        sk_clear_leftovers(job)
             except Exception as exc:  # keep going whatever one job does
                 log.warning("Soulseek: %s", exc)
             if sk_wake.wait(settings.slskd_poll_seconds):
@@ -2068,31 +2072,55 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     app.state.soulseek_stop = sk_wake.set
 
     def sk_drop_download(job) -> None:
-        """Remove what a job brought into the inbox (when it's blocklisted or swapped)."""
+        """Set aside what a job brought into the inbox (when it's blocklisted or swapped): the files go
+        to Recently deleted (30 days, undoable), never straight off the disk."""
         g = inbox.groups.get(job.inbox_key) if job.inbox_key else None
         if g is None or g.status == FILED:
             return
-        folders = []
-        for rel in g.paths:
-            if not rel.startswith(inbox.settings.folder + "/"):
-                continue  # only ever inside the inbox
+        base = inbox.settings.folder
+        if g.key != base and g.key.startswith(base + "/"):
+            rels = []  # the folder slskd made, with its extras (cover.jpg, .nfo...)
             try:
-                library.resolve(rel).unlink(missing_ok=True)
-                folders.append(rel.rsplit("/", 1)[0])
+                for dirpath, _, names in os.walk(library.resolve(g.key)):
+                    rels += [library.relative(Path(dirpath) / n) for n in names]
             except (OSError, LibraryPathError):
-                pass
-        if g.key != inbox.settings.folder and g.key.startswith(inbox.settings.folder + "/"):
-            try:  # the folder slskd made: its leftovers (cover.jpg, .nfo...) go too
-                top = library.resolve(g.key)
-                for p in sorted(top.rglob("*"), key=lambda p: -len(p.parts)):
-                    p.unlink() if p.is_file() or p.is_symlink() else p.rmdir()
-                top.rmdir()
-            except (OSError, LibraryPathError):
-                pass
-        remove_empty_dirs(library.resolve, folders)
+                rels = []
+        else:
+            rels = [p for p in g.paths if p.startswith(base + "/")]  # only ever inside the inbox
+        sk_set_aside(rels, f"Set aside the download “{g.title or g.key.rsplit('/', 1)[-1]}”")
         with inbox.lock:
             inbox.groups.pop(g.key, None)
             inbox.save()
+
+    def sk_set_aside(rels: list[str], message: str) -> None:
+        if not rels:
+            return
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        moves = [Move(r, f"{DELETED}/{stamp}/{r.lstrip('@')}", "move") for r in rels]
+        run_moves(moves, "delete", message, [{"key": "location", "old": rels[0].rsplit("/", 1)[0], "new": "(recently deleted)"}])
+
+    def sk_clear_leftovers(job) -> None:
+        """Files that arrived from a source the job then gave up on: set aside, so they never
+        appear in the inbox as a second, partial album."""
+        if not job.leftovers or not inbox.settings.folder:
+            return
+        rels = []
+        for left in job.leftovers:
+            folder = f"{inbox.settings.folder}/{safe_component(left.get('folder', ''))}"
+            for name in left.get("files", []):
+                rel = f"{folder}/{safe_component(name)}"
+                try:
+                    if library.resolve(rel).is_file():
+                        rels.append(rel)
+                except LibraryPathError:
+                    continue
+        sk_set_aside(rels, f"Cleared what arrived from an abandoned source for “{job.query}”")
+        soulseek_store.update(job, leftovers=[])
+
+    def safe_component(name: str) -> str:
+        """A folder or file name from slskd, as one path part (never "..", never a separator)."""
+        name = str(name).replace("/", "_").replace("\\", "_").strip()
+        return "_" if name in ("", ".", "..") else name
 
     def sk_job_out(job) -> dict:
         g = inbox.groups.get(job.inbox_key) if job.inbox_key else None
@@ -2105,7 +2133,9 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             "eta": job.eta,
             "created": job.created, "updated": job.updated, "upgrade": job.upgrade,
             "current": cand(job.pick, cur) | {"files": [split_name(f["filename"]) for f in cur.get("files", [])]} if cur else None,
-            "candidates": [cand(i, c) for i, c in enumerate(job.candidates)],
+            "candidates": [cand(i, c) | ({"files": [split_name(f["filename"]) for f in c.get("files", [])],
+                                          "match": c.get("match")} if job.status == "choosing" else {})
+                           for i, c in enumerate(job.candidates)],
             "inbox": {"key": g.key, "status": g.status, "title": g.title, "artist": g.artist, "release": g.release,
                       "score": g.score, "note": g.note, "paths": g.paths[:200], "recordings": g.recordings,
                       "dest": g.dest}
@@ -2166,7 +2196,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
                 st.url = url
             if body.api_key is not None and soulseek_store.env_key is None:
                 st.api_key = body.api_key.strip()
-            st.review, st.lossless_only = body.review, body.lossless_only
+            st.review, st.lossless_only, st.choose = body.review, body.lossless_only, body.choose
             st.min_bitrate, st.search_seconds = body.min_bitrate, body.search_seconds
             try:
                 soulseek_store.save()
@@ -2233,6 +2263,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             soulseek.start(job, body.index)
         except SlskdError as exc:
             raise HTTPException(502, str(exc)) from exc
+        sk_clear_leftovers(job)
         sk_start()
         return soulseek_out()
 
@@ -2259,8 +2290,9 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
                 soulseek.cancel_transfers(job)
             except SlskdError:
                 pass
-        if job.status in (SK_DOWNLOADING, "searching", "fetched"):
+        if job.status in (SK_DOWNLOADING, "searching", "choosing", "fetched"):
             soulseek_store.update(job, status=SK_CANCELLED, note="Cancelled")
+        sk_clear_leftovers(job)
         return soulseek_out()
 
     @app.delete("/api/slskd/jobs/{job_id}")

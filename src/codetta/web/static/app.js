@@ -4159,10 +4159,10 @@ function renderInbox() {
 
 const sk = { data: null, timer: null, focus: null, picking: null };
 const SK_LABELS = {
-  searching: "Searching", downloading: "Downloading", fetched: "Downloaded", arrived: "Matching", imported: "Imported",
+  searching: "Searching", choosing: "Pick a source", downloading: "Downloading", fetched: "Downloaded", arrived: "Matching", imported: "Imported",
   nothing: "Nothing found", failed: "Couldn't get it", cancelled: "Cancelled",
 };
-const SK_ACTIVE = ["searching", "downloading", "fetched"];
+const SK_ACTIVE = ["searching", "choosing", "downloading", "fetched"];
 const skReady = () => connectionOn("slskd") && !!sk.data?.configured;
 /** "about 3 min left" from seconds (null: not known yet). */
 const etaText = (s) => (s == null ? "" : s < 60 ? "less than a minute left" : s < 3600 ? `about ${Math.round(s / 60)} min left`
@@ -4430,6 +4430,7 @@ function slskdFields(d) {
     h("p", { class: "hint" }, "Add a key in slskd's settings under ", h("code", {}, "web → authentication → api_keys"),
       " (16+ characters), then paste it here. Codetta keeps it on this server and never shows it again."),
     h("p", { class: "field-error sk-field-error", role: "alert", hidden: true }),
+    sw("sk-choose", "Pick the source first", "See who's sharing it (free slot, queue, speed) and every file before anything downloads. Off: the best source downloads by itself, which is quicker, but a source can be mislabeled.", st.choose !== false),
     sw("sk-review", "Review each download", "Codetta asks before a download joins your library. Off: downloads that match MusicBrainz exactly are filed by themselves.", st.review),
     sw("sk-lossless", "Lossless only", "Never download lossy files. Off: lossless first, otherwise the best MP3/AAC (at least the bitrate below).", st.lossless_only),
     h("label", { class: "field sk-bitrate" }, h("span", { class: "field-label" }, "Lowest bitrate for lossy files"),
@@ -4460,6 +4461,7 @@ function readSlskdFields(root) {
   return {
     url: $('[name="sk-url"]', root).value.trim(), api_key: key || null,
     review: $('[name="sk-review"]', root).checked, lossless_only: $('[name="sk-lossless"]', root).checked,
+    choose: $('[name="sk-choose"]', root).checked,
     min_bitrate: Number($('[name="sk-bitrate"]', root).value), search_seconds: sk.data?.settings?.search_seconds || 20,
   };
 }
@@ -4532,14 +4534,19 @@ async function renderSlskdStep(form, step) {
   };
 }
 
+const skSpeed = (bps) => (bps >= 1e6 ? `${(bps / 1e6).toFixed(1)} MB/s` : bps >= 1e3 ? `${Math.round(bps / 1e3)} KB/s` : null);
+
 function skCandidates(j) {
-  return h("ol", { class: "sk-cands" }, j.candidates.map((c) => {
+  const choosing = j.status === "choosing";
+  return h("ol", { class: `sk-cands${choosing ? " choosing" : ""}` }, j.candidates.slice(0, choosing ? 8 : 25).map((c) => {
     const here = c.index === j.current?.index;
     return h("li", { class: here ? "current" : "" },
       h("span", { class: "sk-cand-text" },
         h("strong", { dir: "auto" }, c.name),
         h("span", {}, [c.quality, plural(c.tracks, "track"), skSize(c.size), c.username,
-          c.free_slot ? "free slot" : `${c.queue} queued`].join(" · "))),
+          c.free_slot ? "free slot" : `${c.queue} queued`, choosing ? skSpeed(c.speed) : null].filter(Boolean).join(" · ")),
+        choosing && c.files?.length ? h("details", { class: "sk-files" }, h("summary", {}, `Files (${c.files.length})`),
+          h("ol", {}, c.files.map((n) => h("li", { dir: "auto" }, n)))) : null),
       here ? h("span", { class: "inbox-note" }, "This one")
         : h("button", { class: "btn small", type: "button", onclick: () => skAction("POST", `/api/slskd/jobs/${j.id}/pick`, { index: c.index },
           () => { sk.picking = null; toast(`Downloading ${c.name}…`); }) }, c.tried ? "Try again" : "Download"));
@@ -4588,7 +4595,7 @@ function skItem(j) {
         j.note ? h("span", { class: "inbox-note" }, j.note) : null),
       reviewable && c ? h("details", { class: "sk-files" }, h("summary", {}, `What came: ${plural(c.files.length, "file")}`),
         h("ol", {}, c.files.map((n) => h("li", { dir: "auto" }, n)))) : null,
-      sk.picking === j.id ? skCandidates(j) : null),
+      sk.picking === j.id || j.status === "choosing" ? skCandidates(j) : null),
     h("div", { class: "inbox-actions" }, actions));
 }
 

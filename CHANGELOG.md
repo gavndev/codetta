@@ -4,6 +4,9 @@ All notable changes to Codetta. Versions follow [Semantic Versioning](https://se
 
 ## Unreleased (0.8.6)
 
+- **Soulseek: pick the source first.** After a search, Codetta lists the best sources with who's sharing, a free slot or their queue, their speed, the quality and every file, and waits for you to choose. Switch it off in Soulseek's settings to let the best source download by itself.
+- **Soulseek: lighter on slskd.** One request checks every download at once (instead of one per download), the same search twice shares one request, and if slskd stops answering Codetta waits a little longer each time instead of asking again and again.
+- **Soulseek: no more half albums in the inbox.** When a download gives up on one source and moves to another, or you cancel it, the files that already arrived go to Recently deleted instead of staying behind as a second, partial album. Blocklisting a download also sets its files aside there instead of erasing them.
 - **Fixed:** matching on MusicBrainz could rename real songs to "[unknown]". MusicBrainz lists songs it doesn't know yet (often unreleased tracks on a new soundtrack) as "[unknown]" by "[unknown]", and Codetta copied that over the file's own title and artist. Those placeholders are now ignored, so the file keeps its real names.
 
 ## 0.8.5 (2026-11-19)

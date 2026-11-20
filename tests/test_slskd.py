@@ -89,6 +89,7 @@ class FakeSlskd:
 def setup(tmp_path):
     fake = FakeSlskd()
     store = SoulseekStore(tmp_path / "slskd.json")
+    store.settings.choose = False  # these follow automatic downloads; picking first is tested separately
     store.settings.url, store.settings.api_key = "http://slskd:5030", "codetta-test-key-0001"
     clock = [1000.0]
     notes = []
@@ -242,3 +243,76 @@ def test_transfer_progress_estimates_time_left():
     assert folder_progress(other, {"nope.flac"}, now) is None
     assert transfer_progress([], now) is None
     assert transfer_progress([{"size": 10, "bytesTransferred": 0}], now)["eta"] is None  # nothing moved yet
+
+
+# --- Picking the source first, fewer requests, leftovers ---------------------------------------------
+
+
+def test_pick_the_source_first_then_download(setup):
+    fake, store, sk, clock, notes = setup
+    store.settings.choose = True
+    job = sk.search("T-Pain Epiphany")
+    fake.searches[job.id]["done"] = True
+    sk.tick(lambda j: None)
+    assert job.status == "choosing" and len(job.candidates) == 2 and not fake.downloads  # nothing downloads yet
+    assert any("pick a source" in n for n in notes)
+    c = job.candidates[1]
+    assert {"username", "free_slot", "queue", "speed", "files"} <= set(c)
+    sk.start(job, 1)
+    assert job.status == DOWNLOADING and c["username"] in fake.downloads
+
+
+def test_the_same_search_twice_is_one_request(setup):
+    fake, store, sk, clock, notes = setup
+    a = sk.search("T-Pain Epiphany")
+    b = sk.search("t-pain   epiphany")
+    assert a is b and sum(1 for m, u in fake.calls if m == "POST" and u.endswith("/searches")) == 1
+
+
+def test_one_transfer_request_per_round_for_every_download(setup):
+    fake, store, sk, clock, notes = setup
+    one = sk.search("T-Pain Epiphany")
+    two = sk.search("T-Pain Epiphany live")
+    for j in (one, two):
+        fake.searches[j.id]["done"] = True
+    sk.tick(lambda j: None)  # both start downloading
+    fake.calls.clear()
+    sk.tick(lambda j: None)
+    transfer_gets = [u for m, u in fake.calls if m == "GET" and "/transfers/downloads" in u]
+    assert transfer_gets == ["http://slskd:5030/api/v0/transfers/downloads"]  # one, not one per job
+
+
+def test_slskd_errors_back_off_instead_of_hammering(setup):
+    fake, store, sk, clock, notes = setup
+    job = sk.search("T-Pain Epiphany")
+    fake.searches[job.id]["done"] = True
+    sk.tick(lambda j: None)
+    calls = []
+    sk.request = lambda *a: calls.append(a) or (_ for _ in ()).throw(SlskdError("Couldn't reach slskd: refused"))
+    sk.tick(lambda j: None)
+    assert len(calls) == 1 and "trying again" in job.note
+    sk.tick(lambda j: None)
+    assert len(calls) == 1  # waiting before the next try
+    clock[0] += 6
+    sk.tick(lambda j: None)
+    assert len(calls) == 2
+    clock[0] += 6
+    sk.tick(lambda j: None)
+    assert len(calls) == 2  # the wait doubled (10 s)
+    sk.request = fake
+    clock[0] += 10
+    sk.tick(lambda j: None)
+    assert sk._failures == 0  # slskd answered: back to normal
+
+
+def test_switching_source_remembers_what_already_arrived(setup):
+    fake, store, sk, clock, notes = setup
+    job = sk.search("T-Pain Epiphany")
+    fake.searches[job.id]["done"] = True
+    sk.tick(lambda j: None)
+    user = job.current["username"]
+    fake.downloads[user][0]["state"] = "Completed, Succeeded"  # one file made it...
+    fake.downloads[user][1]["state"] = "Completed, Errored"  # ...then the source failed
+    sk.tick(lambda j: None)
+    assert job.current["username"] != user
+    assert job.leftovers and job.leftovers[0]["files"] and len(job.leftovers[0]["files"]) == 1

@@ -69,7 +69,8 @@ def client(music, tmp_path):  # noqa: F811
 
 
 def connect(c):
-    return c.put("/api/slskd/settings", json={"url": "slskd:5030", "api_key": "codetta-test-key-0001"}).json()
+    # Automatic downloads (choose=False): these tests follow a download from search to inbox.
+    return c.put("/api/slskd/settings", json={"url": "slskd:5030", "api_key": "codetta-test-key-0001", "choose": False}).json()
 
 
 def wait_for(c, job_id, done, timeout=10):
@@ -95,7 +96,7 @@ def test_settings_never_send_the_key_back(client, tmp_path):
     assert "codetta-test-key-0001" not in json.dumps(data)
     assert data["check"]["ok"] and data["check"]["shared_folders"] == 1
     # Saving other settings keeps the key.
-    data = c.put("/api/slskd/settings", json={"url": "slskd:5030", "review": False}).json()
+    data = c.put("/api/slskd/settings", json={"url": "slskd:5030", "review": False, "choose": False}).json()
     assert data["has_key"] and data["settings"]["review"] is False
     c.post("/api/auth/logout")
     assert c.get("/api/slskd").status_code == 401
@@ -129,7 +130,7 @@ def test_search_download_review_import(client, music):  # noqa: F811
 def test_automatic_mode_files_by_itself(client, music):  # noqa: F811
     c, _ = client()
     connect(c)
-    c.put("/api/slskd/settings", json={"url": "slskd:5030", "review": False})
+    c.put("/api/slskd/settings", json={"url": "slskd:5030", "review": False, "choose": False})
     job = c.post("/api/slskd/search", json={"query": "Coda Tester Fixture Album"}).json()["job"]
     wait_for(c, job["id"], lambda j: j["status"] == "imported")
     assert (music / NEW / "01 Opening.flac").exists()
@@ -211,3 +212,55 @@ def test_inbox_shows_progress_of_an_album_still_arriving(music, tmp_path):  # no
         # Without the slskd connection, there's simply no bar.
         c.put("/api/connections", json={"enabled": {"slskd": False}})
         assert c.get("/api/inbox").json()["groups"][0]["transfer"] is None
+
+
+class PartialSlskd(DownloadingSlskd):
+    """The first seller sends one file, then fails; the others send everything."""
+
+    def __call__(self, method, url, headers, body):
+        path = url.split("/api/v0", 1)[1]
+        if method == "POST" and path.startswith("/transfers/downloads/partial"):
+            out = FakeSlskd.__call__(self, method, url, headers, body)
+            first = json.loads(body)[0]
+            folder, name = first["filename"].rsplit("\\", 2)[-2:]
+            (self.dl / folder).mkdir(parents=True, exist_ok=True)
+            shutil.copy2(self.source / name, self.dl / folder / name)
+            ts = self.downloads["partial"]
+            ts[0]["state"], ts[0]["bytesTransferred"] = "Completed, Succeeded", ts[0]["size"]
+            for t in ts[1:]:
+                t["state"] = "Completed, Errored"
+            return out
+        return super().__call__(method, url, headers, body)
+
+
+def test_files_from_an_abandoned_source_are_set_aside_not_left_in_the_inbox(music, tmp_path):  # noqa: F811
+    downloads = tmp_path / "downloads"
+    downloads.mkdir()
+    fake = PartialSlskd(music / ALBUM_DIR, downloads, sellers=("partial", "good"))
+    app = create_app(Settings(music_dir=music, config_dir=tmp_path / "config", inbox_settle_seconds=0,
+                              inbox_dir=downloads, slskd_poll_seconds=0.02),
+                     fetch_mb=FakeMB(), fetch_art=lambda url: None, slskd_request=fake)
+    with TestClient(app) as c:
+        c.post("/api/auth/setup", json={"username": "owner", "password": PASSWORD})
+        c.put("/api/connections", json={"enabled": {"musicbrainz": True, "slskd": True}})
+        c.put("/api/inbox/settings", json={"folder": "@inbox"})
+        connect(c)
+        job = c.post("/api/slskd/search", json={"query": "Coda Tester Fixture Album"}).json()["job"]
+        job = wait_for(c, job["id"], reviewable)
+        assert job["current"]["username"] == "good"
+        assert not (downloads / "Fixture Album partial").exists() or not any((downloads / "Fixture Album partial").iterdir())
+        kept = list((tmp_path / "config" / "deleted").rglob("*.flac"))
+        assert len(kept) == 1  # the one file that arrived from the abandoned source: set aside, undoable
+        assert any(e["kind"] == "delete" and "abandoned source" in e["message"] for e in c.get("/api/activity").json())
+
+
+def test_pick_the_source_before_downloading(client):
+    c, fake = client(sellers=("one", "two"))
+    c.put("/api/slskd/settings", json={"url": "slskd:5030", "api_key": "codetta-test-key-0001", "choose": True})
+    job = c.post("/api/slskd/search", json={"query": "Coda Tester Fixture Album"}).json()["job"]
+    job = wait_for(c, job["id"], lambda j: j["status"] == "choosing")
+    two = next(x for x in job["candidates"] if x["username"] == "two")
+    assert two["files"] and "queue" in two and "free_slot" in two and not fake.downloads  # nothing yet
+    c.post(f"/api/slskd/jobs/{job['id']}/pick", json={"index": two["index"]})
+    job = wait_for(c, job["id"], reviewable)
+    assert job["current"]["username"] == "two"

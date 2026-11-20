@@ -39,6 +39,7 @@ from pathlib import Path
 
 # Job statuses.
 SEARCHING = "searching"
+CHOOSING = "choosing"  # found sources: waiting for you to pick one (the "pick the source first" setting)
 DOWNLOADING = "downloading"
 FETCHED = "fetched"  # slskd has every file: waiting for them to show up in the inbox
 ARRIVED = "arrived"  # in the inbox, being matched / waiting for a review
@@ -71,6 +72,7 @@ class SlskdSettings:
     url: str = ""  # e.g. http://slskd:5030
     api_key: str = ""
     review: bool = True  # False: confident downloads are filed without asking
+    choose: bool = True  # True: show the sources (user, slot, queue, speed, files) and wait for a pick
     lossless_only: bool = False  # default: lossless first, lossy (min_bitrate and up) if no one has it
     min_bitrate: int = 320  # kbps, for lossy files
     search_seconds: int = 20
@@ -396,6 +398,9 @@ class Job:
     moved: float = 0.0  # when the download last made progress
     note: str = ""
     inbox_key: str = ""  # its album in the inbox, once it's there
+    # Files that already arrived from a source this job gave up on: {"folder": name, "files": [names]}.
+    # The app moves them to Recently deleted, so they never show up as a second album in the inbox.
+    leftovers: list[dict] = field(default_factory=list)
 
     @property
     def current(self) -> dict | None:
@@ -514,6 +519,9 @@ class Soulseek:
         self.request = request
         self.notify = notify or (lambda title, body, action: None)
         self.clock = clock
+        self._snapshot: dict[str, list[dict]] | None = None  # this round's transfers, by user (one request)
+        self._failures = 0  # rounds in a row slskd couldn't be reached
+        self._resume = 0.0  # don't ask slskd again before this time (backing off after errors)
 
     def client(self) -> SlskdClient:
         if not self.store.configured:
@@ -525,6 +533,12 @@ class Soulseek:
         if sum(c.isalnum() for c in query) < 2:
             raise SlskdError("Type at least two letters or numbers to search Soulseek.")
         client = self.client()
+        key = query.casefold()
+        with self.store.lock:  # the same search twice (a double tap, two tabs) shares one request
+            for existing in self.store.jobs.values():
+                if existing.status in (SEARCHING, CHOOSING, DOWNLOADING, FETCHED) and existing.query.casefold() == key \
+                        and existing.upgrade == upgrade:
+                    return existing
         job = self.store.add_job(query, upgrade)
         try:
             client.start_search(job.id, query, self.store.settings.search_seconds)
@@ -534,16 +548,37 @@ class Soulseek:
         return job
 
     def tick(self, locate: Callable[[Job], str | None]) -> None:
-        for job in self.store.active():
-            try:
-                if job.status == SEARCHING:
-                    self._tick_search(job)
-                elif job.status == DOWNLOADING:
-                    self._tick_download(job)
-                elif job.status == FETCHED:
-                    self._tick_fetched(job, locate)
-            except SlskdError as exc:
-                self.store.update(job, note=f"{exc} (trying again)")
+        if self.clock() < self._resume:
+            return  # slskd was unreachable: give it a moment instead of asking again at once
+        jobs = self.store.active()
+        self._snapshot = None
+        try:
+            if any(j.status == DOWNLOADING for j in jobs):
+                # One request for every download this round, instead of one per job (and per cancel).
+                self._snapshot = {}
+                for d in self.client().all_downloads():
+                    self._snapshot.setdefault(d["username"], []).extend(d["files"])
+            failed = False
+            for job in jobs:
+                try:
+                    if job.status == SEARCHING:
+                        self._tick_search(job)
+                    elif job.status == DOWNLOADING:
+                        self._tick_download(job)
+                    elif job.status == FETCHED:
+                        self._tick_fetched(job, locate)
+                except SlskdError as exc:
+                    failed = True
+                    self.store.update(job, quiet=True, note=f"{exc} (trying again)")
+        except SlskdError as exc:
+            failed = True
+            for job in jobs:
+                self.store.update(job, quiet=True, note=f"{exc} (trying again)")
+        finally:
+            self._snapshot = None
+        # Back off while slskd is struggling: 5 s, 10 s, 20 s... up to 2 minutes, then normal again.
+        self._failures = self._failures + 1 if failed else 0
+        self._resume = self.clock() + min(120, 5 * 2 ** (self._failures - 1)) if failed else 0.0
 
     def _tick_search(self, job: Job) -> None:
         client = self.client()
@@ -563,6 +598,11 @@ class Soulseek:
             self.notify(f"Soulseek: nothing for “{job.query}”", note, {"open": "soulseek"})
             return
         self.store.update(job, candidates=cands)
+        if self.store.settings.choose:
+            note = f"Found {len(cands)} {'source' if len(cands) == 1 else 'sources'}: pick one to download"
+            self.store.update(job, status=CHOOSING, note=note)
+            self.notify(f"Soulseek: pick a source for “{job.query}”", note, {"open": "soulseek", "job": job.id})
+            return
         self.start(job, 0)
 
     def start(self, job: Job, index: int) -> None:
@@ -590,15 +630,24 @@ class Soulseek:
     def _transfers(self, job: Job) -> list[dict]:
         cand = job.current
         wanted = {f["filename"] for f in cand["files"]}
-        return [t for t in self.client().downloads(cand["username"]) if t.get("filename") in wanted]
+        source = self._snapshot.get(cand["username"], []) if self._snapshot is not None \
+            else self.client().downloads(cand["username"])
+        return [t for t in source if t.get("filename") in wanted]
 
     def cancel_transfers(self, job: Job) -> None:
-        if job.current is None:
+        """Stop the current source: cancel what's still coming, and note what already arrived
+        (``job.leftovers``) so it can be cleared from the inbox instead of lingering there."""
+        cand = job.current
+        if cand is None:
             return
         client = self.client()
-        for t in self._transfers(job):
+        transfers = self._transfers(job)
+        arrived = [split_remote(t["filename"])[1] for t in transfers if "Succeeded" in str(t.get("state"))]
+        if arrived:
+            job.leftovers = job.leftovers + [{"folder": cand["name"], "files": arrived}]
+        for t in transfers:
             if "Completed" not in str(t.get("state")):
-                client.cancel(job.current["username"], str(t.get("id")))
+                client.cancel(cand["username"], str(t.get("id")))
 
     def _tick_download(self, job: Job) -> None:
         cand = job.current
