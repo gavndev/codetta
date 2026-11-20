@@ -464,3 +464,77 @@ def test_musicbrainz_placeholders_never_replace_real_names():
     assert "musicbrainz_artistid" not in tags
     assert tags["album"] == ["Fixture Album"] and tags["tracknumber"] == ["1/2"]  # the rest still applies
     assert track_tags(rel, t2)["title"] == ["Real Song"]
+
+
+# --- One loose song (a single download, a YouTube rip) ----------------------------------------
+
+
+def test_song_titles_and_names_are_cleaned():
+    from codetta.core.musicbrainz import clean_artist, clean_title, song_from_name
+    assert clean_title("Frontin ft. Jay-Z (Official Audio)") == "Frontin"
+    assert clean_title("Dreams (Remastered) (Official Video)") == "Dreams"
+    assert clean_title("nights [Explicit]") == "nights"
+    assert clean_title("Hyperballad (Lyrics)") == "Hyperballad"
+    assert clean_title("Song (Live at Wembley)") == "Song (Live at Wembley)"  # real version names stay
+    assert clean_artist("Pharrell ft. Jay-Z") == "Pharrell"
+    assert clean_artist("Simon & Garfunkel") == "Simon & Garfunkel"
+    assert song_from_name("Downloads/Bjork - Hyperballad (Lyrics).mp3") == ("Hyperballad", "Bjork")
+    assert song_from_name("track_04_final.mp3") == ("", "")
+
+
+def _rel(rid, title, date, kind="Album", secondary=(), group=None, status="Official", credit=None):
+    r = {"id": rid, "title": title, "date": date, "status": status,
+         "release-group": {"id": group or rid, "primary-type": kind, "secondary-types": list(secondary)}}
+    return r | ({"artist-credit": credit} if credit else {})
+
+
+def test_the_original_album_comes_first():
+    from codetta.core.musicbrainz import song_releases
+    me = [{"name": "Coda Tester", "joinphrase": "", "artist": ARTIST}]
+    ids = [f"9999999{i}-0000-4000-8000-000000000000" for i in range(6)]
+    recordings = [
+        {"id": ids[0], "title": "Song", "length": 300000, "artist-credit": me,
+         "releases": [_rel(ids[1], "Live in Paris", "2010", secondary=["Live"])]},
+        {"id": ids[2], "title": "Song", "length": 300000, "artist-credit": me,
+         "releases": [_rel(ids[3], "Now 99", "2001", secondary=["Compilation"],
+                           credit=[{"name": "Various Artists", "joinphrase": "", "artist": {"name": "Various Artists"}}])]},
+        {"id": ids[4], "title": "Song", "length": 240000, "artist-credit": me,  # an edit's length: only a nudge
+         "releases": [_rel(ids[5], "The Album", "2015", group="g-album"),
+                      _rel("88888888-0000-4000-8000-000000000000", "The Album", "1995", group="g-album")]},
+    ]
+    hits = song_releases(recordings, "Song", "Coda Tester", 300)
+    assert hits[0]["release"]["title"] == "The Album" and hits[0]["release"]["date"] == "1995"  # first edition
+    assert hits[0]["recording"] == ids[4]
+    assert [h["release"]["title"] for h in hits].count("The Album") == 1  # one edition per album
+
+
+def test_a_loose_song_is_matched_as_a_song(tmp_path):
+    music = tmp_path / "music"
+    (music / "Downloads").mkdir(parents=True)
+    f = music / "Downloads" / "Coda Tester - Middle (Official Audio).flac"
+    shutil.copy2(FIXTURES_DIR / "sample.flac", f)
+    MetadataEngine().update_tags(f, {"title": "Middle (Official Audio)", "artist": "Coda Tester ft. Guest",
+                                     "album": None, "albumartist": None, "tracknumber": None})
+    fake = FakeMB()
+    real = fake.__call__
+
+    def fetch(url):
+        if urllib.parse.urlparse(url).path.endswith("/recording"):
+            fake.urls.append(url)
+            t = ALBUM["media"][0]["tracks"][1]
+            return {"recordings": [{"id": t["recording"]["id"], "title": "Middle", "length": None,
+                                    "artist-credit": [{"name": "Coda Tester", "joinphrase": "", "artist": ARTIST}],
+                                    "releases": [summary_source(ALBUM)]}]}
+        return real(url)
+    with TestClient(create_app(Settings(music_dir=music, config_dir=tmp_path / "c"), fetch_mb=fetch)) as c:
+        c.post("/api/auth/setup", json={"username": "owner", "password": PASSWORD})
+        c.put("/api/connections", json={"enabled": {"musicbrainz": True}})
+        rel = "Downloads/" + f.name
+        res = c.post("/api/musicbrainz/search", json={"paths": [rel]}).json()
+        assert res["query"]["title"] == "Middle" and res["query"]["artist"] == "Coda Tester"
+        assert res["candidates"][0]["id"] == REL and res["candidates"][0]["single"]
+        assert res["recordings"][rel] == [ALBUM["media"][0]["tracks"][1]["recording"]["id"]]
+        prop = c.post("/api/musicbrainz/preview", json={"paths": [rel], "release": REL, "recordings": res["recordings"]}).json()
+        assert prop["files"][0]["track"]["title"] == "Middle" and prop["files"][0]["confidence"] == "high"
+        searched = [urllib.parse.unquote_plus(u) for u in fake.urls if "/recording" in u]
+        assert searched and all("Middle" in u and "Official Audio" not in u for u in searched)  # cleaned title

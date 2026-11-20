@@ -123,6 +123,39 @@ def similarity(a: str, b: str) -> float:
     return ratio
 
 
+# Junk that downloads (YouTube rips especially) add to song titles.
+_JUNK = re.compile(
+    r"\s*[(\[]\s*(?:official\b[^)\]]*|(?:with\s+)?lyrics?\b[^)\]]*|lyric video|visuali[sz]er|audio|video|music video|"
+    r"hd|hq|4k|explicit|clean|dirty|mv|m/v|remaster(?:ed)?\b[^)\]]*|\d{4}\s+remaster(?:ed)?[^)\]]*|"
+    r"from [^)\]]*|prod\.?\s[^)\]]*)\s*[)\]]", re.IGNORECASE)
+_FEAT = re.compile(r"\s*[(\[]?\s*\b(?:ft|feat|featuring)\b\.?\s+[^)\]]*[)\]]?", re.IGNORECASE)
+_SPLIT_ARTIST = re.compile(r"\s+(?:ft|feat|featuring)\b\.?\s+|\s+x\s+|\s*,\s*", re.IGNORECASE)
+
+
+def clean_title(title: str) -> str:
+    """"Frontin ft. Jay-Z (Official Audio)" -> "Frontin"; "Dreams (Remastered) (Official Video)" -> "Dreams"."""
+    prev = None
+    while prev != title:
+        prev, title = title, _JUNK.sub("", title)
+    title = _FEAT.sub("", title)
+    return " ".join(title.split()).strip(" -_")
+
+
+def clean_artist(artist: str) -> str:
+    """The main artist: "Pharrell ft. Jay-Z" -> "Pharrell"; "Bjork, Someone" -> "Bjork"."""
+    return _SPLIT_ARTIST.split(artist.strip(), maxsplit=1)[0].strip()
+
+
+def song_from_name(filename: str) -> tuple[str, str]:
+    """A song's (title, artist) from a file name like "Artist - Title (Official Video).mp3"."""
+    stem = re.sub(r"\.[A-Za-z0-9]{2,5}$", "", filename.rsplit("/", 1)[-1])
+    stem = re.sub(r"^\d{1,3}\s*[-._]\s*", "", stem)  # "04 - ", "04. "
+    if " - " in stem:
+        artist, title = stem.split(" - ", 1)
+        return clean_title(title), clean_artist(artist)
+    return "", ""
+
+
 def _lucene(text: str) -> str:
     """Escape a value for MusicBrainz's search syntax."""
     return re.sub(r'([+\-!(){}\[\]^"~*?:\\/]|&&|\|\|)', r"\\\1", " ".join(text.split()))
@@ -217,6 +250,25 @@ class MusicBrainz:
         data = self._get("release", {"query": " AND ".join(parts), "limit": str(limit)})
         releases = data.get("releases") if isinstance(data, dict) else None
         return [r for r in releases or [] if isinstance(r, dict) and MBID_RE.match(str(r.get("id", "")))]
+
+    def search_recordings(self, title: str, artist: str = "", limit: int = 25) -> list[dict]:
+        """Songs (recordings) by title and artist, each with the releases it's on."""
+        title, artist = title.strip(), artist.strip()
+        if not title:
+            return []
+        who = f" AND artist:({_lucene(artist)})" if artist else ""
+        # Two searches: a popular song's studio version is often buried under live and bootleg
+        # recordings, so the second asks for official albums only. Merged, album ones first.
+        queries = [f'recording:"{_lucene(title)}"{who} AND status:official AND primarytype:album',
+                   f"recording:({_lucene(title)}){who}"]
+        out, seen = [], set()
+        for q in queries:
+            data = self._get("recording", {"query": q, "limit": str(limit)})
+            for r in (data.get("recordings") if isinstance(data, dict) else None) or []:
+                if isinstance(r, dict) and MBID_RE.match(str(r.get("id", ""))) and r["id"] not in seen:
+                    seen.add(r["id"])
+                    out.append(r)
+        return out
 
     def releases_by_id(self, ids: list[str]) -> list[dict]:
         """Search-result summaries for up to 25 known releases, in one request."""
@@ -422,6 +474,64 @@ def number(value: str | None) -> int | None:
     """ "3/12" -> 3, "A2" -> None."""
     m = re.match(r"^\s*(\d+)", value or "")
     return int(m.group(1)) if m else None
+
+
+def song_releases(recordings: list[dict], title: str, artist: str, duration: float | None,
+                  limit: int = 6) -> list[dict]:
+    """For one loose song: the releases it's on, best first. Fit comes from the song itself (title,
+    main artist, a little from length); among good fits the original studio album comes first:
+    by the same artist, official, no compilation/live/soundtrack, album before single, earliest
+    (an album's date is its earliest edition's). One edition per album.
+    Returns [{"release", "recording", "score"}]."""
+    found = []
+    for rec in recordings:
+        t = similarity(title, clean_title(rec.get("title") or ""))
+        names = credit_names(rec.get("artist-credit"))
+        a = max([similarity(artist, n) for n in names[:1]] + [similarity(artist, credit_string(rec.get("artist-credit")))]) \
+            if artist else 0.5
+        if t < 0.75 or (artist and a < 0.6):
+            continue
+        length = rec.get("length")
+        if duration and isinstance(length, int | float):
+            d = abs(length / 1000 - duration)
+            fit = 1.0 if d <= 3 else 0.7 if d <= 10 else 0.0
+        else:
+            fit = 0.5
+        # Length is only a small nudge: rips add intros, and MusicBrainz lengths can be an edit's.
+        score = round((0.55 * t + 0.35 * a + 0.10 * fit) * 100)
+        for r in rec.get("releases") or []:
+            if not isinstance(r, dict) or not MBID_RE.match(str(r.get("id", ""))):
+                continue
+            rg = r.get("release-group") or {}
+            own = r.get("artist-credit")  # only there when the release's artist differs (compilations)
+            other = bool(own) and artist and similarity(artist, (credit_names(own) or [""])[0]) < 0.8
+            rel = {**r, "artist-credit": own or rec.get("artist-credit")}
+            found.append({"score": score, "t": t, "a": a, "other": other, "rg": rg, "group": rg.get("id") or r["id"],
+                          "release": rel, "recording": rec["id"]})
+    if not found:
+        return []
+    first: dict[str, str] = {}
+    for f in found:
+        d = f["release"].get("date") or "9999"
+        first[f["group"]] = min(first.get(f["group"], "9999"), d)
+    top = max(f["score"] for f in found)
+    top_a = max(f["a"] for f in found)
+    top_t = max(f["t"] for f in found)
+
+    def rank(f: dict) -> tuple:  # the exact song by the same artist first, then the original album
+        return (f["t"] < top_t - 0.05, f["a"] < top_a - 0.05, f["other"], f["release"].get("status") != "Official", bool(f["rg"].get("secondary-types")),
+                {"Album": 0, "Single": 1, "EP": 2}.get(f["rg"].get("primary-type"), 3), first[f["group"]],
+                -f["score"], f["release"].get("date") or "9999")  # within an album: its first edition
+
+    out, groups = [], set()
+    for f in sorted((f for f in found if f["score"] >= top - 12), key=rank):
+        if f["group"] in groups:
+            continue
+        groups.add(f["group"])
+        out.append({"release": f["release"], "recording": f["recording"], "score": max(0, f["score"] - 3 * len(out))})
+        if len(out) >= limit:
+            break
+    return out
 
 
 def score_candidate(summary: dict, files: list[FileInfo], album: str, artist: str) -> int:
