@@ -20,8 +20,13 @@ It ignores case and accents ("beyonce" finds "Beyoncé"). Results work like a
 folder, so you can select them and edit them all at once. You can also start a
 search from the filter button: pick a tag and a value, then **Search library**.
 
+While it's idle, the search box rolls through ideas from your own music
+("Search genre: rap", "Search Frank Ocean"). Tap it for shortcuts (search by
+artist, album or tag, each with an example from your library) and for
+**Search elsewhere** (MusicBrainz, and slskd if you use it).
+
 <p align="center">
-  <img src="media/search.gif" alt="Searching the library for genre synthwave or jazz, then for artist kosei, which finds Kōsei Mori" width="900">
+  <img src="media/search.gif" alt="The idle search bar rolling through ideas from the library, then searching for artist Frank Ocean and genre hip hop" width="900">
 </p>
 
 ## Fix a whole album in one go
@@ -31,7 +36,7 @@ exactly those changes to every track. You see the full list of changes before
 anything is written.
 
 <p align="center">
-  <img src="media/fix-an-album.gif" alt="Filling in album, album artist, date, genre and cover art on one track, then saving them to all five tracks in the folder" width="900">
+  <img src="media/fix-an-album.gif" alt="Adding a genre and cover art on one track of Vespertine, then saving them to all twelve tracks in the folder" width="900">
 </p>
 
 ## Turn loose downloads into proper releases
@@ -90,6 +95,12 @@ covers straight from your photo library (HEIC included).
   ("beyonce" finds "Beyoncé") and right-to-left names display correctly.
 - **Light and dark themes** that follow your device, with smooth, subtle
   animations (off when your system asks for reduced motion).
+- **Recently deleted.** Deleted files are kept for 30 days in your account
+  menu, where you can restore them.
+- **Report a problem** (in your account menu) gathers your version, setup and
+  recent warnings into a GitHub issue for you to finish, so a bug report
+  takes a minute. Nothing is sent until you open it on GitHub, and you can
+  look it over first (log lines can include file and folder names).
 - **Offline unless you opt in.** No CDNs, no tracking, fonts bundled. Online
   features (MusicBrainz, identify by sound, lyrics, the update check) stay off until you turn them
   on, and each one tells you exactly what it sends and where.
@@ -108,6 +119,25 @@ MusicBrainz**. Codetta lists the editions that fit (year, country, format,
 label, catalog number, track count and a match score). Already-tagged albums
 offer their own release first, and you can paste any musicbrainz.org release
 link instead of searching.
+
+**Editions.** An album can have dozens of editions (the original, remasters,
+deluxe sets, CD, vinyl, digital, one per country). **Other editions** lists
+them all so you can switch to the one that matches your copy. Under **Album
+editions** in your account menu you choose which one Codetta prefers when it
+matches on its own (in the inbox and Tidy up): the album's original year even
+for a reissue, a format, a country, and the standard edition over deluxe ones
+unless your files match. Preferences only reorder the choices; they never make
+an uncertain match look certain.
+
+**Loose songs** (a single download, a YouTube rip) are matched as songs, to the
+album they came from. Junk like "(Official Audio)", "[Explicit]" or "ft. …" is
+cleaned off before searching. If MusicBrainz is down or doesn't know an album
+yet, Deezer and iTunes (optional connections, no account needed) step in with
+details and big covers.
+
+<p align="center">
+  <img src="media/match.gif" alt="Matching Rumours on MusicBrainz, opening Other editions and switching to the recommended CD edition, with every change listed per file" width="900">
+</p>
 
 Pick a release, and the review screen shows every file next to the track it was
 paired with. Pairing uses disc and track numbers first, then title and length,
@@ -220,14 +250,46 @@ with, and **Checks** switches any check off (and back on).
 It reads Codetta's search index, so no music file is opened and a library of
 thousands of albums is checked in well under a second.
 
+## Tidy up your library
+
+Library health points things out; **Tidy up** fixes them for you, in the
+background. Choose once (it's a setup step, and under **Tidy up** in your
+account menu):
+
+- **Leave my files alone:** Codetta won't change anything on its own.
+- **Fix tags only:** each album is looked up and its tags fixed (names,
+  artists, years, covers). File names and folders stay the same.
+- **Fix tags, names and folders:** the tags, then files are renamed and each
+  album moved with your Organize pattern. Before the first full run you see a
+  preview of what the new names will look like.
+
+It works through one album at a time, with a progress bar that shows when it
+started, how far it's got and when it finished. It only writes an album when
+it's sure of the match; the rest are listed for you to look at. Loose songs
+are matched one by one, an album is never split across folders, and every
+album is one entry in Activity, so it can be undone. Pause it any time.
+
+<p align="center">
+  <img src="media/tidy.gif" alt="Turning on Tidy up with tags, names and folders, previewing the new file names, then watching the progress bar work through the library" width="900">
+</p>
+
 ## Import inbox
 
 Point Codetta at the folder new music lands in (downloads, rips; mount it at
-`/inbox`). It groups what's there into albums, waits until downloads have
-finished arriving, finds each album on MusicBrainz (by tags, or by sound with
-AcoustID) and files it into your library with your Organize pattern. Confident
-matches can file themselves; the rest wait for a quick review. Albums already
-in your library are never overwritten.
+`/inbox`). It groups what's there into albums and loose songs, waits until
+downloads have finished arriving, finds each on MusicBrainz (by tags, or by
+sound with AcoustID) and files it into your library with your Organize
+pattern. Confident matches can file themselves; the rest wait for a quick
+review. Each item says what was found ("Ready", "Not sure", "Not found") and
+whether you already have that album. Albums already in your library are never
+overwritten, and **Remove** clears something you don't want.
+
+**Import** music straight from your computer or phone with the Import button,
+or drag files onto the page. They land in the inbox and take the same route.
+
+<p align="center">
+  <img src="media/inbox.gif" alt="The inbox with four downloaded songs matched to their albums, two already in the library, one not found, and Hyperballad filed into Björk/Post (1995)" width="900">
+</p>
 
 ## Soulseek through slskd
 
@@ -317,9 +379,12 @@ Your library matters, so Codetta is careful with it:
   original bytes.
 - **Codetta only writes when you ask.** Browsing never modifies a file. Bulk
   actions ask you to confirm first, and everything can be undone.
-- **It doesn't rename, move or delete files.** Only tags and embedded art
-  change.
-- **It's tested.** Over 500 automated tests cover every format, including
+- **Files only move when you ask.** Renaming, moving and deleting happen only
+  through Organize, the inbox, Tidy up (if you turn on names and folders) or
+  Delete, always with a preview first. Nothing is ever overwritten, and
+  deleted files wait in **Recently deleted** for 30 days. Erasing them for
+  good asks you to type how many files you're erasing.
+- **It's tested.** Over 1,200 automated tests cover every format, including
   corrupt, truncated and mislabelled files, every script and emoji, read-only
   folders, interrupted writes, simultaneous saves and attack attempts.
 

@@ -130,6 +130,10 @@ download, a YouTube rip) are matched to the album they came from. Untagged files
 MusicBrainz is down or doesn't know an album yet, Deezer and iTunes (optional,
 no account needed) step in with details and big covers.
 
+<p align="center">
+  <img src="docs/media/match.gif" alt="Matching Rumours on MusicBrainz, opening Other editions and switching to the recommended CD edition, with every change listed per file" width="900">
+</p>
+
 ### Organize your library
 
 **Organize** renames and moves files from their tags with a pattern like
@@ -144,6 +148,10 @@ first). It then works through your albums one at a time in the background,
 with a progress bar, writes only confident matches, and lists the rest for
 you. Every album can be undone.
 
+<p align="center">
+  <img src="docs/media/tidy.gif" alt="Turning on Tidy up with tags, names and folders, previewing the new file names, then watching the progress bar work through the library" width="900">
+</p>
+
 ### Keep it healthy
 
 A card on the Library page lists what's worth fixing across the whole library:
@@ -153,13 +161,18 @@ missing tags, duplicates, MP3s inside a FLAC album. Obvious fixes are one tap
 
 ### Bring in new music
 
-Point Codetta at your downloads folder. It groups what's there into albums,
-waits until downloads finish, finds each on **MusicBrainz** (by its tags, or
-**by sound** with AcoustID) and files it with your folder pattern. Confident
+Point Codetta at your downloads folder. It groups what's there into albums
+(and loose songs), waits until downloads finish, finds each on **MusicBrainz**
+(by its tags, or **by sound** with AcoustID) and files it with your folder
+pattern. Confident
 matches can file themselves; the rest wait for a quick review. Albums you
 already have are never overwritten. You can also **import** music straight
 from your computer or phone (or drag it onto the page), and it takes the same
 route.
+
+<p align="center">
+  <img src="docs/media/inbox.gif" alt="The inbox with four downloaded songs matched to their albums, two already in the library, one not found, and Hyperballad filed into Björk/Post (1995)" width="900">
+</p>
 
 ### Listen and stay in the loop
 
