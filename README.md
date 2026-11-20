@@ -265,9 +265,12 @@ light and dark themes. [See every feature →](docs/features.md)
 - **[Configuration](docs/configuration.md)**: settings, connections (incl. slskd), HTTPS and remote access
 - **[Features](docs/features.md)**: everything Codetta does, supported formats
 - **[FAQ](docs/faq.md)**: common questions and known limitations
+- **[Architecture](ARCHITECTURE.md)**: how the code fits together, for contributors
 - **[Privacy](PRIVACY.md)** · **[Security](SECURITY.md)** · **[Changelog](CHANGELOG.md)** · **[Contributing](CONTRIBUTING.md)**
 
 ## Roadmap
+
+What has to be true before 1.0 is on [the road to 1.0](docs/road-to-1.0.md). Also planned:
 
 - **Refresh from MusicBrainz:** pick up corrections made since an album was matched.
 - **ReplayGain:** volume levelling, opt-in.
@@ -291,7 +294,7 @@ Codetta is open source, and there are two ways to make it your own:
 Not sure where to start?
 
 - **Found a bug or have an idea?** [Open an issue](https://github.com/gavndev/codetta/issues). Even a quick "this confused me" helps.
-- **Want to write code?** Read [CONTRIBUTING.md](CONTRIBUTING.md) for setup and guidelines, then open a pull request. For bigger changes, open an issue first so we can talk it through.
+- **Want to write code?** Read [CONTRIBUTING.md](CONTRIBUTING.md) for setup and guidelines and [ARCHITECTURE.md](ARCHITECTURE.md) for a map of the code, then open a pull request. For bigger changes, open an issue first so we can talk it through.
 - **Not a coder?** Testing new releases, improving the docs, and sharing your setup are just as valuable.
 
 Codetta is a hobby project in beta, so feedback from real libraries makes a big difference.

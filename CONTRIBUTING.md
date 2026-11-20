@@ -28,8 +28,20 @@ services:
 Always use a **copy** of some music while developing. Logo files and colours
 are in [`docs/brand`](docs/brand).
 
+New to the code? [ARCHITECTURE.md](ARCHITECTURE.md) is a one-page map: where
+things live, how a request flows, and the rules that keep files safe.
+
+## Good first steps
+
+- Issues labelled [good first issue](https://github.com/gavndev/codetta/labels/good%20first%20issue)
+  are small and self-contained.
+- Questions and ideas are welcome in [Discussions](https://github.com/gavndev/codetta/discussions).
+
 ## Before opening a pull request
 
 - Run `pytest` and make sure everything passes.
 - Keep the front end plain HTML/CSS/JS (no build step, no CDNs).
 - Any change that writes files must go through `MetadataEngine.update_tags()` / `update_artwork()` and be logged with an undo record.
+- A new API route goes in the matching module in `src/codetta/web/routes/`; page code goes in the matching module in `src/codetta/web/static/js/`.
+- Changing the layout of a settings file needs an upgrade step in `src/codetta/core/configversion.py`, with a test.
+- Add a line to `CHANGELOG.md` under "Unreleased" for anything people will notice.

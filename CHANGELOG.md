@@ -4,6 +4,8 @@ All notable changes to Codetta. Versions follow [Semantic Versioning](https://se
 
 ## Unreleased (0.9.1)
 
+- **Fixed:** the inbox and the !mb explorer shared one cache by mistake, so after the inbox had looked at 500 albums, the next !mb search could fail.
+- **Clearer message for numbered genres in MP3, AIFF and WAV:** these formats read a genre that's only a number as one of the old numbered genres ("0" is Blues), so Codetta refuses to save it and now says why, instead of a puzzling "didn't save correctly".
 - **Safer updates:** the config folder now records which settings layout it's in. When an update needs to change your settings, Codetta copies them into `backups/` in the config folder first (the last three are kept), and if anything goes wrong it puts them back and says so instead of starting with half-changed settings. Going back to an older version no longer risks your settings: Codetta leaves settings from a newer version untouched and shows a notice.
 
 ## 0.9.0 (2026-11-20)
