@@ -117,6 +117,8 @@ def register(app, shared) -> None:
         stem = body.name.strip()
         if ext and stem.lower().endswith(ext.lower()):
             stem = stem[: -len(ext)]
+        if not stem.strip().strip("."):
+            raise HTTPException(422, "Give the file a name.")
         new_name = safe_name(stem) + ext
         new_rel = _join(_parent(rel), new_name)
         if new_rel == rel:
@@ -209,8 +211,10 @@ def register(app, shared) -> None:
             return {"files": len(rels), "audio": len(audio), "where": "inbox", "folder": root}
         lib_index.mark_dirty(rels)
         org = organize_apply(OrganizeIn(paths=audio)) if audio else {"moved": 0, "held": []}
+        taken = sum(1 for h in org["held"] if h["status"] == "conflict")
         return {"files": len(rels), "audio": len(audio), "where": "library", "folder": root,
-                "organized": org["moved"], "stayed": len(org["held"])}
+                "organized": org["moved"], "stayed": len(org["held"]),
+                "stayed_taken": taken, "stayed_untagged": len(org["held"]) - taken}  # untagged or unreadable
 
     # --- Recently deleted -------------------------------------------------------------------------
 

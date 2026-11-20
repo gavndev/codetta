@@ -119,7 +119,7 @@ def register(app, shared) -> None:
             "moved": len(ok), "failed": len(failed), "extras": len(moved) - len(ok),
             "results": [{"src": r.src, "dst": r.dst, "ok": r.ok, "error": r.error} for r in results],
             # Not attempted: the name is taken (maybe a duplicate) or the file couldn't be read.
-            "held": [{"src": m.src, "dst": m.dst, "reason": m.reason} for m in moves if m.status in ("conflict", "error", "keep")],
+            "held": [{"src": m.src, "dst": m.dst, "status": m.status, "reason": m.reason} for m in moves if m.status in ("conflict", "error", "keep")],
         }
 
     shared.share(organize_apply=organize_apply, organize_preview=organize_preview, pattern_file=pattern_file)

@@ -142,6 +142,8 @@ def register(app, shared) -> None:
         src = library.resolve(folder)
         if not src.is_dir():
             raise HTTPException(404, "That folder isn't there any more.")
+        if not body.name.strip().strip("."):
+            raise HTTPException(422, "Give the folder a name.")
         name = safe_name(body.name)
         parent = folder.rsplit("/", 1)[0] if "/" in folder else ""
         dest = f"{parent}/{name}" if parent else name

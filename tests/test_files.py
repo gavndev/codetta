@@ -223,3 +223,40 @@ def test_search_ideas_come_from_the_library(setup):
     assert set(ideas) == {"artist", "album", "genre", "mood"}
     assert all(isinstance(v, list) for v in ideas.values())
     assert ideas["artist"] or ideas["album"]  # the test library has tagged tracks
+
+
+def test_a_long_imported_name_keeps_its_extension(setup):
+    """Long names are shortened before the extension, so the file is still music."""
+    from codetta.core.importer import clean_parts
+    parts = clean_parts("Album/" + "a" * 300 + ".flac")
+    assert parts[-1].endswith(".flac") and len(parts[-1].encode()) <= 255
+    assert clean_parts(".hidden.flac")[-1] == "_hidden.flac"
+    assert clean_parts("README")[-1] == "README"
+    c, music, _ = setup
+    data = (FIXTURES_DIR / "sample.flac").read_bytes()
+    r = c.put("/api/import", params={"batch": "test-0002", "path": "Ü" * 150 + ".flac"}, content=data).json()
+    assert r["audio"] is True and r["path"].endswith(".flac")
+
+
+def test_import_says_why_files_stayed(setup):
+    """A copy of something already in the library stays put (never overwritten), and the answer
+    says so, rather than blaming missing tags."""
+    c, music, _ = setup
+    data = (FIXTURES_DIR / "sample.flac").read_bytes()
+    first = c.put("/api/import", params={"batch": "test-0003", "path": "a.flac"}, content=data).json()
+    assert c.post("/api/import/done", json={"batch": "test-0003", "paths": [first["path"]]}).json()["organized"] == 1
+    again = c.put("/api/import", params={"batch": "test-0004", "path": "a.flac"}, content=data).json()
+    untagged = c.put("/api/import", params={"batch": "test-0004", "path": "b.flac"},
+                     content=(FIXTURES_DIR / "untagged.flac").read_bytes()).json()
+    done = c.post("/api/import/done", json={"batch": "test-0004", "paths": [again["path"], untagged["path"]]}).json()
+    assert done["stayed"] == 2 and done["stayed_taken"] == 1 and done["stayed_untagged"] == 1
+
+
+@pytest.mark.parametrize("name", [" ", ".", "..", " . "])
+def test_a_blank_name_is_refused_not_turned_into_an_underscore(setup, name):
+    c, music, _ = setup
+    r = c.post("/api/folders/rename", json={"path": "Artist/Album", "name": name})
+    assert r.status_code == 422 and "name" in r.json()["detail"]
+    r = c.post("/api/files/rename", json={"path": "Artist/Album/01 Song.flac", "name": name})
+    assert r.status_code == 422
+    assert (music / "Artist" / "Album" / "01 Song.flac").is_file()

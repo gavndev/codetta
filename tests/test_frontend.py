@@ -40,3 +40,12 @@ def test_modules_only_import_from_codetta_itself():
     for mod in MODULES:
         for stmt in re.findall(r"^import [^;]*;", mod.read_text("utf-8"), re.MULTILINE):
             assert re.search(r'from "\./[\w/.-]+\.js";$', stmt), f"{mod.name}: {stmt}"
+
+
+def test_the_page_knows_the_servers_import_limit():
+    """The page skips files over the limit up front (a browser can't show the server's answer
+    once it has stopped reading an upload), so both sides must agree on the number."""
+    from codetta.core.importer import MAX_IMPORT_BYTES
+    js = (STATIC / "js" / "files.js").read_text("utf-8")
+    m = re.search(r"const MAX_IMPORT_BYTES = (\d+) \* 1024 \*\* 3;", js)
+    assert m and int(m.group(1)) * 1024 ** 3 == MAX_IMPORT_BYTES

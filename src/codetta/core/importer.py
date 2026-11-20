@@ -14,7 +14,7 @@ import secrets
 from pathlib import Path
 
 from codetta.core.engine import SUPPORTED_EXTENSIONS
-from codetta.core.organize import safe_name
+from codetta.core.organize import MAX_COMPONENT_BYTES, safe_name
 
 MAX_IMPORT_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB per file (hi-res albums are big; this isn't a backup tool)
 MAX_DEPTH = 6  # folders inside an imported folder
@@ -31,7 +31,12 @@ def clean_parts(path: str) -> list[str]:
     parts = [p for p in re.split(r"[\\/]+", path or "") if p not in ("", ".", "..")]
     if not parts:
         raise ImportError_("That file has no name")
-    parts = [safe_name(p) for p in parts]
+    *folders, name = parts
+    stem, ext = os.path.splitext(name)
+    if not stem or len(ext) > 12 or not ext[1:].isalnum():  # ".flac" yes; ".hidden" or "x.tar gz" no
+        stem, ext = name, ""
+    # Long names are shortened before the extension, so "….flac" stays a music file.
+    parts = [safe_name(p) for p in folders] + [safe_name(stem, MAX_COMPONENT_BYTES - len(ext.encode())) + ext]
     if len(parts) > MAX_DEPTH + 1:
         parts = parts[:MAX_DEPTH] + [parts[-1]]  # very deep folders are flattened, never refused
     return parts

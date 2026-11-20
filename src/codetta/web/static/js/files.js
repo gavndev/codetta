@@ -265,6 +265,7 @@ export function setupContextMenu() {
 // places them. Anything that isn't audio gets a warning first, never a refusal.
 
 const AUDIO_EXT = /\.(flac|mp3|m4a|m4b|aac|ogg|oga|opus|wav|aif|aiff|dsf|wv|tta|mp2|wma|spx)$/i;
+const MAX_IMPORT_BYTES = 2 * 1024 ** 3; // the server's limit per file (MAX_IMPORT_BYTES in core/importer.py)
 
 export function pickImport() {
   const files = h("input", { type: "file", multiple: true, hidden: true });
@@ -284,6 +285,11 @@ export function pickImport() {
 
 async function importFiles(list) {
   list = list.filter((x) => x.file && !x.path.split("/").some((p) => p.startsWith(".")));
+  const huge = list.filter((x) => x.file.size > MAX_IMPORT_BYTES);
+  if (huge.length) {
+    list = list.filter((x) => x.file.size <= MAX_IMPORT_BYTES);
+    toast(`${huge.length === 1 ? `“${huge[0].path.split("/").pop()}” is` : `${huge.length} files are`} over 2 GB, the most one file can be, so ${huge.length === 1 ? "it was" : "they were"} skipped.`, "error");
+  }
   if (!list.length) return;
   const other = list.filter((x) => !AUDIO_EXT.test(x.path));
   if (other.length && !(await ask({ title: other.length === list.length ? "These aren't music files" : "Some of these aren't music",
@@ -306,7 +312,9 @@ async function importFiles(list) {
       done.push(data.path);
     } catch (err) {
       failed += 1;
-      if (failed === 1) toast(err.message, "error");
+      // fetch() itself fails (a TypeError) when the connection drops: say that, not "Failed to fetch".
+      const why = err instanceof TypeError ? `Couldn't import “${x.path.split("/").pop()}”: the connection to Codetta dropped.` : err.message;
+      if (failed === 1) toast(why, "error");
     }
   }
   bar.remove();
@@ -318,7 +326,8 @@ async function importFiles(list) {
       toast(`Imported ${plural(r.files, "file")} into your inbox: Codetta is matching ${r.files === 1 ? "it" : "them"}.${extra}`, failed ? "error" : "success");
       if ($("#inbox-dialog").open) loadInbox();
     } else {
-      toast(`Imported ${plural(r.files, "file")}${r.organized ? `, ${r.organized} placed with your folder pattern` : ""}${r.stayed ? `; ${r.stayed} stayed in “${r.folder}” (not enough tags)` : ""}.${extra}`, failed ? "error" : "success");
+      const why = [r.stayed_taken ? `${r.stayed_taken} already in your library` : "", r.stayed_untagged ? `${r.stayed_untagged} without enough tags` : ""].filter(Boolean).join(", ");
+      toast(`Imported ${plural(r.files, "file")}${r.organized ? `, ${r.organized} placed with your folder pattern` : ""}${r.stayed ? `; ${r.stayed} stayed in “${r.folder}” (${why})` : ""}.${extra}`, failed ? "error" : "success");
     }
     folderCache.clear(); folderCovers.clear();
     refreshActivity();
