@@ -2306,14 +2306,14 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             sk_transfers["at"] = time.time()
         return sk_transfers["list"]
 
-    owned_cache: dict[tuple, tuple[float, dict | None]] = {}
+    inbox_owned_cache: dict[tuple, tuple[float, dict | None]] = {}
 
     def inbox_owned(g) -> dict | None:
         """Is this album already in the library (same release, or same album and artist)? Reads the
         search index only; remembered for a minute so the Inbox can refresh often."""
         rid = (g.release or {}).get("id") or ""
         ck = (g.key, rid, g.title, g.artist)
-        hit = owned_cache.get(ck)
+        hit = inbox_owned_cache.get(ck)
         if hit and time.monotonic() - hit[0] < 60:
             return hit[1]
         found: set[str] = set()
@@ -2332,9 +2332,9 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
                 folders[p.rsplit("/", 1)[0] if "/" in p else ""] = folders.get(p.rsplit("/", 1)[0] if "/" in p else "", 0) + 1
             folder, n = max(folders.items(), key=lambda kv: kv[1])
             out = {"folder": folder, "tracks": n}
-        owned_cache[ck] = (time.monotonic(), out)
-        if len(owned_cache) > 500:
-            owned_cache.clear()
+        inbox_owned_cache[ck] = (time.monotonic(), out)
+        if len(inbox_owned_cache) > 500:
+            inbox_owned_cache.clear()
         return out
 
     def inbox_out() -> dict:
