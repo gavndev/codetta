@@ -2,6 +2,10 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
+## Unreleased (0.9.1)
+
+- **Safer updates:** the config folder now records which settings layout it's in. When an update needs to change your settings, Codetta copies them into `backups/` in the config folder first (the last three are kept), and if anything goes wrong it puts them back and says so instead of starting with half-changed settings. Going back to an older version no longer risks your settings: Codetta leaves settings from a newer version untouched and shows a notice.
+
 ## 0.9.0 (2026-11-20)
 
 Codetta is now in **beta**.

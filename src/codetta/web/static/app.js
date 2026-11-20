@@ -5168,7 +5168,7 @@ function renderHealth() {
 // New ones pop out of the bell for a few seconds; the panel keeps the list.
 
 const notif = { lastId: null, items: [], unread: 0, timer: null };
-const notifIcon = (kind) => icon(kind === "inbox" ? "inbox" : kind === "update" ? "spark" : kind === "soulseek" ? "slskd" : "check");
+const notifIcon = (kind) => icon(kind === "inbox" ? "inbox" : kind === "update" ? "spark" : kind === "soulseek" ? "slskd" : kind === "warning" ? "alert" : "check");
 
 const relTime = (secs) => {
   const d = Math.max(0, Date.now() / 1000 - secs);

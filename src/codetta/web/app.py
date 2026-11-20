@@ -58,6 +58,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from codetta.core import configversion
 from codetta.core.activity import ActivityLog
 from codetta.core.artwork import sniff_image_type
 from codetta.core.avatar import AvatarError, AvatarStore
@@ -578,17 +579,6 @@ class MBProposalIn(MBTarget):
 # --- App ----------------------------------------------------------------------------
 
 
-def _migrate_presets_folder(config_dir: Path) -> None:
-    """Tag Presets used to be called Tag Loadouts, kept in config/loadouts/. Move them over once."""
-    old, new = config_dir / "loadouts", config_dir / "presets"
-    try:
-        if old.is_dir() and not new.exists():
-            old.rename(new)
-            log.info("Moved your Tag Presets from %s to %s", old, new)
-    except OSError as exc:  # read-only config folder: presets just start fresh
-        log.warning("Couldn't move %s to %s: %s", old, new, exc)
-
-
 def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_latest_release,
                fetch_json=None, fetch_mb=None, fetch_art=None, post_acoustid=None, run_fpcalc=None,
                slskd_request=None, fetch_catalog=None) -> FastAPI:
@@ -597,6 +587,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     AcoustID (form) -> parsed JSON; ``run_fpcalc`` replaces running fpcalc;
     ``slskd_request`` (method, url, headers, body) -> (status, body) stands in for slskd."""
     settings = settings or Settings.from_env()
+    config_state = configversion.upgrade(settings.config_dir, VERSION)
     if settings.index_workers <= 0:
         settings.index_workers = max(1, min(4, (os.cpu_count() or 2) - 1))
     connections = ConnectionStore(
@@ -606,7 +597,6 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     )
     updates = UpdateChecker(VERSION, settings.update_repo, lambda: connections.enabled("updates"), fetch_release)
     library = Library(settings.music_dir, settings.inbox_dir, settings.config_dir / "replaced", settings.config_dir / "deleted")
-    _migrate_presets_folder(settings.config_dir)
     store = PresetStore(settings.config_dir / "presets")
     engine = MetadataEngine()
     activity = ActivityLog(settings.config_dir / "activity.jsonl")
@@ -617,6 +607,11 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     limiter = LoginRateLimiter()
     user_agent = f"Codetta/{VERSION} (https://github.com/gavndev/codetta)"
     notices = Notifications(settings.config_dir / "notifications.json")
+    if config_state.status == "newer":
+        notices.add("warning", "Settings from a newer Codetta",
+                    "These settings were saved by a newer version of Codetta. They're used as they are, "
+                    "but some may be ignored. Update Codetta again to get everything back.",
+                    key=f"config-newer:{config_state.version}:{VERSION}")
     lrclib = LRCLib(fetch_json or (lambda url: http_get_json(url, user_agent)))
     mb_mirror = settings.musicbrainz_url.rstrip("/") if settings.musicbrainz_url else None
     if mb_mirror and not mb_mirror.endswith("/ws/2"):
