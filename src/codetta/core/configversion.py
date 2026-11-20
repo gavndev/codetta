@@ -26,9 +26,9 @@ import os
 import shutil
 import tempfile
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 log = logging.getLogger("codetta.config")
 
@@ -168,8 +168,11 @@ def upgrade(config_dir: Path, app_version: str, steps: dict[int, Callable[[Path]
             log.error("Settings upgrade step %s failed: %s. Putting your settings back from %s", n, exc, backup)
             try:
                 _restore(config_dir, backup)
-                _stamp(config_dir, found, app_version) if found else (config_dir / FILE).unlink(missing_ok=True)
-            except Exception as restore_exc:  # pragma: no cover - the backup is still there to copy by hand
+                if found:
+                    _stamp(config_dir, found, app_version)
+                else:
+                    (config_dir / FILE).unlink(missing_ok=True)
+            except (OSError, shutil.Error) as restore_exc:  # pragma: no cover - the backup is still there to copy by hand
                 log.error("Couldn't put the settings back automatically (%s). They're saved in %s", restore_exc, backup)
             raise ConfigUpgradeError(
                 f"Codetta couldn't upgrade its settings (step {n}: {exc}). Nothing was changed; "
