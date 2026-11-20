@@ -4150,6 +4150,14 @@ function renderInbox() {
     if (["ready", "review", "nomatch", "local", "error"].includes(g.status)) {
       actions.push(h("button", { class: "link-btn inbox-skip", type: "button", onclick: () => inboxAction("/api/inbox/skip", { key: g.key }) }, "Skip"));
     }
+    if (g.status !== "filed" && g.status !== "matching") {
+      actions.push(h("button", { class: "link-btn inbox-skip danger-text", type: "button", onclick: async () => {
+        if (await ask({ title: `Remove “${name}” from the inbox?`, danger: true, confirmLabel: "Move to Recently deleted",
+          message: `Its ${plural(g.files, "file")} go to Recently deleted for 30 days. Activity can put ${g.files === 1 ? "it" : "them"} back.` })) {
+          inboxAction("/api/inbox/remove", { key: g.key }, () => toast(`Removed “${name}”. Undo is in Activity.`, "success"));
+        }
+      } }, "Remove"));
+    }
     const rel = g.release;
     return h("div", { class: `inbox-item ${g.status}` },
       rel?.id && d.online ? mbThumb(rel.id) : h("span", { class: "mb-thumb mb-noart", "aria-hidden": "true" }, icon("note")),

@@ -2874,3 +2874,4 @@ dialog:focus { outline: none; }
 .trash-actions { display: flex; gap: 6px; flex: none; }
 .trash-foot { display: flex; justify-content: flex-end; margin-top: 12px; }
 @media (max-width: 760px) { .trash-item { flex-wrap: wrap; } .trash-actions { width: 100%; justify-content: flex-end; } }
+.link-btn.danger-text { color: var(--danger); }

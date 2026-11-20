@@ -2190,6 +2190,33 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
                     raise
         return {"filed": filed, "total": len(keys), "inbox": inbox_out()}
 
+    @app.post("/api/inbox/remove")
+    def inbox_remove(body: InboxActionIn) -> dict:
+        """Take an album out of the inbox: its files go to Recently deleted (30 days, undoable)."""
+        require_library()
+        g = inbox.groups.get(body.key)
+        if g is None:
+            raise HTTPException(404, "That album is no longer in the inbox")
+        if g.status in (FILED, MATCHING) or body.key in inbox_filing:
+            raise HTTPException(409, "It's being matched or filed right now. Try again in a moment.")
+        base = inbox.settings.folder
+        if g.key != base and g.key.startswith(base + "/"):
+            rels = []
+            for dirpath, _, names in os.walk(library.resolve(g.key)):
+                rels += [library.relative(Path(dirpath) / n) for n in names]
+        else:
+            rels = [p for p in g.paths if p.startswith(base + "/")]
+        sk_set_aside(rels, f"Removed “{g.title or g.key.rsplit('/', 1)[-1]}” from the inbox")
+        with contextlib.suppress(OSError, LibraryPathError):
+            if g.key != base and g.key.startswith(base + "/"):
+                for dirpath, _, _ in sorted(os.walk(library.resolve(g.key)), key=lambda x: -len(x[0])):
+                    with contextlib.suppress(OSError):
+                        os.rmdir(dirpath)
+        with inbox.lock:
+            inbox.groups.pop(g.key, None)
+            inbox.save()
+        return inbox_out()
+
     @app.post("/api/inbox/skip")
     def inbox_skip(body: InboxActionIn) -> dict:
         if inbox.update(body.key, status=SKIPPED, note="Skipped: left where it is") is None:

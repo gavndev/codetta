@@ -317,3 +317,14 @@ def test_an_album_is_never_filed_twice_at_once(make_client, music):
     t.join()
     assert second.status_code == 409 and "already being filed" in second.json()["detail"]
     assert first["status"] == "filed"  # the first one finished normally, not marked as failed
+
+
+def test_remove_from_the_inbox_sends_files_to_recently_deleted(make_client, music, tmp_path):
+    c = make_client(online=False)
+    c.put("/api/inbox/settings", json={"folder": "Downloads"})
+    g = settle(c)["groups"][0]
+    res = c.post("/api/inbox/remove", json={"key": g["key"]}).json()
+    assert not res["groups"] and not (music / ALBUM_DIR).exists()
+    assert list((tmp_path / "config" / "deleted").rglob("01.flac"))
+    entry = c.get("/api/activity").json()[0]
+    assert entry["kind"] == "delete" and entry["can_undo"]
