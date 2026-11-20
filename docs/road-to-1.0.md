@@ -7,13 +7,15 @@ and hold it to it.
 
 ## Your files
 
-- [ ] **No open data-loss bugs.** Any report of a damaged, lost or wrongly moved file blocks 1.0.
+- [ ] **No open data-loss bugs.** Any report of a damaged, lost or wrongly moved file gets the
+      [data safety](https://github.com/gavndev/codetta/labels/data%20safety) label and blocks 1.0.
 - [x] **Every write is verified** (temporary copy, read back, atomic swap) and every change can be undone.
-- [ ] **Tested against a collection of real-world oddities:** files tagged by iTunes, foobar2000,
-      Windows Media Player, Mp3tag and old Picard versions, broken headers, huge covers, every
-      script and emoji, and each save checked to change nothing it wasn't asked to.
-- [ ] **Round-trip tests with generated tags:** thousands of random tag sets per format, each
-      saved and read back exactly.
+- [x] **Round-trip tests with generated tags:** random tag sets in every script for all 15
+      formats, each saved and read back exactly, with every other tag left alone.
+- [x] **Files the way other taggers leave them:** ID3v2.3 with APE and ID3v1 tags, iTunes atoms,
+      mixed-case Vorbis keys, several pictures, 5 MB covers.
+- [ ] **Real files from real taggers:** a shared set of small files tagged by iTunes, foobar2000,
+      Windows Media Player, Mp3tag and old Picard versions (contributions welcome).
 
 ## Updating
 
