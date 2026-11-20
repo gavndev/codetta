@@ -9,6 +9,7 @@ import hashlib
 import os
 import shutil
 import subprocess
+from pathlib import Path
 
 import mutagen
 import struct
@@ -623,7 +624,7 @@ def test_a_preset_carries_on_past_a_file_it_cannot_open(tmp_path, monkeypatch):
     real = engine.load_metadata
 
     def flaky(path, *a, **k):
-        if str(path).endswith("2.flac"):
+        if Path(path).name == "2.flac":  # exactly: a save's temp copy (".codetta-…2.flac") must not match
             raise PermissionError(13, "Permission denied", str(path))
         return real(path, *a, **k)
 
