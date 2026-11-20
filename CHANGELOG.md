@@ -2,7 +2,10 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
-## Unreleased (0.8.6)
+## Unreleased (0.9.0)
+
+Codetta is now in **beta**.
+
 
 - **Remove from the inbox:** any album in the inbox can be removed (its files go to Recently deleted), so leftovers never need a trip to the server.
 - **Recently deleted** (account menu): see what you deleted, how big it is and how long it's kept, then **Put back** (never over a file that took its place) or **Delete now**. Deleting for good is the one thing that can't be undone, so you type the number of files to confirm; it's also checked on the server and can only ever touch Recently deleted.

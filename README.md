@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <img alt="Status: alpha" src="https://img.shields.io/badge/status-alpha-f59e0b">
+  <img alt="Status: beta" src="https://img.shields.io/badge/status-beta-3b82f6">
   <img alt="Version 0.8.5" src="https://img.shields.io/badge/version-0.8.5-0e7c74">
   <a href="LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-555"></a>
   <img alt="Python 3.14" src="https://img.shields.io/badge/python-3.14-3776ab">
@@ -50,8 +50,8 @@ be matched and filed for you. Your files are updated **safely**, anything
 Codetta does can be **undone**, and [Navidrome](https://www.navidrome.org/)
 and other music apps pick up the changes on their next scan.
 
-> **Codetta is alpha software.** It's careful with your files, but it's young.
-> Keep a backup of your library, as you would with any tool that edits files.
+> **Codetta is in beta.** It's careful with your files and used daily on real libraries, but
+> keep a backup of your music, as you would with any tool that edits files.
 
 > **Codetta is AI-Assisted.** I understand the controversy surrounding AI usage in software. I prioritize transparency, hence the disclaimer for those who do not favor AI. This project is assisted by Claude Opus 5.5.
 
@@ -119,13 +119,22 @@ so you can edit them all at once.
 
 Official titles, credits, dates, labels, catalog numbers, MusicBrainz IDs and
 cover art for any album folder. Compare editions, then review every change per
-file before anything is written. Untagged files are recognised by sound.
+file before anything is written. Untagged files are recognised by sound. When
+MusicBrainz is down or doesn't know an album yet, Deezer and iTunes (optional,
+no account needed) step in with details and big covers.
 
 ### Organize your library
 
 **Organize** renames and moves files from their tags with a pattern like
 `{albumartist}/{album} ({year})/{disctrack} {title}`. You see every move
 first, nothing is ever overwritten, and the whole thing can be undone.
+
+### Let Codetta look after it
+
+Choose once how Codetta should treat the music you already have: leave it as
+it is, fix tags only, or tags plus file names and folders. It then works
+through your albums one at a time in the background, writes only confident
+matches, and lists the rest for you. Every album can be undone.
 
 ### Keep it healthy
 
@@ -140,7 +149,9 @@ Point Codetta at your downloads folder. It groups what's there into albums,
 waits until downloads finish, finds each on **MusicBrainz** (by its tags, or
 **by sound** with AcoustID) and files it with your folder pattern. Confident
 matches can file themselves; the rest wait for a quick review. Albums you
-already have are never overwritten.
+already have are never overwritten. You can also **import** music straight
+from your computer or phone (or drag it onto the page), and it takes the same
+route.
 
 ### Listen and stay in the loop
 
@@ -156,7 +167,8 @@ already have are never overwritten.
 - **Nothing moves without your say-so.** Organize and the inbox show every
   move first and never overwrite a file; an album you replace is kept aside.
 - **Undo anything** from the activity log (tags, covers, moves, a whole
-  album), and it's kept across restarts.
+  album), and it's kept across restarts. Deleted files wait in
+  **Recently deleted** for 30 days.
 - **Private by design.** No tracking, analytics or telemetry of any kind, no
   ads, and the page never loads anything from another site. Codetta is
   offline unless you opt in: MusicBrainz, AcoustID, lyrics, the update check

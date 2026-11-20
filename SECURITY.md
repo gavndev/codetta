@@ -6,7 +6,7 @@ Please report security problems **privately** through
 [GitHub's security advisories](https://github.com/gavndev/codetta/security/advisories/new),
 not in a public issue. You'll get a reply as soon as possible, and fixes are released as a new version.
 
-Only the latest release gets security fixes while Codetta is in alpha.
+Only the latest release gets security fixes while Codetta is in beta.
 
 ## How Codetta protects you
 
