@@ -26,7 +26,7 @@ artist, album or tag, each with an example from your library) and for
 **Search elsewhere** (MusicBrainz, and slskd if you use it).
 
 <p align="center">
-  <img src="media/search.gif" alt="The idle search bar rolling through ideas from the library, then searching for artist Frank Ocean and genre electronic" width="900">
+  <img src="media/search.webp" alt="The idle search bar rolling through ideas from the library, then searching for artist Frank Ocean and genre electronic" width="900">
 </p>
 
 ## Fix a whole album in one go
@@ -36,7 +36,7 @@ exactly those changes to every track. You see the full list of changes before
 anything is written.
 
 <p align="center">
-  <img src="media/fix-an-album.gif" alt="Adding a genre and cover art on one track of Vespertine, then saving them to all twelve tracks in the folder" width="900">
+  <img src="media/fix-an-album.webp" alt="Adding a genre and cover art on one track of Vespertine, then saving them to all twelve tracks in the folder" width="900">
 </p>
 
 ## Turn loose downloads into proper releases
@@ -136,7 +136,7 @@ yet, Deezer and iTunes (optional connections, no account needed) step in with
 details and big covers.
 
 <p align="center">
-  <img src="media/match.gif" alt="Matching Rumours on MusicBrainz, opening Other editions and switching to the recommended CD edition, with every change listed per file" width="900">
+  <img src="media/match.webp" alt="Matching Rumours on MusicBrainz, opening Other editions and switching to the recommended CD edition, with every change listed per file" width="900">
 </p>
 
 Pick a release, and the review screen shows every file next to the track it was
@@ -270,7 +270,7 @@ are matched one by one, an album is never split across folders, and every
 album is one entry in Activity, so it can be undone. Pause it any time.
 
 <p align="center">
-  <img src="media/tidy.gif" alt="Turning on Tidy up with tags, names and folders, previewing the new file names, then watching the progress bar work through the library" width="900">
+  <img src="media/tidy.webp" alt="Turning on Tidy up with tags, names and folders, previewing the new file names, then watching the progress bar work through the library" width="900">
 </p>
 
 ## Import inbox
@@ -288,7 +288,7 @@ overwritten, and **Remove** clears something you don't want.
 or drag files onto the page. They land in the inbox and take the same route.
 
 <p align="center">
-  <img src="media/inbox.gif" alt="The inbox with four downloaded songs matched to their albums, two already in the library, one not found, and Hyperballad filed into Björk/Post (1995)" width="900">
+  <img src="media/inbox.webp" alt="The inbox with four downloaded songs matched to their albums, two already in the library, one not found, and Hyperballad filed into Björk/Post (1995)" width="900">
 </p>
 
 ## Soulseek through slskd

@@ -101,7 +101,7 @@ Select tracks and change only what you need, or fill in one track and
 art included. You see every change before anything is written.
 
 <p align="center">
-  <img src="docs/media/fix-an-album.gif" alt="Adding a genre and cover art on one track of Vespertine, then saving them to all twelve tracks in the folder" width="900">
+  <img src="docs/media/fix-an-album.webp" alt="Adding a genre and cover art on one track of Vespertine, then saving them to all twelve tracks in the folder" width="900">
 </p>
 
 ### Search your entire library by tag
@@ -117,7 +117,7 @@ album, tag) with examples from your own music.
 | `night drive` | words in the title, artist, album or file name |
 
 <p align="center">
-  <img src="docs/media/search.gif" alt="The idle search bar rolling through ideas from the library, then searching for artist Frank Ocean and genre electronic" width="900">
+  <img src="docs/media/search.webp" alt="The idle search bar rolling through ideas from the library, then searching for artist Frank Ocean and genre electronic" width="900">
 </p>
 
 ### Match on MusicBrainz
@@ -131,7 +131,7 @@ MusicBrainz is down or doesn't know an album yet, Deezer and iTunes (optional,
 no account needed) step in with details and big covers.
 
 <p align="center">
-  <img src="docs/media/match.gif" alt="Matching Rumours on MusicBrainz, opening Other editions and switching to the recommended CD edition, with every change listed per file" width="900">
+  <img src="docs/media/match.webp" alt="Matching Rumours on MusicBrainz, opening Other editions and switching to the recommended CD edition, with every change listed per file" width="900">
 </p>
 
 ### Organize your library
@@ -149,7 +149,7 @@ with a progress bar, writes only confident matches, and lists the rest for
 you. Every album can be undone.
 
 <p align="center">
-  <img src="docs/media/tidy.gif" alt="Turning on Tidy up with tags, names and folders, previewing the new file names, then watching the progress bar work through the library" width="900">
+  <img src="docs/media/tidy.webp" alt="Turning on Tidy up with tags, names and folders, previewing the new file names, then watching the progress bar work through the library" width="900">
 </p>
 
 ### Keep it healthy
@@ -171,7 +171,7 @@ from your computer or phone (or drag it onto the page), and it takes the same
 route.
 
 <p align="center">
-  <img src="docs/media/inbox.gif" alt="The inbox with four downloaded songs matched to their albums, two already in the library, one not found, and Hyperballad filed into Björk/Post (1995)" width="900">
+  <img src="docs/media/inbox.webp" alt="The inbox with four downloaded songs matched to their albums, two already in the library, one not found, and Hyperballad filed into Björk/Post (1995)" width="900">
 </p>
 
 ### Listen and stay in the loop
