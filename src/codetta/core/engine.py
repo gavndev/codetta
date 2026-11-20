@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import contextlib
 import os
+import re
 import shutil
 import tempfile
 import threading
@@ -35,8 +36,14 @@ from mutagen.wavpack import WavPack
 
 # Importing tagmap registers the extra tag names (mood, label, engineer, ...)
 # so every format shares one vocabulary.
-from codetta.core.artwork import Artwork, ArtworkError, parse_image, read_picture, write_picture
-from codetta.core.tagmap import HIDDEN_ALIASES, is_tag_supported, tag_view
+from codetta.core.artwork import (
+    Artwork,
+    ArtworkError,
+    parse_image,
+    read_picture,
+    write_picture,
+)
+from codetta.core.tagmap import HIDDEN_ALIASES, ID3_FORMATS, is_tag_supported, tag_view
 
 __all__ = [
     "SUPPORTED_EXTENSIONS",
@@ -332,13 +339,24 @@ class MetadataEngine:
             raise MetadataError(f"Could not save tags to {path}: {exc}") from exc
 
     def _verify_tags(self, path: Path, changes: dict[str, list[str]]) -> None:
-        written = self.load_metadata(path).tags
+        meta = self.load_metadata(path)
+        written = meta.tags
         for key, values in changes.items():
             if written.get(key, []) != values:
+                if key == "genre" and meta.format in ID3_FORMATS and any(_ID3_GENRE_CODE.fullmatch(v) for v in values):
+                    raise MetadataError(
+                        f"{meta.format.upper()} tags read a genre that's only a number as one of the old "
+                        f"numbered genres, so {values[0]!r} would become {written.get(key, ['?'])[0]!r}. "
+                        "Add a word to it (for example \"Genre 0\")."
+                    )
                 raise MetadataError(
                     f"Tag '{key}' did not save correctly "
                     f"(wanted {values!r}, file has {written.get(key, [])!r})"
                 )
+
+
+# ID3 reads a genre that is only a number (or "(17)", "RX", "CR") as a numbered genre.
+_ID3_GENRE_CODE = re.compile(r"\(?(\d+|RX|CR)\)?")
 
 
 def _open_audio(path: Path):

@@ -632,3 +632,18 @@ def test_a_preset_carries_on_past_a_file_it_cannot_open(tmp_path, monkeypatch):
     by_name = {r.path.name: r for r in results}
     assert by_name["2.flac"].error and "Permission" in by_name["2.flac"].error
     assert by_name["1.flac"].applied == {"genre": ["Ambient"]} and by_name["3.flac"].applied == {"genre": ["Ambient"]}
+
+
+@pytest.mark.parametrize("name", ["sample.mp3", "sample.aiff", "sample.wav"])
+@pytest.mark.parametrize("genre", ["0", "17", "(17)", "RX"])
+def test_a_genre_that_is_only_a_number_is_refused_with_a_clear_reason(fixture_copy, name, genre):
+    """ID3 reads a bare number as an old numbered genre (0 = Blues), so saving "0" would really save
+    "Blues". The write is refused, the file is untouched, and the message says why."""
+    path = fixture_copy(name)
+    before = path.read_bytes()
+    with pytest.raises(MetadataError, match="only a number"):
+        MetadataEngine().update_tags(path, {"genre": genre})
+    assert path.read_bytes() == before
+    assert not [p for p in path.parent.iterdir() if p.name.startswith(".codetta-")]
+    # With a word added, it saves.
+    assert MetadataEngine().update_tags(path, {"genre": f"Genre {genre}"}).tags["genre"] == [f"Genre {genre}"]

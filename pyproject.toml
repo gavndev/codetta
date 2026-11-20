@@ -42,6 +42,7 @@ codetta = "codetta.cli.run:main"
 dev = [
     "pytest>=9.2",
     "httpx2>=2.16",  # used by FastAPI's TestClient
+    "hypothesis>=6.100",  # generated round-trip tests (tests/test_roundtrip.py)
 ]
 
 [tool.setuptools.packages.find]
