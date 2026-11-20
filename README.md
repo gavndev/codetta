@@ -22,14 +22,14 @@
 </p>
 
 <p align="center">
-  <a href="https://alternativeto.net/software/codetta/about/?utm_source=badge&utm_medium=referral"><img alt="Codetta | AlternativeTo" src="https://alternativeto.net/static/badges/badge-compact-color.svg"></a>
-</p>
-
-<p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/media/hero-dark.gif">
     <img src="docs/media/hero-light.gif" alt="Codetta: your music library, looked after. Fix tags, match albums on MusicBrainz and organize your files, from any browser." width="900">
   </picture>
+</p>
+
+<p align="center">
+  <a href="https://alternativeto.net/software/codetta/about/?utm_source=badge&utm_medium=referral"><img alt="Codetta | AlternativeTo" src="https://alternativeto.net/static/badges/badge-compact-color.svg"></a>
 </p>
 
 <p align="center">
