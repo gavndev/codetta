@@ -608,3 +608,17 @@ def test_deleting_for_good_needs_the_typed_count_and_stays_inside(tmp_path):
         assert r["erased"] == 2 and r["files"] == 0
         entry = c.get("/api/activity").json()[0]
         assert entry["kind"] == "erase" and not entry["can_undo"]  # the one change that can't be undone
+
+
+def test_problem_report_is_private_and_has_no_account_details(tmp_path):
+    from fastapi.testclient import TestClient
+
+    from codetta.web.app import Settings, create_app
+    music = tmp_path / "music"
+    music.mkdir()
+    with TestClient(create_app(Settings(music_dir=music, config_dir=tmp_path / "c"))) as c:
+        assert c.get("/api/report").status_code == 401
+        c.post("/api/auth/setup", json={"username": "secret-owner-name", "password": "correct horse 1"})
+        r = c.get("/api/report")
+        assert r.status_code == 200 and r.json()["version"]
+        assert "secret-owner-name" not in r.text

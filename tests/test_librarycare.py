@@ -107,3 +107,16 @@ def test_an_album_is_never_split_across_folders(album_dir, tmp_path):  # noqa: F
     assert len(folders) == 1, folders  # the names were made to agree first, so it moved as one album
     assert "(1999)" in next(iter(folders)).name  # and only the name was rewritten: the year stayed
     c.__exit__(None, None, None)
+
+
+def test_the_preview_shows_before_and_after_and_moves_nothing(album_dir, tmp_path):  # noqa: F811
+    engine = MetadataEngine()
+    for f in (album_dir / FOLDER).iterdir():
+        engine.update_tags(f, {"artist": "Coda Tester", "albumartist": "Coda Tester", "album": "Fixture Album", "date": "2024"})
+    c = client(album_dir, tmp_path)
+    d = c.get("/api/library-care/preview").json()
+    assert d["albums"] and d["albums"][0]["folder"] == FOLDER
+    ex = d["albums"][0]["examples"][0]
+    assert ex["from"].startswith(FOLDER) and "(2024)" in ex["to"]
+    assert (album_dir / FOLDER / "01.flac").exists()  # nothing moved
+    c.__exit__(None, None, None)

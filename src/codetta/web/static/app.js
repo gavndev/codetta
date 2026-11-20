@@ -3617,6 +3617,60 @@ function renderMbSearch() {
     h("button", { class: "btn", type: "button", "data-close": true }, "Cancel"));
 }
 
+// ---- Editions: every edition of the album, to switch between ------------------------------------
+
+async function loadEditions(id) {
+  if (mb.editions?.for === id) return;
+  mb.editions = { for: id, loading: true };
+  try {
+    const d = await api("GET", `/api/musicbrainz/editions?release=${encodeURIComponent(id)}`);
+    mb.editions = { for: id, ...d };
+  } catch (err) { mb.editions = { for: id, error: err.message }; }
+  if (mb.showEditions) renderMbReview();
+}
+
+function editionsList(id) {
+  const e = mb.editions;
+  if (!e || e.for !== id || e.loading) return h("p", { class: "loading mb-editions" }, "Finding every edition on MusicBrainz…");
+  if (e.error) return h("div", { class: "error-box" }, e.error);
+  return h("div", { class: "mb-editions" },
+    h("p", { class: "hint" }, `${plural(e.editions.length, "edition")} of “${e.title}”${e.first ? `, first released ${mbYear(e.first)}` : ""}. Pick the one that matches your copy.`),
+    h("ul", { class: "mb-edition-list" }, e.editions.map((c) => h("li", {},
+      h("button", { class: `mb-edition${c.current ? " current" : ""}`, type: "button", disabled: c.current,
+        onclick: () => { mb.showEditions = false; mbPick(c.id); } },
+      h("span", { class: "mb-edition-main" },
+        h("strong", {}, [mbYear(c.date) || "No date", c.country].filter(Boolean).join(" · ")),
+        h("span", {}, [c.formats, c.track_count ? plural(c.track_count, "track") : "", c.labels[0], c.disambiguation].filter(Boolean).join(" · "))),
+      c.current ? h("span", { class: "mb-edition-tag" }, "This one") : c.recommended ? h("span", { class: "mb-edition-tag rec" }, "Recommended") : null)))));
+}
+
+async function openEditionPrefs() {
+  let p;
+  try { p = await api("GET", "/api/editions"); } catch (err) { toast(err.message, "error"); return; }
+  const sw = (name, title, sub, on) => h("label", { class: "switch-row" },
+    h("span", { class: "switch-text" }, h("span", { class: "switch-title" }, title), h("span", { class: "switch-sub" }, sub)),
+    h("input", { type: "checkbox", role: "switch", name, checked: on }));
+  const format = h("select", { name: "format" }, [["any", "Any"], ["digital", "Digital"], ["cd", "CD"], ["vinyl", "Vinyl"]]
+    .map(([v, l]) => h("option", { value: v, selected: p.format === v }, l)));
+  const countries = [["", "Any"], ["XW", "Worldwide"], ["US", "United States"], ["GB", "United Kingdom"], ["CA", "Canada"], ["AU", "Australia"],
+    ["DE", "Germany"], ["FR", "France"], ["JP", "Japan"], ["NL", "Netherlands"], ["SE", "Sweden"], ["IT", "Italy"], ["ES", "Spain"], ["BR", "Brazil"]];
+  if (p.country && !countries.some(([v]) => v === p.country)) countries.push([p.country, p.country]);
+  const country = h("select", { name: "country" }, countries.map(([v, l]) => h("option", { value: v, selected: p.country === v }, l)));
+  const form = h("div", { class: "edition-prefs" },
+    sw("original_year", "Use the album's original year", "A 2011 reissue of a 1977 album is tagged and filed as 1977.", p.original_year),
+    h("label", { class: "field" }, h("span", { class: "field-label" }, "Preferred format"), format),
+    h("label", { class: "field" }, h("span", { class: "field-label" }, "Preferred country"), country),
+    sw("avoid_deluxe", "Prefer the standard edition", "Skip deluxe and expanded editions, unless your files match one.", p.avoid_deluxe));
+  const ok = await ask({ title: "Album editions", confirmLabel: "Save", details: form,
+    message: "An album can have dozens of editions. When Codetta matches on its own (the inbox, Tidy up), it picks the one you'd pick." });
+  if (!ok) return;
+  try {
+    await api("PUT", "/api/editions", { original_year: $('[name="original_year"]', form).checked, format: format.value,
+      country: country.value, avoid_deluxe: $('[name="avoid_deluxe"]', form).checked });
+    toast("Saved", "success");
+  } catch (err) { toast(err.message, "error"); }
+}
+
 function mbPick(id) {
   mb.release = id;
   mb.proposal = null;
@@ -3768,7 +3822,10 @@ function renderMbReview() {
         h("div", { class: "mb-cand-meta" }, mbMeta(r)),
         h("div", { class: "mb-release-links" },
           h("button", { class: "link-btn", type: "button", onclick: () => { mb.release = null; mb.busy = false; renderMbSearch(); } }, "Choose another release"),
+          r.source === "musicbrainz" && connectionOn("musicbrainz") ? h("button", { class: "link-btn", type: "button", "aria-expanded": String(!!mb.showEditions),
+            onclick: () => { mb.showEditions = !mb.showEditions; renderMbReview(); if (mb.showEditions) loadEditions(r.id); } }, "Other editions") : null,
           h("a", { href: r.url, target: "_blank", rel: "noopener noreferrer" }, "View on MusicBrainz")))),
+    mb.showEditions ? editionsList(r.id) : null,
     mb.error ? h("div", { class: "error-box" }, mb.error) : null,
     h("div", { class: "field" }, h("span", { class: "field-label" }, "Include"), groups),
     h("div", { class: "mb-options" },
@@ -3890,6 +3947,7 @@ async function renderSetupStep(step) {
       h("p", { class: "auth-foot" }, "You can change this any time in the account menu → Tidy up."));
     form.onsubmit = async (e) => {
       e.preventDefault();
+      if (pick.value() === "full" && !(await previewFullCare())) return; // stay here to choose again
       try { await api("PUT", "/api/library-care", { mode: pick.value() }); } catch (err) { toast(err.message, "error"); return; }
       finishStep(step);
     };
@@ -4857,12 +4915,29 @@ function careChoices(current) {
   return { box, value: () => chosen };
 }
 
+/** Before names and folders change for the first time: show a few albums' before → after, and ask. */
+async function previewFullCare() {
+  let d;
+  try { d = await api("GET", "/api/library-care/preview?albums=3"); } catch (err) { toast(err.message, "error"); return false; }
+  const name = (p) => p.split("/").slice(-3).join(" / ");
+  const list = d.albums.length ? h("div", { class: "care-preview" }, d.albums.map((a) => h("div", { class: "care-preview-album" },
+    h("strong", { dir: "auto" }, a.folder.split("/").pop() || a.folder),
+    a.examples.map((x) => h("div", { class: "care-preview-move" },
+      h("span", { class: "from", dir: "auto" }, name(x.from)), h("span", { class: "arrow", "aria-hidden": "true" }, "↓"),
+      h("span", { class: "to", dir: "auto" }, name(x.to)))),
+    a.moving > a.examples.length ? h("span", { class: "hint" }, `and ${plural(a.moving - a.examples.length, "more song")}`) : null)))
+    : h("p", { class: "hint" }, "Your files already follow your folder pattern, so only tags will change for now.");
+  return ask({ title: "Here's how it will look", confirmLabel: "Start", cancelLabel: "Not yet", details: list,
+    message: "A few of your albums, renamed with your folder pattern (Organize settings). Codetta checks each album online first and only moves the ones it's sure about. Every change can be undone in Activity." });
+}
+
 async function chooseCare() {
   await loadCare();
   const pick = careChoices(care?.mode || "off");
   const ok = await ask({ title: "Tidy up", details: pick.box, confirmLabel: "Save",
     message: "Codetta goes through your music one album at a time. It only changes an album when it's sure it found the right one, and you can undo anything in Activity." });
   if (!ok) return;
+  if (pick.value() === "full" && care?.mode !== "full" && !(await previewFullCare())) return;
   try { care = await api("PUT", "/api/library-care", { mode: pick.value(), paused: false }); toast("Saved", "success"); } catch (err) { toast(err.message, "error"); }
   updateCareSlot();
 }
@@ -5601,6 +5676,8 @@ function bindEvents() {
 
   setupContextMenu();
   setupDropImport();
+  $("#editions-toggle").addEventListener("click", () => { closeDialog($("#account-dialog")); setTimeout(openEditionPrefs, 250); });
+  $("#report-toggle").addEventListener("click", () => { closeDialog($("#account-dialog")); setTimeout(openReport, 250); });
   $("#trash-toggle").addEventListener("click", () => { closeDialog($("#account-dialog")); setTimeout(openTrash, 250); });
   $("#care-toggle").addEventListener("click", () => { closeDialog($("#account-dialog")); setTimeout(chooseCare, 250); });
   $("#log-tile").addEventListener("toggle", () => { if ($("#log-tile").open) pollLog(); else stopLogPolling(); });
@@ -6476,4 +6553,37 @@ async function openTrash() {
   await ask({ title: "Recently deleted", confirmLabel: "Done", cancelLabel: "Close",
     message: d.items.length ? `${plural(d.files, "file")}, ${fmtBytes(d.size)}. Each item is removed for good ${d.keep_days} days after it was deleted.` : "",
     details: h("div", {}, box, empty ? h("div", { class: "trash-foot" }, empty) : null) });
+}
+
+
+// ---- Report a problem: the details a bug report needs, ready to paste into a GitHub issue -------------
+
+const ISSUES_URL = "https://github.com/gavndev/codetta/issues/new";
+
+function browserName() {
+  const ua = navigator.userAgent;
+  const os = /iPhone|iPad/.test(ua) ? "iOS" : /Android/.test(ua) ? "Android" : /Mac OS X/.test(ua) ? "macOS" : /Windows/.test(ua) ? "Windows" : /Linux/.test(ua) ? "Linux" : "";
+  const b = /Brave/.test(ua) || navigator.brave ? "Brave" : /Edg\//.test(ua) ? "Edge" : /Firefox|FxiOS/.test(ua) ? "Firefox"
+    : /CriOS|Chrome/.test(ua) ? "Chrome" : /Safari/.test(ua) ? "Safari" : "a browser";
+  return [b, os && `on ${os}`].filter(Boolean).join(" ");
+}
+
+async function openReport() {
+  let r;
+  try { r = await api("GET", "/api/report"); } catch (err) { toast(err.message, "error"); return; }
+  const env = [`Codetta ${r.version} (${r.install}, Python ${r.python}, ${r.system})`, `Browser: ${browserName()}`,
+    `Library: ${r.tracks} tracks · Tidy up: ${r.tidy_up} · Connections: ${r.connections.join(", ") || "none"}`].join("\n");
+  const log = r.log.map((l) => `${new Date(l.time * 1000).toISOString().slice(0, 19).replace("T", " ")} ${l.level.toUpperCase()} ${l.message}`).join("\n");
+  const text = log ? `${env}\n\nRecent warnings:\n${log}` : env;
+  const box = h("textarea", { class: "report-text", rows: "8", spellcheck: "false", "aria-label": "Details for the report" });
+  box.value = text;
+  const copy = h("button", { class: "btn small", type: "button", onclick: () => copyText(box.value) }, "Copy details");
+  const body = (details) => `**What happened?**\n\n\n**What did you expect instead?**\n\n\n**Steps to get there**\n1. \n\n---\n<details><summary>Details from Codetta</summary>\n\n\`\`\`\n${details}\n\`\`\`\n</details>\n`;
+  const ok = await ask({ title: "Report a problem", confirmLabel: "Open GitHub", cancelLabel: "Close",
+    message: "Thanks for helping! These details go into a new GitHub issue for you to finish. Look them over first: log lines can include file and folder names, so remove anything you'd rather not share.",
+    details: h("div", { class: "report-sheet" }, box, h("div", { class: "report-actions" }, copy)) });
+  if (!ok) return;
+  let url = `${ISSUES_URL}?labels=bug&body=${encodeURIComponent(body(box.value))}`;
+  if (url.length > 7500) url = `${ISSUES_URL}?labels=bug&body=${encodeURIComponent(body(`${env}\n\n(Paste the copied details here.)`))}`;
+  window.open(url, "_blank", "noopener");
 }

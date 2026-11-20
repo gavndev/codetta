@@ -325,6 +325,14 @@ class MusicBrainz:
             raise ProviderError("MusicBrainz doesn't have that release.")
         return data
 
+    def releases_in_group(self, group_id: str) -> list[dict]:
+        """Every edition of an album (up to 100): formats, track counts, labels, countries."""
+        if not MBID_RE.match(group_id or ""):
+            raise ProviderError("That isn't a MusicBrainz release group ID.")
+        data = self._get("release", {"release-group": group_id, "inc": "media+labels+artist-credits", "limit": "100"})
+        items = data.get("releases") if isinstance(data, dict) else None
+        return [r for r in items or [] if isinstance(r, dict) and MBID_RE.match(str(r.get("id", "")))]
+
     def release_tracks_summary(self, mbid: str) -> dict:
         """A release with its tracklist and labels (lighter than ``release``)."""
         if not MBID_RE.match(mbid or ""):
@@ -477,7 +485,7 @@ def number(value: str | None) -> int | None:
 
 
 def song_releases(recordings: list[dict], title: str, artist: str, duration: float | None,
-                  limit: int = 6) -> list[dict]:
+                  limit: int = 6, prefer=None) -> list[dict]:
     """For one loose song: the releases it's on, best first. Fit comes from the song itself (title,
     main artist, a little from length); among good fits the original studio album comes first:
     by the same artist, official, no compilation/live/soundtrack, album before single, earliest
@@ -521,7 +529,8 @@ def song_releases(recordings: list[dict], title: str, artist: str, duration: flo
     def rank(f: dict) -> tuple:  # the exact song by the same artist first, then the original album
         return (f["t"] < top_t - 0.05, f["a"] < top_a - 0.05, f["other"], f["release"].get("status") != "Official", bool(f["rg"].get("secondary-types")),
                 {"Album": 0, "Single": 1, "EP": 2}.get(f["rg"].get("primary-type"), 3), first[f["group"]],
-                -f["score"], f["release"].get("date") or "9999")  # within an album: its first edition
+                -f["score"], -(prefer(summarize(f["release"])) if prefer else 0),  # within an album: the
+                f["release"].get("date") or "9999")  # preferred edition, else the first one
 
     out, groups = [], set()
     for f in sorted((f for f in found if f["score"] >= top - 12), key=rank):

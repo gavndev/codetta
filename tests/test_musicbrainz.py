@@ -53,7 +53,7 @@ def release(mbid=REL, title="Fixture Album", tracks=None, discs=None, **extra):
         "barcode": "0123456789012", "text-representation": {"script": "Latn", "language": "eng"},
         "artist-credit": [{"name": "Coda Tester", "joinphrase": "", "artist": ARTIST}],
         "release-group": {"id": "55555555-5555-4555-8555-555555555555", "primary-type": "Album",
-                          "secondary-types": ["Live"], "first-release-date": "2023"},
+                          "secondary-types": ["Live"], "first-release-date": "2024-03-01"},
         "label-info": [{"catalog-number": "CODA-001", "label": {"name": "Fixture Records"}}],
         "genres": [{"name": "indie rock", "count": 5}, {"name": "pop", "count": 9}],
         "cover-art-archive": {"front": True},
@@ -538,3 +538,54 @@ def test_a_loose_song_is_matched_as_a_song(tmp_path):
         assert prop["files"][0]["track"]["title"] == "Middle" and prop["files"][0]["confidence"] == "high"
         searched = [urllib.parse.unquote_plus(u) for u in fake.urls if "/recording" in u]
         assert searched and all("Middle" in u and "Official Audio" not in u for u in searched)  # cleaned title
+
+
+# --- Editions ----------------------------------------------------------------------------------
+
+
+def test_the_original_year_is_written_unless_you_turn_it_off(make_client):
+    reissue = release(tracks=ALBUM["media"][0]["tracks"], date="2011-05-02")
+    reissue["release-group"] = {**reissue["release-group"], "first-release-date": "1977-02-04"}
+    c = make_client(FakeMB(releases=(reissue,)))
+    body = {"folder": "Coda Tester/Fixture Album", "release": REL}
+    first = c.post("/api/musicbrainz/preview", json=body).json()["files"][0]["changes"]
+    assert first["date"]["new"] == ["1977-02-04"]  # the album's own year, not the reissue's
+    assert c.put("/api/editions", json={"original_year": False}).json()["original_year"] is False
+    again = c.post("/api/musicbrainz/preview", json=body).json()["files"][0]["changes"]
+    assert again["date"]["new"] == ["2011-05-02"]
+
+
+def test_edition_preferences_are_checked(make_client):
+    c = make_client()
+    assert c.get("/api/editions").json()["format"] == "any"
+    assert c.put("/api/editions", json={"format": "vinyl", "country": "gb"}).json()["country"] == "GB"
+    assert c.put("/api/editions", json={"format": "8-track"}).status_code == 422
+    assert c.put("/api/editions", json={"country": "1x"}).status_code == 422
+
+
+def test_other_editions_lists_the_whole_album(make_client):
+    cd = summary_source(ALBUM)
+    digital = {**summary_source(release(mbid=OTHER, tracks=ALBUM["media"][0]["tracks"], date="2020-01-01")),
+               "media": [{"format": "Digital Media", "track-count": 3}]}
+    fake = FakeMB()
+    real = fake.__call__
+
+    def fetch(url):
+        q = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+        if urllib.parse.urlparse(url).path.endswith("/release") and "release-group" in q:
+            return {"releases": [cd, digital]}
+        return real(url)
+    c = make_client(fetch)
+    c.put("/api/editions", json={"format": "digital"})
+    d = c.get("/api/musicbrainz/editions", params={"release": REL}).json()
+    assert [e["id"] for e in d["editions"]] == [OTHER, REL]  # oldest first
+    assert d["editions"][1]["current"] and d["editions"][0]["recommended"]  # digital is what you prefer
+
+
+def test_edition_fit_orders_but_never_adds_certainty():
+    from codetta.core.editions import EditionPrefs, edition_fit
+    prefs = EditionPrefs(format="cd", country="GB")
+    assert edition_fit({"formats": "CD", "country": "GB", "status": "Official"}, prefs) > \
+        edition_fit({"formats": "Digital Media", "country": "US", "status": "Official"}, prefs)
+    assert edition_fit({"title": "Album (Deluxe Edition)", "track_count": 20, "formats": "CD"}, prefs, files=12) < \
+        edition_fit({"title": "Album", "track_count": 12, "formats": "CD"}, prefs, files=12)

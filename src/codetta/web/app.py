@@ -46,7 +46,7 @@ import time
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Annotated, Literal
@@ -82,6 +82,7 @@ from codetta.core.fileinfo import file_info, folder_info
 from codetta.core.catalogs import Catalogs, is_catalog_id
 from codetta.core import importer
 from codetta.core import trash
+from codetta.core.editions import FORMATS as EDITION_FORMATS, EditionStore, edition_fit
 from codetta.core import librarycare as care_mod
 from codetta.core.logbuffer import shared_buffer
 from codetta.core.plugins import ActionError, PluginManager
@@ -498,6 +499,13 @@ class LibraryCareFolderIn(BaseModel):
 class ImportDoneIn(BaseModel):
     batch: str = Field(max_length=40)
     paths: list[Annotated[str, Field(max_length=MAX_PATH_CHARS)]] = Field(max_length=10_000)
+
+
+class EditionPrefsIn(BaseModel):
+    original_year: bool | None = None
+    format: Literal["any", "digital", "cd", "vinyl"] | None = None
+    country: str | None = Field(None, max_length=2)
+    avoid_deluxe: bool | None = None
 
 
 class TrashIn(BaseModel):
@@ -1238,7 +1246,8 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
                 artist = a
         if song and connections.enabled("musicbrainz"):
             try:
-                hits = song_releases(mb.search_recordings(*song), song[0], song[1], infos[0].duration)
+                hits = song_releases(mb.search_recordings(*song), song[0], song[1], infos[0].duration,
+                                     prefer=lambda c: edition_fit(c, editions.prefs, 1))
             except ProviderError as exc:
                 hits, mb_error = [], str(exc)
             if hits:
@@ -1284,10 +1293,52 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             except ProviderError as exc:
                 if not candidates:
                     raise HTTPException(502, mb_error or str(exc)) from exc
-        if not body.release.strip():
-            candidates.sort(key=lambda c: (not c["current"], -c["score"]))
+        if not body.release.strip():  # preferences only reorder; the score stays what it is
+            candidates.sort(key=lambda c: (not c["current"], -(c["score"] + edition_fit(c, editions.prefs, len(rels)))))
         return {"query": {"album": album, "artist": artist, "files": len(rels)}, "current": current or None,
                 "candidates": candidates, "recordings": {}, "note": f"MusicBrainz didn't answer ({mb_error}), so these come from other sources." if mb_error else None}
+
+    @app.get("/api/musicbrainz/editions")
+    def mb_editions(release: str = Query(..., max_length=500)) -> dict:
+        """Every edition of the album this release belongs to, with the one your preferences like best."""
+        require_connection("musicbrainz")
+        mbid = mb_release_id(release)
+        if is_catalog_id(mbid):
+            raise HTTPException(422, "Editions come from MusicBrainz; this album came from another source.")
+        try:
+            rel = get_release(mbid)
+            group = (rel.get("release-group") or {})
+            found = mb.releases_in_group(group.get("id") or "")
+        except ProviderError as exc:
+            raise HTTPException(502, str(exc)) from exc
+        out = []
+        for r in found:
+            c = summarize(r)
+            c["fit"] = edition_fit(c, editions.prefs)
+            c["current"] = c["id"] == mbid
+            out.append(c)
+        out.sort(key=lambda c: (c["date"] or "9999", c["country"]))
+        # Your preferences first, then the earliest edition (a bare "1977" counts as late in 1977, so a
+        # dated original wins over an undated pressing from the same year).
+        pad = lambda d: (d or "9999") + "-99-99"[len(d or "9999") - 4:]  # noqa: E731
+        best = min(out, key=lambda c: (-c["fit"], pad(c["date"])), default=None)
+        for c in out:
+            c["recommended"] = best is not None and c["id"] == best["id"]
+        return {"title": group.get("title") or rel.get("title") or "", "first": group.get("first-release-date") or "",
+                "editions": out}
+
+    @app.get("/api/editions")
+    def get_edition_prefs() -> dict:
+        """Which edition of an album Codetta prefers when it matches on its own."""
+        return {**asdict(editions.prefs), "formats": list(EDITION_FORMATS)}
+
+    @app.put("/api/editions")
+    def put_edition_prefs(body: EditionPrefsIn) -> dict:
+        try:
+            editions.set(**body.model_dump())
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        return get_edition_prefs()
 
     @app.post("/api/musicbrainz/identify")
     def mb_identify(body: MBTarget) -> dict:
@@ -1369,6 +1420,8 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         heard = {p: [r for r in ids[:20] if MBID_RE.match(r)] for p, ids in body.recordings.items() if p in metas}
         pairs = pair_files(infos, tracks, {p: t for p, t in body.pairs.items() if p in metas}, heard)
         album = album_tags(release)
+        if editions.prefs.original_year and (album.get("originaldate") or [""])[0]:
+            album["date"] = list(album["originaldate"])  # the album's own year, not a reissue's
         wanted = set(mb_default_fields() if body.fields is None else body.fields) & set(MB_FIELDS)
         summary = summarize(release)
         files = []
@@ -2001,6 +2054,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     # --- Library care: tagging and organizing the existing library, gradually ------------------
 
     care = care_mod.LibraryCareStore(settings.config_dir / "library-care.json")
+    editions = EditionStore(settings.config_dir / "editions.json")
     care_wake = threading.Event()
     care_worker: dict = {"thread": None, "albums": [], "at": 0.0, "current": None, "gen": 0}
 
@@ -2172,6 +2226,33 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         if care.mode != "off" and not care.paused:
             care_start()
         return care_out()
+
+    @app.get("/api/library-care/preview")
+    def library_care_preview(albums: int = Query(3, ge=1, le=10)) -> dict:
+        """Before the first full run: how a few albums would be renamed and moved, with their tags as
+        they are now (online matching can still change them). Nothing is moved."""
+        require_library()
+        out = []
+        for folder in care_album_folders():
+            try:
+                paths = audio_files(library, folder, False, 500)
+            except (LibraryPathError, OSError):
+                continue
+            if not paths:
+                continue
+            tags = {p: (v[2].get("tags") or {}) for p, v in lib_index.stored(paths).items()}
+            names = {((tags.get(p) or {}).get("album") or [""])[0].casefold() for p in paths}
+            if len(names) > 1 or names == {""}:
+                continue  # loose songs: matched one by one first, so where they go isn't known yet
+            plan = organize_preview(OrganizeIn(paths=paths))
+            moving = [m for m in plan["moves"] if m["status"] == "move"]
+            if not moving:
+                continue
+            out.append({"folder": folder, "files": len(paths), "moving": len(moving),
+                        "examples": [{"from": m["src"], "to": m["dst"]} for m in moving[:3]]})
+            if len(out) >= albums:
+                break
+        return {"pattern": plan["pattern"] if out else load_pattern(pattern_file), "albums": out}
 
     @app.post("/api/library-care/again")
     def library_care_again(body: LibraryCareFolderIn) -> dict:
@@ -3336,6 +3417,19 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         No visitor records, and anything shaped like a secret is masked."""
         lines = log_buffer.since(after)
         return {"lines": lines, "last": lines[-1]["id"] if lines else after}
+
+    @app.get("/api/report")
+    def problem_report() -> dict:
+        """For "Report a problem": the version, how Codetta is installed, which connections are on,
+        and recent warnings. No usernames; anything shaped like a secret is already masked."""
+        import platform
+        install = "snap" if os.environ.get("SNAP") else "docker" if Path("/.dockerenv").exists() else "python"
+        lines = [ln for ln in log_buffer.since(0) if ln.get("level") in ("warning", "error", "critical")][-30:]
+        return {"version": VERSION, "install": install, "python": platform.python_version(), "system": platform.system(),
+                "connections": sorted(k for k in ("musicbrainz", "acoustid", "deezer", "itunes", "lyrics", "slskd", "updates")
+                                      if connections.enabled(k)),
+                "tracks": lib_index.status().files, "tidy_up": care.mode,
+                "log": [{"time": ln["time"], "level": ln["level"], "message": ln["message"]} for ln in lines]}
 
     @app.get("/api/tagnames")
     def tag_names(format: str = Query(..., max_length=20, description="A file format, e.g. flac, mp3, m4a")) -> dict:
