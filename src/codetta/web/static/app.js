@@ -3938,14 +3938,29 @@ function inboxSettingsFields(s, folders, external = { available: false }) {
     external.available ? h("option", { value: "@inbox", selected: chosen === "@inbox" }, `Your downloads folder (${external.path || "/inbox"}) · recommended`) : null,
     folders.length ? h("optgroup", { label: "Or a folder inside your music folder" },
       folders.map((f) => h("option", { value: f.path, selected: f.path === chosen }, f.name))) : null);
+  // Found or not: so you know where to send new music, and when something's mounted wrong.
+  const status = h("p", { class: "inbox-found", role: "status" });
+  const showStatus = () => {
+    const v = select.value;
+    if (!v) { status.hidden = true; return; }
+    const ok = v === "@inbox" ? external.available : folders.some((f) => f.path === v);
+    status.hidden = false;
+    status.className = `inbox-found ${ok ? "ok" : "bad"}`;
+    status.textContent = ok
+      ? `Found: Codetta can see this folder. Send new music to ${v === "@inbox" ? (external.path || "/inbox") : `${v} in your music folder`}.`
+      : v === "@inbox" ? "Not found: Codetta can't see your downloads folder. Check that it's mounted at /inbox, then restart Codetta."
+        : "Not found: this folder isn't in your music folder any more. Pick another one.";
+  };
   const sync = () => {
     const go = select.form?.querySelector("[type=submit]");
     if (go) go.disabled = !select.value;
+    showStatus();
   };
   select.addEventListener("change", sync);
   queueMicrotask(sync);
   return h("div", { class: "inbox-fields" },
     h("label", { class: "field" }, h("span", { class: "field-label" }, "Inbox folder"), select),
+    status,
     !external.available ? h("div", { class: "inbox-mount-help" },
       h("strong", {}, "Downloads somewhere else (like slskd's)?"),
       h("span", {}, "Add that folder to Codetta's Docker volumes as /inbox, then restart Codetta:"),
