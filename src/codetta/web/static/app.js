@@ -3884,7 +3884,7 @@ async function renderSetupStep(step) {
       h("p", { class: "auth-sub" }, "Codetta can tag (and organize) the music you already have, one album at a time in the background. Only confident matches are written, the rest wait for you, and everything can be undone."),
       pick.box,
       h("button", { class: "btn primary auth-submit", type: "submit" }, "Continue"),
-      h("p", { class: "auth-foot" }, "You can change this any time in the account menu → Library care."));
+      h("p", { class: "auth-foot" }, "You can change this any time in the account menu → Tidy up."));
     form.onsubmit = async (e) => {
       e.preventDefault();
       try { await api("PUT", "/api/library-care", { mode: pick.value() }); } catch (err) { toast(err.message, "error"); return; }
@@ -4710,7 +4710,7 @@ async function updateHealthSlot(force = false) {
   slot.hidden = false;
 }
 
-// ---- Library care: tagging and organizing the existing library, gradually ---------------------------
+// ---- Tidy up (internally "library care"): tagging and organizing the existing library, gradually ---------------------------
 
 const CARE_MODES = [
   { mode: "off", title: "Leave my files as they are", sub: "Nothing changes unless you do it yourself. You can still match and organize any album by hand." },
@@ -4736,7 +4736,7 @@ async function updateCareSlot() {
   const look = care.counts.review + care.counts.error;
   setKids(slot, h("button", { class: `health-card${look ? " has-issues" : ""}`, type: "button", onclick: openCare },
     h("span", { class: "health-card-icon" }, icon("layers")),
-    h("span", { class: "health-card-text" }, h("strong", {}, "Library care"), h("span", {}, sub)),
+    h("span", { class: "health-card-text" }, h("strong", {}, "Tidy up"), h("span", {}, sub)),
     look ? h("span", { class: "health-card-count", title: "Need a look" }, String(look)) : null,
     icon("chevron")));
   slot.hidden = false;
@@ -4773,7 +4773,7 @@ async function openCare() {
     care = await api("PUT", "/api/library-care", { paused: !care.paused }); closeDialog($("#confirm-dialog")); updateCareSlot();
   } }, care.paused ? "Resume" : "Pause");
   const change = h("button", { class: "btn small", type: "button", onclick: () => { closeDialog($("#confirm-dialog")); setTimeout(chooseCare, 250); } }, "Change");
-  await ask({ title: "Library care", confirmLabel: "Done", cancelLabel: "Close",
+  await ask({ title: "Tidy up", confirmLabel: "Done", cancelLabel: "Close",
     message: `${CARE_MODES.find((m) => m.mode === care.mode).title}. ${care.done} of ${plural(care.total, "album")} looked at: ${care.counts.tagged + care.counts.organized} matched${care.counts.organized ? ` (${care.counts.organized} also organized)` : ""}, ${care.counts.skipped} already fine.`,
     details: h("div", { class: "care-sheet" }, h("div", { class: "care-actions" }, pause, change),
       h("h3", { class: "field-label" }, `Need a look (${care.counts.review + care.counts.error})`), list) });
