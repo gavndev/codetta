@@ -189,3 +189,24 @@ def test_import_lands_in_the_inbox_when_there_is_one(setup):
     undo_latest(c)  # undo: the import goes to Recently deleted
     assert not (music / "Downloads" / "Import test-0002" / "song.flac").exists()
     assert list((config / "deleted").rglob("song.flac"))
+
+
+# --- Recently deleted ------------------------------------------------------------------------------
+
+
+def test_recently_deleted_lists_and_puts_back(setup):
+    c, music, config = setup
+    c.post("/api/files/delete", json={"paths": ["Artist/Album/02 Other.mp3"]})
+    d = c.get("/api/deleted").json()
+    assert d["files"] == 1 and d["items"][0]["what"] == "Artist/Album/02 Other.mp3" and d["items"][0]["expires"] > d["items"][0]["deleted"]
+    r = c.post("/api/deleted/restore", json={"ids": [d["items"][0]["id"]]}).json()
+    assert r["moved"] == 1 and r["files"] == 0 and (music / "Artist" / "Album" / "02 Other.mp3").exists()
+
+
+def test_putting_back_never_overwrites(setup):
+    c, music, config = setup
+    c.post("/api/files/delete", json={"paths": ["Artist/Album/02 Other.mp3"]})
+    (music / "Artist" / "Album" / "02 Other.mp3").write_bytes(b"newer")
+    bid = c.get("/api/deleted").json()["items"][0]["id"]
+    r = c.post("/api/deleted/restore", json={"ids": [bid]}).json()
+    assert r["failed"] == 1 and (music / "Artist" / "Album" / "02 Other.mp3").read_bytes() == b"newer"

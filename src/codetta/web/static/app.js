@@ -5468,6 +5468,7 @@ function bindEvents() {
 
   setupContextMenu();
   setupDropImport();
+  $("#trash-toggle").addEventListener("click", () => { closeDialog($("#account-dialog")); setTimeout(openTrash, 250); });
   $("#care-toggle").addEventListener("click", () => { closeDialog($("#account-dialog")); setTimeout(chooseCare, 250); });
   $("#log-tile").addEventListener("toggle", () => { if ($("#log-tile").open) pollLog(); else stopLogPolling(); });
   $("#account-dialog").addEventListener("close", stopLogPolling);
@@ -6285,4 +6286,58 @@ function setupDropImport() {
     if (!appStarted) return;
     importFiles(await droppedFiles(e.dataTransfer));
   });
+}
+
+
+// ---- Recently deleted: put things back, or delete them for good (carefully) ---------------------------
+
+async function openTrash() {
+  let d;
+  try { d = await api("GET", "/api/deleted"); } catch (err) { toast(err.message, "error"); return; }
+  const day = 86400000;
+  const box = h("div", { class: "trash-list" });
+  const draw = () => {
+    if (!d.items.length) { setKids(box, h("p", { class: "hint" }, "Nothing here. Deleted files stay for 30 days, then they're removed for good.")); return; }
+    setKids(box, d.items.map((it) => {
+      const left = Math.max(0, Math.ceil((it.expires * 1000 - Date.now()) / day));
+      return h("div", { class: "trash-item" },
+        h("div", { class: "trash-main" },
+          h("strong", { dir: "auto" }, it.what.split("/").pop() || it.what),
+          h("span", {}, `${it.what} · ${plural(it.files, "file")} · ${fmtBytes(it.size)}`),
+          h("span", {}, `Deleted ${new Date(it.deleted * 1000).toLocaleDateString()} · ${left ? `removed in ${plural(left, "day")}` : "removed today"}`)),
+        h("div", { class: "trash-actions" },
+          h("button", { class: "btn small", type: "button", onclick: () => trashRestore([it.id]) }, "Put back"),
+          h("button", { class: "btn small danger", type: "button", onclick: () => trashErase([it.id], it.files, it.what) }, "Delete now")));
+    }));
+  };
+  const trashRestore = async (ids) => {
+    try {
+      const r = await api("POST", "/api/deleted/restore", { ids });
+      toast(r.failed ? `Put back ${r.moved}; ${r.failed} couldn't (something else has that name now)` : `Put back ${plural(r.moved, "file")}`, r.failed ? "error" : "success");
+      d = r; draw(); afterFileChange([]);
+    } catch (err) { toast(err.message, "error"); }
+  };
+  const trashErase = async (ids, files, what) => {
+    // The one thing that can't be undone: type the number of files to confirm.
+    const input = h("input", { type: "text", inputmode: "numeric", autocomplete: "off", placeholder: String(files), class: "rename-input" });
+    setTimeout(() => input.focus(), 80);
+    const ok = await ask({ title: `Delete ${what === "everything" ? "everything" : `“${what.split("/").pop()}”`} for good?`, danger: true,
+      message: `${plural(files, "file")} will be erased from the disk. This can't be undone, not even from Activity. To confirm, type ${files}.`,
+      details: h("label", { class: "field" }, h("span", { class: "field-label" }, "Number of files"), input), confirmLabel: "Delete permanently" });
+    if (!ok) { openTrash(); return; }
+    if (Number(input.value.trim()) !== files) { toast("That number doesn't match, so nothing was deleted.", "error"); openTrash(); return; }
+    try {
+      const r = await api("POST", "/api/deleted/erase", { ids, confirm: files });
+      toast(`Deleted ${plural(r.erased, "file")} for good`, "success");
+      refreshActivity();
+    } catch (err) { toast(err.message, "error"); }
+    openTrash();
+  };
+  draw();
+  const empty = d.items.length ? h("button", { class: "btn small danger", type: "button",
+    onclick: () => { closeDialog($("#confirm-dialog")); setTimeout(() => trashErase(d.items.map((i) => i.id), d.files, "everything"), 250); } },
+    `Empty (${plural(d.files, "file")})`) : null;
+  await ask({ title: "Recently deleted", confirmLabel: "Done", cancelLabel: "Close",
+    message: d.items.length ? `${plural(d.files, "file")}, ${fmtBytes(d.size)}. Each item is removed for good ${d.keep_days} days after it was deleted.` : "",
+    details: h("div", {}, box, empty ? h("div", { class: "trash-foot" }, empty) : null) });
 }

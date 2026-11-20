@@ -582,3 +582,29 @@ def test_import_names_can_never_escape_or_overwrite(tmp_path):
         big = c.put("/api/import", params={"batch": "abc-1234", "path": "big.flac"}, content=b"x",
                     headers={"Content-Length": str(3 * 1024 * 1024 * 1024)})
         assert big.status_code == 413  # refused before anything is read
+
+
+def test_deleting_for_good_needs_the_typed_count_and_stays_inside(tmp_path):
+    import shutil as sh
+
+    from fastapi.testclient import TestClient
+
+    from codetta.web.app import Settings, create_app
+    music = tmp_path / "music"
+    (music / "A").mkdir(parents=True)
+    for n in ("1.flac", "2.flac"):
+        sh.copy2(FIXTURES_DIR / "sample.flac", music / "A" / n)
+    outside = tmp_path / "keep-me.txt"
+    outside.write_text("precious")
+    with TestClient(create_app(Settings(music_dir=music, config_dir=tmp_path / "c", auth=False))) as c:
+        c.post("/api/files/delete", json={"paths": ["A"]})
+        bid = c.get("/api/deleted").json()["items"][0]["id"]
+        assert c.post("/api/deleted/erase", json={"ids": [bid]}).status_code == 409  # no confirmation
+        assert c.post("/api/deleted/erase", json={"ids": [bid], "confirm": 1}).status_code == 409  # wrong count
+        for evil in ("..", "../..", "20260101-000000/../..", "keep-me.txt"):
+            assert c.post("/api/deleted/erase", json={"ids": [evil], "confirm": 1}).status_code in (404, 422)
+        assert outside.read_text() == "precious"
+        r = c.post("/api/deleted/erase", json={"ids": [bid], "confirm": 2}).json()
+        assert r["erased"] == 2 and r["files"] == 0
+        entry = c.get("/api/activity").json()[0]
+        assert entry["kind"] == "erase" and not entry["can_undo"]  # the one change that can't be undone

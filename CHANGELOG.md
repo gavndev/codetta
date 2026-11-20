@@ -4,6 +4,7 @@ All notable changes to Codetta. Versions follow [Semantic Versioning](https://se
 
 ## Unreleased (0.8.6)
 
+- **Recently deleted** (account menu): see what you deleted, how big it is and how long it's kept, then **Put back** (never over a file that took its place) or **Delete now**. Deleting for good is the one thing that can't be undone, so you type the number of files to confirm; it's also checked on the server and can only ever touch Recently deleted.
 - **Import music:** an Import button in the Inbox (and drag-and-drop anywhere on a computer) adds files or whole folders from your computer or phone. They go to your inbox to be matched and filed like any new music, or, without an inbox, to "Imported" in your library, placed with your folder pattern. Files that aren't music get a warning, not a refusal. Big files stream straight to disk, nothing is ever overwritten, and Activity can undo the whole import.
 - **Inbox:** a green or red line under the inbox folder says whether Codetta can see it, and where to send new music.
 - **Library care:** a new setup step (shown once to everyone) asks how Codetta should look after the music you already have: leave it as it is, fix tags only (names stay), or tags plus file names and folders. Codetta then works through your albums one at a time in the background, writes only confident matches, renames only after a confident match, and lists the rest under "needs a look". Every album is its own undoable change. A card on the Library page shows progress, with Pause, Resume and Change (also in the account menu).

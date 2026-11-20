@@ -81,6 +81,7 @@ from codetta.core.describe import describe_file, describe_many
 from codetta.core.fileinfo import file_info, folder_info
 from codetta.core.catalogs import Catalogs, is_catalog_id
 from codetta.core import importer
+from codetta.core import trash
 from codetta.core import librarycare as care_mod
 from codetta.core.logbuffer import shared_buffer
 from codetta.core.plugins import ActionError, PluginManager
@@ -493,6 +494,11 @@ class LibraryCareFolderIn(BaseModel):
 class ImportDoneIn(BaseModel):
     batch: str = Field(max_length=40)
     paths: list[Annotated[str, Field(max_length=MAX_PATH_CHARS)]] = Field(max_length=10_000)
+
+
+class TrashIn(BaseModel):
+    ids: list[Annotated[str, Field(max_length=20)]] = Field(min_length=1, max_length=500)
+    confirm: int | None = None  # deleting for good: how many files you typed (must match)
 
 
 class FilesIn(BaseModel):
@@ -3079,6 +3085,74 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         org = organize_apply(OrganizeIn(paths=audio)) if audio else {"moved": 0, "held": []}
         return {"files": len(rels), "audio": len(audio), "where": "library", "folder": root,
                 "organized": org["moved"], "stayed": len(org["held"])}
+
+    # --- Recently deleted -------------------------------------------------------------------------
+
+    deleted_root = settings.config_dir / "deleted"
+
+    @app.get("/api/deleted")
+    def recently_deleted() -> dict:
+        """What's in Recently deleted, newest first, with how long each is kept."""
+        require_library()
+        items = trash.batches(deleted_root)
+        return {"items": items, "files": sum(i["files"] for i in items), "size": sum(i["size"] for i in items),
+                "keep_days": trash.KEEP_DAYS}
+
+    def deleted_original(rel_in_batch: str) -> str:
+        """Where a set-aside file came from ("inbox/..." was the inbox folder)."""
+        if rel_in_batch.startswith("inbox/") and library.inbox is not None:
+            return "@" + rel_in_batch
+        return rel_in_batch
+
+    @app.post("/api/deleted/restore")
+    def restore_deleted(body: TrashIn) -> dict:
+        """Put items back where they were (never over a file that has taken their place)."""
+        require_library()
+        moves = []
+        for bid in _unique(body.ids):
+            try:
+                d = trash.batch_dir(deleted_root, bid)
+            except ValueError as exc:
+                raise HTTPException(404, str(exc)) from exc
+            for dirpath, _, names in os.walk(d):
+                for n in names:
+                    inside = (Path(dirpath) / n).relative_to(d).as_posix()
+                    moves.append(Move(f"{DELETED}/{bid}/{inside}", deleted_original(inside), "move"))
+        if not moves:
+            return {"moved": 0, "failed": 0, "errors": [], **recently_deleted()}
+        out = run_moves(moves, "organize", f"Put back {len(moves)} file{'s' if len(moves) != 1 else ''} from Recently deleted",
+                        [{"key": "location", "old": "(recently deleted)", "new": moves[0].dst.rsplit("/", 1)[0]}])
+        for bid in body.ids:  # tidy the emptied folders
+            with contextlib.suppress(OSError, ValueError):
+                d = trash.batch_dir(deleted_root, bid)
+                for dirpath, _, _ in sorted(os.walk(d), key=lambda x: -len(x[0])):
+                    with contextlib.suppress(OSError):
+                        os.rmdir(dirpath)
+        return {**out, **recently_deleted()}
+
+    @app.post("/api/deleted/erase")
+    def erase_deleted(body: TrashIn) -> dict:
+        """Delete items for good: the one change that can't be undone. ``confirm`` must be the
+        number of files, typed by you."""
+        require_library()
+        dirs = []
+        for bid in _unique(body.ids):
+            try:
+                dirs.append((bid, trash.batch_dir(deleted_root, bid)))
+            except ValueError as exc:
+                raise HTTPException(404, str(exc)) from exc
+        total = sum(trash.count_files(d) for _, d in dirs)
+        if body.confirm != total:
+            raise HTTPException(409, f"To delete for good, confirm the number of files ({total}).")
+        gone = 0
+        for bid, _ in dirs:
+            try:
+                gone += trash.erase(deleted_root, bid)
+            except (ValueError, OSError) as exc:
+                raise HTTPException(500, f"Couldn't delete it: {exc}") from exc
+        activity.add("erase", f"Permanently deleted {gone} file{'s' if gone != 1 else ''} from Recently deleted",
+                     changes=[{"key": "location", "old": "(recently deleted)", "new": "(gone)"}])
+        return {"erased": gone, **recently_deleted()}
 
     log_buffer = shared_buffer()
 
