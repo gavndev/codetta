@@ -4,6 +4,7 @@ All notable changes to Codetta. Versions follow [Semantic Versioning](https://se
 
 ## Unreleased
 
+- **Cleaner MusicBrainz results:** an artist's page in `!mb` now lists what MusicBrainz's own page does, leaving out release groups made only of bootlegs, promos or fan uploads (fake covers, slowed remixes, stray singles). Search results drop bootleg-only releases too.
 - **Easier to read Deezer chip:** the pink end of the Deezer bang chip is a little deeper, so its white text stands out clearly.
 
 ## 0.9.3 (2026-11-21)

@@ -300,7 +300,7 @@ class MusicBrainz:
     def search_release_groups(self, text: str, limit: int = 15) -> list[dict]:
         data = self._get("release-group", {"query": _lucene(text), "limit": str(limit)})
         items = data.get("release-groups") if isinstance(data, dict) else None
-        return [g for g in items or [] if isinstance(g, dict) and MBID_RE.match(str(g.get("id", "")))]
+        return [g for g in items or [] if isinstance(g, dict) and MBID_RE.match(str(g.get("id", ""))) and not _unofficial(g)]
 
     def artist(self, mbid: str) -> dict:
         if not MBID_RE.match(mbid or ""):
@@ -311,8 +311,13 @@ class MusicBrainz:
         return data
 
     def artist_release_groups(self, mbid: str) -> list[dict]:
-        """The artist's albums, EPs and singles (up to 100), oldest first."""
-        data = self._get("release-group", {"artist": mbid, "limit": "100", "type": "album|ep|single"})
+        """The artist's albums, EPs and singles (up to 100), oldest first.
+
+        Filtered the way MusicBrainz's own artist page is by default: release groups made only of
+        bootlegs, promos or pseudo-releases (fan uploads, fake covers, slowed remixes) are left out.
+        """
+        data = self._get("release-group", {"artist": mbid, "limit": "100", "type": "album|ep|single",
+                                           "release-group-status": "website-default"})
         items = data.get("release-groups") if isinstance(data, dict) else None
         groups = [g for g in items or [] if isinstance(g, dict) and MBID_RE.match(str(g.get("id", "")))]
         return sorted(groups, key=lambda g: (g.get("first-release-date") or "9999", g.get("title") or ""))
@@ -341,6 +346,17 @@ class MusicBrainz:
         if not isinstance(data, dict):
             raise ProviderError("MusicBrainz doesn't have that release.")
         return data
+
+
+_UNOFFICIAL = {"bootleg", "pseudo-release", "withdrawn", "cancelled"}
+
+
+def _unofficial(group: dict) -> bool:
+    """True when every release MusicBrainz lists in a group is a bootleg (or similar): fan uploads,
+    fake covers, slowed remixes. A group without any release statuses is kept."""
+    statuses = {str(r.get("status") or "").lower() for r in group.get("releases") or [] if isinstance(r, dict)}
+    statuses.discard("")
+    return bool(statuses) and statuses <= _UNOFFICIAL
 
 
 def cover_url(mbid: str, size: int | None = 1200, base: str = CAA_BASE, kind: str = "release") -> str:

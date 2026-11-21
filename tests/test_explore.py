@@ -33,9 +33,15 @@ class FakeExplore:
                                 {"id": "55555555-5555-5555-5555-555555555555", "name": "Kehl", "score": 30}]}
         if u.path.endswith("/release-group") and "query" in q:
             return {"release-groups": [{"id": RG1, "title": "SweetSexySavage (Deluxe)", "primary-type": "Album",
-                                        "first-release-date": "2017-01-27", "artist-credit": CREDIT, "score": 95}]}
+                                        "first-release-date": "2017-01-27", "artist-credit": CREDIT, "score": 95,
+                                        "releases": [{"status": "Official"}, {"status": "Bootleg"}]},
+                                       {"id": "88888888-8888-8888-8888-888888888888", "title": "Keep On (slowed)",
+                                        "primary-type": "Single", "artist-credit": CREDIT, "score": 90,
+                                        "releases": [{"status": "Bootleg"}]}]}
         if u.path.endswith("/release-group") and "artist" in q:
-            return {"release-groups": [
+            bootlegs = [] if q.get("release-group-status") == ["website-default"] else [
+                {"id": "77777777-7777-7777-7777-777777777777", "title": "Leaked Tape", "primary-type": "Album"}]
+            return {"release-groups": bootlegs + [
                 {"id": RG2, "title": "Nights Like This", "primary-type": "Single", "first-release-date": "2019-02-01"},
                 {"id": RG1, "title": "SweetSexySavage", "primary-type": "Album", "first-release-date": "2017-01-27"}]}
         if u.path.endswith(f"/artist/{ART}"):
@@ -94,6 +100,7 @@ def test_search_finds_artists_and_releases_marking_what_you_have(client):
     rel = d["releases"][0]
     assert rel["title"] == "SweetSexySavage (Deluxe)" and rel["year"] == "2017"
     assert rel["in_library"] == "Kehlani/SweetSexySavage"  # "(Deluxe)" doesn't hide it
+    assert [r["title"] for r in d["releases"]] == ["SweetSexySavage (Deluxe)"]  # the bootleg-only single is left out
 
 
 def test_artist_page(client):
@@ -102,7 +109,7 @@ def test_artist_page(client):
     assert d["name"] == "Kehlani" and d["genres"] == ["r&b"]
     assert d["links"] == [{"label": "Website", "url": "https://kehlani.com"}]
     groups = {g["title"]: g for g in d["groups"]}
-    assert [g["title"] for g in d["groups"]] == ["SweetSexySavage", "Nights Like This"]  # oldest first
+    assert [g["title"] for g in d["groups"]] == ["SweetSexySavage", "Nights Like This"]  # oldest first; no bootleg-only "Leaked Tape"
     assert groups["SweetSexySavage"]["in_library"] == "Kehlani/SweetSexySavage"
     assert groups["Nights Like This"]["in_library"] is None
 
