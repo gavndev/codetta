@@ -2,7 +2,9 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
-## Unreleased (0.9.2)
+## 0.9.2 (2026-11-20)
+
+Quick wins from using the beta: ways to clear lists you're done with, a New folder button, and covers for brand-new releases.
 
 - **New folder:** make a folder from any folder's tools (on phones, under More), or right inside **Move to**, so you can make a folder and move things into it in one go. Activity can undo it while it's still empty.
 - **Inbox: Dismiss and Dismiss all** take filed albums off the list. The albums stay in your library; nothing on disk changes.
