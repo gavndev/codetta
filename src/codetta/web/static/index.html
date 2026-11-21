@@ -178,7 +178,7 @@
         <button class="btn" id="sel-clear" type="button">Clear</button>
         <button class="btn" id="sel-preset" type="button">Preset…</button>
         <button class="btn" id="sel-replace" type="button" title="Find & replace in these tracks' tags">Replace…</button>
-        <button class="btn" id="sel-actions" type="button" title="Actions: clean up titles, Title Case, plugins…">Actions…</button>
+        <button class="btn" id="sel-actions" type="button" title="Actions: clean up titles, Title Case, trim spaces…">Actions…</button>
         <button class="btn primary" id="sel-edit" type="button">Edit</button>
       </div>
     </div>
@@ -345,16 +345,6 @@
               <div id="slskd-box"></div>
             </div>
           </div>
-          <div class="cc-row plugins" id="plugins-tile">
-            <button class="conn-toggle" id="plugins-toggle" type="button" aria-expanded="false" aria-controls="plugins-body">
-              <span class="switch-text">
-                <span class="switch-title">Plugins</span>
-                <span class="switch-sub" id="plugins-summary">Add actions to Codetta</span>
-              </span>
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg>
-            </button>
-            <div id="plugins-body" hidden></div>
-          </div>
         </div>
       </section>
 
@@ -449,7 +439,7 @@
     <div class="sheet-foot" id="replace-foot"></div>
   </dialog>
 
-  <!-- Actions: built-in tidy-ups and plugins (drawn by app.js) -->
+  <!-- Actions: built-in tidy-ups (drawn by tools.js) -->
   <dialog class="sheet wide" id="actions-dialog" aria-labelledby="actions-title">
     <div class="sheet-head">
       <h2 id="actions-title">Actions</h2>

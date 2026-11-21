@@ -28,7 +28,7 @@ function folderTools(f) {
     f.tracks.length ? { icon: "replace", label: "Find & replace", run: () => openReplace(target, label),
       title: "Find & replace in the tags of these tracks (you see every change first)" } : null,
     f.tracks.length ? { icon: "wand", label: "Actions", run: () => openActions(target, label),
-      title: "Clean up titles, Title Case, and actions from plugins (you see every change first)" } : null,
+      title: "Clean up titles, Title Case and trim spaces (you see every change first)" } : null,
     state.path && !f.search && !f.mb ? { icon: "rename", label: "Rename folder", run: renameFolder, title: "Rename this folder" } : null,
     !f.search && !f.mb ? { icon: "plus", label: "New folder", run: newFolderHere, title: "Make a new folder in here" } : null,
   ].filter(Boolean);
@@ -72,7 +72,7 @@ function renderActions() {
       h("div", { class: "act-list" }, list.map((a) => h("button", { class: `act-item${act.chosen === a.id ? " on" : ""}`, type: "button",
         onclick: () => chooseAction(a.id) },
         h("strong", {}, a.label), a.description ? h("span", {}, a.description) : null))))),
-    h("div", { class: "rep-preview", id: "act-preview" }, act.chosen ? null : h("p", { class: "hint" }, "More actions can come from plugins: Account → Plugins.")));
+    h("div", { class: "rep-preview", id: "act-preview" }, null));
   setKids($("#actions-foot"), h("span", { class: "spacer" }),
     h("button", { class: "btn", type: "button", "data-close": true }, "Cancel"),
     h("button", { class: "btn primary", type: "button", id: "act-apply", disabled: true, onclick: applyAction }, "Apply"));
@@ -114,42 +114,6 @@ async function applyAction() {
     refreshActivity();
     loadFolder(state.path, { keepScroll: true });
   } catch (err) { toast(err.message, "error"); go.disabled = false; go.textContent = "Apply"; }
-}
-
-export function setPluginsOpen(open) {
-  $("#plugins-toggle").setAttribute("aria-expanded", String(open));
-  $("#plugins-body").hidden = !open;
-  $("#plugins-tile").classList.toggle("open", open);
-  if (open) renderPlugins();
-}
-
-async function renderPlugins() {
-  const box = $("#plugins-body");
-  let d;
-  try { d = await api("GET", "/api/plugins"); } catch (err) { setKids(box, h("p", { class: "field-error" }, err.message)); return; }
-  const outside = d.plugins.filter((p) => !p.builtin);
-  $("#plugins-summary").textContent = outside.length ? `${outside.filter((p) => p.enabled).length} of ${outside.length} on` : "Add actions to Codetta";
-  setKids(box,
-    h("p", { class: "hint" }, "Plugins add actions (batch changes to tags) to Codetta. They run on your server with Codetta's permissions, so only turn on plugins you trust. Put a plugin's folder in ",
-      h("code", {}, d.folder), " and it shows up here, off."),
-    d.plugins.map((p) => {
-      const input = h("input", { type: "checkbox", role: "switch", checked: p.enabled, disabled: p.builtin });
-      input.addEventListener("change", async () => {
-        input.disabled = true;
-        try { await api("PUT", `/api/plugins/${encodeURIComponent(p.id)}`, { enabled: input.checked }); toast(`${p.name} ${input.checked ? "on" : "off"}`, "success"); }
-        catch (err) { input.checked = !input.checked; toast(err.message, "error"); }
-        renderPlugins();
-      });
-      return h("label", { class: "switch-row" },
-        h("span", { class: "switch-text" },
-          h("span", { class: "switch-title" }, p.name, p.version ? h("span", { class: "plugin-meta" }, ` ${p.version}`) : null,
-            p.builtin ? h("span", { class: "plugin-meta" }, " · built in") : null),
-          p.description ? h("span", { class: "switch-sub" }, p.description) : null,
-          p.author ? h("span", { class: "switch-sub" }, `by ${p.author}`) : null,
-          p.error ? h("span", { class: "field-error" }, p.error) : null),
-        input);
-    }),
-    h("p", { class: "hint" }, h("a", { href: "https://github.com/gavndev/codetta/blob/main/docs/plugins.md", target: "_blank", rel: "noopener noreferrer" }, "Write your own plugin →")));
 }
 
 const rep = { target: null, label: "", timer: null, token: 0, data: null };

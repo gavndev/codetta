@@ -37,7 +37,7 @@ def register(app, shared) -> None:
 
     @app.get("/api/plugins")
     def list_plugins() -> dict:
-        """Installed plugins (built-in ones, and folders in <config>/plugins), and their actions."""
+        """The built-in plugins and their actions (people's own plugins are paused for now)."""
         with plugins.lock:
             return {"folder": str(plugins.dir), "plugins": [p.public() for p in plugins.plugins.values()],
                     "actions": [{"id": a.id, "label": a.label, "description": a.description, "fields": list(a.fields),

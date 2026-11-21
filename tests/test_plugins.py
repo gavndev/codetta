@@ -1,4 +1,5 @@
-"""Plugins: built-in actions, people's plugins (off until enabled), and plugins that misbehave."""
+"""Plugins: built-in actions; people's own plugins (paused: never loaded by Codetta); the loader's
+handling of outside plugins, kept for when they come back."""
 
 import json
 import shutil
@@ -7,6 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from codetta.core.engine import MetadataEngine
+from codetta.core.plugins import PluginManager
 from codetta.web.app import Settings, create_app
 from tests.conftest import FIXTURES_DIR
 
@@ -56,37 +58,52 @@ SHOUT = {"plugin.json": {"id": "shout", "name": "Shout", "version": "1.0", "auth
                       "        run=lambda tags: {'title': [t.upper() for t in tags.get('title', [])]})\n"}
 
 
-def test_plugins_stay_off_until_enabled(make, tmp_path):
+def test_peoples_plugins_are_paused(make, tmp_path):
+    """A plugin folder in the config is ignored, even one plugins.json says is on: its code never runs."""
     marker = tmp_path / "imported"
     plugin = dict(SHOUT)
     plugin["plugin.py"] = f"open({str(marker)!r}, 'w').close()\n" + SHOUT["plugin.py"]
+    (tmp_path / "config").mkdir(exist_ok=True)
+    (tmp_path / "config" / "plugins.json").write_text(json.dumps({"enabled": ["shout"]}))
     with make({"shout": plugin}) as c:
-        listed = {p["id"]: p for p in c.get("/api/plugins").json()["plugins"]}
-        assert listed["shout"]["enabled"] is False and not marker.exists()  # listed, but its code never ran
+        d = c.get("/api/plugins").json()
+        assert [p["id"] for p in d["plugins"]] == ["tidy"] and not marker.exists()
+        assert c.put("/api/plugins/shout", json={"enabled": True}).status_code == 404
         assert c.post("/api/actions/shout.up/run", json={"folder": "Album"}).status_code == 404
-        on = c.put("/api/plugins/shout", json={"enabled": True}).json()
-        assert marker.exists() and "shout.up" in {a["id"] for a in on["actions"]}
-        c.post("/api/actions/shout.up/run", json={"folder": "Album", "dry_run": False})
-        assert titles(c)[2] == "PLAIN"
-        off = c.put("/api/plugins/shout", json={"enabled": False}).json()
-        assert "shout.up" not in {a["id"] for a in off["actions"]}
-    with make() as c:  # remembered across restarts
-        assert not {p["id"]: p for p in c.get("/api/plugins").json()["plugins"]}["shout"]["enabled"]
+        assert not marker.exists()
+        assert c.post("/api/actions/tidy.trim/run", json={"folder": "Album"}).status_code == 200  # built-ins still work
 
 
-def test_broken_plugins_are_reported_not_fatal(make):
-    bad = {"plugin.json": {"id": "broken"}, "plugin.py": "raise RuntimeError('oops')\n"}
-    escape = {"plugin.json": {"id": "escape", "entry": "../../evil.py"}}
-    buggy = {"plugin.json": {"id": "buggy"}, "plugin.py": "def setup(c):\n    c.add_action(id='x', label='X', run=lambda t: 1/0)\n"}
-    with make({"broken": bad, "escape": escape, "buggy": buggy}) as c:
-        r = c.put("/api/plugins/broken", json={"enabled": True})
-        assert r.status_code == 422 and "oops" in r.json()["detail"]
-        assert c.put("/api/plugins/escape", json={"enabled": True}).status_code == 422
-        c.put("/api/plugins/buggy", json={"enabled": True})
-        r = c.post("/api/actions/buggy.x/run", json={"folder": "Album"})
-        assert r.status_code == 422 and "ZeroDivisionError" in r.json()["detail"]
-        assert c.get("/api/browse", params={"path": "Album"}).status_code == 200  # Codetta carries on
-        assert c.put("/api/plugins/tidy", json={"enabled": False}).status_code == 404  # built-ins stay on
+def _write_plugin(root, pid, files):
+    d = root / "plugins" / pid
+    d.mkdir(parents=True, exist_ok=True)
+    for name, text in files.items():
+        (d / name).write_text(text if isinstance(text, str) else json.dumps(text))
+
+
+def test_loader_keeps_outside_plugins_off_until_enabled(tmp_path):
+    marker = tmp_path / "imported"
+    plugin = dict(SHOUT)
+    plugin["plugin.py"] = f"open({str(marker)!r}, 'w').close()\n" + SHOUT["plugin.py"]
+    _write_plugin(tmp_path, "shout", plugin)
+    pm = PluginManager(tmp_path, outside=True)
+    assert pm.plugins["shout"].enabled is False and not marker.exists()  # listed, but its code never ran
+    pm.set_enabled("shout", True)
+    assert marker.exists() and "shout.up" in pm.actions
+    assert pm.run_action("shout.up", {"title": ["plain"]}) == {"title": ["PLAIN"]}
+    pm.set_enabled("shout", False)
+    assert "shout.up" not in pm.actions
+    assert not PluginManager(tmp_path, outside=True).plugins["shout"].enabled  # remembered across restarts
+
+
+def test_loader_reports_broken_outside_plugins(tmp_path):
+    _write_plugin(tmp_path, "broken", {"plugin.json": {"id": "broken"}, "plugin.py": "raise RuntimeError('oops')\n"})
+    _write_plugin(tmp_path, "escape", {"plugin.json": {"id": "escape", "entry": "../../evil.py"}})
+    pm = PluginManager(tmp_path, outside=True)
+    assert "oops" in pm.set_enabled("broken", True).error
+    assert pm.set_enabled("escape", True).error
+    with pytest.raises(KeyError):
+        pm.set_enabled("tidy", False)  # built-ins stay on
 
 
 def test_plugins_need_sign_in(tmp_path):

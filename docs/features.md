@@ -211,7 +211,7 @@ Activity that **Undo** reverses. On phones they're in the **…** menu.
   (`\d+`, and `(…)` with `\1` to keep parts).
 - **Actions**: one-tap tidy-ups. Built in: **Clean up titles** (removes
   "(Official Video)", "[Explicit]", "(Lyrics)"…), **Write features as
-  "feat."**, **Title Case** and **Trim spaces**. Plugins add more.
+  "feat."**, **Title Case** and **Trim spaces**.
 - **Rename folder**: every file moves with it, nothing is overwritten.
 - **Organize** (above) renames and moves many files and folders from their tags.
 - **Edit** a selection of tracks (or **Save to folder**) to set the same tags on
@@ -232,14 +232,6 @@ small menu of what you can do with just that item:
 
 With several tracks selected, right-click one of them to move, run an action on, or delete them all.
 Moves and renames never overwrite anything, and each one can be undone.
-
-## Plugins
-
-Plugins add actions to Codetta. A plugin is a folder you put in
-`config/plugins/`; it shows up in **Account → Plugins**, switched off, and its
-code doesn't run until you turn it on. Plugins run on your server with
-Codetta's permissions, so only turn on ones you trust. Writing one takes a few
-lines of Python: see the [plugin guide](plugins.md).
 
 ## Library health
 

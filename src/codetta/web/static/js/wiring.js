@@ -10,7 +10,7 @@ import {
 } from "./browse.js";
 import { bang, BANGS, iconButton, renderBangSuggestions, setBang, syncRoll, takeBang } from "./search.js";
 import {
-  openActions, openReplace, openToolsMenu, renderFolders, renderTracks, setPluginsOpen,
+  openActions, openReplace, openToolsMenu, renderFolders, renderTracks,
 } from "./tools.js";
 import {
   closeEditor, fieldLabel, isDirty, loadClipboard, openEditor, pollLog, renderToolbar, saveEditor,
@@ -120,7 +120,6 @@ export function bindEvents() {
   $("#sel-edit").addEventListener("click", () => openEditor([...state.selected]));
   $("#sel-preset").addEventListener("click", () => openApply("selection"));
   $("#sel-actions").addEventListener("click", () => openActions({ paths: [...state.selected] }, `${plural(state.selected.size, "selected track")}`));
-  $("#plugins-toggle").addEventListener("click", () => setPluginsOpen($("#plugins-body").hidden));
   $("#sel-replace").addEventListener("click", () => openReplace({ paths: [...state.selected] }, `${plural(state.selected.size, "selected track")}`));
   // Phones: the bar can't fit five buttons, so Preset, Replace and Actions share a "…" menu.
   const selMore = iconButton("more", "More", () => openToolsMenu(selMore, [

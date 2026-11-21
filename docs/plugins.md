@@ -1,5 +1,8 @@
 # Writing a Codetta plugin
 
+> **Paused.** Codetta doesn't load plugins from `config/plugins/` for now, while the plugin
+> system grows into something more useful. This guide is kept for when it comes back.
+
 A plugin adds **actions** to Codetta: batch changes to tags that people can run
 on a folder, a selection or search results. Codetta does the rest: it shows a
 preview of every change, writes each file safely (temp copy → check → swap),

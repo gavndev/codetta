@@ -267,7 +267,7 @@ light and dark themes. [See every feature →](docs/features.md)
 | Undo | ✅ Kept across restarts | ❌ | ❌ | ✅ Until restart |
 | Search the whole library by tag | ✅ | ➖ | ✅ Query language | ➖ Filtering |
 | Play tracks | ✅ In the browser | ➖ Basic player | ➖ Via external player | ✅ In the browser |
-| Plugins | ✅ Actions on tracks ([plugin API](docs/plugins.md), off until enabled), plus opt-in connections | ✅ | ✅ | ❌ |
+| Plugins | Not yet (built-in actions, plus opt-in connections) | ✅ | ✅ | ❌ |
 | Formats | 15 file types | 20+ | Most common formats | 9 |
 | License | AGPL-3.0 | GPL-2.0 | MIT | AGPL-3.0 |
 

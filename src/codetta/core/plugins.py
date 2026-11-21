@@ -7,6 +7,10 @@ A plugin folder holds ``plugin.json``::
 
 Folders are listed always, but their code is imported only once enabled (plugins.json in
 the config folder). A plugin that fails to load is reported, never fatal.
+
+People's own plugins are paused for now: Codetta builds the manager with ``outside=False``,
+so <config>/plugins/ is ignored and only the built-in actions load. The loading code stays
+(and stays tested) for when plugins come back.
 """
 
 from __future__ import annotations
@@ -53,8 +57,9 @@ class PluginInfo:
 
 
 class PluginManager:
-    def __init__(self, config_dir: Path) -> None:
+    def __init__(self, config_dir: Path, outside: bool = False) -> None:
         self.dir = config_dir / "plugins"
+        self.outside = outside  # load people's plugins from <config>/plugins (paused: off in Codetta)
         self.state_file = config_dir / "plugins.json"
         self.lock = threading.RLock()
         self.plugins: dict[str, PluginInfo] = {}
@@ -100,7 +105,7 @@ class PluginManager:
                 except Exception as exc:  # noqa: BLE001 - never let a plugin stop Codetta
                     info.error = f"{type(exc).__name__}: {exc}"
                 self.plugins[info.id] = info
-            for folder in sorted(self.dir.iterdir()) if self.dir.is_dir() else []:
+            for folder in sorted(self.dir.iterdir()) if self.outside and self.dir.is_dir() else []:
                 self._discover(folder)
 
     def _discover(self, folder: Path) -> None:
