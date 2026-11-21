@@ -182,6 +182,44 @@
   }
 
   // ---- Chapters: one pinned stage on wide screens, each scene under its text on phones -------------
+  // The search scene's rounds: one per bang, each shaped like that service's results in the app.
+  const ROUNDS = [
+    { kind: "mb", label: "MusicBrainz", type: "mb", ph: "Search MusicBrainz: artists, albums", q: "low orbit", rows: [
+      ["low-orbit", "Low Orbit", "Maren Holt · 2019 · Album · 11 tracks", "have"],
+      ["low-orbit", "Low Orbit (Deluxe)", "Maren Holt · 2020 · Album · 15 tracks", "Open"],
+      ["low-orbit alt", "Low Orbit Remixed", "Maren Holt · 2021 · EP · 5 tracks", "Open"]] },
+    { kind: "dz", label: "Deezer", type: "dz", ph: "Search Deezer: artists, albums", q: "slow bloom", rows: [
+      ["slow-bloom", "Slow Bloom", "The Quiet Hours · Album · 10 tracks", "have"],
+      ["slow-bloom", "Slow Bloom (Deluxe)", "The Quiet Hours · Album · 14 tracks", "Open on Deezer"],
+      ["slow-bloom alt", "Slow Bloom (Remixes)", "The Quiet Hours · EP · 4 tracks", "Open on Deezer"]] },
+    { kind: "it", label: "iTunes", type: "it", ph: "Search iTunes: artists, albums", q: "midnight tapes", rows: [
+      ["midnight-tapes", "Midnight Tapes", "Nightfall Collective · 2024 · Album · 12 tracks", "have"],
+      ["midnight-tapes alt", "Midnight Tapes (Instrumentals)", "Nightfall Collective · 2024 · Album · 12 tracks", "Open on Apple Music"],
+      ["midnight-tapes", "Velvet Signal - Single", "Nightfall Collective · 2024 · Single · 1 track", "Open on Apple Music"]] },
+    { kind: "sk", label: "slskd", type: "slskd", ph: "Search Soulseek (* is a wildcard)", q: "oda saar ferry lights", rows: [
+      ["FLAC", "Oda Saar - Ferry Lights (2017) [FLAC]", "FLAC · 11 tracks · 312 MB · nightowl · free slot", "btn"],
+      ["FLAC", "Ferry Lights [24-96]", "FLAC 24/96 · 11 tracks · 1.1 GB · harbourfm · 2 queued", "btn"],
+      ["MP3", "Oda Saar/Ferry Lights", "MP3 320 · 11 tracks · 98 MB · tidewater · free slot", "btn"]] },
+  ];
+  const resultRow = ([cover, title, meta, action]) => {
+    const li = document.createElement("li");
+    let art;
+    if (cover === "FLAC" || cover === "MP3") { art = document.createElement("i"); art.className = "fmt"; art.textContent = cover; }
+    else {
+      const [slug, alt] = cover.split(" ");
+      art = document.createElement("img"); art.src = `covers/${slug}.webp`; art.alt = ""; art.width = 56; art.height = 56;
+      if (alt) art.className = "alt";
+    }
+    const text = document.createElement("span"), b = document.createElement("b");
+    b.textContent = title; text.append(b, meta);
+    const em = document.createElement("em");
+    if (action === "have") { em.className = "have"; em.textContent = "In your library"; }
+    else if (action === "btn") { em.className = "btn"; em.textContent = "Download"; }
+    else em.textContent = action;
+    li.append(art, text, em);
+    return li;
+  };
+
   const scenes = {
     async tidy(el, alive) {
       const count = $("[data-count]", el), fixed = $("[data-fixed]", el), bar = $("[data-progress]", el);
@@ -202,10 +240,11 @@
       requestAnimationFrame(tick);
       for (const li of moves) { await wait(0.8); if (!alive()) return; li.classList.add("done"); }
     },
-    // As in the app: an empty bar; "!" opens Search elsewhere; "!dz" becomes the Deezer chip.
+    // As in the app: an empty bar; "!" opens Search elsewhere; a bang's name becomes its chip.
+    // It goes round all four bangs while the scene is on screen.
     async search(el, alive) {
-      const typed = $("[data-typed]", el), bang = $("[data-bang]", el), ph = $("[data-ph]", el);
-      const suggest = $("[data-suggest]", el), items = $$("li", suggest), rows = $$(".results li", el);
+      const typed = $("[data-typed]", el), bang = $("[data-bang]", el), label = $("[data-bang-label]", el), ph = $("[data-ph]", el);
+      const suggest = $("[data-suggest]", el), items = $$("li", suggest), list = $(".results", el);
       const setText = (t) => { typed.textContent = t; ph.hidden = t !== ""; };
       const filter = () => {
         const q = typed.textContent.slice(1).toLowerCase();
@@ -214,8 +253,11 @@
           li.classList.toggle("out", !hit); li.classList.toggle("on", q !== "" && hit);
         });
       };
-      rows.forEach((li) => li.classList.remove("in"));
-      bang.hidden = true; suggest.hidden = true; ph.textContent = "Search anything"; setText("");
+      const chip = (r) => { bang.className = `bang c-${r.kind}`; label.textContent = r.label; bang.hidden = false; ph.textContent = r.ph; };
+      const render = (r) => { list.replaceChildren(...r.rows.map(resultRow)); return $$("li", list); };
+      // Hold the results at the tallest round's height, so the page below doesn't shift between rounds.
+      list.style.minHeight = "";
+      list.style.minHeight = `${Math.max(...ROUNDS.map((r) => (render(r), list.offsetHeight)))}px`;
       const type = async (text, each) => {
         for (const ch of text) {
           if (!alive()) return false;
@@ -224,18 +266,31 @@
         }
         return true;
       };
-      await wait(1); if (!alive()) return;
-      if (!(await type("!"))) return;
-      filter(); suggest.hidden = false;
-      await wait(1.6); if (!alive()) return;
-      if (!(await type("dz", () => { filter(); })) ) return;
-      await wait(0.6); if (!alive()) return;
-      suggest.hidden = true; bang.hidden = false;
-      ph.textContent = "Search Deezer: artists, albums"; setText("");
-      await wait(1.4); if (!alive()) return;
-      if (!(await type("slow bloom"))) return;
-      await wait(0.8); if (!alive()) return;
-      for (const li of rows) { li.classList.add("in"); await wait(0.3); if (!alive()) return; }
+      if (calm) { // no motion: one finished search
+        const r = ROUNDS[1];
+        suggest.hidden = true; chip(r); setText(r.q);
+        render(r).forEach((li) => li.classList.add("in"));
+        return;
+      }
+      for (let i = 0; ; i = (i + 1) % ROUNDS.length) {
+        const r = ROUNDS[i];
+        $$("li", list).forEach((li) => li.classList.remove("in"));
+        bang.hidden = true; suggest.hidden = true; ph.textContent = "Search anything"; setText("");
+        await wait(1); if (!alive()) return;
+        if (!(await type("!"))) return;
+        filter(); suggest.hidden = false;
+        await wait(1.4); if (!alive()) return;
+        if (!(await type(r.type, filter))) return;
+        await wait(0.5); if (!alive()) return;
+        suggest.hidden = true; chip(r); setText("");
+        await wait(1.2); if (!alive()) return;
+        if (!(await type(r.q))) return;
+        await wait(0.8); if (!alive()) return;
+        for (const li of render(r)) { li.classList.add("in"); await wait(0.3); if (!alive()) return; }
+        await wait(4.5); if (!alive()) return;
+        $$("li", list).forEach((li) => li.classList.remove("in"));
+        await wait(0.8); if (!alive()) return;
+      }
     },
     async undo(el, alive) {
       const entry = $("[data-entry]", el), btn = $("[data-undo]", el);
