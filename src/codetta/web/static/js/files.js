@@ -161,7 +161,7 @@ async function moveEntries(paths, label) {
       h("div", { class: "picker-head" },
         pick.path ? h("button", { class: "icon-btn", type: "button", "aria-label": "Up one folder",
           onclick: () => { pick.path = crumbs.slice(0, -1).join("/"); draw(); } }, icon("chevron")) : null,
-        h("strong", { class: "picker-where" }, crumbs.length ? crumbs[crumbs.length - 1] : "Library"),
+        h("strong", { class: "picker-where", translate: crumbs.length ? "no" : null }, crumbs.length ? crumbs[crumbs.length - 1] : "Library"),
         h("button", { class: "link-btn picker-new-btn", type: "button", onclick: () => { newRow.hidden = !newRow.hidden; if (!newRow.hidden) nameInput.focus(); } },
           icon("plus"), "New folder")),
       newRow,
@@ -224,7 +224,7 @@ async function showInfo(path) {
       ["On disk", d.on_disk],
     ] : []),
   ];
-  await ask({ title: d.name || "Library", details: h("dl", { class: "info-list" }, rows.map(([k, v]) => [h("dt", {}, k), h("dd", { dir: "auto" }, v || "—")])),
+  await ask({ title: d.name || "Library", details: h("dl", { class: "info-list" }, rows.map(([k, v]) => [h("dt", {}, k), h("dd", { dir: "auto", translate: "yes" }, v || "—")])),
     confirmLabel: "Done", cancelLabel: "Copy location" }).then((done) => {
     if (done === false) navigator.clipboard?.writeText(d.path).then(() => toast("Location copied"), () => {});
   });

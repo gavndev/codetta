@@ -353,6 +353,15 @@
       <section class="cc-group" aria-labelledby="ccg-account">
         <h3 class="cc-group-title" id="ccg-account">Account &amp; help</h3>
         <div class="cc-tile cc-list">
+          <div class="cc-row">
+            <label class="lang-row">
+              <span class="switch-text">
+                <span class="switch-title">Language</span>
+                <span class="switch-sub" id="lang-sub">Follows this browser unless you pick one</span>
+              </span>
+              <select id="lang-select" aria-label="Language" translate="no"></select>
+            </label>
+          </div>
           <div class="cc-row password" id="pw-tile">
             <button class="conn-toggle" id="pw-toggle" type="button" aria-expanded="false" aria-controls="password-form">
               <span class="switch-text">
@@ -547,6 +556,7 @@
   <link rel="modulepreload" href="/static/js/library.js">
   <link rel="modulepreload" href="/static/js/lidarr.js">
   <link rel="modulepreload" href="/static/js/mediaserver.js">
+  <link rel="modulepreload" href="/static/js/i18n.js">
   <link rel="modulepreload" href="/static/js/musicbrainz.js">
   <link rel="modulepreload" href="/static/js/notifications.js">
   <link rel="modulepreload" href="/static/js/player.js">
@@ -557,6 +567,6 @@
   <link rel="modulepreload" href="/static/js/theme.js">
   <link rel="modulepreload" href="/static/js/tools.js">
   <link rel="modulepreload" href="/static/js/wiring.js">
-  <script src="/static/app.js?v=69" type="module"></script>
+  <script src="/static/app.js?v=70" type="module"></script>
 </body>
 </html>

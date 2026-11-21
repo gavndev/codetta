@@ -303,7 +303,7 @@ export function renderFolderHead() {
           canMatch ? mbFindButton("beside-genre") : null,
           canSoulseek ? skFindButton("beside-genre") : null) : null))
     : h("div", {},
-      h("h1", {}, f.path ? f.name : "Library"),
+      h("h1", { translate: f.path ? "no" : null }, f.path ? f.name : "Library"),
       h("p", {}, counts.join(" · ") || (f.skipped ? "" : "Empty folder"), skippedNote));
   els.folderHead.replaceChildren(
     heading,
@@ -378,11 +378,11 @@ export function renderFolders() {
   els.folders.classList.toggle("as-list", list);
   drawInBatches(els.folders, folders, (f) => list
     ? h("a", { class: "folder", href: hashFor(f.path), title: f.name, "data-path": f.path },
-      icon("folder"), h("span", { class: "folder-name" }, f.name),
+      icon("folder"), h("span", { class: "folder-name", translate: "no" }, f.name),
       h("span", { class: "folder-meta" }, folderSummary(f)), icon("chevron"))
     : h("a", { class: "folder", href: hashFor(f.path), title: f.name, "data-path": f.path },
       h("span", { class: "folder-cover" }, folderCoverImg(f.path) || icon("folder")),
-      h("span", { class: "folder-text" }, h("span", { class: "folder-name" }, f.name),
+      h("span", { class: "folder-text" }, h("span", { class: "folder-name", translate: "no" }, f.name),
         h("span", { class: "folder-meta" }, folderSummary(f)))));
   if (!list) loadFolderCovers(folders.map((f) => f.path));
 }
@@ -543,12 +543,12 @@ function trackRow(t, { oneAlbum, albumArtist, disc }) {
       ? h("img", { src: artUrlFor(t), alt: "", loading: "lazy", decoding: "async", width: "40", height: "40" })
       : h("span", { class: "art-none", title: "No album art" }, icon("note"))),
     h("div", { class: "col-title" },
-      h("span", { class: "main" }, title || h("span", { class: "untitled" }, t.name)),
-      h("span", { class: "sub" }, t.error ? t.error
+      h("span", { class: "main", translate: "no" }, title || h("span", { class: "untitled" }, t.name)),
+      h("span", { class: "sub", translate: t.error || !(artist || album || title) ? null : "no" }, t.error ? t.error
         : oneAlbum ? (artist && artist !== albumArtist ? artist : "")
         : [artist, album].filter(Boolean).join(" · ") || (title ? t.name : `${fmtLabel(t.format)} · No tags yet`))),
-    h("div", { class: "col-artist" }, t.error ? t.error : artist),
-    h("div", { class: "col-album" }, album),
+    h("div", { class: "col-artist", translate: t.error ? null : "no" }, t.error ? t.error : artist),
+    h("div", { class: "col-album", translate: "no" }, album),
     h("div", { class: "col-fmt" }, t.format ? h("span", { class: "badge" }, fmtLabel(t.format)) : ""),
     h("div", { class: "col-dur" }, fmtDuration(t.duration)),
     h("div", { class: "col-play" }, !t.error && canPlay(t.format) ? h("button", {

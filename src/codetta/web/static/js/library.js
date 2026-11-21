@@ -141,7 +141,7 @@ async function openCare() {
   const when = [care.started ? `Started ${clock(care.started)}` : null,
     care.finished && care.done >= care.total ? `Finished ${clock(care.finished)}` : care.current && st.busy ? `Now: ${care.current.split("/").pop()}` : null].filter(Boolean).join(" · ");
   const list = care.review.length ? h("ul", { class: "care-review" }, care.review.map((r) => h("li", {},
-    h("span", { class: "care-folder", dir: "auto" }, h("strong", {}, r.folder.split("/").pop() || r.folder), h("span", {}, r.note)),
+    h("span", { class: "care-folder", dir: "auto", translate: "yes" }, h("strong", { translate: "no" }, r.folder.split("/").pop() || r.folder), h("span", {}, r.note)),
     h("button", { class: "btn small", type: "button", onclick: () => { closeDialog($("#confirm-dialog")); navigate(r.folder); } }, "Open"),
     h("button", { class: "link-btn", type: "button", onclick: async (e) => {
       care = await api("POST", "/api/library-care/again", { folder: r.folder });

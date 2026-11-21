@@ -50,7 +50,7 @@ dev = [
 where = ["src"]
 
 [tool.setuptools.package-data]
-codetta = ["web/static/*", "web/static/fonts/*", "web/static/icons/*", "web/static/js/*", "CHANGELOG.md"]
+codetta = ["web/static/*", "web/static/fonts/*", "web/static/icons/*", "web/static/js/*", "web/static/i18n/*", "CHANGELOG.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -16,6 +16,8 @@ export function h(tag, attrs = {}, ...children) {
     else if (["value", "checked", "disabled", "indeterminate", "open"].includes(k)) el[k] = v;
     else el.setAttribute(k, v === true ? "" : v);
   }
+  // dir="auto" marks the user's own text (titles, artists, folder names): never translated.
+  if (attrs?.dir === "auto" && !("translate" in attrs) && tag !== "input" && tag !== "textarea") el.setAttribute("translate", "no");
   for (const c of children.flat(Infinity)) {
     if (c == null || c === false) continue;
     el.append(c instanceof Node ? c : String(c));

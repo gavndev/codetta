@@ -32,7 +32,7 @@ def test_every_import_names_something_its_module_exports():
         for names, target in IMPORT.findall(mod.read_text("utf-8")):
             dep = (mod.parent / target).resolve()
             assert dep.is_file(), f"{mod.name} imports {target}, which doesn't exist"
-            missing = {n.strip() for n in names.split(",") if n.strip()} - exports_of(dep)
+            missing = {n.split(" as ")[0].strip() for n in names.split(",") if n.strip()} - exports_of(dep)
             assert not missing, f"{mod.name} imports {sorted(missing)} from {target}, which doesn't export them"
 
 

@@ -1,7 +1,8 @@
 // Wiring: connecting the page's buttons, keys and gestures to what they do.
 // Part of Codetta's page; app.js is the entry point (see the note at its top).
 
-import { $, closeDialog } from "./dom.js";
+import { $, closeDialog, h } from "./dom.js";
+import { browserLanguage, chosenLanguage, currentLanguage, LANGUAGES, setLanguage, t as tr } from "./i18n.js";
 import { els, plural, state, toast } from "./state.js";
 import { getTheme, setTheme, THEME_LABEL, THEMES } from "./theme.js";
 import {
@@ -142,6 +143,17 @@ export function bindEvents() {
     } catch (err) { healthToggle.checked = !healthToggle.checked; toast(err.message, "error"); }
     finally { healthToggle.disabled = false; }
   });
+  // Language: follows the browser unless one is picked (per browser, so a household can differ).
+  const lang = $("#lang-select");
+  lang.replaceChildren(
+    h("option", { value: "" }, `${tr("Automatic")} (${LANGUAGES[browserLanguage()]})`),
+    ...Object.entries(LANGUAGES).map(([code, name]) => h("option", { value: code }, name)));
+  lang.value = chosenLanguage();
+  lang.addEventListener("change", () => setLanguage(lang.value));
+  if (currentLanguage() !== "en") {
+    $("#lang-sub").textContent = "Translated by the Codetta team. Better wording is welcome on GitHub.";
+  }
+
   const adv = $("#advanced-toggle");
   adv.checked = state.advanced;
   adv.addEventListener("change", () => { setAdvanced(adv.checked); toast(adv.checked ? "Advanced mode on" : "Advanced mode off"); });

@@ -1,6 +1,7 @@
 // App state, formatting helpers and toasts.
 // Part of Codetta's page; app.js is the entry point (see the note at its top).
 
+import { countWord } from "./i18n.js";
 import { $, h, icon, playOut } from "./dom.js";
 import { loadClipboard } from "./editor.js";
 
@@ -64,7 +65,7 @@ export const runtime = (tracks) => {
   return secs >= 60 ? `, ${Math.round(secs / 60)} min` : "";
 };
 export const trackNo = (v) => { const n = (v || "").split("/")[0].trim(); return /^\d$/.test(n) ? `0${n}` : n; };
-export const plural = (n, word, many = `${word}s`) => `${n} ${n === 1 ? word : many}`;
+export const plural = (n, word, many = `${word}s`) => countWord(n, word, many);
 export const baseName = (path) => path.split("/").pop();
 
 export function relativeToFolder(path) {

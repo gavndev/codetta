@@ -2,6 +2,10 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+- **Codetta speaks Spanish:** the whole page (menus, dialogs, messages, the setup steps and the server's own messages) is now in Spanish for browsers set to Spanish, and **Account → Language** picks English or Español for each browser. Your music is never translated: titles, artists and folder names always show as they are. Want Codetta in your language? See [Translating Codetta](docs/translating.md).
+
 ## 0.9.4 (2026-11-21)
 
 Works with your stack: Lidarr and your music server (Navidrome or any Subsonic server, Jellyfin, Emby, Plex) now hear about Codetta's changes straight away. Plus folders as a .zip, cleaner MusicBrainz results and two tag fixes for players.

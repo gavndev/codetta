@@ -80,6 +80,13 @@ never overwritten.
   <img src="media/undo.webp" alt="Changing the genre of ten tracks at once, then undoing all ten from the activity log" width="900">
 </p>
 
+## In your language
+
+Codetta's page is in **English** and **Spanish**. It follows your browser's
+language, and **Account → Language** picks one for that browser. Your music is
+never translated: titles, artists and folder names show exactly as they are.
+More languages are welcome: see [Translating Codetta](translating.md).
+
 ## Made for your phone too
 
 Codetta is designed for iPhone and Android as much as for desktop: big touch

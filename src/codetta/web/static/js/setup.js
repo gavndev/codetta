@@ -1,6 +1,7 @@
 // Connections, the first-run setup and What's new.
 // Part of Codetta's page; app.js is the entry point (see the note at its top).
 
+import { t as tr } from "./i18n.js";
 import { $, h, openDialog, setKids } from "./dom.js";
 import { api } from "./api.js";
 import { state, toast } from "./state.js";
@@ -109,7 +110,7 @@ export function setConnectionsOpen(open) {
 export function renderConnections() {
   const conn = state.connections;
   const on = conn ? conn.connections.filter((c) => c.enabled).map((c) => c.name.split(":")[0]) : [];
-  $("#conn-summary").textContent = !conn ? "" : on.length ? `On: ${on.join(", ")}` : "Offline: nothing is sent anywhere";
+  $("#conn-summary").textContent = !conn ? "" : on.length ? `On: ${on.map((n) => tr(n)).join(", ")}` : "Offline: nothing is sent anywhere";
   setConnectionsOpen(connOpenPref());
   const intro = $("#conn-intro");
   if (!conn) {
@@ -128,7 +129,7 @@ export function renderConnections() {
     try {
       state.connections = await api("PUT", "/api/connections", { enabled: { [item.id]: input.checked } });
       const names = state.connections.connections.filter((c) => c.enabled).map((c) => c.name.split(":")[0]);
-      $("#conn-summary").textContent = names.length ? `On: ${names.join(", ")}` : "Offline: nothing is sent anywhere";
+      $("#conn-summary").textContent = names.length ? `On: ${names.map((n) => tr(n)).join(", ")}` : "Offline: nothing is sent anywhere";
       applyConnections();
       if (item.id === "slskd") { await loadSlskd(); renderSlskdSettings(); }
       if (item.id === "lidarr") { await loadLidarr(); renderLidarrSettings(); }

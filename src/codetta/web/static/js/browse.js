@@ -336,6 +336,7 @@ function renderCrumbs() {
       href: hashFor(c.path),
       "aria-current": i === crumbs.length - 1 ? "page" : null,
       title: c.name,
+      translate: i && !c.name.startsWith("Search: ") ? "no" : null, // folder names are the user's
     }, c.name));
   });
   els.crumbs.replaceChildren(...parts);

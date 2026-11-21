@@ -1,6 +1,7 @@
 // The tag editor: fields, raw tags, copy & paste, suggestions, hints, lyrics and album art.
 // Part of Codetta's page; app.js is the entry point (see the note at its top).
 
+import { t as tr } from "./i18n.js";
 import { $, ask, h, icon, playOut, setKids } from "./dom.js";
 import { api } from "./api.js";
 import {
@@ -117,8 +118,11 @@ export function renderEditor() {
     const t = tracks[0];
     els.editorTitle.textContent = first(t, "title") || t.name;
     const byline = [(t.tags.artist || []).join(", "), first(t, "album")].filter(Boolean).join(" — ");
+    els.editorTitle.translate = false; // the track's own title and artist: never translated
+    els.editorSub.translate = !byline && !first(t, "title");
     els.editorSub.textContent = byline || (first(t, "title") ? relativeToFolder(t.path) : "No tags yet");
   } else {
+    els.editorTitle.translate = els.editorSub.translate = true;
     els.editorTitle.textContent = `Editing ${tracks.length} tracks`;
     els.editorSub.textContent = "Only the fields you change are saved";
   }
@@ -604,7 +608,7 @@ function fieldEl(field, model) {
   });
 
   const clearBtn = h("button", {
-    class: "icon-btn clear", type: "button", "aria-label": `Clear ${field.label}`, title: "Remove this tag",
+    class: "icon-btn clear", type: "button", "aria-label": `Clear ${tr(field.label)}`, title: "Remove this tag",
     onclick: () => {
       input.value = "";
       if (m.present) ed.changes.set(key, { value: "", remove: true });

@@ -36,6 +36,8 @@ things live, how a request flows, and the rules that keep files safe.
 - Issues labelled [good first issue](https://github.com/gavndev/codetta/labels/good%20first%20issue)
   are small and self-contained.
 - Questions and ideas are welcome in [Discussions](https://github.com/gavndev/codetta/discussions).
+- Speak another language? Improving the Spanish or adding your own needs no coding:
+  see [Translating Codetta](docs/translating.md).
 
 ## Before opening a pull request
 

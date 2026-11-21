@@ -264,7 +264,7 @@ classical fields, an Advanced mode with the raw tags, Tag Presets for turning
 loose downloads into proper releases, smart suggestions from the rest of the
 album, copy & paste tags, every field Navidrome shows (credits, mood, label,
 release type, multiple artists), multi-disc albums, any language and script,
-light and dark themes. [See every feature →](docs/features.md)
+the page in English or Spanish ([add yours](docs/translating.md)), light and dark themes. [See every feature →](docs/features.md)
 
 ## How Codetta compares
 

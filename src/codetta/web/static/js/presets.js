@@ -105,7 +105,7 @@ function renderPreview(results) {
     if (r.kept_existing.length) notes.push(`Kept existing: ${r.kept_existing.join(", ")}`);
     if (r.unsupported.length) notes.push(`Not supported by this format: ${r.unsupported.join(", ")}`);
     return h("div", { class: `preview-item${r.error ? " error" : ""}` },
-      h("div", { class: "name" }, relativeToFolder(r.path)),
+      h("div", { class: "name", translate: "no" }, relativeToFolder(r.path)),
       r.error ? h("div", { class: "note" }, r.error)
         : h("div", { class: "changes" }, Object.entries(r.applied).flatMap(([k, v], i) =>
           [i ? ", " : "", h("b", {}, k), ` → ${v.join("; ")}`])),
@@ -157,7 +157,7 @@ function renderManageList() {
       h("div", { class: "preset-list" }, state.presets.map((lo) =>
         h("div", { class: "preset-card" },
           h("div", { class: "info" },
-            h("div", { class: "name" }, lo.name),
+            h("div", { class: "name", translate: "no" }, lo.name),
             lo.description && h("div", { class: "desc" }, lo.description),
             h("div", { class: "tags" }, Object.keys(lo.tags).join(", ") || "No tags")),
           h("button", { class: "btn small", type: "button", onclick: () => renderManageForm(lo) }, "Edit")))));

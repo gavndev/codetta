@@ -9,5 +9,6 @@
 // js/account.js; the buttons and keys are connected in js/wiring.js.
 
 import { boot } from "./js/account.js";
+import { startI18n } from "./js/i18n.js";
 
-boot();
+startI18n().finally(boot); // the reader's language first (English needs nothing), then the page
