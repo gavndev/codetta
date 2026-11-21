@@ -2,7 +2,9 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
-## Unreleased (0.9.3)
+## 0.9.3 (2026-11-21)
+
+More than MusicBrainz: search and match with Deezer and iTunes too. Plus a measured efficiency pass, so saving, undo and matching are faster on real disks.
 
 - **Find in Deezer and Find in iTunes:** the Find in MusicBrainz button has a chevron (when Deezer or iTunes is on) that searches just that service, with the same review before anything is written. Handy when MusicBrainz doesn't have an album, or has it with less detail.
 - **Bang chips for Deezer and iTunes** look like MusicBrainz's and slskd's: their own colours, with a white mark next to the name. `!dz` also shows a small note that Deezer's search doesn't include release years.
