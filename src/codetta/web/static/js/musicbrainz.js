@@ -42,19 +42,23 @@ function mbTarget() {
   return { body: { folder: state.path }, label: "this folder" };
 }
 
-export async function openMusicBrainz() {
+export async function openMusicBrainz({ source = "auto" } = {}) {
   if (!(await confirmDiscard())) return;
-  openMusicBrainzFor(mbTarget());
+  openMusicBrainzFor(mbTarget(), { source });
 }
 
+const SOURCE_NAMES = { auto: "MusicBrainz", deezer: "Deezer", itunes: "iTunes" };
+const sourceName = () => (mb.source === "auto" && !connectionOn("musicbrainz") ? "Deezer and iTunes" : SOURCE_NAMES[mb.source || "auto"]);
+
 /** Open the match dialog for any set of files; ``release`` jumps straight to its review. */
-export function openMusicBrainzFor(target, { release = null, recordings = {}, onWritten = null } = {}) {
+export function openMusicBrainzFor(target, { release = null, recordings = {}, onWritten = null, source = "auto" } = {}) {
   Object.assign(mb, {
-    target, query: { album: "", artist: "", link: "" }, results: null, error: null,
+    target, source, query: { album: "", artist: "", link: "" }, results: null, error: null,
     release: null, proposal: null, pairs: {}, fields: null, mode: "overwrite", cover: "missing",
     openGroups: new Set(), openFiles: new Set(), recordings: recordings || {}, sound: null, onWritten,
   });
-  $("#mb-title").textContent = connectionOn("musicbrainz") ? "Match on MusicBrainz" : "Find album details";
+  $("#mb-title").textContent = source !== "auto" ? `Find in ${SOURCE_NAMES[source]}`
+    : connectionOn("musicbrainz") ? "Match on MusicBrainz" : "Find album details";
   openDialog($("#mb-dialog"));
   if (release) mbPick(release);
   else mbSearch({});
@@ -67,7 +71,7 @@ async function mbSearch(extra) {
   mb.release = null;
   renderMbSearch();
   try {
-    const res = await api("POST", "/api/musicbrainz/search", { ...mb.target.body, ...extra });
+    const res = await api("POST", "/api/musicbrainz/search", { ...mb.target.body, ...extra, source: mb.source || "auto" });
     if (token !== mb.token) return;
     mb.results = res;
     if (!extra.release) Object.assign(mb.query, { album: res.query.album, artist: res.query.artist });
@@ -148,11 +152,11 @@ function renderMbSearch() {
   const res = mb.results;
   let list;
   if (mb.busy === "sound") list = h("p", { class: "loading" }, "Listening to your tracks, then asking AcoustID… (a few seconds per track)");
-  else if (mb.busy) list = h("p", { class: "loading" }, "Asking MusicBrainz…");
+  else if (mb.busy) list = h("p", { class: "loading" }, `Asking ${sourceName()}…`);
   else if (mb.error) list = h("div", { class: "error-box" }, mb.error);
   else if (res && !res.candidates.length) {
     list = h("p", { class: "mb-empty" }, res.query.album || res.query.artist
-      ? "No releases found. Try fewer words, or paste the release link from musicbrainz.org."
+      ? (mb.source && mb.source !== "auto" ? `${SOURCE_NAMES[mb.source]} has nothing for this. Try fewer words.` : "No releases found. Try fewer words, or paste the release link from musicbrainz.org.")
       : connectionOn("acoustid")
         ? "These tracks have no album or artist yet. Type what to search for, or identify them by sound."
         : "These tracks have no album or artist yet. Type what to search for above.");
@@ -174,7 +178,8 @@ function renderMbSearch() {
   }
   const sound = mb.sound;
   const unknown = sound ? sound.files.filter((f) => f.status !== "identified") : [];
-  const soundBox = connectionOn("acoustid") ? h("div", { class: "mb-sound" },
+  const catalogOnly = mb.source && mb.source !== "auto";
+  const soundBox = connectionOn("acoustid") && !catalogOnly ? h("div", { class: "mb-sound" },
     h("div", { class: "mb-sound-text" },
       h("strong", {}, "Identify by sound"),
       h("span", {}, sound
@@ -189,12 +194,13 @@ function renderMbSearch() {
       h("label", { class: "field" }, h("span", { class: "field-label" }, "Album"), album),
       h("label", { class: "field" }, h("span", { class: "field-label" }, "Artist"), artist),
       h("button", { class: "btn", type: "submit", disabled: mb.busy }, icon("search"), "Search")),
-    h("form", { class: "mb-link", onsubmit: useLink },
+    catalogOnly ? null : h("form", { class: "mb-link", onsubmit: useLink },
       h("label", { class: "field" }, h("span", { class: "field-label" }, "Or paste a release link"), link),
       h("button", { class: "btn", type: "submit", disabled: mb.busy }, "Use link")),
     list);
+  const credit = { deezer: ["Deezer", "https://www.deezer.com"], itunes: ["iTunes", "https://music.apple.com"] }[mb.source] || ["MusicBrainz", "https://musicbrainz.org"];
   setKids($("#mb-foot"),
-    h("span", { class: "mb-credit" }, "Data from ", h("a", { href: "https://musicbrainz.org", target: "_blank", rel: "noopener noreferrer" }, "MusicBrainz")),
+    h("span", { class: "mb-credit" }, "Data from ", h("a", { href: credit[1], target: "_blank", rel: "noopener noreferrer" }, credit[0])),
     h("span", { class: "spacer" }),
     h("button", { class: "btn", type: "button", "data-close": true }, "Cancel"));
 }

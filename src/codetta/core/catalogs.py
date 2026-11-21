@@ -38,12 +38,12 @@ class Catalogs:
 
     # --- Searching ---------------------------------------------------------------------------
 
-    def search(self, album: str, artist: str = "", limit: int = 6) -> list[dict]:
-        """Albums from every source that's switched on, as release-shaped dicts (no track lists)."""
+    def search(self, album: str, artist: str = "", limit: int = 6, only: str | None = None) -> list[dict]:
+        """Albums from every source that's switched on (or just ``only``), as release-shaped dicts."""
         out: list[dict] = []
-        if self.enabled("deezer"):
+        if self.enabled("deezer") and only in (None, "deezer"):
             out += self._deezer_search(album, artist, limit)
-        if self.enabled("itunes"):
+        if self.enabled("itunes") and only in (None, "itunes"):
             out += self._itunes_search(album, artist, limit)
         return out
 

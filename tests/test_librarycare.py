@@ -218,4 +218,10 @@ def test_an_album_you_ignore_stops_needing_you_and_is_left_alone(album_dir, tmp_
     # Dismiss all: every album that needs you, in one go.
     d = c.post("/api/library-care/ignore", json={"all": True}).json()
     assert d["review"] == [] and d["ignored"] == [FOLDER]
+    # Run again: the whole library from the start, and dismissed albums stay dismissed.
+    d = c.post("/api/library-care/rerun").json()
+    d = wait_done(c)
+    assert d["ignored"] == [FOLDER] and d["review"] == [] and d["finished"]
+    c.put("/api/library-care", json={"mode": "off"})
+    assert c.post("/api/library-care/rerun").status_code == 409
     c.__exit__(None, None, None)

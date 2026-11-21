@@ -184,6 +184,8 @@ def register(app, shared) -> None:
         album = body.album.strip() or most_common(f.album for f in infos)
         artist = body.artist.strip() or most_common(f.albumartist or f.artist for f in infos)
         current = most_common(f.albumid for f in infos if MBID_RE.match(f.albumid))
+        if body.source != "auto":
+            return catalog_only_search(body.source, infos, album, artist, len(rels))
         mb_error = None
         found = []
         # One loose song with no album tag (a single download, a YouTube rip): look for the song,
@@ -253,6 +255,31 @@ def register(app, shared) -> None:
             candidates.sort(key=lambda c: (not c["current"], -(c["score"] + edition_fit(c, editions.prefs, len(rels)))))
         return {"query": {"album": album, "artist": artist, "files": len(rels)}, "current": current or None,
                 "candidates": candidates, "recordings": {}, "note": f"MusicBrainz didn't answer ({mb_error}), so these come from other sources." if mb_error else None}
+
+    def catalog_only_search(source: str, infos: list, album: str, artist: str, files: int) -> dict:
+        """Find in Deezer / Find in iTunes: that source only, the same review afterwards."""
+        require_connection(source)
+        if not album and len(infos) == 1:  # a loose song: its title is the best guess at the album (a single)
+            t, a = clean_title(infos[0].title), clean_artist(infos[0].artist or infos[0].albumartist)
+            if not t:
+                t, a2 = song_from_name(infos[0].path)
+                a = a or a2
+            album, artist = t, artist or a
+        if not (album or artist):
+            raise HTTPException(422, "These files have no album or artist to search for. Type one in.")
+        try:
+            found = catalogs.search(album, artist, limit=10, only=source)
+        except ProviderError as exc:
+            raise HTTPException(502, str(exc)) from exc
+        candidates = []
+        for r in found:
+            c = summarize(r)
+            c["score"] = score_candidate(c, infos, album, artist)
+            c["current"] = False
+            candidates.append(c)
+        candidates.sort(key=lambda c: -(c["score"] + edition_fit(c, editions.prefs, files)))
+        return {"query": {"album": album, "artist": artist, "files": files, "source": source}, "current": None,
+                "candidates": candidates, "recordings": {}, "note": None}
 
     @app.get("/api/musicbrainz/editions")
     def mb_editions(release: str = Query(..., max_length=500)) -> dict:

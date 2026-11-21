@@ -4,6 +4,10 @@ All notable changes to Codetta. Versions follow [Semantic Versioning](https://se
 
 ## Unreleased (0.9.3)
 
+- **Find in Deezer and Find in iTunes:** the Find in MusicBrainz button has a chevron (when Deezer or iTunes is on) that searches just that service, with the same review before anything is written. Handy when MusicBrainz doesn't have an album, or has it with less detail.
+- **Bang chips for Deezer and iTunes** look like MusicBrainz's and slskd's: their own colours, with a white mark next to the name. `!dz` also shows a small note that Deezer's search doesn't include release years.
+- **Tidy up: Run again** goes through your whole library once more (dismissed albums stay dismissed), and the "Need you" list has a clear heading with a count.
+- **A tidier account sheet:** settings are grouped into Library, Online and Account & help, instead of a long run of separate rows.
 - **Search Deezer and iTunes from the search bar:** type `!dz` or `!it` and an artist or album. Results show each album's cover, year and track count, mark the ones already in your library, and link to Deezer or Apple Music (or Find in slskd). Each needs its connection switched on.
 - **Faster, lighter saving:** matching an album writes each file's tags and cover in one safe write instead of two, and saves an album's files a few at once, so the inbox, Tidy up and Find in MusicBrainz copy half as much and finish sooner on big FLACs. Undo is about three times faster, and batch edits about a quarter faster on real disks. Every file is still synced to disk before it replaces the original.
 - **Imports no longer hold up the rest of Codetta:** while a big file is saved, other screens stay responsive.

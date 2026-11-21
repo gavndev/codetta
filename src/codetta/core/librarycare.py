@@ -98,6 +98,14 @@ class LibraryCareStore:
             elif (self.albums.get(folder) or {}).get("status") == IGNORED:
                 self.forget(folder)
 
+    def restart(self) -> None:
+        """Go through the whole library again from the start. Dismissed albums stay dismissed."""
+        with self.lock:
+            self.albums = {k: v for k, v in self.albums.items() if v.get("status") == IGNORED}
+            self.started = self.finished = None
+            self.paused = False
+            self.save()
+
     def ignore_all_review(self) -> int:
         """Leave every album that needs you alone. Returns how many."""
         with self.lock:

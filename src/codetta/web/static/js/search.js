@@ -193,13 +193,14 @@ export const BANGS = {
     run: (q) => skSearch(q),
   },
   dz: {
-    names: ["dz", "deezer"], label: "Deezer", icon: "disc", about: "Albums on Deezer",
+    names: ["dz", "deezer"], label: "Deezer", icon: "deezer", about: "Albums on Deezer",
+    note: "Deezer's search doesn't include release years. Open an album on Deezer for the full details.",
     placeholder: "Search Deezer: artists, albums", available: () => connectionOn("deezer"),
     missing: "Deezer isn't on. Turn it on in Account → Connections.",
     run: (q) => catalogSearch("deezer", q),
   },
   it: {
-    names: ["it", "itunes", "apple"], label: "iTunes", icon: "disc", about: "Albums on iTunes and Apple Music",
+    names: ["it", "itunes", "apple"], label: "iTunes", icon: "itunes", about: "Albums on iTunes and Apple Music",
     placeholder: "Search iTunes: artists, albums", available: () => connectionOn("itunes"),
     missing: "iTunes isn't on. Turn it on in Account → Connections.",
     run: (q) => catalogSearch("itunes", q),
@@ -266,6 +267,10 @@ export function setBang(kind, upgrade = "") {
     chip.setAttribute("aria-label", `${b.about} is on. Tap to turn it off`);
   }
   $(".topbar .search").classList.toggle("banged", !!bang.kind);
+  const note = $("#bang-note"); // a small heads-up under the bar (Deezer's missing years)
+  const say = bang.kind ? BANGS[bang.kind].note : "";
+  note.hidden = !say;
+  if (say) { note.textContent = say; replay(note, "opening"); }
   if (bang.kind) $("#search-wrap").classList.add("active");
   els.filter.placeholder = filterPlaceholder();
   els.filter.setAttribute("enterkeyhint", bang.kind ? "search" : "enter");

@@ -173,14 +173,25 @@ async function openCare() {
     care = await api("PUT", "/api/library-care", { paused: !care.paused }); closeDialog($("#confirm-dialog")); updateCareSlot();
   } }, care.paused ? "Resume" : "Pause");
   const change = h("button", { class: "btn small", type: "button", onclick: () => { closeDialog($("#confirm-dialog")); setTimeout(chooseCare, 250); } }, "Change");
+  const rerun = h("button", { class: "btn small", type: "button", disabled: st.busy, title: "Go through your whole library again", onclick: async () => {
+    closeDialog($("#confirm-dialog"));
+    const ok = await ask({ title: "Run Tidy up again?", confirmLabel: "Run again",
+      message: "Codetta goes through your whole library again, from the start: albums you've fixed get another look, and new ones are included. Dismissed albums stay dismissed." });
+    if (!ok) { setTimeout(openCare, 250); return; }
+    try { care = await api("POST", "/api/library-care/rerun"); toast("Tidy up is going through your library again", "success"); }
+    catch (err) { toast(err.message, "error"); }
+    updateCareSlot();
+  } }, "Run again");
   await ask({ title: "Tidy up", confirmLabel: "Done", cancelLabel: null,
     details: h("div", { class: "care-sheet" },
       h("p", { class: "care-mode" }, careMode(care.mode).title),
       h("div", { class: "care-progress" }, h("span", {}, st.text), careBar(care), when ? h("span", { class: "care-when" }, when) : null),
       h("div", { class: "care-stats" }, stat(fixed, "fixed"), stat(n.skipped, "already fine"), stat(need, "need you", need ? "warn" : "")),
-      h("div", { class: "care-actions" }, pause, change),
-      need ? h("div", { class: "care-need-head" }, h("h3", { class: "field-label" }, "These need you"), dismissAll) : null,
-      need ? h("p", { class: "hint" }, "Codetta wasn't sure about these, so it left them alone. Open one to pick the right album yourself, or Dismiss it to stop seeing it here.") : null,
+      h("div", { class: "care-actions" }, pause, rerun, change),
+      need ? h("div", { class: "care-need" },
+        h("div", { class: "care-need-head" },
+          h("h3", { class: "care-need-title" }, "Need you", h("span", { class: "care-need-count" }, String(need))), dismissAll),
+        h("p", { class: "care-need-hint" }, "Codetta wasn't sure about these, so it left them alone. Open one to pick the right album, or dismiss it.")) : null,
       list, ignored) });
 }
 

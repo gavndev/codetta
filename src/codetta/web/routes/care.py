@@ -176,6 +176,8 @@ def register(app, shared) -> None:
                 care_worker["albums"], care_worker["at"] = albums, time.monotonic()
                 todo = [f for f in albums if f not in care.albums]
                 if not todo:
+                    if care.started is None:  # nothing left (say, every album dismissed): a run that's already done
+                        care.begin()
                     care.end()
                     return
                 care.begin()
@@ -265,6 +267,17 @@ def register(app, shared) -> None:
         """Look at one album again (after you've fixed it, or to retry)."""
         require_library()
         care.forget(body.folder.strip().strip("/"))
+        care_worker["gen"] += 1
+        care_start()
+        return care_out()
+
+    @app.post("/api/library-care/rerun")
+    def library_care_rerun() -> dict:
+        """Run Tidy up over the whole library again (after fixing things, or new settings)."""
+        require_library()
+        if care.mode == "off":
+            raise HTTPException(409, "Tidy up is off. Choose what it should do first.")
+        care.restart()
         care_worker["gen"] += 1
         care_start()
         return care_out()

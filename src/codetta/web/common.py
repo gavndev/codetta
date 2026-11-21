@@ -400,6 +400,8 @@ class MBSearchIn(MBTarget):
     album: str = Field("", max_length=500)
     artist: str = Field("", max_length=500)
     release: str = Field("", max_length=500)  # a release link or ID instead of a search
+    # "auto": MusicBrainz first, Deezer / iTunes when it has nothing good. Or just one of those two.
+    source: Literal["auto", "deezer", "itunes"] = "auto"
 
 
 class MBProposalIn(MBTarget):

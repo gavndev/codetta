@@ -133,3 +133,20 @@ def test_the_dz_and_it_bangs_search_albums_and_mark_what_you_have(album_dir, tmp
     d = c.get("/api/catalog/search", params={"source": "itunes", "q": "fixture"}).json()
     assert d["albums"][0]["id"] == "itunes:1440857781"
     c.__exit__(None, None, None)
+
+
+def test_find_in_deezer_or_itunes_searches_only_there(album_dir, tmp_path):  # noqa: F811
+    """The chevron next to Find in MusicBrainz: the same review, sourced from one other service."""
+    mb = FakeMB()
+    c, fake, _ = make(album_dir, tmp_path, {"musicbrainz": True, "deezer": True, "itunes": True}, mb=mb)
+    d = c.post("/api/musicbrainz/search", json={"folder": FOLDER, "source": "deezer"}).json()
+    assert [x["id"] for x in d["candidates"]] == ["deezer:302127"] and d["query"]["source"] == "deezer"
+    assert mb.urls == [] and not [u for u in fake.urls if "itunes" in u]  # only Deezer was asked
+    d = c.post("/api/musicbrainz/search", json={"folder": FOLDER, "source": "itunes"}).json()
+    assert [x["id"] for x in d["candidates"]] == ["itunes:1440857781"]
+    # Then the usual review and write, from that source.
+    res = c.post("/api/musicbrainz/apply", json={"folder": FOLDER, "release": "deezer:302127"}).json()
+    assert res["updated"] == 3
+    c.put("/api/connections", json={"enabled": {"musicbrainz": True, "deezer": False, "itunes": True}})
+    assert c.post("/api/musicbrainz/search", json={"folder": FOLDER, "source": "deezer"}).status_code == 403
+    c.__exit__(None, None, None)

@@ -2332,7 +2332,7 @@ dialog.cc.closing .cc-panel { animation: cc-out 240ms cubic-bezier(0.4, 0, 1, 1)
 .cc-tile .conn-toggle { padding: 0; min-height: 40px; }
 .cc-tile.connections, .cc-tile.password { border-top: 0; }
 .cc-tile .password-form { margin-top: 10px; border-top: 0; padding-top: 0; }
-.cc-tile.password.open .conn-toggle svg { transform: rotate(90deg); }
+.cc-row.password.open .conn-toggle svg { transform: rotate(90deg); }
 .cc-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .cc-toggle {
   position: relative; display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 6px;
@@ -2669,7 +2669,7 @@ dialog.player-sheet { width: min(480px, calc(100vw - 32px)); }
 .act-item strong { font-size: 14px; }
 .act-item span { font-size: 12.5px; color: var(--muted); }
 .plugin-meta { color: var(--muted); font-weight: 400; font-size: 12px; }
-.cc-tile.plugins.open .conn-toggle svg { transform: rotate(90deg); }
+.cc-row.plugins.open .conn-toggle svg { transform: rotate(90deg); }
 #plugins-body { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 /* Phones: the less-used tools live in a "…" menu */
 .btn.icon-expand.tool-more { display: none; }
@@ -2965,3 +2965,53 @@ dialog:focus { outline: none; }
 .catalog-grid { max-height: 62vh; overflow-y: auto; padding: 2px; }
 .catalog-actions { display: flex; flex-wrap: wrap; gap: 0 12px; }
 .catalog-actions .link-btn { min-height: 32px; font-size: 13px; }
+/* !dz and !it: each chip in its service's colours, a white mark on the left like MusicBrainz and slskd */
+.bang-chip .brand-logo { width: 13px; height: 13px; fill: #fff; stroke: none; flex: none; }
+.bang-chip.bang-dz { background: linear-gradient(115deg, #8a2be2, #ff4f9a); }
+.bang-chip.bang-it { background: linear-gradient(115deg, #fa233b, #fb5c74); }
+.search.banged:has(.bang-dz):focus-within { box-shadow: 0 0 0 2px #a238ff; }
+.search.banged:has(.bang-it):focus-within { box-shadow: 0 0 0 2px #fa233b; }
+.brand-logo { fill: currentColor; stroke: none; }
+/* Tidy up: the "Need you" section stands apart from the stats above it */
+.care-need { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--rule); }
+.care-need-title { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
+.care-need-count { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 7px;
+  border-radius: 999px; font-size: 12px; font-weight: 700; color: var(--warning); background: var(--warning-soft); }
+.care-need-hint { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+
+/* Account sheet: settings grouped into a few cards (Library, Online, Account & help), one row each */
+.cc-group { display: grid; gap: 6px; margin: 0; }
+.cc-group-title { margin: 6px 14px 0; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.cc-tile.cc-list { padding: 0 14px; }
+.cc-row { padding: 6px 0; }
+.cc-row + .cc-row { border-top: 1px solid color-mix(in oklab, var(--text) 9%, transparent); }
+.cc-row[hidden] { display: none; }
+.cc-row[hidden] + .cc-row { border-top: 0; }
+.cc-row .password-form { margin: 4px 0 10px; }
+/* Find in MusicBrainz as a split button: the main action, and a chevron for Deezer / iTunes */
+.mb-find-inner { border: 0; color: inherit; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.mb-find.split .mb-find-inner { border-radius: 5.5px 0 0 5.5px; }
+.mb-find-more {
+  display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 29px; margin-left: 1.5px;
+  border: 0; border-radius: 0 5.5px 5.5px 0; background: var(--bg); color: var(--muted); cursor: pointer;
+  transition: background-color var(--dur) ease, color var(--dur) ease;
+}
+.mb-find-more svg { width: 14px; height: 14px; transform: rotate(90deg); }
+.mb-find:hover .mb-find-more { background: color-mix(in oklab, var(--bg) 94%, var(--text)); color: var(--text); }
+.mb-find-inner:focus-visible, .mb-find-more:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tools-item .mb-logo { width: 16px; height: 16px; stroke: none; }
+.tools-item .brand-logo { width: 16px; height: 16px; }
+/* A small heads-up under the search bar while a bang is on (Deezer has no release years) */
+.bang-note {
+  position: absolute; top: calc(100% + 8px); left: 0; right: 0; z-index: 30; margin: 0; padding: 8px 12px;
+  border-radius: 12px; font-size: 13px; line-height: 1.35; color: #5c4400;
+  background: #fde68a; border: 1px solid #f5c84b; box-shadow: var(--shadow-lg); transform-origin: 50% -8px;
+}
+.bang-note[hidden] { display: none; }
+.bang-note.opening { animation: bang-open 260ms cubic-bezier(0.32, 0.72, 0, 1) both; }
+:root[data-theme="dark"] .bang-note { color: #fde68a; background: #3d3005; border-color: #6b5407; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .bang-note { color: #fde68a; background: #3d3005; border-color: #6b5407; } }
+@media (prefers-reduced-motion: reduce) { .bang-note.opening { animation: none; } }
+.cc-row.connections { margin: 0; padding-bottom: 6px; } /* the old standalone tile kept a bottom margin */
+/* Tidy up: the reason under an album wraps (two lines at most) instead of being cut off */
+.care-folder span { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }

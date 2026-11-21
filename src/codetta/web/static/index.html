@@ -12,7 +12,7 @@
   <link rel="icon" href="/static/icon.svg?v=3" type="image/svg+xml"> <!-- bump ?v= when the icon changes: browsers cache favicons hard -->
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=3">
   <link rel="preload" href="/static/fonts/schibsted-grotesk.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/static/app.css?v=73">
+  <link rel="stylesheet" href="/static/app.css?v=79">
   <script src="/static/theme.js?v=1"></script>
 </head>
 <body>
@@ -100,6 +100,7 @@
         </label>
         <button class="search-cancel" id="search-cancel" type="button" tabindex="-1">Cancel</button>
         <div class="bang-suggest" id="bang-suggest" role="listbox" aria-label="Search suggestions" hidden></div>
+        <p class="bang-note" id="bang-note" role="status" hidden></p>
         </div>
         <button class="icon-btn" id="inbox-btn" type="button" aria-label="Inbox: new music to file" title="Inbox: new music to file">
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 11.5 5.6 5a1.5 1.5 0 0 1 1.4-1h6a1.5 1.5 0 0 1 1.4 1l2.1 6.5v3A1.5 1.5 0 0 1 15 16H5a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M3.5 11.5h3.5l1 2h4l1-2h3.5"/></svg>
@@ -294,92 +295,103 @@
         <div class="update-box" id="update-box" hidden></div>
       </section>
 
-      <section class="cc-tile connections" aria-labelledby="conn-title">
-        <button class="conn-toggle" id="conn-toggle" type="button" aria-expanded="false" aria-controls="conn-body">
-          <span class="switch-text">
-            <span id="conn-title" class="switch-title">Connections</span>
-            <span class="switch-sub" id="conn-summary"></span>
-          </span>
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg>
-        </button>
-        <div id="conn-body" hidden>
-          <p class="hint conn-intro" id="conn-intro"></p>
-          <div id="conn-list"></div>
-          <div id="slskd-box"></div>
+      <section class="cc-group" aria-labelledby="ccg-library">
+        <h3 class="cc-group-title" id="ccg-library">Library</h3>
+        <div class="cc-tile cc-list">
+          <div class="cc-row">
+            <button class="conn-toggle" id="care-toggle" type="button">
+              <span class="switch-text">
+                <span class="switch-title">Tidy up</span>
+                <span class="switch-sub" id="care-sub">Tag and organize the music you already have</span>
+              </span>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg>
+            </button>
+          </div>
+          <div class="cc-row">
+            <button class="conn-toggle" id="editions-toggle" type="button">
+              <span class="switch-text">
+                <span class="switch-title">Album editions</span>
+                <span class="switch-sub">Which edition Codetta picks: year, format, country</span>
+              </span>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg>
+            </button>
+          </div>
+          <div class="cc-row">
+            <button class="conn-toggle" id="trash-toggle" type="button">
+              <span class="switch-text">
+                <span class="switch-title">Recently deleted</span>
+                <span class="switch-sub" id="trash-sub">Kept for 30 days, then removed</span>
+              </span>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg>
+            </button>
+          </div>
         </div>
       </section>
 
-      <section class="cc-tile">
-        <button class="conn-toggle" id="care-toggle" type="button">
-          <span class="switch-text">
-            <span class="switch-title">Tidy up</span>
-            <span class="switch-sub" id="care-sub">Tag and organize the music you already have</span>
-          </span>
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg>
-        </button>
+      <section class="cc-group" aria-labelledby="ccg-online">
+        <h3 class="cc-group-title" id="ccg-online">Online</h3>
+        <div class="cc-tile cc-list">
+          <div class="cc-row connections" aria-labelledby="conn-title">
+            <button class="conn-toggle" id="conn-toggle" type="button" aria-expanded="false" aria-controls="conn-body">
+              <span class="switch-text">
+                <span id="conn-title" class="switch-title">Connections</span>
+                <span class="switch-sub" id="conn-summary"></span>
+              </span>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg>
+            </button>
+            <div id="conn-body" hidden>
+              <p class="hint conn-intro" id="conn-intro"></p>
+              <div id="conn-list"></div>
+              <div id="slskd-box"></div>
+            </div>
+          </div>
+          <div class="cc-row plugins" id="plugins-tile">
+            <button class="conn-toggle" id="plugins-toggle" type="button" aria-expanded="false" aria-controls="plugins-body">
+              <span class="switch-text">
+                <span class="switch-title">Plugins</span>
+                <span class="switch-sub" id="plugins-summary">Add actions to Codetta</span>
+              </span>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg>
+            </button>
+            <div id="plugins-body" hidden></div>
+          </div>
+        </div>
       </section>
 
-      <section class="cc-tile">
-        <button class="conn-toggle" id="editions-toggle" type="button">
-          <span class="switch-text">
-            <span class="switch-title">Album editions</span>
-            <span class="switch-sub">Which edition Codetta picks: year, format, country</span>
-          </span>
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg>
-        </button>
-      </section>
-
-      <section class="cc-tile">
-        <button class="conn-toggle" id="report-toggle" type="button">
-          <span class="switch-text">
-            <span class="switch-title">Report a problem</span>
-            <span class="switch-sub">Something not working? Tell us on GitHub</span>
-          </span>
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg>
-        </button>
-      </section>
-
-      <section class="cc-tile">
-        <button class="conn-toggle" id="trash-toggle" type="button">
-          <span class="switch-text">
-            <span class="switch-title">Recently deleted</span>
-            <span class="switch-sub" id="trash-sub">Kept for 30 days, then removed</span>
-          </span>
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg>
-        </button>
-      </section>
-
-      <section class="cc-tile plugins" id="plugins-tile">
-        <button class="conn-toggle" id="plugins-toggle" type="button" aria-expanded="false" aria-controls="plugins-body">
-          <span class="switch-text">
-            <span class="switch-title">Plugins</span>
-            <span class="switch-sub" id="plugins-summary">Add actions to Codetta</span>
-          </span>
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg>
-        </button>
-        <div id="plugins-body" hidden></div>
-      </section>
-
-      <section class="cc-tile password" id="pw-tile">
-        <button class="conn-toggle" id="pw-toggle" type="button" aria-expanded="false" aria-controls="password-form">
-          <span class="switch-text">
-            <span class="switch-title">Password</span>
-            <span class="switch-sub">Change it (signs out your other devices)</span>
-          </span>
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg>
-        </button>
-        <form id="password-form" class="password-form" hidden>
-          <input type="text" name="username" id="pw-username" autocomplete="username" hidden>
-          <div class="error-box" id="pw-error" role="alert" hidden></div>
-          <label class="field"><span class="field-label">Current password</span>
-            <input id="pw-current" type="password" autocomplete="current-password" required></label>
-          <label class="field"><span class="field-label">New password</span>
-            <input id="pw-new" type="password" autocomplete="new-password" minlength="8" required></label>
-          <label class="field"><span class="field-label">Repeat new password</span>
-            <input id="pw-confirm" type="password" autocomplete="new-password" minlength="8" required></label>
-          <button class="btn" type="submit" id="pw-save">Change password</button>
-        </form>
-        <p class="hint" id="pw-env-note" hidden>The password is set by the <code>CODETTA_PASSWORD</code> environment variable, so it can only be changed there.</p>
+      <section class="cc-group" aria-labelledby="ccg-account">
+        <h3 class="cc-group-title" id="ccg-account">Account &amp; help</h3>
+        <div class="cc-tile cc-list">
+          <div class="cc-row password" id="pw-tile">
+            <button class="conn-toggle" id="pw-toggle" type="button" aria-expanded="false" aria-controls="password-form">
+              <span class="switch-text">
+                <span class="switch-title">Password</span>
+                <span class="switch-sub">Change it (signs out your other devices)</span>
+              </span>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg>
+            </button>
+            <form id="password-form" class="password-form" hidden>
+              <input type="text" name="username" id="pw-username" autocomplete="username" hidden>
+              <div class="error-box" id="pw-error" role="alert" hidden></div>
+              <label class="field"><span class="field-label">Current password</span>
+                <input id="pw-current" type="password" autocomplete="current-password" required></label>
+              <label class="field"><span class="field-label">New password</span>
+                <input id="pw-new" type="password" autocomplete="new-password" minlength="8" required></label>
+              <label class="field"><span class="field-label">Repeat new password</span>
+                <input id="pw-confirm" type="password" autocomplete="new-password" minlength="8" required></label>
+              <button class="btn" type="submit" id="pw-save">Change password</button>
+            </form>
+            <p class="hint" id="pw-env-note" hidden>The password is set by the <code>CODETTA_PASSWORD</code> environment variable, so it can only be changed there.</p>
+          </div>
+          <div class="cc-row">
+            <button class="conn-toggle" id="report-toggle" type="button">
+              <span class="switch-text">
+                <span class="switch-title">Report a problem</span>
+                <span class="switch-sub">Something not working? Tell us on GitHub</span>
+              </span>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg>
+            </button>
+          </div>
+        </div>
       </section>
 
       <details class="cc-tile log-tile" id="log-tile" hidden>

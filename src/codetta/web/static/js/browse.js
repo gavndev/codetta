@@ -6,7 +6,7 @@ import { api } from "./api.js";
 import { els, first, plural, state, toast } from "./state.js";
 import { updateSpot } from "./theme.js";
 import { bang, filterPlaceholder, roll, selectButtons, showMbLoading, syncRoll } from "./search.js";
-import { renderFolderHead, renderFolders, renderTracks } from "./tools.js";
+import { openToolsMenu, renderFolderHead, renderFolders, renderTracks } from "./tools.js";
 import { closeEditor, confirmDiscard, fieldLabel, listParts, renderEditor } from "./editor.js";
 import { connectionOn } from "./setup.js";
 import { openMusicBrainz } from "./musicbrainz.js";
@@ -363,12 +363,24 @@ export function renderSearchHead(f) {
 }
 
 /** "Find in MusicBrainz" ("Find" on phones), shown when the MusicBrainz connection is on. */
+/** Find in MusicBrainz, with a chevron for Deezer and iTunes when they're on (a split button). */
 export function mbFindButton(where) {
-  return h("button", {
-    class: `mb-find ${where}`, type: "button", onclick: openMusicBrainz,
-    "aria-label": "Find in MusicBrainz", title: "Find this album on MusicBrainz and review its tags before writing them",
-  }, h("span", { class: "mb-find-inner" }, icon("musicbrainz"),
-    h("span", { class: "mb-find-long" }, connectionOn("musicbrainz") ? "Find in MusicBrainz" : "Find album details"), h("span", { class: "mb-find-short" }, "Find")));
+  const mbOn = connectionOn("musicbrainz");
+  const others = [["deezer", "Find in Deezer"], ["itunes", "Find in iTunes"]].filter(([s]) => connectionOn(s));
+  const main = h("button", {
+    class: "mb-find-inner", type: "button", onclick: () => openMusicBrainz(),
+    "aria-label": mbOn ? "Find in MusicBrainz" : "Find album details",
+    title: mbOn ? "Find this album on MusicBrainz and review its tags before writing them" : "Find this album's details and review them before writing",
+  }, icon("musicbrainz"),
+  h("span", { class: "mb-find-long" }, mbOn ? "Find in MusicBrainz" : "Find album details"), h("span", { class: "mb-find-short" }, "Find"));
+  const more = others.length ? h("button", {
+    class: "mb-find-more", type: "button", "aria-label": "Find somewhere else", "aria-haspopup": "menu", title: "Find in Deezer or iTunes instead",
+    onclick: (e) => openToolsMenu(e.currentTarget, [
+      mbOn ? { icon: "musicbrainz", label: "Find in MusicBrainz", run: () => openMusicBrainz() } : null,
+      ...others.map(([s, label]) => ({ icon: s, label, run: () => openMusicBrainz({ source: s }) })),
+    ].filter(Boolean)),
+  }, icon("chevron")) : null;
+  return h("span", { class: `mb-find ${where}${more ? " split" : ""}` }, main, more);
 }
 
 // ---- Tag filter ---------------------------------------------------------------------------------------
