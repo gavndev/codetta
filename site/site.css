@@ -250,10 +250,10 @@ h1 {
 .suggest li.out { display: none; }
 .suggest kbd { font: 12px var(--mono); color: var(--faint); }
 .chip { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 999px; color: #fff; font-size: 12px; font-weight: 700; font-style: normal; white-space: nowrap; }
-.c-mb { background: linear-gradient(115deg, #ba478f, #eb743b); }
-.c-sk { background: linear-gradient(115deg, #1f7ae0, #4cc0ff); }
+.c-mb { background: linear-gradient(115deg, #ba478f, #c24a1a); } /* app colours, light ends deepened so white text reads */
+.c-sk { background: linear-gradient(115deg, #1a6fd0, #0f6cbd); }
 .c-dz { background: linear-gradient(115deg, #7b22d6, #d6297c); }
-.c-it { background: linear-gradient(115deg, #fa233b, #fb5c74); }
+.c-it { background: linear-gradient(115deg, #d81b3a, #d41d40); }
 .results img.alt { filter: grayscale(1) contrast(1.15); }
 .caret { width: 2px; height: 20px; background: var(--spot); animation: blink 1s steps(1) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
