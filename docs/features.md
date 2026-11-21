@@ -23,10 +23,28 @@ search from the filter button: pick a tag and a value, then **Search library**.
 While it's idle, the search box rolls through ideas from your own music
 ("Search genre: rap", "Search Frank Ocean"). Tap it for shortcuts (search by
 artist, album or tag, each with an example from your library) and for
-**Search elsewhere** (MusicBrainz, and slskd if you use it).
+**Search elsewhere**.
 
 <p align="center">
   <img src="media/search.webp" alt="The idle search bar rolling through ideas from the library, then searching for artist Frank Ocean and genre electronic" width="900">
+</p>
+
+### Bangs: search somewhere else from the same box
+
+Start a search with a bang and the box turns into a coloured chip for that
+service. Press <kbd>Enter</kbd> to search it:
+
+- `!mb`: artists and releases on **MusicBrainz**, with the albums you already have marked.
+- `!dz`: albums on **Deezer** (its search doesn't include release years; a small note says so).
+- `!it`: albums on **iTunes** and Apple Music.
+- `!slskd`: **Soulseek**, through your own slskd (see below).
+
+Deezer and iTunes results mark what's already in your library and link to the
+album there, or start a Find in slskd. Each bang only works when its connection
+is switched on (Account → Connections), and only the words you type are sent.
+
+<p align="center">
+  <img src="media/bangs.webp" alt="Typing bangs in the search bar: the Deezer chip and its note about release years, Deezer and iTunes albums with the ones already in the library marked, then !mb for artists on MusicBrainz" width="900">
 </p>
 
 ## Fix a whole album in one go

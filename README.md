@@ -129,6 +129,24 @@ album, tag) with examples from your own music.
   <img src="docs/media/search.webp" alt="The idle search bar rolling through ideas from the library, then searching for artist Frank Ocean and genre electronic" width="900">
 </p>
 
+### Search beyond your library with bangs
+
+Start with a bang to search somewhere else from the same box: `!mb` for artists
+and releases on MusicBrainz, `!dz` for Deezer, `!it` for iTunes and Apple Music,
+and `!slskd` for Soulseek if you use it. Albums you already have are marked, so
+you can see what's missing at a glance.
+
+| Type | Searches |
+|---|---|
+| `!mb björk` | MusicBrainz: artists and releases |
+| `!dz in rainbows` | Deezer albums |
+| `!it rumours` | iTunes and Apple Music albums |
+| `!slskd album name` | Soulseek, through your own slskd |
+
+<p align="center">
+  <img src="docs/media/bangs.webp" alt="Typing bangs in the search bar: the Deezer chip and its note about release years, Deezer and iTunes albums with the ones already in the library marked, then !mb for artists on MusicBrainz" width="900">
+</p>
+
 ### Match on MusicBrainz
 
 Official titles, credits, dates, labels, catalog numbers, MusicBrainz IDs and
