@@ -332,6 +332,14 @@ Replacing an album moves the old copy into Codetta's config folder
 (`replaced/`), as its own entry in the activity log, so it can be undone. It's
 kept there for 30 days (like "Recently Deleted"), then removed.
 
+## Works with Lidarr
+
+Lidarr finds and downloads albums; Codetta makes their tags right. Turn on the
+**Lidarr** connection and Lidarr rescans its folders as soon as Codetta changes
+something there, Codetta leaves file names to Lidarr while Lidarr's renaming is
+on, and it warns you when a Lidarr setting would undo your fixes. See
+[Using Codetta with Lidarr](lidarr.md).
+
 ## Listen
 
 Every track has a play button at the end of its row. It streams the file

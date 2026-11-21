@@ -4,6 +4,7 @@ All notable changes to Codetta. Versions follow [Semantic Versioning](https://se
 
 ## Unreleased
 
+- **Works with Lidarr:** a new Lidarr connection (Account → Connections, and a setup step) keeps the two in step. After Codetta changes files in Lidarr's folders, Lidarr rescans them straight away, so nothing looks missing or gets downloaded twice. While Lidarr's renaming is on, Organize and Tidy up leave its file names alone and fix tags only. Codetta also warns when Lidarr is set to rewrite tags on all files, which would undo your fixes. Codetta finds Lidarr's folders by itself, even when the two apps call the music folder different things.
 - **Plugins are paused:** Codetta no longer loads plugins from `config/plugins/`, and Account → Plugins is gone, until the plugin system can do more. The built-in actions (Remove "feat.", Title Case, Trim spaces) work as before.
 - **Cleaner MusicBrainz results:** an artist's page in `!mb` now lists what MusicBrainz's own page does, leaving out release groups made only of bootlegs, promos or fan uploads (fake covers, slowed remixes, stray singles). Search results drop bootleg-only releases too.
 - **Easier to read Deezer chip:** the pink end of the Deezer bang chip is a little deeper, so its white text stands out clearly.

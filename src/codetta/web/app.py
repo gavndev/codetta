@@ -88,6 +88,8 @@ from codetta.core.presets import (
     PresetStore,
 )
 from codetta.core.providers import LRCLib, http_get, http_get_json, http_post_json
+from codetta.core.lidarr import Lidarr, LidarrStore
+from codetta.core.lidarr import http_request as lidarr_http_request
 from codetta.core.slskd import Soulseek, SoulseekStore
 from codetta.core.slskd import http_request as slskd_http_request
 from codetta.core.undo import ArtStore, art_hashes, sha256
@@ -117,6 +119,7 @@ from codetta.web.routes import (
     health,
     inbox,
     library,
+    lidarr as lidarr_routes,
     musicbrainz,
     onboarding,
     organize,
@@ -131,18 +134,20 @@ from codetta.web.security import GuardMiddleware, SelectiveGZip
 
 # The order matters a little: an area can use what earlier areas share right away,
 # and reaches later ones through shared.later(...).
-ROUTES = (status, library, musicbrainz, tags, organize, onboarding, inbox, care, soulseek, explore, health, tools, files, support, activity, presets)
+ROUTES = (status, library, musicbrainz, tags, organize, onboarding, inbox, care, soulseek, lidarr_routes, explore, health, tools,
+          files, support, activity, presets)
 # Also importable from here, as before the split.
 __all__ = ["ACTIVITY_VALUE_CHARS", "VERSION", "Settings", "_is_public_address", "_to_track_out", "app", "create_app"]
 
 
 def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_latest_release,
                fetch_json=None, fetch_mb=None, fetch_art=None, post_acoustid=None, run_fpcalc=None,
-               slskd_request=None, fetch_catalog=None) -> FastAPI:
+               slskd_request=None, fetch_catalog=None, lidarr_request=None) -> FastAPI:
     """``fetch_*`` replace the network in tests: LRCLIB and MusicBrainz take
     (url) -> parsed JSON or None, the Cover Art Archive (url) -> bytes or None,
     AcoustID (form) -> parsed JSON; ``run_fpcalc`` replaces running fpcalc;
-    ``slskd_request`` (method, url, headers, body) -> (status, body) stands in for slskd."""
+    ``slskd_request`` (method, url, headers, body) -> (status, body) stands in for slskd, and
+    ``lidarr_request`` the same for Lidarr."""
     settings = settings or Settings.from_env()
     config_state = configversion.upgrade(settings.config_dir, VERSION)
     if settings.index_workers <= 0:
@@ -150,7 +155,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     connections = ConnectionStore(
         settings.config_dir / "connections.json", offline=settings.offline,
         forced={"updates": settings.update_check, "lyrics": settings.lyrics_lookup, "musicbrainz": settings.musicbrainz,
-                "acoustid": settings.acoustid, "slskd": settings.slskd},
+                "acoustid": settings.acoustid, "slskd": settings.slskd, "lidarr": settings.lidarr},
     )
     updates = UpdateChecker(VERSION, settings.update_repo, lambda: connections.enabled("updates"), fetch_release)
     library = Library(settings.music_dir, settings.inbox_dir, settings.config_dir / "replaced", settings.config_dir / "deleted")
@@ -196,6 +201,18 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
 
     lib_index = LibraryIndex(settings.music_dir, settings.config_dir / "library-index.sqlite3", describe_file,
                              parallel=describe_many, workers=settings.index_workers)
+    lidarr = Lidarr(LidarrStore(settings.config_dir / "lidarr.json", settings.lidarr_url, settings.lidarr_api_key),
+                    settings.music_dir, lambda: connections.enabled("lidarr"), request=lidarr_request or lidarr_http_request)
+    index_mark_dirty = lib_index.mark_dirty
+
+    def mark_dirty(rels) -> None:
+        """Every route that changes files calls this: the search index re-reads them, and Lidarr
+        (when connected) is asked to rescan their folders."""
+        rels = list(rels)
+        index_mark_dirty(rels)
+        lidarr.changed(rels)
+
+    lib_index.mark_dirty = mark_dirty
     if not settings.auth:
         log.warning("Sign-in is turned OFF (CODETTA_AUTH=off). Anyone who can reach Codetta can edit your music.")
 
@@ -218,7 +235,10 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         watcher.start()  # sleeps; only looks at the inbox if "check every 15 minutes" is on
         app.state.soulseek_start()  # carries on with downloads that were under way
         app.state.care_start()  # Library care carries on where it left off (if it's switched on)
+        if lidarr.active:  # what Lidarr is set up like (folders, renaming, tag writing)
+            threading.Thread(target=lidarr.check, name="codetta-lidarr-check", daemon=True).start()
         yield
+        lidarr.stop()
         app.state.care_stop()
         app.state.inbox_stop()
         app.state.soulseek_stop()
@@ -525,7 +545,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         acoustid=acoustid, activity=activity, art_cache=art_cache, art_info=art_info, art_store=art_store,
         catalog_fetch=catalog_fetch, connections=connections, download_art=download_art, editions=editions,
         engine=engine, fetch_catalog=fetch_catalog, fingerprinter=fingerprinter, folder_out=folder_out,
-        lib_index=lib_index, library=library, lrclib=lrclib, mb=mb, mb_mirror=mb_mirror, notices=notices,
+        lib_index=lib_index, library=library, lidarr=lidarr, lrclib=lrclib, mb=mb, mb_mirror=mb_mirror, notices=notices,
         require_library=require_library, result_out=result_out, settings=settings, soulseek=soulseek,
         soulseek_store=soulseek_store, store=store, to_out=to_out, tracks_out=tracks_out, updates=updates,
     )

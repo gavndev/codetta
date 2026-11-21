@@ -160,13 +160,14 @@ def test_onboarding_steps(make_client, tmp_path):
     app = create_app(Settings(music_dir=tmp_path / "music", config_dir=tmp_path / "fresh"))
     with TestClient(app) as c:
         c.post("/api/auth/setup", json={"username": "owner", "password": PASSWORD})
-        assert c.get("/api/onboarding").json()["steps"] == ["connections", "organize", "library", "inbox", "health", "slskd"]
+        assert c.get("/api/onboarding").json()["steps"] == ["connections", "organize", "library", "inbox", "health", "slskd", "lidarr"]
         c.put("/api/connections", json={"enabled": {}})
-        assert c.post("/api/onboarding/organize").json()["steps"] == ["library", "inbox", "health", "slskd"]
-        assert c.post("/api/onboarding/library").json()["steps"] == ["inbox", "health", "slskd"]
-        assert c.post("/api/onboarding/inbox").json()["steps"] == ["health", "slskd"]
-        assert c.post("/api/onboarding/health").json()["steps"] == ["slskd"]
-        assert c.post("/api/onboarding/slskd").json()["steps"] == []
+        assert c.post("/api/onboarding/organize").json()["steps"] == ["library", "inbox", "health", "slskd", "lidarr"]
+        assert c.post("/api/onboarding/library").json()["steps"] == ["inbox", "health", "slskd", "lidarr"]
+        assert c.post("/api/onboarding/inbox").json()["steps"] == ["health", "slskd", "lidarr"]
+        assert c.post("/api/onboarding/health").json()["steps"] == ["slskd", "lidarr"]
+        assert c.post("/api/onboarding/slskd").json()["steps"] == ["lidarr"]
+        assert c.post("/api/onboarding/lidarr").json()["steps"] == []
         assert c.post("/api/onboarding/nope").status_code == 404
         c.post("/api/auth/logout")
         assert c.get("/api/onboarding").status_code == 401

@@ -18,7 +18,7 @@ def register(app, shared) -> None:
         steps = []
         if connections.needs_choice:
             steps.append("connections")
-        steps += [s for s in ("organize", "library", "inbox", "health", "slskd") if s not in onboarding.done]
+        steps += [s for s in ("organize", "library", "inbox", "health", "slskd", "lidarr") if s not in onboarding.done]
         return {"steps": steps}
 
     @app.post("/api/onboarding/{step}")

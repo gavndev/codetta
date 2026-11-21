@@ -59,6 +59,9 @@ class Settings:
     slskd: bool | None = None  # Soulseek through the user's slskd
     slskd_url: str | None = None  # CODETTA_SLSKD_URL / _API_KEY: set (and lock) the connection details
     slskd_api_key: str | None = None
+    lidarr: bool | None = None  # keeping the user's Lidarr in step
+    lidarr_url: str | None = None  # CODETTA_LIDARR_URL / _API_KEY: set (and lock) the connection details
+    lidarr_api_key: str | None = None
     inbox_dir: Path | None = None  # a downloads folder outside the library (e.g. slskd's), used as "@inbox"
     inbox_settle_seconds: float = 120  # wait this long after a file changes (downloads still arriving)
     slskd_poll_seconds: float = 4  # how often a Soulseek request under way is checked on
@@ -88,6 +91,9 @@ class Settings:
             slskd=parse_switch(env("SLSKD")),
             slskd_url=(env("SLSKD_URL") or "").strip() or None,
             slskd_api_key=(env("SLSKD_API_KEY") or "").strip() or None,
+            lidarr=parse_switch(env("LIDARR")),
+            lidarr_url=(env("LIDARR_URL") or "").strip() or None,
+            lidarr_api_key=(env("LIDARR_API_KEY") or "").strip() or None,
             inbox_dir=Path(env("INBOX_DIR")).expanduser() if env("INBOX_DIR") else None,
             update_repo=env("UPDATE_REPO", DEFAULT_REPO),
             allowed_hosts=tuple(h.strip() for h in (env("ALLOWED_HOSTS") or "").split(",") if h.strip()),
@@ -270,6 +276,12 @@ class SlskdSettingsIn(BaseModel):
     lossless_only: bool = False
     min_bitrate: int = Field(320, ge=0, le=3000)
     search_seconds: int = Field(20, ge=5, le=120)
+
+
+class LidarrSettingsIn(BaseModel):
+    url: str = Field("", max_length=500)
+    api_key: str | None = Field(default=None, max_length=500)  # None: keep the saved key
+    names: Literal["auto", "codetta"] = "auto"
 
 
 class SlskdSearchIn(BaseModel):

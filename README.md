@@ -244,6 +244,13 @@ can look for an album for you: type `!slskd` in the search bar, or press
 downloaded into your inbox, and you decide whether it joins your library.
 It's off unless you set it up. [More about it →](docs/features.md#soulseek-through-slskd)
 
+### Works with Lidarr
+
+Lidarr downloads, Codetta makes the tags right. Connect them and Lidarr rescans
+as soon as Codetta changes something, file names stay Lidarr's while its
+renaming is on, and Codetta warns you if a Lidarr setting would undo your
+fixes. [Using Codetta with Lidarr →](docs/lidarr.md)
+
 **Also:** lyrics (plain or synced, with **Find lyrics** from LRCLIB), sort and
 classical fields, an Advanced mode with the raw tags, Tag Presets for turning
 loose downloads into proper releases, smart suggestions from the rest of the

@@ -622,3 +622,23 @@ def test_problem_report_is_private_and_has_no_account_details(tmp_path):
         r = c.get("/api/report")
         assert r.status_code == 200 and r.json()["version"]
         assert "secret-owner-name" not in r.text
+
+
+# --- Lidarr: its routes are private, and its API key never leaves the server -----------------------
+
+
+def test_lidarr_routes_need_sign_in_and_never_show_the_key(music, tmp_path):
+    key = "0123456789abcdef0123456789abcdef"
+
+    def fake(method, url, headers, body):
+        return 401, b""  # a Lidarr that turns the key down: enough for this test
+
+    with TestClient(create_app(Settings(music_dir=music, config_dir=tmp_path / "config"), lidarr_request=fake)) as c:
+        assert c.get("/api/lidarr").status_code == 401
+        assert c.put("/api/lidarr/settings", json={"url": "lidarr:8686", "api_key": key}).status_code == 401
+        assert c.post("/api/lidarr/test").status_code == 401
+        c.post("/api/auth/setup", json={"username": "listener", "password": "correct horse 1"})
+        c.put("/api/connections", json={"enabled": {"lidarr": True}})
+        for res in (c.put("/api/lidarr/settings", json={"url": "lidarr:8686", "api_key": key}),
+                    c.get("/api/lidarr"), c.post("/api/lidarr/test"), c.get("/api/connections")):
+            assert res.status_code == 200 and key not in res.text

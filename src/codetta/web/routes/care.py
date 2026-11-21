@@ -147,6 +147,8 @@ def register(app, shared) -> None:
         if care.mode == "full" and tagged:  # names and folders only ever come from a confident match
             org = organize_apply(OrganizeIn(paths=tagged))
             taken = sum(1 for h in org["held"] if h["status"] == "conflict")
+            if any(h["status"] == "lidarr" for h in org["held"]):
+                note = f"{note}; Lidarr names its files, so they stayed" if note else "Tags fixed. Lidarr names its files, so they stayed"
             if taken:
                 also = f"{taken} {'is' if taken == 1 else 'are'} already in your library, so {'it' if taken == 1 else 'they'} stayed"
                 note = f"{note}; {also[0].lower()}{also[1:]}" if note else also

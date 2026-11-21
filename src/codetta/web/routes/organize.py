@@ -29,6 +29,7 @@ def register(app, shared) -> None:
     engine = shared.engine
     lib_index = shared.lib_index
     library = shared.library
+    lidarr = shared.lidarr
     require_library = shared.require_library
     settings = shared.settings
 
@@ -54,7 +55,11 @@ def register(app, shared) -> None:
                 sources.append(Source(rel, meta.tags, meta.format or ""))
             except (MetadataError, LibraryPathError, OSError) as exc:
                 errors.append(Move(rel, rel, "error", str(exc)))
-        return pattern, plan_moves(library.resolve, sources, pattern) + errors
+        moves = plan_moves(library.resolve, sources, pattern)
+        for m in moves:
+            if m.status == "move" and lidarr.names_files(m.src):
+                m.status, m.reason = "lidarr", "Lidarr names the files in its folders, so it stays where it is"
+        return pattern, moves + errors
 
     @app.get("/api/organize/settings")
     def organize_settings() -> dict:
@@ -89,7 +94,7 @@ def register(app, shared) -> None:
     def organize_preview(body: OrganizeIn) -> dict:
         """Where each file would go. Nothing is moved."""
         pattern, moves = organize_plan(body)
-        counts = {k: sum(m.status == k for m in moves) for k in ("move", "same", "keep", "conflict", "error")}
+        counts = {k: sum(m.status == k for m in moves) for k in ("move", "same", "keep", "lidarr", "conflict", "error")}
         return {"pattern": pattern, "counts": counts, "extras": sum(len(m.companions) for m in moves),
                 "moves": [m.to_dict() for m in moves]}
 
@@ -119,7 +124,8 @@ def register(app, shared) -> None:
             "moved": len(ok), "failed": len(failed), "extras": len(moved) - len(ok),
             "results": [{"src": r.src, "dst": r.dst, "ok": r.ok, "error": r.error} for r in results],
             # Not attempted: the name is taken (maybe a duplicate) or the file couldn't be read.
-            "held": [{"src": m.src, "dst": m.dst, "status": m.status, "reason": m.reason} for m in moves if m.status in ("conflict", "error", "keep")],
+            "held": [{"src": m.src, "dst": m.dst, "status": m.status, "reason": m.reason} for m in moves
+                     if m.status in ("conflict", "error", "keep", "lidarr")],
         }
 
     shared.share(organize_apply=organize_apply, organize_preview=organize_preview, pattern_file=pattern_file)

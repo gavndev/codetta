@@ -77,6 +77,14 @@ CONNECTIONS: tuple[Connection, ...] = (
         ("your slskd server", "the Soulseek network"), "SLSKD",
     ),
     Connection(
+        "lidarr", "Lidarr",
+        "Keep your Lidarr in step: after Codetta changes files in Lidarr's folders, Lidarr rescans them "
+        "straight away, and Codetta warns you when Lidarr's settings would undo your fixes.",
+        "Which folders changed, sent to your own Lidarr. Codetta also reads Lidarr's folders and "
+        "settings.",
+        ("your Lidarr server",), "LIDARR",
+    ),
+    Connection(
         "updates", "Update check",
         "Tell you when a new version of Codetta is out.",
         "Nothing about you or your music: it asks GitHub for the latest release, twice a day.",
