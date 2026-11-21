@@ -202,21 +202,39 @@
       requestAnimationFrame(tick);
       for (const li of moves) { await wait(0.8); if (!alive()) return; li.classList.add("done"); }
     },
+    // As in the app: an empty bar; "!" opens Search elsewhere; "!dz" becomes the Deezer chip.
     async search(el, alive) {
-      const typed = $("[data-typed]", el), bang = $("[data-bang]", el), rows = $$(".results li", el);
+      const typed = $("[data-typed]", el), bang = $("[data-bang]", el), ph = $("[data-ph]", el);
+      const suggest = $("[data-suggest]", el), items = $$("li", suggest), rows = $$(".results li", el);
+      const setText = (t) => { typed.textContent = t; ph.hidden = t !== ""; };
+      const filter = () => {
+        const q = typed.textContent.slice(1).toLowerCase();
+        items.forEach((li) => {
+          const hit = li.dataset.names.split(" ").some((n) => n.startsWith(q));
+          li.classList.toggle("out", !hit); li.classList.toggle("on", q !== "" && hit);
+        });
+      };
       rows.forEach((li) => li.classList.remove("in"));
-      bang.hidden = true; typed.textContent = "";
-      const type = async (text) => {
-        for (const ch of text) { if (!alive()) return false; typed.textContent += ch; await new Promise((r) => setTimeout(r, calm ? 0 : 70)); }
+      bang.hidden = true; suggest.hidden = true; ph.textContent = "Search anything"; setText("");
+      const type = async (text, each) => {
+        for (const ch of text) {
+          if (!alive()) return false;
+          setText(typed.textContent + ch); each?.();
+          await new Promise((r) => setTimeout(r, calm ? 0 : 90));
+        }
         return true;
       };
-      await wait(0.5);
-      if (!(await type("!dz"))) return;
-      await wait(0.4); if (!alive()) return;
-      typed.textContent = ""; bang.hidden = false;
-      await wait(0.4);
-      if (!(await type("quiet hours"))) return;
+      await wait(1); if (!alive()) return;
+      if (!(await type("!"))) return;
+      filter(); suggest.hidden = false;
+      await wait(1.6); if (!alive()) return;
+      if (!(await type("dz", () => { filter(); })) ) return;
       await wait(0.6); if (!alive()) return;
+      suggest.hidden = true; bang.hidden = false;
+      ph.textContent = "Search Deezer: artists, albums"; setText("");
+      await wait(1.4); if (!alive()) return;
+      if (!(await type("slow bloom"))) return;
+      await wait(0.8); if (!alive()) return;
       for (const li of rows) { li.classList.add("in"); await wait(0.3); if (!alive()) return; }
     },
     async undo(el, alive) {
@@ -244,17 +262,20 @@
   const pinned = $(".chapter-stage");
   const sceneOf = new Map(chapters.map((ch) => [ch, $(".scene", ch)]));
   const wide = window.matchMedia("(min-width: 1101px)");
-  let playing = null; // { scene, token }
+  const runsOf = new Map(); // scene -> its current run; a scene replays after it has left
   const play = (scene) => {
-    if (playing && playing.scene === scene) return;
+    if (runsOf.has(scene)) return;
     const token = Symbol("scene");
-    playing = { scene, token };
+    runsOf.set(scene, token);
     const name = [...sceneOf].find(([, sc]) => sc === scene)[0].dataset.scene;
-    scenes[name](scene, () => calm || (playing && playing.token === token));
+    scenes[name](scene, () => calm || runsOf.get(scene) === token);
   };
   const activate = (ch) => {
     const scene = sceneOf.get(ch);
-    for (const sc of sceneOf.values()) sc.classList.toggle("active", sc === scene);
+    for (const sc of sceneOf.values()) {
+      sc.classList.toggle("active", sc === scene);
+      if (sc !== scene) runsOf.delete(sc);
+    }
     play(scene);
   };
   // Wide screens: the chapter crossing the middle of the screen owns the pinned stage.
@@ -267,13 +288,13 @@
     if (wide.matches) return;
     for (const e of entries) {
       if (e.intersectionRatio >= 0.5) play(e.target);
-      else if (e.intersectionRatio === 0 && playing && playing.scene === e.target) playing = null;
+      else if (e.intersectionRatio === 0) runsOf.delete(e.target);
     }
   }, { threshold: [0, 0.5] });
   const place = () => {
-    playing = null;
+    runsOf.clear();
     for (const [ch, sc] of sceneOf) (wide.matches ? pinned : ch).append(sc);
-    if (calm) for (const sc of sceneOf.values()) play(sc), playing = null;
+    if (calm) for (const sc of sceneOf.values()) play(sc);
   };
   place();
   wide.addEventListener("change", place);

@@ -119,14 +119,23 @@
       <article class="chapter" data-scene="search">
         <div class="chapter-text">
           <h2>Finds anything, in your library or beyond it.</h2>
-          <p>Search every track by tag: <code>genre: ambient year: 2022</code>. Start with a bang and the same box searches MusicBrainz, Deezer or iTunes instead, with the albums you already have marked.</p>
+          <p>Search every track by tag: <code>genre: ambient year: 2022</code>. Type <code>!</code> and the same box searches MusicBrainz, Deezer, iTunes or slskd instead, with the albums you already have marked.</p>
         </div>
         <div class="scene scene-search" aria-hidden="true">
-          <div class="searchbox"><span class="bang" data-bang hidden><i></i>Deezer</span><span data-typed></span><i class="caret"></i></div>
+          <div class="searchbox"><span class="bang" data-bang hidden><i></i>Deezer</span><span data-typed></span><i class="caret"></i><span class="ph" data-ph>Search anything</span></div>
+          <div class="suggest" data-suggest hidden>
+            <p>Search elsewhere</p>
+            <ul>
+              <li data-names="mb musicbrainz"><span class="chip c-mb">MusicBrainz</span><span>Artists and releases on MusicBrainz</span><kbd>!mb</kbd></li>
+              <li data-names="slskd soulseek"><span class="chip c-sk">slskd</span><span>Look for music on Soulseek</span><kbd>!slskd</kbd></li>
+              <li data-names="dz deezer"><span class="chip c-dz">Deezer</span><span>Albums on Deezer</span><kbd>!dz</kbd></li>
+              <li data-names="it itunes apple"><span class="chip c-it">iTunes</span><span>Albums on iTunes and Apple Music</span><kbd>!it</kbd></li>
+            </ul>
+          </div>
           <ul class="results" data-results>
-            <li><img src="covers/slow-bloom.webp" alt="" width="56" height="56"><span><b>Slow Bloom</b>The Quiet Hours · 2022</span><em class="have">In your library</em></li>
-            <li><img src="covers/paper-satellites.webp" alt="" width="56" height="56"><span><b>Paper Satellites</b>Aurora Lane · 2023</span><em class="have">In your library</em></li>
-            <li><img src="covers/ferry-lights.webp" alt="" width="56" height="56"><span><b>Ferry Lights</b>Oda Saar · 2017</span><em>Find in slskd</em></li>
+            <li><img src="covers/slow-bloom.webp" alt="" width="56" height="56"><span><b>Slow Bloom</b>The Quiet Hours · Album · 10 tracks</span><em class="have">In your library</em></li>
+            <li><img src="covers/slow-bloom.webp" alt="" width="56" height="56"><span><b>Slow Bloom (Deluxe)</b>The Quiet Hours · Album · 14 tracks</span><em>Open on Deezer</em></li>
+            <li><img class="alt" src="covers/slow-bloom.webp" alt="" width="56" height="56"><span><b>Slow Bloom (Remixes)</b>The Quiet Hours · EP · 4 tracks</span><em>Open on Deezer</em></li>
           </ul>
         </div>
       </article>
@@ -171,6 +180,28 @@
     </section>
 
     <!-- Close: one more chance to install, and the facts -->
+    <!-- And more: the rest of what's in the box, then what's coming -->
+    <section class="more" aria-labelledby="more-title">
+      <div class="more-inner">
+        <h2 id="more-title">And more.</h2>
+        <div>
+          <ul class="more-list">
+            <li><b>Batch editing</b><span>Select an album, a folder or a search's results and edit every file at once.</span></li>
+            <li><b>Rename and organize</b><span>Files and folders named from their tags, like <code>{albumartist}/{album} ({year})</code>, with a preview first.</span></li>
+            <li><b>Four bangs</b><span><i class="chip c-mb">!mb</i> <i class="chip c-dz">!dz</i> <i class="chip c-it">!it</i> <i class="chip c-sk">!slskd</i> MusicBrainz, Deezer, iTunes and slskd, right from the search bar.</span></li>
+            <li><b>Recognised by sound</b><span>Songs with blank tags are identified by how they sound, with AcoustID.</span></li>
+            <li><b>Advanced mode</b><span>Every raw tag in the file, for power users.</span></li>
+            <li><b>Tag Presets</b><span>Turn loose downloads into proper releases in one go.</span></li>
+            <li><b>Library health</b><span>Split albums, missing tracks, tiny covers and duplicates, fixed in a tap.</span></li>
+            <li><b>The inbox</b><span>New downloads matched and filed once they've finished arriving.</span></li>
+            <li><b>Lyrics</b><span>Plain or synced, found on LRCLIB.</span></li>
+            <li><b>Every Navidrome field</b><span>Credits, mood, label, release type and multiple artists.</span></li>
+          </ul>
+          <div class="soon"><b>On the way</b><span>A command line</span><span>A desktop app</span><span>A mobile app</span></div>
+        </div>
+      </div>
+    </section>
+
     <section class="close" aria-labelledby="close-title">
       <div class="close-inner">
       <h2 id="close-title">Every album credited, and filed where it belongs.</h2>
