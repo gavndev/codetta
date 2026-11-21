@@ -9,10 +9,10 @@ from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import HTTPException, Query, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
 from codetta.core import importer, trash
-from codetta.core.archive import folder_files, zip_size, zip_stream
+from codetta.core.archive import Prepared, folder_files, selection_files, zip_size, zip_stream
 from codetta.core.fileinfo import file_info, folder_info
 from codetta.core.library import DELETED, LibraryPathError
 from codetta.core.organize import SIDECAR_SUFFIXES, Move, apply_moves, safe_name
@@ -161,6 +161,43 @@ def register(app, shared) -> None:
         info = folder_info(target) if target.is_dir() else file_info(engine, target)
         return {"path": path.strip("/"), **info}
 
+    prepared = Prepared()
+
+    def attachment(name: str) -> str:
+        ascii_name = "".join(c if c.isascii() and c.isprintable() and c not in '"\\' else "_" for c in name)
+        return f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(name)}"
+
+    @app.get("/api/files/download")
+    def download_file(path: str = Query(..., max_length=MAX_PATH_CHARS, description="File, relative to the music folder")):
+        """Download one file as it is (its tags and cover included)."""
+        require_library()
+        (rel,) = library_entries([path])
+        target = library.resolve(rel)
+        if not target.is_file() or target.is_symlink():
+            raise HTTPException(404, "That file isn't there any more.")
+        return FileResponse(target, headers={"Content-Disposition": attachment(target.name), "Cache-Control": "no-store"})
+
+    @app.post("/api/files/zip")
+    def prepare_zip(body: FilesIn) -> dict:
+        """Get a selection (tracks and folders) ready to download as one .zip; the answer has its link."""
+        require_library()
+        rels = library_entries(body.paths)
+        files, name = selection_files([(rel, library.resolve(rel)) for rel in rels], SIDECAR_SUFFIXES)
+        if not files:
+            raise HTTPException(422, "There's nothing in that selection to zip up.")
+        token = prepared.add(files, name)
+        return {"url": f"/api/files/zip/{token}", "name": name, "files": len(files), "size": zip_size(files)}
+
+    @app.get("/api/files/zip/{token}")
+    def download_zip(token: str):
+        """The .zip prepared by POST /api/files/zip (the link works for 10 minutes)."""
+        found = prepared.get(token)
+        if not found:
+            raise HTTPException(404, "That download link has expired. Start the download again.")
+        files, name = found
+        return StreamingResponse(zip_stream(files), media_type="application/zip",
+                                 headers={"Content-Disposition": attachment(name), "Cache-Control": "no-store"})
+
     @app.get("/api/folders/zip")
     def zip_folder(path: str = Query(..., max_length=MAX_PATH_CHARS, description="Folder, relative to the music folder")):
         """Download a folder as a .zip (streamed: nothing is written to disk, files stored as they are)."""
@@ -178,8 +215,7 @@ def register(app, shared) -> None:
         if not files:
             raise HTTPException(422, "That folder is empty, so there's nothing to zip up.")
         name = (target.name or "Music") + ".zip"
-        ascii_name = "".join(c if c.isascii() and c.isprintable() and c not in '"\\' else "_" for c in name)
-        headers = {"Content-Disposition": f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(name)}",
+        headers = {"Content-Disposition": attachment(name),
                    "X-Codetta-Zip-Files": str(len(files)), "X-Codetta-Zip-Bytes": str(zip_size(files)),
                    "Cache-Control": "no-store"}
         return StreamingResponse(zip_stream(files), media_type="application/zip", headers=headers)

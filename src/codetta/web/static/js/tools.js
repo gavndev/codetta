@@ -38,15 +38,34 @@ function folderTools(f) {
 
 const sizeText = (n) => (n >= 1e9 ? `${(n / 1e9).toFixed(1)} GB` : n >= 1e6 ? `${Math.round(n / 1e6)} MB` : `${Math.max(1, Math.round(n / 1e3))} KB`);
 
+function clickDownload(href, name) {
+  const a = h("a", { href, download: name || "", hidden: true });
+  document.body.append(a);
+  a.click();
+  a.remove();
+}
+
+/** Download one track as it is. */
+export function downloadFile(path) {
+  clickDownload(`/api/files/download?path=${encodeURIComponent(path)}`, path.split("/").pop());
+}
+
+/** Download a selection: one track as it is, several as one .zip (lyrics files come along). */
+export async function downloadSelection(paths) {
+  if (paths.length === 1) { downloadFile(paths[0]); return; }
+  try {
+    const d = await api("POST", "/api/files/zip", { paths });
+    clickDownload(d.url, d.name);
+    toast(`Zipping ${plural(d.files, "file")} (${sizeText(d.size)}). It downloads as it's made.`, "success");
+  } catch (err) { toast(err.message, "error"); }
+}
+
 /** Download a folder as a .zip. The server streams it, so the browser's own download shows the progress. */
 export async function downloadZip(path) {
   let info;
   try { info = await api("GET", `/api/files/info?path=${encodeURIComponent(path)}`); } catch (err) { toast(err.message, "error"); return; }
   if (!info.files) { toast("That folder is empty, so there's nothing to zip up.", "error"); return; }
-  const a = h("a", { href: `/api/folders/zip?path=${encodeURIComponent(path)}`, download: `${info.name || "Music"}.zip`, hidden: true });
-  document.body.append(a);
-  a.click();
-  a.remove();
+  clickDownload(`/api/folders/zip?path=${encodeURIComponent(path)}`, `${info.name || "Music"}.zip`);
   toast(`Zipping “${info.name}” (${plural(info.files, "file")}, ${sizeText(info.size)}). It downloads as it's made.`, "success");
 }
 
@@ -59,7 +78,10 @@ export function openToolsMenu(anchor, tools) {
   document.body.append(menu);
   const left = Math.min(Math.max(12, r.left), window.innerWidth - menu.offsetWidth - 12);  // stays on screen
   menu.style.left = `${left}px`;
-  menu.style.transformOrigin = left > r.left - 1 ? "top left" : "top right";
+  // No room below (the selection bar sits at the bottom of the screen): open upwards instead.
+  const up = r.bottom + 8 + menu.offsetHeight > window.innerHeight - 8 && r.top - 8 - menu.offsetHeight > 8;
+  if (up) menu.style.top = `${r.top - 8 - menu.offsetHeight}px`;
+  menu.style.transformOrigin = `${up ? "bottom" : "top"} ${left > r.left - 1 ? "left" : "right"}`;
   replay(menu, "opening");
   const close = (e) => { if (!menu.contains(e.target) && e.target !== anchor) { menu.remove(); document.removeEventListener("pointerdown", close, true); } };
   setTimeout(() => document.addEventListener("pointerdown", close, true), 0);

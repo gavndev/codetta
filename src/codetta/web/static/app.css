@@ -2706,7 +2706,7 @@ dialog.player-sheet { width: min(480px, calc(100vw - 32px)); }
   .play-btn { height: 44px; min-width: 44px; border-radius: 22px; }
   .btn { min-height: 44px; }
   /* The selection bar: count, Clear, "…" (Preset, Replace, Actions) and Edit fit on one row. */
-  #sel-preset, #sel-replace, #sel-actions { display: none; }
+  #sel-preset, #sel-replace, #sel-actions, #sel-download { display: none; }
   .selection-bar { gap: 10px; padding-left: 14px; }
   #selection-count { white-space: nowrap; }
 }

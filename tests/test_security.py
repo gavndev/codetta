@@ -678,3 +678,15 @@ def test_zip_download_needs_sign_in_and_stays_in_the_library(music, tmp_path):
         assert c.get("/api/folders/zip", params={"path": folder}).status_code == 200
         for bad in ("../", "/etc", "..%2F..", "a/../../b"):
             assert c.get("/api/folders/zip", params={"path": bad}).status_code in (400, 404, 422)
+
+
+def test_file_downloads_need_sign_in(music, tmp_path):
+    with TestClient(create_app(Settings(music_dir=music, config_dir=tmp_path / "config"))) as c:
+        assert c.get("/api/files/download", params={"path": "song.flac"}).status_code == 401
+        assert c.post("/api/files/zip", json={"paths": ["song.flac"]}).status_code == 401
+        c.post("/api/auth/setup", json={"username": "listener", "password": "correct horse 1"})
+        url = c.post("/api/files/zip", json={"paths": ["song.flac"]}).json()["url"]
+        assert c.get("/api/files/download", params={"path": "song.flac"}).status_code == 200
+        c.post("/api/auth/logout")
+        c.cookies.clear()
+        assert c.get(url).status_code == 401  # a prepared link is no use without signing in

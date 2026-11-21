@@ -6,7 +6,7 @@ import { api } from "./api.js";
 import { els, first, plural, state, toast } from "./state.js";
 import { folderCache, loadFolder, renderSelectionBar, toggleSelect, trackByPath } from "./browse.js";
 import { setBang } from "./search.js";
-import { downloadZip, folderCovers, isPhone, makeFolder, openActions, setSelectMode } from "./tools.js";
+import { downloadFile, downloadSelection, downloadZip, folderCovers, isPhone, makeFolder, openActions, setSelectMode } from "./tools.js";
 import { closeEditor, confirmDiscard } from "./editor.js";
 import { refreshActivity } from "./activity.js";
 import { openMusicBrainzFor } from "./musicbrainz.js";
@@ -89,6 +89,8 @@ function trackMenu(t) {
     many ? null : { icon: "select", label: "Select", run: () => { if (isPhone()) setSelectMode(true); toggleSelect(t.path, true, false); } },
     { icon: "wand", label: "Actions…", run: () => openActions({ paths }, label) },
     many ? null : { icon: "info", label: "Get info", run: () => showInfo(t.path) },
+    many ? { icon: "download", label: `Download ${paths.length} as .zip`, run: () => downloadSelection(paths) }
+      : { icon: "download", label: "Download", run: () => downloadFile(t.path) },
     state.status?.matching ? { icon: "musicbrainz", label: "Find in MusicBrainz", run: () => openMusicBrainzFor({ body: { paths }, label }) } : null,
     !many && skReady() ? { icon: "slskd", label: "Find in slskd", run: () => slskdFor([artist, title].filter(Boolean).join(" ")) } : null,
     "-",

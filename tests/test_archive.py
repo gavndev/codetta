@@ -78,3 +78,56 @@ def test_big_files_switch_to_zip64(tmp_path, monkeypatch):
     data = b"".join(zip_stream(folder_files(tmp_path / "a"), chunk=1000))
     z = zipfile.ZipFile(io.BytesIO(data))
     assert z.testzip() is None and z.read("a/x.bin") == (tmp_path / "a" / "x.bin").read_bytes()
+
+
+# --- One file, or a selection of tracks ------------------------------------------------------------
+
+ALBUM = "Sigur Rós/Ágætis byrjun (1999)"
+
+
+def test_one_track_downloads_as_it_is(client, music):
+    r = client.get("/api/files/download", params={"path": f"{ALBUM}/01 - Intro.flac"})
+    assert r.status_code == 200 and r.content == (music / ALBUM / "01 - Intro.flac").read_bytes()
+    assert r.headers["content-disposition"].startswith("attachment;") and "01%20-%20Intro.flac" in r.headers["content-disposition"]
+
+
+@pytest.mark.parametrize(("path", "status"), [(ALBUM, 404), (f"{ALBUM}/nope.flac", 404), (f"{ALBUM}/sneaky.txt", 404),
+                                              ("../secret.txt", 400), ("", 422)])
+def test_odd_single_downloads_are_refused(client, path, status):
+    assert client.get("/api/files/download", params={"path": path}).status_code in (status, 422)
+
+
+def test_selected_tracks_zip_up_with_their_lyrics(client, music):
+    (music / ALBUM / "01 - Intro.lrc").write_text("[00:01.00] hi")
+    r = client.post("/api/files/zip", json={"paths": [f"{ALBUM}/01 - Intro.flac", f"{ALBUM}/CD2/01 - Svefn-g-englar.mp3"]})
+    d = r.json()
+    assert r.status_code == 200 and d["name"] == "Ágætis byrjun (1999).zip" and d["files"] == 3
+    z = zipfile.ZipFile(io.BytesIO(client.get(d["url"]).content))
+    base = "Ágætis byrjun (1999)"
+    assert sorted(z.namelist()) == sorted([f"{base}/01 - Intro.flac", f"{base}/01 - Intro.lrc", f"{base}/CD2/01 - Svefn-g-englar.mp3"])
+    assert z.testzip() is None
+
+
+def test_a_selection_across_folders_keeps_its_folders(client, music):
+    (music / "Other").mkdir()
+    shutil.copy2(FIXTURES_DIR / "sample.flac", music / "Other" / "x.flac")
+    d = client.post("/api/files/zip", json={"paths": [f"{ALBUM}/01 - Intro.flac", "Other", f"{ALBUM}/cover.jpg"]}).json()
+    names = zipfile.ZipFile(io.BytesIO(client.get(d["url"]).content)).namelist()
+    assert d["name"] == "Codetta.zip"
+    assert sorted(names) == sorted([f"Codetta/{ALBUM}/01 - Intro.flac", f"Codetta/{ALBUM}/cover.jpg", "Codetta/Other/x.flac"])
+
+
+def test_zip_links_expire_and_cant_be_guessed(client, monkeypatch):
+    import codetta.core.archive as archive
+
+    d = client.post("/api/files/zip", json={"paths": [f"{ALBUM}/01 - Intro.flac"]}).json()
+    assert client.get("/api/files/zip/not-a-real-token").status_code == 404
+    monkeypatch.setattr(archive, "TOKEN_SECONDS", -1)
+    d2 = client.post("/api/files/zip", json={"paths": [f"{ALBUM}/01 - Intro.flac"]}).json()
+    assert client.get(d2["url"]).status_code == 404
+    assert client.get(d["url"]).status_code == 200
+
+
+def test_a_selection_cant_leave_the_library(client):
+    assert client.post("/api/files/zip", json={"paths": ["../secret.txt"]}).status_code in (400, 422)
+    assert client.post("/api/files/zip", json={"paths": ["@inbox/x.flac"]}).status_code == 422

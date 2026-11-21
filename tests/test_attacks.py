@@ -117,7 +117,9 @@ def test_symlinked_folder_outside_library_is_followed_only_as_documented(env):
     assert not any("link" in p or "upload" in p for p in routes)
     # The only "file" routes are the right-click menu's: they move, rename and set files aside
     # inside the library (through the same mover as Organize), and can't create links or new files.
-    assert {p for p in routes if "file" in p} == {"/api/files/move", "/api/files/rename", "/api/files/delete", "/api/files/info"}
+    # The download ones only read: one file as it is, or a selection zipped on the fly.
+    assert {p for p in routes if "file" in p} == {"/api/files/move", "/api/files/rename", "/api/files/delete", "/api/files/info",
+                                                  "/api/files/download", "/api/files/zip", "/api/files/zip/{token}"}
 
 
 # --- 3. Malicious content stays inert --------------------------------------------------------------

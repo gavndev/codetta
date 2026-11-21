@@ -224,6 +224,8 @@ Activity that **Undo** reverses. On phones they're in the **…** menu.
   included) as one .zip, to back up an album or share it. Codetta builds the
   zip while it downloads, so nothing extra is written to your server, and big
   albums start downloading straight away.
+- **Download** selected tracks: one track comes as it is, several come as one
+  .zip (lyrics files included, folders kept as they are in your library).
 - **Organize** (above) renames and moves many files and folders from their tags.
 - **Edit** a selection of tracks (or **Save to folder**) to set the same tags on
   all of them, and **Tag Presets** to apply a saved set.
@@ -237,6 +239,8 @@ small menu of what you can do with just that item:
 - **Move to** another folder, picked from a short folder list.
 - **Select** (starts a selection with that track), **Actions** on just that track.
 - **Get info:** format, bit depth, sample rate, bitrate, size, tag type, cover size and where it is.
+- **Download** (tracks): the file itself, tags and cover included. With several tracks
+  selected, **Download as .zip** gets them all in one file.
 - **Download as .zip** (folders): the folder and everything in it as one .zip file.
 - **Find in MusicBrainz** and **Find in slskd** for that track or folder.
 - **Delete**, after one confirmation. Nothing is erased: deleted files go to *Recently

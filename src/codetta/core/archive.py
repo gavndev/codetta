@@ -11,13 +11,18 @@ that folder. Hidden files (".DS_Store", "._cover.jpg") are left out too.
 from __future__ import annotations
 
 import os
+import posixpath
+import secrets
 import stat
+import threading
 import time
 import zipfile
 from collections.abc import Iterator
 from pathlib import Path
 
 CHUNK = 1024 * 1024
+TOKEN_SECONDS = 600  # a prepared selection zip can be downloaded for this long
+MAX_TOKENS = 50
 ZIP64_LIMIT = (1 << 31) - 1  # past this size zipfile needs to know up front that it's ZIP64
 
 
@@ -105,3 +110,68 @@ def zip_stream(files: list[tuple[Path, str]], chunk: int = CHUNK) -> Iterator[by
     data = pipe.take()  # the archive's table of contents
     if data:
         yield data
+
+
+def selection_files(entries: list[tuple[str, Path]], sidecars: tuple[str, ...] = ()) -> tuple[list[tuple[Path, str]], str]:
+    """(file, name inside the zip) for a selection of library paths (files and folders), plus the zip's name.
+
+    Names are relative to the selection's common folder, inside a folder named after it, so
+    tracks picked from one album unzip as that album. A track's lyrics file (same name,
+    ``sidecars`` suffix) comes along."""
+    rels = [rel for rel, _ in entries]
+    common = posixpath.commonpath(rels) if len(rels) > 1 else posixpath.dirname(rels[0])
+    if common in rels and len(rels) > 1:  # one entry inside another: use the outer one's parent
+        common = posixpath.dirname(common)
+    base = posixpath.basename(common) or "Codetta"
+    out: list[tuple[Path, str]] = []
+    seen: set[str] = set()
+
+    def add(path: Path, arc: str) -> None:
+        if arc not in seen:
+            seen.add(arc)
+            out.append((path, arc))
+
+    for rel, path in entries:
+        inner = rel[len(common):].lstrip("/") if common else rel
+        if path.is_dir():
+            parent = posixpath.dirname(inner)
+            for f, arc in folder_files(path):
+                add(f, posixpath.join(base, parent, arc))
+            continue
+        try:
+            if not stat.S_ISREG(path.lstat().st_mode):
+                continue
+        except OSError:
+            continue
+        add(path, posixpath.join(base, inner))
+        for suffix in sidecars:
+            side = path.with_suffix(suffix)
+            if side.is_file() and not side.is_symlink():
+                add(side, posixpath.join(base, posixpath.splitext(inner)[0] + suffix))
+    return out, base + ".zip"
+
+
+class Prepared:
+    """Selection zips waiting to be downloaded: a POST names the files, a GET with the token streams them.
+    (A plain link can't carry hundreds of paths, and a download has to be a GET.)"""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._items: dict[str, tuple[float, list[tuple[Path, str]], str]] = {}
+
+    def add(self, files: list[tuple[Path, str]], name: str) -> str:
+        token = secrets.token_urlsafe(18)
+        now = time.monotonic()
+        with self._lock:
+            self._items = {k: v for k, v in self._items.items() if v[0] > now}
+            while len(self._items) >= MAX_TOKENS:
+                self._items.pop(next(iter(self._items)))
+            self._items[token] = (now + TOKEN_SECONDS, files, name)
+        return token
+
+    def get(self, token: str) -> tuple[list[tuple[Path, str]], str] | None:
+        with self._lock:
+            item = self._items.get(token)
+        if not item or item[0] <= time.monotonic():
+            return None
+        return item[1], item[2]
