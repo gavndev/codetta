@@ -68,6 +68,13 @@ def register(app, shared) -> None:
     soulseek_matched = shared.later("soulseek_matched")  # defined in routes/soulseek.py
 
     inbox = InboxStore(settings.config_dir / "inbox.json", settings.inbox_settle_seconds)
+
+    def downloads_complete(paths: list[str]) -> bool:
+        """slskd says the download these files belong to is over (so they've all arrived)."""
+        t = folder_progress(inbox_transfers(), {p.rsplit("/", 1)[-1] for p in paths})
+        return bool(t and t.get("complete"))
+
+    inbox.arrived = downloads_complete
     inbox_worker: dict = {"thread": None}
     inbox_wake = threading.Event()
 

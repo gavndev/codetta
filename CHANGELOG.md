@@ -4,6 +4,7 @@ All notable changes to Codetta. Versions follow [Semantic Versioning](https://se
 
 ## Unreleased (0.9.1)
 
+- **Fixed:** an album in the inbox could stay "Still arriving" for ever, even with slskd showing the download at 100%. Codetta judged only by file times, and some setups keep those looking fresh (or put them in the future). Now an album has arrived as soon as slskd says every file is done, or once its files have stayed exactly the same for two minutes, and times in the future are ignored.
 - **Fixed:** Tidy up never filed a folder of loose songs (a Downloads folder, say). It matched each song to its album, then refused to move them because they'd land in different folders, a rule meant for albums. Loose songs now go to their own albums, and songs that share an album still never split.
 - **Fixed:** Organize, Tidy up and the inbox could put a song next to the same song in another format ("02 Dreams.mp3" beside the album's "02 Dreams.flac"). That file now stays where it is, with the reason, even when the two are numbered differently.
 - **Fixed:** with the default settings, a song could be matched to a CD-R edition (usually a promo or bootleg), like "nights" on a CD-R of Blond. CD-R-only editions are now never preferred over a real release.

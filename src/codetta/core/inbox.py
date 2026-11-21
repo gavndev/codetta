@@ -21,6 +21,7 @@ import re
 import tempfile
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -92,16 +93,19 @@ def find_groups(library: Library, inbox: str, limit: int = MAX_GROUPS) -> list[t
     return sorted(groups.items())[:limit]
 
 
-def signature(library: Library, paths: list[str]) -> tuple[str, float]:
-    """(fingerprint of names, sizes and times; when the newest file last changed)."""
+def signature(library: Library, paths: list[str], now: float | None = None) -> tuple[str, float]:
+    """(fingerprint of names, sizes and times; when the newest file last changed). Times in the
+    future (a downloader that copies the sender's clock, a drive that reports odd times) are
+    ignored: they'd keep an album "still arriving" for ever."""
     h = hashlib.sha256()
     newest = 0.0
+    limit = (time.time() if now is None else now) + 60
     for rel in sorted(paths):
         try:
             st = library.resolve(rel).stat()
             h.update(f"{rel}\0{st.st_size}\0{st.st_mtime_ns}\n".encode())
             # ctime too: a downloader that moves a finished file in keeps its old mtime.
-            newest = max(newest, st.st_mtime, st.st_ctime)
+            newest = max([newest, *(t for t in (st.st_mtime, st.st_ctime) if t <= limit)])
         except OSError:
             h.update(f"{rel}\0missing\n".encode())
     return h.hexdigest()[:16], newest
@@ -115,6 +119,8 @@ class InboxStore:
         self.settle_seconds = settle_seconds
         self.lock = threading.RLock()
         self.settings = InboxSettings()
+        # Set by the app: does the downloader (slskd) say these files have all arrived?
+        self.arrived: Callable[[list[str]], bool] | None = None
         self.groups: dict[str, Group] = {}
         self._load()
 
@@ -163,9 +169,15 @@ class InboxStore:
             now = time.time()
             for key, paths in found:
                 keys.add(key)
-                sig, newest = signature(library, paths)
-                settled = now - newest >= self.settle_seconds
+                sig, newest = signature(library, paths, now)
                 g = self.groups.get(key)
+                unchanged = g is not None and g.signature == sig
+                # Arrived: nothing new for a while, the same files and sizes as last time for a while
+                # (whatever the clocks say), or the downloader says every file is complete.
+                settled = (now - newest >= self.settle_seconds
+                           or (unchanged and g.status == DOWNLOADING and now - g.updated >= self.settle_seconds))
+                if not settled and (g is None or g.status == DOWNLOADING or not unchanged):
+                    settled = self._arrived(paths)  # only asked about albums that look unfinished
                 if g is None or (g.signature != sig and g.status not in (SKIPPED, FILED)):
                     self.groups[key] = Group(key=key, paths=paths, signature=sig, updated=now,
                                              status=WAITING if settled else DOWNLOADING,
@@ -182,6 +194,14 @@ class InboxStore:
                 del self.groups[g.key]
             self.save()
             return list(self.groups.values())
+
+    def _arrived(self, paths: list[str]) -> bool:
+        if self.arrived is None:
+            return False
+        try:
+            return bool(self.arrived(paths))
+        except Exception:  # noqa: BLE001 - the downloader being unreachable must never stop the inbox
+            return False
 
     def update(self, key: str, **changes) -> Group | None:
         with self.lock:

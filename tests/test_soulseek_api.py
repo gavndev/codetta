@@ -9,6 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from codetta.web.app import Settings, create_app
+from tests.conftest import FIXTURES_DIR
 from tests.test_inbox import ALBUM_DIR, music  # noqa: F401 (fixture)
 from tests.test_musicbrainz import PASSWORD, FakeMB
 from tests.test_slskd import FakeSlskd
@@ -212,6 +213,31 @@ def test_inbox_shows_progress_of_an_album_still_arriving(music, tmp_path):  # no
         # Without the slskd connection, there's simply no bar.
         c.put("/api/connections", json={"enabled": {"slskd": False}})
         assert c.get("/api/inbox").json()["groups"][0]["transfer"] is None
+
+
+def test_an_album_stops_arriving_when_slskd_says_every_file_is_done(music, tmp_path):  # noqa: F811
+    """Seen on a real server: "Still arriving" with the bar at 100% (38 of 38 files) and no end. Once
+    slskd says the folder's download is over, the inbox goes on to look the album up."""
+    downloads = tmp_path / "dl3"
+    (downloads / "Some Album").mkdir(parents=True)
+    for name in ("01 First.flac", "02 Second.flac"):
+        shutil.copy2(FIXTURES_DIR / "sample.flac", downloads / "Some Album" / name)
+    fake = FakeSlskd()
+    fake.downloads["someone"] = [
+        {"id": "1", "filename": "Music\\Some Album\\01 First.flac", "size": 100, "bytesTransferred": 100,
+         "state": "Completed, Succeeded", "startedAt": "2020-01-01T00:00:00Z"},
+        {"id": "2", "filename": "Music\\Some Album\\02 Second.flac", "size": 300, "bytesTransferred": 100,
+         "state": "InProgress", "startedAt": "2020-01-01T00:00:00Z"}]
+    app = create_app(Settings(music_dir=music, config_dir=tmp_path / "cfg3", inbox_dir=downloads, inbox_settle_seconds=600),
+                     fetch_mb=FakeMB(), fetch_art=lambda url: None, slskd_request=fake)
+    with TestClient(app) as c:
+        c.post("/api/auth/setup", json={"username": "owner", "password": PASSWORD})
+        c.put("/api/connections", json={"enabled": {"slskd": True}})
+        c.put("/api/slskd/settings", json={"url": "slskd:5030", "api_key": "codetta-test-key-0001"})
+        assert c.put("/api/inbox/settings", json={"folder": "@inbox"}).json()["groups"][0]["status"] == "downloading"
+        fake.downloads["someone"][1].update(state="Completed, Succeeded", bytesTransferred=300)
+        time.sleep(3.1)  # slskd's list is remembered for 3 seconds
+        assert c.get("/api/inbox").json()["groups"][0]["status"] != "downloading"
 
 
 class PartialSlskd(DownloadingSlskd):

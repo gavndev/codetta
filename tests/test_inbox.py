@@ -340,3 +340,64 @@ def test_an_album_you_already_have_is_labelled(make_client, music):
     c.put("/api/inbox/settings", json={"folder": "Downloads"})
     g = settle(c)["groups"][0]
     assert g["owned"] == {"folder": "Library/Have it", "tracks": 3}
+
+
+# --- "Still arriving" must always end -----------------------------------------------------------
+
+def _downloading_inbox(tmp_path, settle_seconds=120):
+    """An inbox with one album whose files changed just now."""
+    from codetta.core.inbox import InboxStore
+    music = tmp_path / "music"
+    album = music / "Downloads" / "VA-Some_Album-2CD-FLAC-2026"
+    album.mkdir(parents=True)
+    for n in (1, 2):
+        shutil.copy2(FIXTURES_DIR / "sample.flac", album / f"0{n}.flac")
+    store = InboxStore(tmp_path / "inbox.json", settle_seconds=settle_seconds)
+    store.settings.folder = "Downloads"
+    return Library(music), store, album
+
+
+def test_an_album_slskd_says_is_complete_stops_arriving_right_away(tmp_path):
+    """slskd showed 38 of 38 files done, yet the inbox kept saying "Still arriving"."""
+    lib, store, _ = _downloading_inbox(tmp_path)
+    (g,) = store.sync(lib)
+    assert g.status == "downloading"  # the files changed moments ago
+    store.arrived = lambda paths: len(paths) == 2
+    (g,) = store.sync(lib)
+    assert g.status == "waiting"  # ready to be looked up
+
+
+def test_an_album_whose_files_stop_changing_arrives_whatever_the_clocks_say(tmp_path):
+    import os
+    lib, store, album = _downloading_inbox(tmp_path)
+    future = time.time() + 7 * 24 * 3600  # a file time in the future (copied from elsewhere, odd drive)
+    for f in album.iterdir():
+        os.utime(f, (future, future))
+    from codetta.core.inbox import signature
+    _, newest = signature(lib, [f"Downloads/{album.name}/01.flac"])
+    assert newest <= time.time() + 1  # the future time doesn't count as "just changed"
+    (g,) = store.sync(lib)
+    assert g.status == "downloading"  # copied moments ago (its change time is now)
+    g.updated = time.time() - 300  # then: the same names, sizes and times for five minutes
+    (g,) = store.sync(lib)
+    assert g.status == "waiting"
+
+
+def test_slskd_being_unreachable_never_breaks_the_inbox(tmp_path):
+    lib, store, _ = _downloading_inbox(tmp_path)
+
+    def broken(paths):
+        raise ConnectionError("slskd is down")
+
+    store.arrived = broken
+    (g,) = store.sync(lib)
+    assert g.status == "downloading"  # just falls back to the file times
+
+
+def test_transfer_progress_says_when_every_file_is_over():
+    from codetta.core.slskd import transfer_progress
+    done = [{"size": 10, "bytesTransferred": 10, "state": "Completed, Succeeded"},
+            {"size": 10, "bytesTransferred": 3, "state": "Completed, Errored"}]
+    assert transfer_progress(done)["complete"] is True
+    going = [*done, {"size": 10, "bytesTransferred": 5, "state": "InProgress"}]
+    assert transfer_progress(going)["complete"] is False

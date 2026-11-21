@@ -236,8 +236,11 @@ def transfer_progress(transfers: list[dict], now: float | None = None) -> dict |
         elapsed = max(1.0, now - min(starts))
         speed = done / elapsed
         eta = (total - done) / speed if speed > 0 else None
+    # Every transfer over (slskd: "Completed, Succeeded", or Errored, Cancelled, Rejected, TimedOut).
+    complete = all("Completed" in str(t.get("state") or "") for t in transfers)
     return {"progress": round(min(done / total, 1.0), 3), "eta": round(eta) if eta is not None else None,
-            "speed": round(speed) if speed else None, "files": len(transfers), "finished": finished}
+            "speed": round(speed) if speed else None, "files": len(transfers), "finished": finished,
+            "complete": complete}
 
 
 def folder_progress(downloads: list[dict], names: set[str], now: float | None = None) -> dict | None:
