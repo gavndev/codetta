@@ -2,7 +2,9 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
-## Unreleased (0.9.1)
+## 0.9.1 (2026-11-20)
+
+A round of fixes for the beta, most importantly for albums stuck on "Still arriving" in the inbox, and safer updates from here on.
 
 - **Fixed:** an album in the inbox could stay "Still arriving" for ever, even with slskd showing the download at 100%. Codetta judged only by file times, and some setups keep those looking fresh (or put them in the future). Now an album has arrived as soon as slskd says every file is done, or once its files have stayed exactly the same for two minutes, and times in the future are ignored.
 - **Fixed:** Tidy up never filed a folder of loose songs (a Downloads folder, say). It matched each song to its album, then refused to move them because they'd land in different folders, a rule meant for albums. Loose songs now go to their own albums, and songs that share an album still never split.
