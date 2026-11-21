@@ -2,7 +2,9 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.9.4 (2026-11-21)
+
+Works with your stack: Lidarr and your music server (Navidrome or any Subsonic server, Jellyfin, Emby, Plex) now hear about Codetta's changes straight away. Plus folders as a .zip, cleaner MusicBrainz results and two tag fixes for players.
 
 - **Download a folder as a .zip:** right-click (or long-press) a folder, or use the new download button on a folder's page, to get the folder and everything in it (subfolders, covers, lyrics) as one .zip. It's built while it downloads, so nothing extra is saved on your server and big albums start right away.
 - **Works with your music server:** a new Music server connection (Account → Connections, and a setup step) for Navidrome and any Subsonic server, Jellyfin, Emby and Plex. A few seconds after Codetta changes files, the server gets a quick scan, so your edits show up in your player straight away, even on network shares where servers don't notice changes by themselves. Jellyfin, Emby and Plex scan only their music libraries, and **Scan now** asks for one whenever you like.

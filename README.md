@@ -13,7 +13,7 @@
 
 <p align="center">
   <img alt="Status: beta" src="https://img.shields.io/badge/status-beta-3b82f6">
-  <img alt="Version 0.9.3" src="https://img.shields.io/badge/version-0.9.3-0e7c74">
+  <img alt="Version 0.9.4" src="https://img.shields.io/badge/version-0.9.4-0e7c74">
   <a href="LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-555"></a>
   <img alt="Python 3.14" src="https://img.shields.io/badge/python-3.14-3776ab">
   <a href="https://github.com/gavndev/codetta/actions/workflows/ci.yml"><img alt="Tests" src="https://github.com/gavndev/codetta/actions/workflows/ci.yml/badge.svg"></a>
@@ -53,10 +53,10 @@ Match albums on MusicBrainz for official tags and cover art, rename and
 organize files into tidy folders, and let new music from your downloads folder
 be matched and filed for you. Your files are updated **safely**, anything
 Codetta does can be **undone**, and [Navidrome](https://www.navidrome.org/)
-and other music apps pick up the changes on their next scan.
+and other music apps pick up the changes straight away (connect your server) or on their next scan.
 
 > [!NOTE]
-> **Codetta is in beta.** The latest, 0.9.3, adds Deezer and iTunes search (`!dz`, `!it`), Find in Deezer and iTunes, and faster saving (see the [changelog](CHANGELOG.md)). 0.9.0 was the biggest release yet:
+> **Codetta is in beta.** The latest, 0.9.4, works with your stack: Lidarr, Navidrome, Jellyfin, Emby and Plex hear about Codetta's changes straight away. Plus folders as a .zip (see the [changelog](CHANGELOG.md)). 0.9.0 was the biggest release yet:
 > - **Tidy up** looks after the music you already have, album by album in the background, with a preview first.
 > - **Album editions:** pick the original year, format and country you prefer, and switch editions in one tap.
 > - **Loose songs** (a single download, a YouTube rip) are matched to the album they came from.
