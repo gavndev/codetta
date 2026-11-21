@@ -6,7 +6,7 @@
 # image only copies that environment, so no build leftovers ship.
 
 # ---- Build -----------------------------------------------------------------------
-FROM python:3.14-alpine AS build
+FROM python:3.15-alpine AS build
 
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
@@ -47,7 +47,7 @@ RUN case "${TARGETARCH:-$(uname -m)}" in \
 # ---- Runtime -----------------------------------------------------------------------
 # Alpine keeps the image small (fits starter hardware); everything Codetta needs
 # is pure Python or has musl wheels.
-FROM python:3.14-alpine
+FROM python:3.15-alpine
 
 LABEL org.opencontainers.image.title="Codetta" \
       org.opencontainers.image.description="Self-hosted music library manager: fix tags, match albums on MusicBrainz, organize files and bring in new music" \
