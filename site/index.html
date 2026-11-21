@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Codetta: your music library, looked after</title>
+  <meta name="description" content="Codetta fixes tags, matches albums on MusicBrainz, and files new downloads where they belong, from any browser. Self-hosted, open source, private by design.">
+  <meta name="theme-color" content="#f7f8f8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#131418" media="(prefers-color-scheme: dark)">
+  <meta property="og:title" content="Codetta: your music library, looked after">
+  <meta property="og:description" content="Fix tags, match albums on MusicBrainz and file new downloads, from any browser. On your own server.">
+  <meta property="og:image" content="https://gavndev.github.io/codetta/og.png">
+  <meta property="og:url" content="https://gavndev.github.io/codetta/">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="preload" href="fonts/schibsted-grotesk.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="site.css">
+  <script src="site.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#get">Skip to install</a>
+
+  <header class="top">
+    <a class="wordmark" href="#" aria-label="Codetta home">codetta<i aria-hidden="true"></i></a>
+    <nav aria-label="Page">
+      <a href="#what">What it does</a>
+      <a href="#safety">Safety</a>
+      <a href="https://github.com/gavndev/codetta" class="gh">GitHub</a>
+    </nav>
+  </header>
+
+  <main>
+    <!-- Hero: the headline and the install command, beside one download's journey -->
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <h1 id="hero-title">Your music library, looked&nbsp;after.</h1>
+        <p class="lede">Codetta fixes tags, matches albums on MusicBrainz and files new downloads where they belong, from any browser. On your own server, or your own computer.</p>
+
+        <div class="get" id="get" data-install>
+          <div class="tabs" role="tablist" aria-label="How to install">
+            <button role="tab" aria-selected="true" data-tab="docker">Docker</button>
+            <button role="tab" aria-selected="false" data-tab="pipx">pipx</button>
+            <button role="tab" aria-selected="false" data-tab="snap">snap</button>
+          </div>
+          <div class="cmd">
+            <code data-cmd></code>
+            <button class="copy" type="button" data-copy>Copy</button>
+          </div>
+          <p class="hint" data-hint></p>
+        </div>
+      </div>
+
+      <figure class="stage" aria-label="A download being matched, tagged and filed by Codetta">
+        <ol class="steps" aria-hidden="true">
+          <li data-step="1"><b>01</b> Lands</li>
+          <li data-step="2"><b>02</b> Matched</li>
+          <li data-step="3"><b>03</b> Filed</li>
+        </ol>
+
+        <div class="journey" data-journey>
+          <p class="path"><span>Downloads</span></p>
+          <div class="file" data-file>
+            <span class="file-art" aria-hidden="true"></span>
+            <span class="file-name">maren holt - nights [Explicit].mp3</span>
+            <span class="file-size">4.2 MB</span>
+          </div>
+          <p class="finding" data-finding><span>Finding it on MusicBrainz</span><i class="bar"></i></p>
+
+          <div class="spread" data-spread>
+            <img class="cover" data-cover src="covers/low-orbit.webp" alt="Low Orbit by Maren Holt (made-up album)" width="640" height="640">
+            <div class="spread-text">
+              <h2>Nights</h2>
+              <p>Maren Holt · Low Orbit · 2019</p>
+              <span class="chip">Matched · 98%</span>
+            </div>
+          </div>
+
+          <dl class="credits" data-credits>
+            <div><dt>Title</dt><dd><s>nights [Explicit]</s> <em>Nights</em></dd></div>
+            <div><dt>Artist</dt><dd><s>maren holt</s> <em>Maren Holt</em></dd></div>
+            <div><dt>Album</dt><dd><s>Unknown Album</s> <em>Low Orbit</em></dd></div>
+            <div><dt>Year</dt><dd><s>none</s> <em>2019</em></dd></div>
+            <div><dt>Cover</dt><dd><s>none</s> <em>Added</em></dd></div>
+          </dl>
+
+          <p class="filed" data-filed><span>Filed in</span> <code>Maren Holt / Low Orbit (2019) / 09 Nights.mp3</code></p>
+        </div>
+
+        <div class="wall" data-wall aria-hidden="true"></div>
+        <button class="replay" type="button" data-replay hidden>Play again</button>
+        <figcaption class="note">Made-up artists and covers, for illustration.</figcaption>
+      </figure>
+    </section>
+
+    <!-- What it does: chapter texts scroll on the left while one pinned stage on the right
+         plays each chapter's scene (on phones, each scene sits under its text). -->
+    <section class="chapters" id="what" aria-label="What Codetta does">
+      <div class="chapter-list">
+      <article class="chapter" data-scene="tidy">
+        <div class="chapter-text">
+          <h2>Looks after the music you already have.</h2>
+          <p>Tidy up goes through your library one album at a time. It fixes tags from MusicBrainz, adds missing covers, and files every album with your folder pattern. You see a preview first, it only changes what it's sure about, and every album can be undone.</p>
+        </div>
+        <div class="scene scene-tidy" aria-hidden="true">
+          <div class="scene-head"><b>Tidy up</b><span data-count>0 of 48 albums</span></div>
+          <i class="progress"><i data-progress></i></i>
+          <ul class="moves">
+            <li><s>aurora lane/paper sat/01 lift off.flac</s><span>Aurora Lane / Paper Satellites (2023) / 01 Lift Off.flac</span></li>
+            <li><s>Unknown Album/track03.mp3</s><span>Kōsei Mori / Northern Signal (2021) / 03 Northern Signal.mp3</span></li>
+            <li><s>glass garden (deluxe)/1-04 cristal.m4a</s><span>Marisol Vega / Glass Garden (2025) / 04 Cristal.m4a</span></li>
+            <li><s>VA/midnight tapes 320/06.flac</s><span>Nightfall Collective / Midnight Tapes (2024) / 06 Velvet Signal.flac</span></li>
+          </ul>
+          <div class="stats"><div><b data-fixed>0</b><span>fixed</span></div><div><b>31</b><span>already fine</span></div><div><b>2</b><span>need you</span></div></div>
+        </div>
+      </article>
+
+      <article class="chapter" data-scene="search">
+        <div class="chapter-text">
+          <h2>Finds anything, in your library or beyond it.</h2>
+          <p>Search every track by tag: <code>genre: ambient year: 2022</code>. Start with a bang and the same box searches MusicBrainz, Deezer or iTunes instead, with the albums you already have marked.</p>
+        </div>
+        <div class="scene scene-search" aria-hidden="true">
+          <div class="searchbox"><span class="bang" data-bang hidden><i></i>Deezer</span><span data-typed></span><i class="caret"></i></div>
+          <ul class="results" data-results>
+            <li><img src="covers/slow-bloom.webp" alt="" width="56" height="56"><span><b>Slow Bloom</b>The Quiet Hours · 2022</span><em class="have">In your library</em></li>
+            <li><img src="covers/paper-satellites.webp" alt="" width="56" height="56"><span><b>Paper Satellites</b>Aurora Lane · 2023</span><em class="have">In your library</em></li>
+            <li><img src="covers/ferry-lights.webp" alt="" width="56" height="56"><span><b>Ferry Lights</b>Oda Saar · 2017</span><em>Find in slskd</em></li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="chapter" id="safety" data-scene="undo">
+        <div class="chapter-text">
+          <h2>Never puts a file at risk.</h2>
+          <p>Every save goes to a copy that's checked before it replaces the original. Every change lands in Activity with an Undo, and it's kept across restarts. Deleted files wait in Recently deleted for 30 days.</p>
+        </div>
+        <div class="scene scene-undo" aria-hidden="true">
+          <ol class="activity">
+            <li data-entry><i class="tick"></i><span><b>Edited genre on 10 tracks</b><small>Alternative Rock → <em>Art Rock</em></small></span><button tabindex="-1" data-undo>Undo</button></li>
+            <li><i class="tick"></i><span><b>Matched “Low Orbit” on MusicBrainz</b><small>11 tracks, cover added</small></span><button tabindex="-1">Undo</button></li>
+            <li><i class="tick"></i><span><b>Filed Nights</b><small>Downloads → Maren Holt / Low Orbit (2019)</small></span><button tabindex="-1">Undo</button></li>
+          </ol>
+          <p class="verify"><i></i>Saved to a copy, checked, then swapped in</p>
+          <div class="trash"><span><b>Recently deleted</b><small>3 files · kept for 30 days</small></span><button tabindex="-1">Put back</button></div>
+        </div>
+      </article>
+
+      <article class="chapter" data-scene="phone">
+        <div class="chapter-text">
+          <h2>Made for the couch, too.</h2>
+          <p>Codetta works just as well on your phone: big touch targets, a full-screen editor, covers straight from your photos. Fix a download the moment it lands, wherever you are.</p>
+        </div>
+        <div class="scene scene-phone" aria-hidden="true">
+          <div class="phone">
+            <div class="phone-top"><span class="pm">c</span><span class="ps">Search Low Orbit</span></div>
+            <div class="phone-album">
+              <img src="covers/low-orbit.webp" alt="" width="96" height="96">
+              <div><b>Low Orbit</b><span>Maren Holt · 2019</span><em>Synth-pop</em></div>
+            </div>
+            <ol class="phone-tracks">
+              <li><b>05</b>Ground Control</li><li><b>06</b>Slow Burn</li><li><b>07</b>Gravity Well</li><li><b>08</b>Afterimage</li><li class="on"><b>09</b>Nights</li><li><b>10</b>Re-entry</li><li><b>11</b>Low Orbit</li>
+            </ol>
+            <div class="phone-sheet" data-sheet><span>Genre</span><b data-genre>Synth-pop</b><button tabindex="-1">Save</button></div>
+          </div>
+        </div>
+      </article>
+      </div>
+      <div class="chapter-stage" aria-hidden="true"></div>
+    </section>
+
+    <!-- Close: one more chance to install, and the facts -->
+    <section class="close" aria-labelledby="close-title">
+      <div class="close-inner">
+      <h2 id="close-title">Every album credited, and filed where it belongs.</h2>
+      <div class="close-grid">
+        <div class="get" data-install>
+          <div class="tabs" role="tablist" aria-label="How to install">
+            <button role="tab" aria-selected="true" data-tab="docker">Docker</button>
+            <button role="tab" aria-selected="false" data-tab="pipx">pipx</button>
+            <button role="tab" aria-selected="false" data-tab="snap">snap</button>
+          </div>
+          <div class="cmd">
+            <code data-cmd></code>
+            <button class="copy" type="button" data-copy>Copy</button>
+          </div>
+          <p class="hint" data-hint></p>
+        </div>
+        <ul class="facts">
+          <li><b>Open source</b><span>AGPL-3.0, on GitHub</span></li>
+          <li><b>Private by design</b><span>No tracking, offline unless you opt in</span></li>
+          <li><b>Light on your server</b><span>About 70 MB of memory, a Raspberry Pi is plenty</span></li>
+          <li><b>15 file types</b><span>FLAC, MP3, M4A, OGG, Opus, WAV and more</span></li>
+        </ul>
+      </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <a href="https://github.com/gavndev/codetta">GitHub</a>
+    <span aria-hidden="true">·</span>
+    <span>Made with <svg class="heart" viewBox="0 0 16 16" role="img" aria-label="love"><path d="M8 14.2 6.9 13.2C3 9.7.5 7.4.5 4.6.5 2.3 2.3.6 4.5.6c1.3 0 2.5.6 3.5 1.6C9 1.2 10.2.6 11.5.6c2.2 0 4 1.7 4 4 0 2.8-2.5 5.1-6.4 8.6z"/></svg></span>
+    <span aria-hidden="true">·</span>
+    <a href="https://github.com/gavndev/codetta/releases">v0.9.3</a>
+  </footer>
+</body>
+</html>

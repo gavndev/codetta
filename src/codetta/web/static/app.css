@@ -2967,7 +2967,7 @@ dialog:focus { outline: none; }
 .catalog-actions .link-btn { min-height: 32px; font-size: 13px; }
 /* !dz and !it: each chip in its service's colours, a white mark on the left like MusicBrainz and slskd */
 .bang-chip .brand-logo { width: 13px; height: 13px; fill: #fff; stroke: none; flex: none; }
-.bang-chip.bang-dz { background: linear-gradient(115deg, #8a2be2, #ff4f9a); }
+.bang-chip.bang-dz { background: linear-gradient(115deg, #7b22d6, #d6297c); } /* white text stays readable across it */
 .bang-chip.bang-it { background: linear-gradient(115deg, #fa233b, #fb5c74); }
 .search.banged:has(.bang-dz):focus-within { box-shadow: 0 0 0 2px #a238ff; }
 .search.banged:has(.bang-it):focus-within { box-shadow: 0 0 0 2px #fa233b; }

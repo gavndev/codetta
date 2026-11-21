@@ -2,6 +2,10 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+- **Easier to read Deezer chip:** the pink end of the Deezer bang chip is a little deeper, so its white text stands out clearly.
+
 ## 0.9.3 (2026-11-21)
 
 More than MusicBrainz: search and match with Deezer and iTunes too. Plus a measured efficiency pass, so saving, undo and matching are faster on real disks.
