@@ -15,6 +15,7 @@ from codetta.web.common import (
     MAX_PATHS_PER_REQUEST,
     REPLACE_FIELDS,
     ActionRunIn,
+    FolderNewIn,
     FolderRenameIn,
     PluginToggleIn,
     ReplaceIn,
@@ -131,6 +132,31 @@ def register(app, shared) -> None:
         what = f"“{body.find}” → “{body.replace}”" if body.replace else f"removed “{body.find}”"
         done, failed = apply_per_file(plan, f"Find & replace: {what} in {len(plan)} track{'s' if len(plan) != 1 else ''}")
         return {**out, "changed": len(done), "failed": len(failed), "errors": failed[:20]}
+
+    @app.post("/api/folders/new")
+    def new_folder(body: FolderNewIn) -> dict:
+        """Make an empty folder (undo removes it again while it's still empty)."""
+        require_library()
+        parent = body.parent.strip().strip("/")
+        if parent.startswith("@"):
+            raise HTTPException(422, "Choose a folder inside your music folder.")
+        if not library.resolve(parent).is_dir():
+            raise HTTPException(404, "That folder isn't there any more.")
+        if not body.name.strip().strip("."):
+            raise HTTPException(422, "Give the folder a name.")
+        name = safe_name(body.name)
+        rel = f"{parent}/{name}" if parent else name
+        target = library.resolve(rel)
+        if os.path.lexists(target):
+            raise HTTPException(409, f"There's already something called “{name}” here.")
+        try:
+            target.mkdir()
+        except OSError as exc:
+            raise HTTPException(500, f"Couldn't make the folder: {exc.strerror or exc}") from exc
+        activity.add("organize", f"Made a new folder “{name}”", files=[rel],
+                     changes=[{"key": "folder", "old": "", "new": rel}],
+                     undo={"type": "folder", "path": rel, "made": True})
+        return {"path": rel}
 
     @app.post("/api/folders/rename")
     def rename_folder(body: FolderRenameIn) -> dict:

@@ -401,3 +401,16 @@ def test_transfer_progress_says_when_every_file_is_over():
     assert transfer_progress(done)["complete"] is True
     going = [*done, {"size": 10, "bytesTransferred": 5, "state": "InProgress"}]
     assert transfer_progress(going)["complete"] is False
+
+
+def test_filed_albums_can_be_dismissed_one_or_all(make_client, music):
+    c = make_client()
+    c.put("/api/inbox/settings", json={"folder": "Downloads"})
+    g = settle(c)["groups"][0]
+    assert c.post("/api/inbox/dismiss", json={"key": g["key"]}).status_code == 404  # not filed yet: Skip or Remove instead
+    c.post("/api/inbox/accept", json={"key": g["key"]})
+    assert settle(c)["groups"][0]["status"] == "filed"
+    assert c.post("/api/inbox/dismiss", json={"key": g["key"]}).json()["groups"] == []
+    assert (music / "Coda Tester" / "Fixture Album (2024)" / "01 Opening.flac").exists()  # the album stays put
+    assert settle(c)["groups"] == []  # and it doesn't come back
+    assert c.post("/api/inbox/dismiss-all").json()["groups"] == []

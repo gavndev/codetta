@@ -268,3 +268,33 @@ def test_report_a_problem_has_what_a_bug_report_needs(setup):
     assert set(r) >= {"version", "install", "python", "system", "connections", "tracks", "tidy_up", "log"}
     assert r["install"] in {"snap", "Docker", "pipx", "pip", "source checkout"}
     assert isinstance(r["connections"], list) and isinstance(r["log"], list)
+
+
+def test_new_folder_then_undo_and_redo(setup):
+    c, music, _ = setup
+    r = c.post("/api/folders/new", json={"parent": "Artist", "name": "  Live Recordings  "})
+    assert r.status_code == 200 and r.json()["path"] == "Artist/Live Recordings"
+    assert (music / "Artist" / "Live Recordings").is_dir()
+    assert c.post("/api/folders/new", json={"parent": "", "name": "Elsewhere"}).status_code == 409  # already there
+    assert c.post("/api/folders/new", json={"parent": "", "name": " . "}).status_code == 422
+    assert c.post("/api/folders/new", json={"parent": "@inbox", "name": "x"}).status_code == 422
+    assert c.post("/api/folders/new", json={"parent": "Nope", "name": "x"}).status_code == 404
+    assert c.post("/api/folders/new", json={"parent": "../..", "name": "x"}).status_code in (400, 404, 422)
+    assert c.post("/api/folders/new", json={"parent": "", "name": "a/../../b"}).json()["path"] == "a_.._.._b"  # one name, inside
+    entry = next(e for e in c.get("/api/activity").json() if "Live Recordings" in e["message"])
+    assert entry["can_undo"]
+    assert c.post(f"/api/activity/{entry['id']}/undo").json()["undone"] == 1
+    assert not (music / "Artist" / "Live Recordings").exists()
+    redo = c.get("/api/activity").json()[0]
+    assert c.post(f"/api/activity/{redo['id']}/undo").json()["undone"] == 1  # redo makes it again
+    assert (music / "Artist" / "Live Recordings").is_dir()
+
+
+def test_undoing_a_new_folder_never_removes_what_was_put_in_it(setup):
+    c, music, _ = setup
+    c.post("/api/folders/new", json={"parent": "", "name": "Keep"})
+    (music / "Keep" / "song.flac").write_bytes(b"something")
+    entry = next(e for e in c.get("/api/activity").json() if "Keep" in e["message"])
+    r = c.post(f"/api/activity/{entry['id']}/undo").json()
+    assert r["undone"] == 0 and r["skipped"] == 1
+    assert (music / "Keep" / "song.flac").read_bytes() == b"something"

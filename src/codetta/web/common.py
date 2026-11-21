@@ -315,6 +315,12 @@ class LibraryCareIn(BaseModel):
     paused: bool | None = None
 
 
+class LibraryCareIgnoreIn(BaseModel):
+    folder: str = Field("", max_length=MAX_PATH_CHARS)
+    ignore: bool = True
+    all: bool = False  # every album that needs you
+
+
 class LibraryCareFolderIn(BaseModel):
     folder: str = Field(max_length=MAX_PATH_CHARS)
 
@@ -349,6 +355,11 @@ class FileRenameIn(BaseModel):
     name: str = Field(min_length=1, max_length=255)
 
 
+class FolderNewIn(BaseModel):
+    parent: str = Field("", max_length=MAX_PATH_CHARS)  # "" = the top of the library
+    name: str = Field(min_length=1, max_length=255)
+
+
 class FolderRenameIn(BaseModel):
     path: str = Field(min_length=1, max_length=MAX_PATH_CHARS)
     name: str = Field(min_length=1, max_length=255)
@@ -357,6 +368,10 @@ class FolderRenameIn(BaseModel):
 class HealthSettingsIn(BaseModel):
     enabled: bool | None = None  # the whole feature; None: leave as is
     disabled: list[str] | None = Field(default=None, max_length=100)  # check ids switched off; None: leave as is
+
+
+class HealthIgnoreAllIn(BaseModel):
+    category: str = Field("all", max_length=20)
 
 
 class HealthIssueIn(BaseModel):

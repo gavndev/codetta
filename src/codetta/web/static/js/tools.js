@@ -30,6 +30,7 @@ function folderTools(f) {
     f.tracks.length ? { icon: "wand", label: "Actions", run: () => openActions(target, label),
       title: "Clean up titles, Title Case, and actions from plugins (you see every change first)" } : null,
     state.path && !f.search && !f.mb ? { icon: "rename", label: "Rename folder", run: renameFolder, title: "Rename this folder" } : null,
+    !f.search && !f.mb ? { icon: "plus", label: "New folder", run: newFolderHere, title: "Make a new folder in here" } : null,
   ].filter(Boolean);
 }
 
@@ -231,6 +232,29 @@ async function applyReplace() {
     refreshActivity();
     loadFolder(state.path, { keepScroll: true });
   } catch (err) { toast(err.message, "error"); go.disabled = false; go.textContent = "Replace"; }
+}
+
+/** Make a folder inside ``parent`` (asks for its name). Returns its path, or null. */
+export async function makeFolder(parent, name) {
+  try {
+    const r = await api("POST", "/api/folders/new", { parent, name });
+    folderCache.clear(); folderCovers.clear();
+    refreshActivity();
+    return r.path;
+  } catch (err) { toast(err.message, "error"); return null; }
+}
+
+async function newFolderHere() {
+  const input = h("input", { type: "text", maxlength: "255", dir: "auto", spellcheck: "false", autocomplete: "off", class: "rename-input",
+    placeholder: "Folder name" });
+  setTimeout(() => input.focus(), 80);
+  const where = state.path ? `“${state.path.split("/").pop()}”` : "your library";
+  const ok = await ask({ title: "New folder", message: `A new, empty folder in ${where}. Activity can undo it while it's still empty.`,
+    details: h("label", { class: "field" }, h("span", { class: "field-label" }, "Name"), input), confirmLabel: "Make folder" });
+  const name = input.value.trim();
+  if (!ok || !name) return;
+  const path = await makeFolder(state.path, name);
+  if (path) { toast(`Made “${path.split("/").pop()}”`, "success"); navigate(path); }
 }
 
 async function renameFolder() {

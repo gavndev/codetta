@@ -28,7 +28,9 @@ ORGANIZED = "organized"  # tagged (or already matched) and moved into place
 REVIEW = "review"  # no confident match: needs a look
 SKIPPED = "skipped"  # nothing to do (already matched, nothing to rename)
 ERROR = "error"
+IGNORED = "ignored"  # you said to leave it alone: never looked at, never listed as needing you
 MAX_REVIEW_SHOWN = 500
+KEEP = (REVIEW, IGNORED)  # outcomes that survive a change of mode
 
 
 class LibraryCareStore:
@@ -73,7 +75,7 @@ class LibraryCareStore:
                 if mode != self.mode:
                     # A new choice starts over (a "tags" pass doesn't count as "full"), but albums that
                     # needed a look keep their note until they're looked at again.
-                    self.albums = {k: v for k, v in self.albums.items() if v.get("status") == REVIEW}
+                    self.albums = {k: v for k, v in self.albums.items() if v.get("status") in KEEP}
                     self.started = self.finished = None
                 self.mode = mode
             if paused is not None:
@@ -84,6 +86,27 @@ class LibraryCareStore:
         with self.lock:
             self.albums[folder] = {"status": status, "note": note, "title": title, "at": int(time.time())}
             self.save()
+
+    def ignore(self, folder: str, on: bool = True) -> None:
+        """Leave an album alone for good (``on``), or look at it again."""
+        with self.lock:
+            if on:
+                old = self.albums.get(folder) or {}
+                self.albums[folder] = {"status": IGNORED, "note": old.get("note", ""), "title": old.get("title", ""),
+                                       "at": int(time.time())}
+                self.save()
+            elif (self.albums.get(folder) or {}).get("status") == IGNORED:
+                self.forget(folder)
+
+    def ignore_all_review(self) -> int:
+        """Leave every album that needs you alone. Returns how many."""
+        with self.lock:
+            folders = [k for k, v in self.albums.items() if v.get("status") in (REVIEW, ERROR)]
+            now = int(time.time())
+            for k in folders:
+                self.albums[k] = {**self.albums[k], "status": IGNORED, "at": now}
+            self.save()
+            return len(folders)
 
     def forget(self, folder: str) -> None:
         with self.lock:
@@ -108,7 +131,7 @@ class LibraryCareStore:
         """Progress over the album folders there are now (moved or deleted ones don't count)."""
         with self.lock:
             here = {f: self.albums[f] for f in folders if f in self.albums}
-            counts = {s: 0 for s in (TAGGED, ORGANIZED, REVIEW, SKIPPED, ERROR)}
+            counts = {s: 0 for s in (TAGGED, ORGANIZED, REVIEW, SKIPPED, ERROR, IGNORED)}
             for v in here.values():
                 if v.get("status") in counts:
                     counts[v["status"]] += 1
@@ -117,4 +140,5 @@ class LibraryCareStore:
             return {"mode": self.mode, "paused": self.paused, "total": len(folders), "done": len(here), "counts": counts,
                     "started": self.started, "finished": self.finished,
                     "review": [{"folder": k, "status": v["status"], "note": v.get("note", ""), "title": v.get("title", "")}
-                               for k, v in review]}
+                               for k, v in review],
+                    "ignored": sorted(k for k, v in here.items() if v.get("status") == IGNORED)[:MAX_REVIEW_SHOWN]}

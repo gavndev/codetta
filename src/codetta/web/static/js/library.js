@@ -146,7 +146,28 @@ async function openCare() {
     h("button", { class: "link-btn", type: "button", onclick: async (e) => {
       care = await api("POST", "/api/library-care/again", { folder: r.folder });
       e.target.closest("li").remove(); toast("Codetta will try it again");
-    } }, "Try again"))))
+    } }, "Try again"),
+    h("button", { class: "link-btn", type: "button", title: "Leave this one alone: it won't be tidied or listed again", onclick: async () => {
+      try { care = await api("POST", "/api/library-care/ignore", { folder: r.folder, ignore: true }); } catch (err) { toast(err.message, "error"); return; }
+      closeDialog($("#confirm-dialog")); updateCareSlot(); setTimeout(openCare, 250);
+      toast(`Dismissed “${r.folder.split("/").pop() || r.folder}”. It's under Dismissed if you want it back.`, "success");
+    } }, "Dismiss"))))
+    : null;
+  const dismissAll = need > 1 ? h("button", { class: "link-btn", type: "button", onclick: async () => {
+    if (!(await ask({ title: `Dismiss all ${need}?`, confirmLabel: "Dismiss all",
+      message: "Tidy up will leave these albums alone and stop listing them. You can bring any of them back from Dismissed." }))) { setTimeout(openCare, 250); return; }
+    try { care = await api("POST", "/api/library-care/ignore", { all: true }); } catch (err) { toast(err.message, "error"); return; }
+    updateCareSlot(); setTimeout(openCare, 250); toast(`Dismissed ${plural(need, "album")}`, "success");
+  } }, "Dismiss all") : null;
+  const ignored = care.ignored?.length ? h("details", { class: "care-ignored" },
+    h("summary", {}, `Dismissed (${care.ignored.length})`),
+    h("ul", { class: "care-review" }, care.ignored.map((f) => h("li", {},
+      h("span", { class: "care-folder", dir: "auto" }, h("strong", {}, f.split("/").pop() || f), f.includes("/") ? h("span", {}, f.slice(0, f.lastIndexOf("/"))) : null),
+      h("button", { class: "link-btn", type: "button", onclick: async () => {
+        try { care = await api("POST", "/api/library-care/ignore", { folder: f, ignore: false }); } catch (err) { toast(err.message, "error"); return; }
+        closeDialog($("#confirm-dialog")); updateCareSlot(); setTimeout(openCare, 250);
+        toast("Codetta will look at it again", "success");
+      } }, "Show again")))))
     : null;
   const pause = h("button", { class: "btn small", type: "button", onclick: async () => {
     care = await api("PUT", "/api/library-care", { paused: !care.paused }); closeDialog($("#confirm-dialog")); updateCareSlot();
@@ -158,9 +179,9 @@ async function openCare() {
       h("div", { class: "care-progress" }, h("span", {}, st.text), careBar(care), when ? h("span", { class: "care-when" }, when) : null),
       h("div", { class: "care-stats" }, stat(fixed, "fixed"), stat(n.skipped, "already fine"), stat(need, "need you", need ? "warn" : "")),
       h("div", { class: "care-actions" }, pause, change),
-      need ? h("h3", { class: "field-label" }, "These need you") : null,
-      need ? h("p", { class: "hint" }, "Codetta wasn't sure about these, so it left them alone. Open one to pick the right album yourself.") : null,
-      list) });
+      need ? h("div", { class: "care-need-head" }, h("h3", { class: "field-label" }, "These need you"), dismissAll) : null,
+      need ? h("p", { class: "hint" }, "Codetta wasn't sure about these, so it left them alone. Open one to pick the right album yourself, or Dismiss it to stop seeing it here.") : null,
+      list, ignored) });
 }
 
 async function openHealth(view = "issues") {
@@ -198,6 +219,18 @@ async function healthFix(issue) {
     folderCache.clear(); folderCovers.clear();
     refreshActivity();
     afterHealthChange(res.health);
+  } catch (err) { toast(err.message, "error"); }
+}
+
+async function healthIgnoreAll() {
+  const d = health.data;
+  const n = d.shown_total ?? d.issues.length;
+  const what = health.filter === "all" ? "" : ` ${(d.categories.find((c) => c.id === health.filter)?.label || "").toLowerCase()}`;
+  if (!(await ask({ title: `Ignore all ${n.toLocaleString()}${what}?`, confirmLabel: "Ignore all",
+    message: "They come off the list and stop counting. You can show any of them again from Ignored." }))) return;
+  try {
+    afterHealthChange(await api("POST", "/api/library-health/ignore-all", { category: health.filter }));
+    toast(`Ignored ${plural(n, "issue")}`, "success");
   } catch (err) { toast(err.message, "error"); }
 }
 
@@ -340,6 +373,8 @@ function renderHealth() {
     d.count ? h("div", { class: "health-chips", role: "group", "aria-label": "Show" },
       chip("all", "All", d.count),
       d.categories.filter((c) => c.count).map((c) => chip(c.id, c.label, c.count))) : null,
+    (d.shown_total ?? shown.length) > 1 ? h("div", { class: "health-bulk" }, h("button", { class: "link-btn", type: "button", onclick: healthIgnoreAll },
+      health.filter === "all" ? "Ignore all" : `Ignore all ${(d.categories.find((c) => c.id === health.filter)?.label || "").toLowerCase()}`)) : null,
     shown.length ? h("div", { class: "inbox-list health-list" }, shown.map((i) => healthItem(i))) : null,
     more);
 }

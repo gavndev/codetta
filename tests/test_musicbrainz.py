@@ -293,7 +293,7 @@ def make_client(album_dir, tmp_path):
             art_calls.append(url)
             if isinstance(art, Exception):
                 raise art
-            return art
+            return art(url) if callable(art) else art
 
         app = create_app(Settings(music_dir=album_dir, config_dir=tmp_path / "config", **settings),
                          fetch_mb=fake, fetch_art=fetch_art)
@@ -430,6 +430,15 @@ def test_cover_proxy(make_client):
     assert c.get("/api/musicbrainz/cover/not-an-id").status_code == 422
     c.get(f"/api/musicbrainz/cover/{REL}")
     assert len(c.art_calls) == 1  # thumbnails are cached
+
+
+def test_a_release_without_a_cover_borrows_its_release_groups(make_client):
+    """A brand-new release often has no cover yet at the Cover Art Archive (seen with a 2026 album
+    in the inbox's review): the album's other editions usually share one."""
+    c = make_client(art=lambda url: png() if "/release-group/" in url else None)
+    res = c.get(f"/api/musicbrainz/cover/{REL}", params={"size": "250"})
+    assert res.status_code == 200 and res.headers["content-type"] == "image/png"
+    assert any("/release-group/" in u for u in c.art_calls)
 
 
 def test_service_errors_are_reported(make_client):

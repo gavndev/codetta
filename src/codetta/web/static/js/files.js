@@ -6,7 +6,7 @@ import { api } from "./api.js";
 import { els, first, plural, state, toast } from "./state.js";
 import { folderCache, loadFolder, renderSelectionBar, toggleSelect, trackByPath } from "./browse.js";
 import { setBang } from "./search.js";
-import { folderCovers, isPhone, openActions, setSelectMode } from "./tools.js";
+import { folderCovers, isPhone, makeFolder, openActions, setSelectMode } from "./tools.js";
 import { closeEditor, confirmDiscard } from "./editor.js";
 import { refreshActivity } from "./activity.js";
 import { openMusicBrainzFor } from "./musicbrainz.js";
@@ -145,11 +145,25 @@ async function moveEntries(paths, label) {
     let data;
     try { data = await api("GET", `/api/folders?path=${encodeURIComponent(pick.path)}`); } catch (err) { setKids(box, h("p", { class: "error-box" }, err.message)); return; }
     const crumbs = pick.path ? pick.path.split("/") : [];
+    // A new folder right here, then step into it (so things can be moved into a folder that didn't exist).
+    const nameInput = h("input", { type: "text", maxlength: "255", dir: "auto", spellcheck: "false", autocomplete: "off",
+      class: "rename-input", placeholder: "New folder name", "aria-label": "New folder name" });
+    const make = async () => {
+      const name = nameInput.value.trim();
+      if (!name) { nameInput.focus(); return; }
+      const made = await makeFolder(pick.path, name);
+      if (made) { pick.path = made; draw(); }
+    };
+    nameInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); make(); } });
+    const newRow = h("div", { class: "picker-new", hidden: true }, nameInput, h("button", { class: "btn small", type: "button", onclick: make }, "Make"));
     setKids(box,
       h("div", { class: "picker-head" },
         pick.path ? h("button", { class: "icon-btn", type: "button", "aria-label": "Up one folder",
           onclick: () => { pick.path = crumbs.slice(0, -1).join("/"); draw(); } }, icon("chevron")) : null,
-        h("strong", { class: "picker-where" }, crumbs.length ? crumbs[crumbs.length - 1] : "Library")),
+        h("strong", { class: "picker-where" }, crumbs.length ? crumbs[crumbs.length - 1] : "Library"),
+        h("button", { class: "link-btn picker-new-btn", type: "button", onclick: () => { newRow.hidden = !newRow.hidden; if (!newRow.hidden) nameInput.focus(); } },
+          icon("plus"), "New folder")),
+      newRow,
       h("div", { class: "picker-list" }, data.folders.length
         ? data.folders.map((f) => h("button", { class: "picker-item", type: "button", disabled: paths.includes(f.path),
           onclick: () => { pick.path = f.path; draw(); } }, icon("folder"), h("span", {}, f.name), icon("chevron")))

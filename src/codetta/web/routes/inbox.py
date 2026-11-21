@@ -439,6 +439,19 @@ def register(app, shared) -> None:
             inbox.save()
         return inbox_out()
 
+    @app.post("/api/inbox/dismiss")
+    def inbox_dismiss(body: InboxActionIn) -> dict:
+        """Take one filed album off the list."""
+        if not inbox.dismiss(body.key):
+            raise HTTPException(404, "Only albums that were filed can be dismissed")
+        return inbox_out()
+
+    @app.post("/api/inbox/dismiss-all")
+    def inbox_dismiss_all() -> dict:
+        """Take every filed album off the list."""
+        inbox.dismiss()
+        return inbox_out()
+
     @app.post("/api/inbox/skip")
     def inbox_skip(body: InboxActionIn) -> dict:
         if inbox.update(body.key, status=SKIPPED, note="Skipped: left where it is") is None:

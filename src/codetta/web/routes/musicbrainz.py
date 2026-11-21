@@ -458,6 +458,36 @@ def register(app, shared) -> None:
                     cover_cache.popitem(last=False)
         return data
 
+    cover_fallbacks: OrderedDict[tuple[str, int], bytes | None] = OrderedDict()
+
+    def release_cover_fallback(mbid: str, size: int) -> bytes | None:
+        """No cover for this exact release (new releases often have none yet): the album's other
+        editions usually share it, and Deezer / iTunes (when they're on) often have it."""
+        key = (mbid, size)
+        with cover_lock:
+            if key in cover_fallbacks:
+                return cover_fallbacks[key]
+        data = None
+        try:
+            release = mb.release(mbid)
+        except (ProviderError, LookupError, HTTPException):
+            release = None
+        if release:
+            group = (release.get("release-group") or {}).get("id")
+            if group and MBID_RE.match(group):
+                data = fetch_cover("rg:" + group, size)
+            if data is None and catalogs.available():
+                s = summarize(release)
+                url = catalogs.find_cover(s.get("title") or "", s.get("artist") or "")
+                found = download_art(url) if url else None
+                if found is not None and sniff_image_type(found) in ("image/jpeg", "image/png"):
+                    data = found
+        with cover_lock:
+            cover_fallbacks[key] = data
+            while len(cover_fallbacks) > 48:
+                cover_fallbacks.popitem(last=False)
+        return data
+
     @app.get("/api/musicbrainz/cover/{mbid}", responses={200: {"content": {"image/jpeg": {}, "image/png": {}}}})
     def mb_cover(mbid: str, size: int = Query(250, description="250 or 500 pixels"),
                  kind: Literal["release", "release-group"] = "release"):
@@ -472,6 +502,8 @@ def register(app, shared) -> None:
             raise HTTPException(422, "Not a release ID or thumbnail size")
         try:
             data = fetch_cover(("rg:" if kind == "release-group" else "") + mbid, size)
+            if data is None and kind == "release" and not catalog:
+                data = release_cover_fallback(mbid, size)
         except ProviderError as exc:
             raise HTTPException(502, str(exc)) from exc
         if data is None:

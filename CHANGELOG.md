@@ -2,6 +2,14 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
+## Unreleased (0.9.2)
+
+- **New folder:** make a folder from any folder's tools (on phones, under More), or right inside **Move to**, so you can make a folder and move things into it in one go. Activity can undo it while it's still empty.
+- **Inbox: Dismiss and Dismiss all** take filed albums off the list. The albums stay in your library; nothing on disk changes.
+- **Tidy up: Dismiss and Dismiss all** for albums that need you. A dismissed album is left alone for good (even if you change what Tidy up does) and waits under Dismissed, where Show again brings it back.
+- **Library health: Ignore all** ignores every issue on the list you're looking at (all of them, or one kind).
+- **Covers in the match review and the inbox:** when MusicBrainz has no cover for a release yet (new releases often don't), Codetta uses the album's other editions, then Deezer or iTunes when they're on, then the cover already in your files.
+
 ## 0.9.1 (2026-11-20)
 
 A round of fixes for the beta, most importantly for albums stuck on "Still arriving" in the inbox, and safer updates from here on.

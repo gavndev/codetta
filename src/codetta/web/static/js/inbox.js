@@ -128,6 +128,10 @@ function renderInbox() {
     else if (g.status === "error") actions.push(btn("Try again", () => inboxAction("/api/inbox/rematch", { key: g.key })), d.online ? btn("Review", () => reviewInboxGroup(g)) : null);
     else if (g.status === "skipped") actions.push(btn("Look again", () => inboxAction("/api/inbox/rematch", { key: g.key })));
     else if (g.status === "filed" && g.dest) actions.push(btn("Open", () => { closeDialog($("#inbox-dialog")); navigate(g.dest); }));
+    if (g.status === "filed") {
+      actions.push(h("button", { class: "link-btn inbox-skip", type: "button", title: "Take it off this list (the album stays in your library)",
+        onclick: () => inboxAction("/api/inbox/dismiss", { key: g.key }) }, "Dismiss"));
+    }
     if (["ready", "review", "nomatch", "local", "error"].includes(g.status)) {
       actions.push(h("button", { class: "link-btn inbox-skip", type: "button", onclick: () => inboxAction("/api/inbox/skip", { key: g.key }) }, "Skip"));
     }
@@ -140,8 +144,10 @@ function renderInbox() {
       } }, "Remove"));
     }
     const rel = g.release;
+    // The release's cover, or (still in the inbox) the one in the files themselves.
+    const own = g.status !== "filed" && g.paths?.length ? `/api/art?path=${encodeURIComponent(g.paths[0])}` : null;
     return h("div", { class: `inbox-item ${g.status}` },
-      rel?.id && d.online ? mbThumb(rel.id) : h("span", { class: "mb-thumb mb-noart", "aria-hidden": "true" }, icon("note")),
+      rel?.id && d.online ? mbThumb(rel.id, 250, own) : mbThumb(null, 250, own),
       h("div", { class: "inbox-main" },
         h("div", { class: "inbox-title", dir: "auto" }, name, g.artist ? h("span", { class: "inbox-artist" }, ` · ${g.artist}`) : null),
         h("div", { class: "mb-cand-meta" }, [rel ? mbMeta(rel) : "", `${plural(g.files, "file")} in ${inboxLabel(g.key)}`].filter(Boolean).join(" · ")),
@@ -166,7 +172,15 @@ function renderInbox() {
           icon("slskd"), "Soulseek") : null,
         h("button", { class: "btn small with-icon", type: "button", onclick: () => { inboxState.settingsOpen = true; renderInbox(); } },
           icon("gear"), "Settings"))),
-    d.groups.length ? h("div", { class: "inbox-list" }, d.groups.map(item)) : null);
+    d.groups.length ? h("div", { class: "inbox-list" }, d.groups.flatMap((g, i) => {
+      const filed = d.groups.filter((x) => x.status === "filed");
+      // Filed albums come last: a small heading before the first, with Dismiss all.
+      const first = g.status === "filed" && (i === 0 || d.groups[i - 1].status !== "filed");
+      return first ? [h("div", { class: "inbox-filed-head" }, h("span", {}, `Filed (${filed.length})`),
+        filed.length > 1 ? h("button", { class: "link-btn", type: "button",
+          onclick: () => inboxAction("/api/inbox/dismiss-all", {}, () => toast(`Dismissed ${plural(filed.length, "filed album")}`, "success")) }, "Dismiss all") : null),
+        item(g)] : [item(g)];
+    })) : null);
   setKids($("#inbox-foot"),
     h("button", { class: "btn", type: "button", onclick: loadInbox }, "Check again"),
     h("span", { class: "spacer" }),

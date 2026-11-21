@@ -20,7 +20,7 @@ from codetta.core.health import (
 from codetta.core.health import (
     run as health_run,
 )
-from codetta.web.common import HealthIssueIn, HealthSettingsIn
+from codetta.web.common import HealthIgnoreAllIn, HealthIssueIn, HealthSettingsIn
 
 
 def register(app, shared) -> None:
@@ -146,6 +146,20 @@ def register(app, shared) -> None:
         except OSError as exc:
             raise HTTPException(500, f"Could not save to the config folder: {exc}") from exc
         return get_health()
+
+    @app.post("/api/library-health/ignore-all")
+    def health_ignore_all(body: HealthIgnoreAllIn) -> dict:
+        """Ignore every issue on the list you're looking at (all of them, or one kind)."""
+        require_library()
+        _, shown, _ = health_visible()
+        ids = [i["id"] for i in shown if body.category == "all" or i["category"] == body.category]
+        with health_store.lock:
+            health_store.ignored.update(ids)
+        try:
+            health_store.save()
+        except OSError as exc:
+            raise HTTPException(500, f"Could not save to the config folder: {exc}") from exc
+        return get_health(body.category)
 
     @app.post("/api/library-health/fix")
     def health_fix(body: HealthIssueIn) -> dict:

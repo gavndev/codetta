@@ -2949,3 +2949,16 @@ dialog:focus { outline: none; }
   border-radius: 10px; border: 1px solid var(--field-line); background: var(--surface); color: var(--text); resize: vertical; }
 .report-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
 .sheet.small.confirm:has(.report-sheet) { width: min(600px, calc(100vw - 24px)); max-width: none; }
+.care-ignored { margin-top: 12px; }
+.care-ignored > summary { cursor: pointer; color: var(--muted); font-size: 14px; padding: 8px 0; min-height: 44px; display: flex; align-items: center; }
+.inbox-filed-head, .care-need-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.inbox-filed-head { padding: 14px 0 4px; color: var(--muted); font-size: 14px; }
+.inbox-filed-head .link-btn, .care-need-head .link-btn, .health-bulk .link-btn { min-height: 44px; }
+.care-need-head .field-label { margin: 0; }
+.health-bulk { display: flex; justify-content: flex-end; margin-top: 4px; }
+.picker-new-btn { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; min-height: 44px; white-space: nowrap; }
+.picker-new-btn svg { width: 16px; height: 16px; }
+.picker-head .picker-new-btn svg { transform: none; }
+.picker-new { display: flex; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--rule); }
+.picker-new[hidden] { display: none; }
+.picker-new .rename-input { flex: 1; min-width: 0; }

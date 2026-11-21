@@ -11,6 +11,7 @@ from codetta.core.library import LibraryPathError, audio_files
 from codetta.core.organize import load_pattern
 from codetta.web.common import (
     LibraryCareFolderIn,
+    LibraryCareIgnoreIn,
     LibraryCareIn,
     MBProposalIn,
     MBSearchIn,
@@ -266,6 +267,22 @@ def register(app, shared) -> None:
         care.forget(body.folder.strip().strip("/"))
         care_worker["gen"] += 1
         care_start()
+        return care_out()
+
+    @app.post("/api/library-care/ignore")
+    def library_care_ignore(body: LibraryCareIgnoreIn) -> dict:
+        """Leave an album alone for good (it stops needing you), or look at it again."""
+        require_library()
+        if body.all and body.ignore:
+            care.ignore_all_review()
+            return care_out()
+        folder = body.folder.strip().strip("/")
+        if not folder or folder.startswith("@"):
+            raise HTTPException(422, "Choose an album in your library.")
+        care.ignore(folder, body.ignore)
+        if not body.ignore:
+            care_worker["gen"] += 1
+            care_start()
         return care_out()
 
     shared.share(care=care)

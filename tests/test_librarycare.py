@@ -194,3 +194,28 @@ def test_a_loose_song_already_in_the_library_stays_and_says_so(tmp_path):
     downloads = next(r for r in [*d["review"], *d.get("recent", [])] if r["folder"] == "Downloads") if d["review"] else None
     assert downloads is None or "already in your library" in downloads["note"]
     c.__exit__(None, None, None)
+
+
+def test_an_album_you_ignore_stops_needing_you_and_is_left_alone(album_dir, tmp_path):  # noqa: F811
+    """Some albums will never match (a bootleg, your own recordings): Ignore takes them off the list for good."""
+    c = client(album_dir, tmp_path)
+    c.put("/api/connections", json={"enabled": {"musicbrainz": False}})
+    c.put("/api/library-care", json={"mode": "tags"})
+    d = wait_done(c)
+    assert [r["folder"] for r in d["review"]] == [FOLDER]  # can't be matched offline: it needs you
+    d = c.post("/api/library-care/ignore", json={"folder": FOLDER}).json()
+    assert d["review"] == [] and d["ignored"] == [FOLDER] and d["counts"]["review"] == 0
+    # A new choice starts over, but an ignored album stays ignored and isn't looked at.
+    c.put("/api/library-care", json={"mode": "full"})
+    d = wait_done(c)
+    assert d["ignored"] == [FOLDER] and d["review"] == []
+    assert (album_dir / FOLDER).is_dir()  # never moved
+    # Show again: it's looked at again (and, still offline, needs you again).
+    c.post("/api/library-care/ignore", json={"folder": FOLDER, "ignore": False})
+    d = wait_done(c)
+    assert d["ignored"] == [] and [r["folder"] for r in d["review"]] == [FOLDER]
+    assert c.post("/api/library-care/ignore", json={"folder": "@inbox/x"}).status_code == 422
+    # Dismiss all: every album that needs you, in one go.
+    d = c.post("/api/library-care/ignore", json={"all": True}).json()
+    assert d["review"] == [] and d["ignored"] == [FOLDER]
+    c.__exit__(None, None, None)

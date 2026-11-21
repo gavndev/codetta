@@ -199,3 +199,17 @@ def test_library_health_can_be_switched_off(client, monkeypatch):
     c.put("/api/library-health/settings", json={"disabled": ["small_cover"]})
     on = c.put("/api/library-health/settings", json={"enabled": True}).json()
     assert on["enabled"] and not next(x for x in on["checks"] if x["id"] == "small_cover")["enabled"]
+
+
+def test_ignore_all_takes_a_whole_list_off(client):
+    c, _ = client
+    data = c.get("/api/library-health").json()
+    assert data["count"] > 1
+    kind = data["issues"][0]["category"]
+    n_kind = next(x["count"] for x in data["categories"] if x["id"] == kind)
+    after = c.post("/api/library-health/ignore-all", json={"category": kind}).json()
+    assert after["count"] == data["count"] - n_kind and after["ignored_total"] == n_kind  # just that kind
+    after = c.post("/api/library-health/ignore-all", json={"category": "all"}).json()
+    assert after["count"] == 0 and after["ignored_total"] == data["count"]
+    one = after["ignored"][0]["id"]
+    assert c.post("/api/library-health/ignore", json={"id": one, "ignore": False}).json()["count"] == 1  # show one again

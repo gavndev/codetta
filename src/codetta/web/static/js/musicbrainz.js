@@ -101,15 +101,27 @@ async function mbIdentify() {
   renderMbSearch();
 }
 
-export function mbThumb(id, size = 250) {
+/** A release's cover. ``fallback``: another picture to try when there's none (the files' own cover). */
+export function mbThumb(id, size = 250, fallback = null) {
   const empty = () => h("span", { class: "mb-thumb mb-noart", "aria-hidden": "true" }, icon("note"));
-  if (!id) return empty();
-  const img = h("img", { class: "mb-thumb", src: `/api/musicbrainz/cover/${id}?size=${size}`, alt: "", loading: "lazy", decoding: "async", width: "56", height: "56" });
-  img.addEventListener("error", () => img.replaceWith(empty()), { once: true });
+  if (!id && !fallback) return empty();
+  const img = h("img", { class: "mb-thumb", src: id ? `/api/musicbrainz/cover/${id}?size=${size}` : fallback, alt: "",
+    loading: "lazy", decoding: "async", width: "56", height: "56" });
+  img.addEventListener("error", function onError() {
+    if (fallback && img.getAttribute("src") !== fallback) { img.src = fallback; return; }
+    img.removeEventListener("error", onError);
+    img.replaceWith(empty());
+  });
   return img;
 }
 
 const mbYear = (date) => (date || "").slice(0, 4);
+
+/** The cover already in the files being matched (most downloads have one), as a last resort. */
+const ownCover = (p) => {
+  const f = (p?.files || []).find((x) => x.has_art);
+  return f ? `/api/art?path=${encodeURIComponent(f.path)}` : null;
+};
 
 export function mbMeta(c) {
   return [mbYear(c.date), c.country, c.formats, c.track_count ? plural(c.track_count, "track") : "", c.labels[0], c.type]
@@ -385,7 +397,7 @@ function renderMbReview() {
 
   setKids(body,
     h("div", { class: "mb-release" },
-      mbThumb(r.id),
+      mbThumb(r.id, 250, ownCover(p)),
       h("div", { class: "mb-release-main" },
         h("div", { class: "mb-cand-title", dir: "auto" }, r.title, r.disambiguation ? h("span", { class: "mb-dis" }, ` (${r.disambiguation})`) : null),
         h("div", { class: "mb-cand-artist", dir: "auto" }, r.artist),

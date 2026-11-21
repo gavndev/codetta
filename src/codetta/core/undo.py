@@ -10,6 +10,7 @@ file, the exact values before and after the change:
 
     {"type": "multi", "parts": [<tags record>, <art record>]}   (e.g. a MusicBrainz match)
     {"type": "moves", "moves": [["old/path.flac", "new/path.flac"], ...]}   (Organize)
+    {"type": "folder", "path": "Artist/New", "made": true}   (New folder: undo removes it while it's empty)
 
 Album art is too big for the log, so images are kept in an ``ArtStore``
 (one file per distinct image, so a cover shared by a whole album is stored
@@ -109,6 +110,8 @@ def undo_change(
         return _undo_multi(engine, resolve, art, record)
     if kind == "moves":
         return _undo_moves(resolve, record)
+    if kind == "folder":
+        return _undo_folder(resolve, record)
     outcome = UndoOutcome()
     reverse_files: dict[str, dict] = {}
 
@@ -161,6 +164,31 @@ def _undo_multi(engine: MetadataEngine, resolve: Callable[[str], Path], art: Art
     reverse = [p.reverse for p in parts if p.reverse]
     if reverse:
         outcome.reverse = {"type": "multi", "parts": reverse}
+    return outcome
+
+
+def _undo_folder(resolve: Callable[[str], Path], record: dict) -> UndoOutcome:
+    """A new folder goes away again, but only while nothing has been put in it (and redo makes it again)."""
+    rel = str(record.get("path") or "")
+    target = resolve(rel)
+    outcome = UndoOutcome()
+    try:
+        if record.get("made", True):
+            if any(target.iterdir()):
+                outcome.results.append(UndoResult(rel, ok=False, skipped=True,
+                                                  error="It isn't empty any more, so it was left alone"))
+                return outcome
+            target.rmdir()
+        else:
+            target.mkdir()
+    except FileNotFoundError:
+        outcome.results.append(UndoResult(rel, ok=False, skipped=True, error="It isn't there any more"))
+        return outcome
+    except OSError as exc:
+        outcome.results.append(UndoResult(rel, ok=False, error=str(exc)))
+        return outcome
+    outcome.results.append(UndoResult(rel, ok=True))
+    outcome.reverse = {"type": "folder", "path": rel, "made": not record.get("made", True)}
     return outcome
 
 

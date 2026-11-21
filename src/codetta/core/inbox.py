@@ -203,6 +203,17 @@ class InboxStore:
         except Exception:  # noqa: BLE001 - the downloader being unreachable must never stop the inbox
             return False
 
+    def dismiss(self, key: str | None = None) -> int:
+        """Take filed albums off the list (one, or all of them). Their files left the inbox when
+        they were filed, so nothing on disk changes and they don't come back."""
+        with self.lock:
+            keys = [k for k, g in self.groups.items() if g.status == FILED and (key is None or k == key)]
+            for k in keys:
+                del self.groups[k]
+            if keys:
+                self.save()
+            return len(keys)
+
     def update(self, key: str, **changes) -> Group | None:
         with self.lock:
             g = self.groups.get(key)
