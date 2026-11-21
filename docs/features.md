@@ -29,6 +29,14 @@ artist, album or tag, each with an example from your library) and for
   <img src="media/search.webp" alt="The idle search bar rolling through ideas from the library, then searching for artist Frank Ocean and genre electronic" width="900">
 </p>
 
+Or start with a **bang**: `!mb` searches MusicBrainz for artists and releases,
+and `!slskd` searches Soulseek through your slskd. The bang becomes a chip as
+soon as you type it, and what you type next goes there instead of your library.
+
+<p align="center">
+  <img src="media/bangs.webp" alt="Typing !mb in the search bar turns it into a MusicBrainz chip, searching for Björk shows her artists and releases with Homogenic marked In your library, then !slskd turns it into a Soulseek search for Vespertine" width="900">
+</p>
+
 ## Fix a whole album in one go
 
 Fill in the album details once, drop in a cover, and **Save to folder** applies

@@ -129,6 +129,18 @@ album, tag) with examples from your own music.
   <img src="docs/media/search.webp" alt="The idle search bar rolling through ideas from the library, then searching for artist Frank Ocean and genre electronic" width="900">
 </p>
 
+### Search elsewhere with bangs
+
+Start a search with a **bang** to send it somewhere else: `!mb` looks up
+artists and releases on MusicBrainz (marking what's already in your library),
+and `!slskd` asks Soulseek through your slskd. The bang turns into a chip as
+soon as you type it, so you always know where the search is going. Each bang
+shows up once its connection is on.
+
+<p align="center">
+  <img src="docs/media/bangs.webp" alt="Typing !mb in the search bar turns it into a MusicBrainz chip, searching for Björk shows her artists and releases with Homogenic marked In your library, then !slskd turns it into a Soulseek search for Vespertine" width="900">
+</p>
+
 ### Match on MusicBrainz
 
 Official titles, credits, dates, labels, catalog numbers, MusicBrainz IDs and
