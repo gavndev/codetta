@@ -192,7 +192,58 @@ export const BANGS = {
     missing: "Soulseek isn't connected. Set it up in Account → Connections.",
     run: (q) => skSearch(q),
   },
+  dz: {
+    names: ["dz", "deezer"], label: "Deezer", icon: "disc", about: "Albums on Deezer",
+    placeholder: "Search Deezer: artists, albums", available: () => connectionOn("deezer"),
+    missing: "Deezer isn't on. Turn it on in Account → Connections.",
+    run: (q) => catalogSearch("deezer", q),
+  },
+  it: {
+    names: ["it", "itunes", "apple"], label: "iTunes", icon: "disc", about: "Albums on iTunes and Apple Music",
+    placeholder: "Search iTunes: artists, albums", available: () => connectionOn("itunes"),
+    missing: "iTunes isn't on. Turn it on in Account → Connections.",
+    run: (q) => catalogSearch("itunes", q),
+  },
 };
+
+// ---- !dz and !it: albums on Deezer or iTunes, in a sheet -------------------------------------------
+
+async function catalogSearch(source, q) {
+  const query = q.trim();
+  if (!query) return;
+  const name = source === "deezer" ? "Deezer" : "iTunes";
+  if (!enoughText(query)) { toast(`Type at least two letters or numbers to search ${name}.`, "error"); return; }
+  const chip = $("#bang-chip");
+  chip?.classList.add("busy");
+  let d;
+  try { d = await api("GET", `/api/catalog/search?source=${source}&q=${encodeURIComponent(query)}`); }
+  catch (err) { toast(err.message, "error"); return; }
+  finally { chip?.classList.remove("busy"); }
+  els.filter.value = ""; setBang(false); els.filter.blur();
+  const cover = (id) => {
+    const img = h("img", { class: "mbx-cover", src: `/api/musicbrainz/cover/${encodeURIComponent(id)}?size=250`, alt: "",
+      loading: "lazy", decoding: "async", width: "160", height: "160" });
+    img.addEventListener("error", () => img.replaceWith(h("span", { class: "mbx-cover mbx-noart", "aria-hidden": "true" }, icon("note"))), { once: true });
+    return img;
+  };
+  const card = (a) => h("div", { class: "mbx-card" },
+    a.url ? h("a", { href: a.url, target: "_blank", rel: "noopener noreferrer" }, cover(a.id)) : cover(a.id),
+    h("div", { class: "mbx-card-text" },
+      h("strong", { dir: "auto" }, a.title),
+      a.artist ? h("span", { dir: "auto" }, a.artist) : null,
+      h("span", { class: "mbx-meta" }, [a.year, a.type, a.tracks ? plural(a.tracks, "track") : ""].filter(Boolean).join(" · ")),
+      a.in_library != null
+        ? h("a", { class: "mbx-owned", href: hashFor(a.in_library), title: `In your library: ${a.in_library}`,
+          onclick: () => closeDialog($("#confirm-dialog")) }, icon("check"), "In your library")
+        : h("span", { class: "catalog-actions" },
+          a.url ? h("a", { class: "link-btn", href: a.url, target: "_blank", rel: "noopener noreferrer" }, `Open on ${source === "deezer" ? "Deezer" : "Apple Music"}`) : null,
+          skReady() ? h("button", { class: "link-btn", type: "button", onclick: () => {
+            closeDialog($("#confirm-dialog")); setTimeout(() => skSearch(`${a.artist} ${a.title}`.trim(), ""), 250);
+          } }, "Find in slskd") : null)));
+  await ask({ title: `${name}: “${query}”`, confirmLabel: "Done", cancelLabel: null,
+    message: d.albums.length ? `${plural(d.albums.length, "album")} on ${name}.` : `${name} has nothing for “${query}”.`,
+    details: d.albums.length ? h("div", { class: "mbx-grid catalog-grid" }, d.albums.map(card)) : null });
+}
 const BANG_RE = /^!([a-z]+)(?=\s|$)/i; // the chip appears as soon as the bang's name is typed
 const bangKind = (name) => Object.keys(BANGS).find((k) => BANGS[k].names.includes(name.toLowerCase())) || null;
 

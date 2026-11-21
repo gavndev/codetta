@@ -116,3 +116,20 @@ def test_musicbrainz_first_and_no_fallback_when_it_fits(album_dir, tmp_path):  #
     found = c.post("/api/musicbrainz/search", json={"folder": FOLDER}).json()["candidates"]
     assert found[0]["source"] == "musicbrainz" and fake.urls == []  # a good MusicBrainz match: Deezer isn't asked
     c.__exit__(None, None, None)
+
+
+def test_the_dz_and_it_bangs_search_albums_and_mark_what_you_have(album_dir, tmp_path):  # noqa: F811
+    c, fake, _ = make(album_dir, tmp_path, {"deezer": True, "itunes": False})
+    d = c.get("/api/catalog/search", params={"source": "deezer", "q": "fixture album"}).json()
+    a = d["albums"][0]
+    assert a["id"] == "deezer:302127" and a["title"] == "Fixture Album" and a["artist"] == "Coda Tester"
+    assert a["url"].startswith("https://www.deezer.com/") and "in_library" in a
+    assert any("q=fixture%20album" in u for u in fake.urls)  # free text, as typed
+    assert c.get("/api/catalog/search", params={"source": "itunes", "q": "fixture"}).status_code == 403  # off: never asked
+    assert not [u for u in fake.urls if "itunes" in u]
+    assert c.get("/api/catalog/search", params={"source": "deezer", "q": "!"}).status_code == 422
+    assert c.get("/api/catalog/search", params={"source": "spotify", "q": "x"}).status_code == 422
+    c.put("/api/connections", json={"enabled": {"deezer": True, "itunes": True}})
+    d = c.get("/api/catalog/search", params={"source": "itunes", "q": "fixture"}).json()
+    assert d["albums"][0]["id"] == "itunes:1440857781"
+    c.__exit__(None, None, None)

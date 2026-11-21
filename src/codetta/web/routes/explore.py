@@ -1,5 +1,7 @@
-"""Exploring MusicBrainz from the search bar (the !mb bang)."""
+"""Exploring from the search bar: MusicBrainz (the !mb bang), Deezer (!dz) and iTunes (!it)."""
 from __future__ import annotations
+
+from typing import Literal
 
 from fastapi import HTTPException, Query
 
@@ -18,6 +20,7 @@ from codetta.core.providers import ProviderError
 
 
 def register(app, shared) -> None:
+    catalogs = shared.catalogs
     lib_index = shared.lib_index
     mb = shared.mb
     require_connection = shared.require_connection
@@ -51,6 +54,28 @@ def register(app, shared) -> None:
 
     def with_owned(g: dict) -> dict:
         return {**g, "in_library": owned_folder(g["artist"], g["title"]) if g["artist"] else None}
+
+    @app.get("/api/catalog/search")
+    def catalog_search(source: Literal["deezer", "itunes"], q: str = Query(..., min_length=1, max_length=200)) -> dict:
+        """The !dz and !it bangs: albums on Deezer or iTunes, marked when they're already in the library."""
+        require_connection(source)
+        if sum(ch.isalnum() for ch in q) < 2:
+            raise HTTPException(422, "Type at least two letters or numbers.")
+        try:
+            found = catalogs.search_text(source, q)
+        except LookupError as exc:
+            raise HTTPException(403, str(exc)) from exc
+        except ProviderError as exc:
+            raise HTTPException(502, str(exc)) from exc
+        albums = []
+        for r in found:
+            artist = r.get("_artist") or ""
+            albums.append(with_owned({
+                "id": r["id"], "title": r.get("title") or "", "artist": artist, "year": (r.get("date") or "")[:4],
+                "type": (r.get("release-group") or {}).get("primary-type") or "", "tracks": r.get("track-count"),
+                "url": r.get("_url") or "",
+            }))
+        return {"source": source, "query": q, "albums": albums}
 
     def explore(call, mbid: str | None = None):
         if mbid is not None and not MBID_RE.match(mbid):

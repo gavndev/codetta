@@ -59,6 +59,18 @@ class Catalogs:
         return [_itunes_summary(a) for a in (data.get("results") or [])
                 if isinstance(a, dict) and a.get("collectionId") and a.get("wrapperType") == "collection"]
 
+    def search_text(self, source: str, text: str, limit: int = 24) -> list[dict]:
+        """Albums matching free text on one source (the !dz and !it bangs), as release-shaped dicts."""
+        if source not in SOURCES or not self.enabled(source):
+            raise LookupError(f"{source.title()} isn't on")
+        q = urllib.parse.quote(text.strip())
+        if source == "deezer":
+            data = self.fetch(f"{DEEZER_API}/search/album?q={q}&limit={limit}") or {}
+            return [_deezer_summary(a) for a in (data.get("data") or []) if isinstance(a, dict) and a.get("id")]
+        data = self.fetch(f"{ITUNES_API}/search?term={q}&entity=album&media=music&limit={limit}") or {}
+        return [_itunes_summary(a) for a in (data.get("results") or [])
+                if isinstance(a, dict) and a.get("collectionId") and a.get("wrapperType") == "collection"]
+
     # --- One album, with its tracks -----------------------------------------------------------
 
     def release(self, release_id: str) -> dict:

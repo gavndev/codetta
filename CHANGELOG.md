@@ -2,6 +2,13 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
+## Unreleased (0.9.3)
+
+- **Search Deezer and iTunes from the search bar:** type `!dz` or `!it` and an artist or album. Results show each album's cover, year and track count, mark the ones already in your library, and link to Deezer or Apple Music (or Find in slskd). Each needs its connection switched on.
+- **Faster, lighter saving:** matching an album writes each file's tags and cover in one safe write instead of two, and saves an album's files a few at once, so the inbox, Tidy up and Find in MusicBrainz copy half as much and finish sooner on big FLACs. Undo is about three times faster, and batch edits about a quarter faster on real disks. Every file is still synced to disk before it replaces the original.
+- **Imports no longer hold up the rest of Codetta:** while a big file is saved, other screens stay responsive.
+- **Quicker start-up over the network:** the page asks for all its pieces at once instead of one after another.
+
 ## 0.9.2 (2026-11-20)
 
 Quick wins from using the beta: ways to clear lists you're done with, a New folder button, and covers for brand-new releases.
