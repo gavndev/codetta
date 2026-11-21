@@ -195,7 +195,7 @@ class MetadataEngine:
         )
 
     def update_tags(self, path: str | Path, changes: Mapping[str, TagValue],
-                    before: dict | None = None) -> TrackMetadata:
+                    before: dict | None = None, batch: WriteBatch | None = None) -> TrackMetadata:
         """Apply ``changes`` to the tags of ``path`` and return the new metadata.
 
         ``changes`` maps tag names to new values. Tags not mentioned are left
@@ -230,8 +230,42 @@ class MetadataEngine:
             self._write_tags(temp, original.format, normalized)
             self._verify_tags(temp, normalized)
 
-        self._safe_write(path, write_and_verify)
+        self._safe_write(path, write_and_verify, batch)
         return self.load_metadata(path)
+
+    def update_tags_and_artwork(self, path: str | Path, changes: Mapping[str, TagValue], image: bytes | None,
+                                before: dict | None = None, batch: WriteBatch | None = None) -> tuple[TrackMetadata, Artwork | None]:
+        """Tags and the cover in one safe write (one copy of the file instead of two): what
+        matching an album does. ``image`` None removes the pictures. Both are verified on the
+        copy before it replaces the original."""
+        path = Path(path)
+        try:
+            art = parse_image(image) if image is not None else None
+        except ArtworkError as exc:
+            raise MetadataError(str(exc)) from exc
+        original = self.load_metadata(path)
+        if before is not None:
+            before["tags"] = original.tags
+        normalized = {key.lower(): _normalize_value(value) for key, value in changes.items()}
+        _check_changes(normalized)
+
+        def write_and_verify(temp: Path) -> None:
+            if normalized:
+                self._write_tags(temp, original.format, normalized)
+            try:
+                audio, format_name = _open_raw(temp)
+                write_picture(audio, format_name, art)
+                audio.save()
+                check, _ = _open_raw(temp)
+                after = read_picture(check, format_name)
+            except (mutagen.MutagenError, ValueError, KeyError) as exc:
+                raise MetadataError(f"Could not save album art to {path}: {exc}") from exc
+            if not (after is None if art is None else (after is not None and after.data == art.data)):
+                raise MetadataError("Album art did not save correctly")
+            self._verify_tags(temp, normalized)  # the same check a tag save makes
+
+        self._safe_write(path, write_and_verify, batch)
+        return self.load_metadata(path), art
 
     # --- Album art --------------------------------------------------------------
 
@@ -242,7 +276,7 @@ class MetadataEngine:
         audio, format_name = _open_raw(path)
         return read_picture(audio, format_name)
 
-    def update_artwork(self, path: str | Path, image: bytes | None) -> Artwork | None:
+    def update_artwork(self, path: str | Path, image: bytes | None, batch: WriteBatch | None = None) -> Artwork | None:
         """Embed ``image`` (JPEG or PNG bytes) as the album art, or remove all
         embedded pictures when ``image`` is None. Tags are left untouched.
 
@@ -270,21 +304,26 @@ class MetadataEngine:
             if self.load_metadata(temp).tags != original.tags:
                 raise MetadataError("Saving album art unexpectedly changed the tags")
 
-        self._safe_write(path, write_and_verify)
+        self._safe_write(path, write_and_verify, batch)
         return art
 
     # --- Safe writing -------------------------------------------------------------
 
-    def _safe_write(self, path: Path, write_and_verify: Callable[[Path], None]) -> None:
+    def _safe_write(self, path: Path, write_and_verify: Callable[[Path], None], batch: WriteBatch | None = None) -> None:
         """Run ``write_and_verify`` on a temp copy of ``path``, then swap it in.
 
         The original is never edited in place. If anything fails, it is left
-        untouched and the copy is deleted.
+        untouched and the copy is deleted. In a ``batch``, the folder's own flush
+        (which makes the swap permanent) happens once per folder when the batch ends.
         """
         with _lock_for(path):
-            self._safe_write_locked(path, write_and_verify)
+            self._safe_write_locked(path, write_and_verify, batch)
 
-    def _safe_write_locked(self, path: Path, write_and_verify: Callable[[Path], None]) -> None:
+    def batch(self) -> WriteBatch:
+        """``with engine.batch() as b: engine.update_tags(p, changes, batch=b)`` for many files."""
+        return WriteBatch()
+
+    def _safe_write_locked(self, path: Path, write_and_verify: Callable[[Path], None], batch: WriteBatch | None = None) -> None:
         # If ``path`` is a symlink, edit the file it points to. Otherwise the
         # swap below would replace the link itself with a regular file.
         target = Path(os.path.realpath(path))
@@ -313,7 +352,10 @@ class MetadataEngine:
             # client still seeding it) keeps the original bytes.
             os.replace(temp_path, target)
             temp_path = None
-            _fsync_dir(target.parent)  # and the new name too, so a power cut can't undo the swap
+            if batch is not None:
+                batch.add(target.parent)  # flushed once per folder when the batch ends
+            else:
+                _fsync_dir(target.parent)  # and the new name too, so a power cut can't undo the swap
         except OSError as exc:
             raise MetadataError(f"Could not write to {path}: {exc}") from exc
         finally:
@@ -476,6 +518,33 @@ def _normalize_value(value: TagValue) -> list[str]:
         return [value] if value else []
     values = [str(v) for v in value]
     return [] if all(v == "" for v in values) else values
+
+
+class WriteBatch:
+    """Many safe writes in a row. Each file's data still reaches the disk before its swap, so a
+    file is always either its old self or its new self; only the folder flush that makes the
+    swaps permanent is done once per folder, when the batch ends (even if something failed).
+    On a hard drive or SD card that flush costs as much as the file's own."""
+
+    def __init__(self) -> None:
+        self._folders: set[Path] = set()
+        self._lock = threading.Lock()
+
+    def add(self, folder: Path) -> None:
+        with self._lock:
+            self._folders.add(folder)
+
+    def flush(self) -> None:
+        with self._lock:
+            folders, self._folders = self._folders, set()
+        for folder in folders:
+            _fsync_dir(folder)
+
+    def __enter__(self) -> WriteBatch:
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self.flush()
 
 
 def _fsync_dir(folder: Path) -> None:

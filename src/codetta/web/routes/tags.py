@@ -81,7 +81,7 @@ def register(app, shared) -> None:
             try:
                 target = library.resolve(rel)
                 was: dict = {}
-                meta = engine.update_tags(target, body.changes, before=was)  # safe write: copy, check, swap
+                meta = engine.update_tags(target, body.changes, before=was, batch=wb)  # safe write: copy, check, swap
                 before[rel] = was["tags"]
                 if rel in known_art:
                     try:
@@ -96,13 +96,14 @@ def register(app, shared) -> None:
             except (MetadataError, LibraryPathError, OSError) as exc:
                 return UpdateResult(path=rel, ok=False, error=str(exc))
 
-        if len(paths) > 8:
-            # Most of a safe write is waiting for the disk, so a few at once is ~1.6x faster
-            # (more on hard drives). Each file still has its own lock and its own safe write.
-            with ThreadPoolExecutor(max_workers=4, thread_name_prefix="codetta-write") as pool:
-                results = list(pool.map(write, paths))
-        else:
-            results = [write(rel) for rel in paths]
+        with engine.batch() as wb:  # each album folder is flushed once, at the end
+            if len(paths) > 8:
+                # Most of a safe write is waiting for the disk, so a few at once is ~1.6x faster
+                # (more on hard drives). Each file still has its own lock and its own safe write.
+                with ThreadPoolExecutor(max_workers=4, thread_name_prefix="codetta-write") as pool:
+                    results = list(pool.map(write, paths))
+            else:
+                results = [write(rel) for rel in paths]
         keys = {k.lower() for k in body.changes}
         undo_files = {}
         for r in results:
@@ -157,12 +158,13 @@ def register(app, shared) -> None:
         results, had_art = [], 0
         art = None
         undo_files = {}
+        wb = engine.batch()
         for rel in paths:
             try:
                 target = library.resolve(rel)
                 old = engine.read_artwork(target)
                 had_art += old is not None
-                art = engine.update_artwork(target, image)
+                art = engine.update_artwork(target, image, batch=wb)
                 # Keep both images so the change can be undone (and redone).
                 try:
                     before = art_store.save(old.data if old else None)
@@ -174,6 +176,7 @@ def register(app, shared) -> None:
                 results.append(UpdateResult(path=rel, ok=True, track=to_out(rel, engine.load_metadata(target))))
             except (MetadataError, LibraryPathError, OSError) as exc:
                 results.append(UpdateResult(path=rel, ok=False, error=str(exc)))
+        wb.flush()  # the folders' renames, once, before the change is logged
         _log_art(activity, image is not None, art, had_art, results,
                  undo={"type": "art", "files": undo_files} if undo_files else None)
         lib_index.mark_dirty(r.path for r in results if r.ok)

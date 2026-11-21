@@ -28,6 +28,7 @@ import hashlib
 import os
 import tempfile
 from collections.abc import Callable, Iterable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -115,31 +116,38 @@ def undo_change(
     outcome = UndoOutcome()
     reverse_files: dict[str, dict] = {}
 
-    for rel, change in record.get("files", {}).items():
+    def one(item: tuple[str, dict]) -> tuple[UndoResult, dict | None]:
+        rel, change = item
         try:
             target = resolve(rel)
             if kind == "tags":
                 current = engine.load_metadata(target).tags
                 if any(current.get(k, []) != v for k, v in change["after"].items()):
-                    outcome.results.append(UndoResult(rel, ok=False, skipped=True,
-                                                      error="Changed since, so it was left as it is"))
-                    continue
-                engine.update_tags(target, {k: (v or None) for k, v in change["before"].items()})
-                reverse_files[rel] = {"before": change["after"], "after": change["before"]}
+                    return UndoResult(rel, ok=False, skipped=True, error="Changed since, so it was left as it is"), None
+                engine.update_tags(target, {k: (v or None) for k, v in change["before"].items()}, batch=wb)
             elif kind == "art":
                 now = engine.read_artwork(target)
                 if (sha256(now.data) if now else None) != change["after"]:
-                    outcome.results.append(UndoResult(rel, ok=False, skipped=True,
-                                                      error="Album art changed since, so it was left as it is"))
-                    continue
-                engine.update_artwork(target, art.load(change["before"]))
-                reverse_files[rel] = {"before": change["after"], "after": change["before"]}
+                    return UndoResult(rel, ok=False, skipped=True,
+                                      error="Album art changed since, so it was left as it is"), None
+                engine.update_artwork(target, art.load(change["before"]), batch=wb)
             else:
-                outcome.results.append(UndoResult(rel, ok=False, error="Unknown change type"))
-                continue
-            outcome.results.append(UndoResult(rel, ok=True))
+                return UndoResult(rel, ok=False, error="Unknown change type"), None
+            return UndoResult(rel, ok=True), {"before": change["after"], "after": change["before"]}
         except (MetadataError, OSError, ValueError) as exc:
-            outcome.results.append(UndoResult(rel, ok=False, error=str(exc)))
+            return UndoResult(rel, ok=False, error=str(exc)), None
+
+    items = list(record.get("files", {}).items())
+    with engine.batch() as wb:  # each folder is flushed once, at the end
+        if len(items) > 8:  # like a batch edit: a few files at once (each still its own safe write)
+            with ThreadPoolExecutor(max_workers=4, thread_name_prefix="codetta-undo") as pool:
+                done = list(pool.map(one, items))
+        else:
+            done = [one(i) for i in items]
+    for (rel, _), (result, reverse) in zip(items, done, strict=True):
+        outcome.results.append(result)
+        if reverse is not None:
+            reverse_files[rel] = reverse
 
     if reverse_files:
         outcome.reverse = {"type": kind, "files": reverse_files}

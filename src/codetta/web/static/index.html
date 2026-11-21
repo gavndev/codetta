@@ -12,7 +12,7 @@
   <link rel="icon" href="/static/icon.svg?v=3" type="image/svg+xml"> <!-- bump ?v= when the icon changes: browsers cache favicons hard -->
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=3">
   <link rel="preload" href="/static/fonts/schibsted-grotesk.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/static/app.css?v=72">
+  <link rel="stylesheet" href="/static/app.css?v=73">
   <script src="/static/theme.js?v=1"></script>
 </head>
 <body>
@@ -530,6 +530,27 @@
   <datalist id="tag-keys"></datalist>
   <div class="toasts" id="toasts" aria-live="polite"></div>
 
-  <script src="/static/app.js?v=68" type="module"></script>
+  <!-- Every module at once, instead of the browser finding them one import at a time
+       (tests/test_frontend.py keeps this list in step with static/js/). -->
+  <link rel="modulepreload" href="/static/js/account.js">
+  <link rel="modulepreload" href="/static/js/activity.js">
+  <link rel="modulepreload" href="/static/js/api.js">
+  <link rel="modulepreload" href="/static/js/browse.js">
+  <link rel="modulepreload" href="/static/js/dom.js">
+  <link rel="modulepreload" href="/static/js/editor.js">
+  <link rel="modulepreload" href="/static/js/files.js">
+  <link rel="modulepreload" href="/static/js/inbox.js">
+  <link rel="modulepreload" href="/static/js/library.js">
+  <link rel="modulepreload" href="/static/js/musicbrainz.js">
+  <link rel="modulepreload" href="/static/js/notifications.js">
+  <link rel="modulepreload" href="/static/js/player.js">
+  <link rel="modulepreload" href="/static/js/presets.js">
+  <link rel="modulepreload" href="/static/js/search.js">
+  <link rel="modulepreload" href="/static/js/setup.js">
+  <link rel="modulepreload" href="/static/js/state.js">
+  <link rel="modulepreload" href="/static/js/theme.js">
+  <link rel="modulepreload" href="/static/js/tools.js">
+  <link rel="modulepreload" href="/static/js/wiring.js">
+  <script src="/static/app.js?v=69" type="module"></script>
 </body>
 </html>

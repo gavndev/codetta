@@ -298,3 +298,27 @@ def test_undoing_a_new_folder_never_removes_what_was_put_in_it(setup):
     r = c.post(f"/api/activity/{entry['id']}/undo").json()
     assert r["undone"] == 0 and r["skipped"] == 1
     assert (music / "Keep" / "song.flac").read_bytes() == b"something"
+
+
+def test_an_import_never_waits_on_the_disk_in_the_server_loop(setup, monkeypatch):
+    """Writing and fsyncing an upload (slow on hard drives) happens in a worker thread, so other
+    requests aren't held up while a big import is saved."""
+    import asyncio
+    import os as _os
+    import threading
+    seen = []
+    real = _os.fsync
+
+    def spy(fd):
+        try:
+            asyncio.get_running_loop()
+            seen.append("in the server loop")
+        except RuntimeError:
+            seen.append(threading.current_thread().name)
+        return real(fd)
+
+    c, _, _ = setup
+    monkeypatch.setattr(_os, "fsync", spy)
+    r = c.put("/api/import", params={"batch": "test-0009", "path": "x.flac"}, content=(FIXTURES_DIR / "sample.flac").read_bytes())
+    assert r.status_code == 200 and seen
+    assert "in the server loop" not in seen, seen

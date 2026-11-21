@@ -43,11 +43,11 @@ import json
 import os
 import re
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 
-from codetta.core.library import natural_key
 from codetta.core.engine import (
     SUPPORTED_EXTENSIONS,
     MetadataEngine,
@@ -55,6 +55,7 @@ from codetta.core.engine import (
     TagValue,
     is_tag_supported,
 )
+from codetta.core.library import natural_key
 
 PLACEHOLDERS = frozenset({"filename", "filename_title", "folder", "track", "tracktotal"})
 _PLACEHOLDER_RE = re.compile(r"\{([a-z_]+)\}")
@@ -234,10 +235,17 @@ def apply_preset(
     """
     mode = ApplyMode(mode)
     paths = [Path(p) for p in paths]
-    return [
-        _apply_one(engine, preset, path, mode, dry_run, track=i, tracktotal=len(paths))
-        for i, path in enumerate(paths, start=1)
-    ]
+    with engine.batch() as wb:  # each folder is flushed once, at the end
+
+        def one(item: tuple[int, Path]) -> FileResult:
+            i, path = item
+            return _apply_one(engine, preset, path, mode, dry_run, track=i, tracktotal=len(paths), batch=wb)
+
+        items = list(enumerate(paths, start=1))
+        if len(items) > 8 and not dry_run:  # like a batch edit: a few files at once
+            with ThreadPoolExecutor(max_workers=4, thread_name_prefix="codetta-write") as pool:
+                return list(pool.map(one, items))
+        return [one(i) for i in items]
 
 
 def apply_preset_to_folder(
@@ -272,6 +280,7 @@ def _apply_one(
     dry_run: bool,
     track: int,
     tracktotal: int,
+    batch=None,
 ) -> FileResult:
     result = FileResult(path=path)
     try:
@@ -298,7 +307,7 @@ def _apply_one(
         result.applied = {k: list(v) for k, v in changes.items()}
         result.previous = {k: list(current.tags.get(k, [])) for k in changes}
         if changes and not dry_run:
-            engine.update_tags(path, changes)
+            engine.update_tags(path, changes, batch=batch)
     except (MetadataError, OSError) as exc:  # any one file failing (unreadable, no permission) never stops the rest
         result.applied = {}
         result.error = str(exc)

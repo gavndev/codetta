@@ -49,3 +49,11 @@ def test_the_page_knows_the_servers_import_limit():
     js = (STATIC / "js" / "files.js").read_text("utf-8")
     m = re.search(r"const MAX_IMPORT_BYTES = (\d+) \* 1024 \*\* 3;", js)
     assert m and int(m.group(1)) * 1024 ** 3 == MAX_IMPORT_BYTES
+
+
+def test_every_module_is_preloaded():
+    """The page asks for every module up front (no waterfall of imports); the links must match
+    the import addresses exactly, or the browser would fetch each module twice."""
+    html = (STATIC / "index.html").read_text("utf-8")
+    preloaded = set(re.findall(r'<link rel="modulepreload" href="/static/js/([\w-]+\.js)">', html))
+    assert preloaded == {p.name for p in (STATIC / "js").glob("*.js")}

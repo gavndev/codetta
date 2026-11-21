@@ -40,6 +40,7 @@ things live, how a request flows, and the rules that keep files safe.
 ## Before opening a pull request
 
 - Run `pytest` and make sure everything passes.
+- If you touch a heavy path (scanning, saving, search, importing), run `python tools/bench.py` before and after. `--dir` tests a particular disk, like a Raspberry Pi's USB drive.
 - Keep the front end plain HTML/CSS/JS (no build step, no CDNs).
 - Any change that writes files must go through `MetadataEngine.update_tags()` / `update_artwork()` and be logged with an undo record.
 - A new API route goes in the matching module in `src/codetta/web/routes/`; page code goes in the matching module in `src/codetta/web/static/js/`.

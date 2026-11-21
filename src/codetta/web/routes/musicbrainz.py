@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import threading
 from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 from typing import Literal
 
@@ -532,38 +533,45 @@ def register(app, shared) -> None:
                     pass
             if art is None and art_error is None:
                 art_error = "No cover was found for this release"
-        tag_undo, art_undo, results = {}, {}, []
-        for f in proposal["files"]:
+        tag_undo, art_undo = {}, {}
+
+        def write(f: dict) -> dict | None:
+            """One file: its tags and (when asked) the cover, in a single safe write."""
             rel = f["path"]
             if f["error"]:
-                results.append({"path": rel, "ok": False, "error": f["error"]})
-                continue
+                return {"path": rel, "ok": False, "error": f["error"]}
             set_art = bool(f["cover"] and art)
             if not f["changes"] and not set_art:
-                continue
-            target = library.resolve(rel)
-            errors = []
+                return None
+            changes = {k: c["new"] for k, c in f["changes"].items()}
+            try:
+                target = library.resolve(rel)
+                old = engine.read_artwork(target) if set_art else None
+                if set_art:
+                    meta, new = engine.update_tags_and_artwork(target, changes, art, batch=wb)
+                else:
+                    meta, new = engine.update_tags(target, changes, batch=wb), None
+            except (MetadataError, LibraryPathError, OSError) as exc:
+                return {"path": rel, "ok": False, "error": str(exc), "tags": 0, "cover": False}
             if f["changes"]:
+                tag_undo[rel] = {"before": {k: c["old"] for k, c in f["changes"].items()},
+                                 "after": {k: meta.tags.get(k, []) for k in f["changes"]}}
+            if set_art:
                 try:
-                    meta = engine.update_tags(target, {k: c["new"] for k, c in f["changes"].items()})
-                    tag_undo[rel] = {"before": {k: c["old"] for k, c in f["changes"].items()},
-                                     "after": {k: meta.tags.get(k, []) for k in f["changes"]}}
-                except (MetadataError, LibraryPathError, OSError) as exc:
-                    errors.append(str(exc))
-            if set_art and not errors:
-                try:
-                    old = engine.read_artwork(target)
-                    new = engine.update_artwork(target, art)
-                    try:
-                        before, after = art_store.save(old.data if old else None), art_store.save(new.data if new else None)
-                        if before != after:
-                            art_undo[rel] = {"before": before, "after": after}
-                    except OSError:
-                        pass  # couldn't keep a copy: the cover part just won't be undoable
-                except (MetadataError, LibraryPathError, OSError) as exc:
-                    errors.append(f"Cover art: {exc}")
-            results.append({"path": rel, "ok": not errors, "error": "; ".join(errors) or None,
-                            "tags": len(f["changes"]), "cover": set_art and not errors})
+                    before, after = art_store.save(old.data if old else None), art_store.save(new.data if new else None)
+                    if before != after:
+                        art_undo[rel] = {"before": before, "after": after}
+                except OSError:
+                    pass  # couldn't keep a copy: the cover part just won't be undoable
+            return {"path": rel, "ok": True, "error": None, "tags": len(f["changes"]), "cover": set_art}
+
+        with engine.batch() as wb:  # each folder is flushed once, at the end
+            files = proposal["files"]
+            if len(files) > 4:  # most of a safe write is waiting for the disk: a few at once
+                with ThreadPoolExecutor(max_workers=4, thread_name_prefix="codetta-write") as pool:
+                    results = [r for r in pool.map(write, files) if r is not None]
+            else:
+                results = [r for r in map(write, files) if r is not None]
         parts = [p for p in ({"type": "tags", "files": tag_undo}, {"type": "art", "files": art_undo}) if p["files"]]
         undo = parts[0] if len(parts) == 1 else {"type": "multi", "parts": parts} if parts else None
         if results:

@@ -30,7 +30,7 @@ def register(app, shared) -> None:
             try:
                 target = library.resolve(rel)
                 was: dict = {}
-                after = engine.update_tags(target, changes, before=was).tags
+                after = engine.update_tags(target, changes, before=was, batch=wb).tags
                 before = was["tags"]
                 keys = {k.lower() for k in changes}
                 diff = [k for k in keys if before.get(k, []) != after.get(k, [])]
@@ -42,11 +42,12 @@ def register(app, shared) -> None:
                 return rel, str(exc)
 
         items = list(per_file.items())
-        if len(items) > 8:
-            with ThreadPoolExecutor(max_workers=4, thread_name_prefix="codetta-write") as pool:
-                results = list(pool.map(one, items))
-        else:
-            results = [one(i) for i in items]
+        with engine.batch() as wb:  # each folder is flushed once, at the end
+            if len(items) > 8:
+                with ThreadPoolExecutor(max_workers=4, thread_name_prefix="codetta-write") as pool:
+                    results = list(pool.map(one, items))
+            else:
+                results = [one(i) for i in items]
         done = [r for r, e in results if e is None]
         failed = [{"path": r, "error": e} for r, e in results if e is not None]
         keys = sorted({k for c in per_file.values() for k in c})

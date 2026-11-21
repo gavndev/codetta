@@ -8,6 +8,7 @@ names; nothing is ever overwritten; nothing can land outside the import's folder
 
 from __future__ import annotations
 
+import asyncio
 import os
 import re
 import secrets
@@ -17,6 +18,7 @@ from codetta.core.engine import SUPPORTED_EXTENSIONS
 from codetta.core.organize import MAX_COMPONENT_BYTES, safe_name
 
 MAX_IMPORT_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB per file (hi-res albums are big; this isn't a backup tool)
+WRITE_CHUNK = 4 * 1024 * 1024  # bytes handed to the disk at a time
 MAX_DEPTH = 6  # folders inside an imported folder
 BATCH_RE = re.compile(r"^[0-9A-Za-z-]{6,40}$")
 
@@ -99,19 +101,36 @@ async def receive_stream(folder: Path, parts: list[str], stream, limit: int = MA
     target_dir.mkdir(parents=True, exist_ok=True)
     tmp = target_dir / f".codetta-import-{secrets.token_hex(6)}"
     size = 0
+    # The disk work runs in a worker thread, a megabyte at a time: writing (and above all the
+    # final fsync, which can take a second on a hard drive) must never hold up other requests.
+    out = await asyncio.to_thread(open, tmp, "xb")
     try:
-        with open(tmp, "xb") as out:
+        try:
+            pending: list[bytes] = []
+            held = 0
             async for chunk in stream:
                 size += len(chunk)
                 if size > limit:
                     raise _too_big(limit)
-                out.write(chunk)
-            out.flush()
-            os.fsync(out.fileno())
-        return _place(tmp, target_dir, parts[-1])
+                pending.append(chunk)
+                held += len(chunk)
+                if held >= WRITE_CHUNK:
+                    await asyncio.to_thread(out.writelines, pending)
+                    pending, held = [], 0
+            if pending:
+                await asyncio.to_thread(out.writelines, pending)
+            await asyncio.to_thread(_flush_and_sync, out)
+        finally:
+            out.close()
+        return await asyncio.to_thread(_place, tmp, target_dir, parts[-1])
     except BaseException:
         tmp.unlink(missing_ok=True)
         raise
+
+
+def _flush_and_sync(f) -> None:
+    f.flush()
+    os.fsync(f.fileno())
 
 
 def is_audio(name: str) -> bool:
