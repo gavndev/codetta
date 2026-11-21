@@ -666,3 +666,15 @@ def test_media_server_routes_need_sign_in_and_never_show_secrets(music, tmp_path
             assert res.status_code == 200 and password not in res.text
         res = c.put("/api/mediaserver/settings", json={"kind": "jellyfin", "url": "jellyfin:8096", "token": token})
         assert res.status_code == 200 and token not in res.text and token not in c.get("/api/mediaserver").text
+
+
+def test_zip_download_needs_sign_in_and_stays_in_the_library(music, tmp_path):
+    with TestClient(create_app(Settings(music_dir=music, config_dir=tmp_path / "config"))) as c:
+        (music / "Album").mkdir()
+        shutil.copy2(music / "song.flac", music / "Album" / "song.flac")
+        folder = "Album"
+        assert c.get("/api/folders/zip", params={"path": folder}).status_code == 401
+        c.post("/api/auth/setup", json={"username": "listener", "password": "correct horse 1"})
+        assert c.get("/api/folders/zip", params={"path": folder}).status_code == 200
+        for bad in ("../", "/etc", "..%2F..", "a/../../b"):
+            assert c.get("/api/folders/zip", params={"path": bad}).status_code in (400, 404, 422)

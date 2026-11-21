@@ -6,7 +6,7 @@ import { api } from "./api.js";
 import { els, first, plural, state, toast } from "./state.js";
 import { folderCache, loadFolder, renderSelectionBar, toggleSelect, trackByPath } from "./browse.js";
 import { setBang } from "./search.js";
-import { folderCovers, isPhone, makeFolder, openActions, setSelectMode } from "./tools.js";
+import { downloadZip, folderCovers, isPhone, makeFolder, openActions, setSelectMode } from "./tools.js";
 import { closeEditor, confirmDiscard } from "./editor.js";
 import { refreshActivity } from "./activity.js";
 import { openMusicBrainzFor } from "./musicbrainz.js";
@@ -103,6 +103,7 @@ function folderMenu(path) {
     { icon: "rename", label: "Rename…", run: () => renameEntry(path, true) },
     { icon: "move", label: "Move to…", run: () => moveEntries([path], `“${name}”`) },
     { icon: "info", label: "Get info", run: () => showInfo(path) },
+    { icon: "download", label: "Download as .zip", run: () => downloadZip(path) },
     state.status?.matching ? { icon: "musicbrainz", label: "Find in MusicBrainz", run: () => openMusicBrainzFor({ body: { folder: path }, label: `“${name}”` }) } : null,
     skReady() ? { icon: "slskd", label: "Find in slskd", run: () => slskdFor(parts.slice(-2).join(" ").replace(/\s*[([]\d{4}[)\]]\s*/g, " ").trim()) } : null,
     "-",

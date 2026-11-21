@@ -6,9 +6,13 @@ import os
 import time
 from pathlib import Path
 
+from urllib.parse import quote
+
 from fastapi import HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
 
 from codetta.core import importer, trash
+from codetta.core.archive import folder_files, zip_size, zip_stream
 from codetta.core.fileinfo import file_info, folder_info
 from codetta.core.library import DELETED, LibraryPathError
 from codetta.core.organize import SIDECAR_SUFFIXES, Move, apply_moves, safe_name
@@ -156,6 +160,29 @@ def register(app, shared) -> None:
         target = library.resolve(path)
         info = folder_info(target) if target.is_dir() else file_info(engine, target)
         return {"path": path.strip("/"), **info}
+
+    @app.get("/api/folders/zip")
+    def zip_folder(path: str = Query(..., max_length=MAX_PATH_CHARS, description="Folder, relative to the music folder")):
+        """Download a folder as a .zip (streamed: nothing is written to disk, files stored as they are)."""
+        require_library()
+        rel = path.strip().strip("/")
+        if not rel:
+            raise HTTPException(422, "Pick a folder to zip up (not the whole library).")
+        try:
+            target = library.resolve(rel)
+        except LibraryPathError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        if not target.is_dir():
+            raise HTTPException(404, "That folder isn't there any more.")
+        files = folder_files(target)
+        if not files:
+            raise HTTPException(422, "That folder is empty, so there's nothing to zip up.")
+        name = (target.name or "Music") + ".zip"
+        ascii_name = "".join(c if c.isascii() and c.isprintable() and c not in '"\\' else "_" for c in name)
+        headers = {"Content-Disposition": f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(name)}",
+                   "X-Codetta-Zip-Files": str(len(files)), "X-Codetta-Zip-Bytes": str(zip_size(files)),
+                   "Cache-Control": "no-store"}
+        return StreamingResponse(zip_stream(files), media_type="application/zip", headers=headers)
 
     # --- Import: music added from your computer or phone ----------------------------------------
 

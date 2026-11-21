@@ -109,6 +109,7 @@ export function openDialog(dialog) {
 }
 
 const ICONS = {
+  download: '<svg viewBox="0 0 20 20"><path d="M10 3.5V13M6 9l4 4 4-4M3.5 12.5v2A1.5 1.5 0 0 0 5 16h10a1.5 1.5 0 0 0 1.5-1.5v-2"/></svg>',
   upload: '<svg viewBox="0 0 20 20"><path d="M10 13V3.5M6 7.5l4-4 4 4M3.5 12.5v2A1.5 1.5 0 0 0 5 16h10a1.5 1.5 0 0 0 1.5-1.5v-2"/></svg>',
   tag: '<svg viewBox="0 0 20 20"><path d="M3.5 4.5v4.8l7.2 7.2a1.4 1.4 0 0 0 2 0l3.8-3.8a1.4 1.4 0 0 0 0-2L9.3 3.5H4.5a1 1 0 0 0-1 1Z"/><circle cx="6.8" cy="6.8" r="1.1"/></svg>',
   info: '<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7.5"/><path d="M10 9v5M10 6.2v.1"/></svg>',

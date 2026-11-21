@@ -213,6 +213,10 @@ Activity that **Undo** reverses. On phones they're in the **…** menu.
   "(Official Video)", "[Explicit]", "(Lyrics)"…), **Write features as
   "feat."**, **Title Case** and **Trim spaces**.
 - **Rename folder**: every file moves with it, nothing is overwritten.
+- **Download as .zip**: the whole folder (subfolders, covers and lyrics files
+  included) as one .zip, to back up an album or share it. Codetta builds the
+  zip while it downloads, so nothing extra is written to your server, and big
+  albums start downloading straight away.
 - **Organize** (above) renames and moves many files and folders from their tags.
 - **Edit** a selection of tracks (or **Save to folder**) to set the same tags on
   all of them, and **Tag Presets** to apply a saved set.
@@ -226,6 +230,7 @@ small menu of what you can do with just that item:
 - **Move to** another folder, picked from a short folder list.
 - **Select** (starts a selection with that track), **Actions** on just that track.
 - **Get info:** format, bit depth, sample rate, bitrate, size, tag type, cover size and where it is.
+- **Download as .zip** (folders): the folder and everything in it as one .zip file.
 - **Find in MusicBrainz** and **Find in slskd** for that track or folder.
 - **Delete**, after one confirmation. Nothing is erased: deleted files go to *Recently
   deleted* in Codetta's config folder for 30 days, and Activity can bring them back.

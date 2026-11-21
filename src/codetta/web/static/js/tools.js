@@ -31,7 +31,23 @@ function folderTools(f) {
       title: "Clean up titles, Title Case and trim spaces (you see every change first)" } : null,
     state.path && !f.search && !f.mb ? { icon: "rename", label: "Rename folder", run: renameFolder, title: "Rename this folder" } : null,
     !f.search && !f.mb ? { icon: "plus", label: "New folder", run: newFolderHere, title: "Make a new folder in here" } : null,
+    state.path && !f.search && !f.mb && !state.path.startsWith("@") && (f.tracks.length || f.folders.length)
+      ? { icon: "download", label: "Download as .zip", run: () => downloadZip(state.path), title: "Download this folder as a .zip file" } : null,
   ].filter(Boolean);
+}
+
+const sizeText = (n) => (n >= 1e9 ? `${(n / 1e9).toFixed(1)} GB` : n >= 1e6 ? `${Math.round(n / 1e6)} MB` : `${Math.max(1, Math.round(n / 1e3))} KB`);
+
+/** Download a folder as a .zip. The server streams it, so the browser's own download shows the progress. */
+export async function downloadZip(path) {
+  let info;
+  try { info = await api("GET", `/api/files/info?path=${encodeURIComponent(path)}`); } catch (err) { toast(err.message, "error"); return; }
+  if (!info.files) { toast("That folder is empty, so there's nothing to zip up.", "error"); return; }
+  const a = h("a", { href: `/api/folders/zip?path=${encodeURIComponent(path)}`, download: `${info.name || "Music"}.zip`, hidden: true });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  toast(`Zipping “${info.name}” (${plural(info.files, "file")}, ${sizeText(info.size)}). It downloads as it's made.`, "success");
 }
 
 export function openToolsMenu(anchor, tools) {

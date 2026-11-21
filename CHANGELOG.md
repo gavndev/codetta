@@ -4,6 +4,7 @@ All notable changes to Codetta. Versions follow [Semantic Versioning](https://se
 
 ## Unreleased
 
+- **Download a folder as a .zip:** right-click (or long-press) a folder, or use the new download button on a folder's page, to get the folder and everything in it (subfolders, covers, lyrics) as one .zip. It's built while it downloads, so nothing extra is saved on your server and big albums start right away.
 - **Works with your music server:** a new Music server connection (Account → Connections, and a setup step) for Navidrome and any Subsonic server, Jellyfin, Emby and Plex. A few seconds after Codetta changes files, the server gets a quick scan, so your edits show up in your player straight away, even on network shares where servers don't notice changes by themselves. Jellyfin, Emby and Plex scan only their music libraries, and **Scan now** asks for one whenever you like.
 - **Credits land where players look:** on MP3, the arranger was saved where Navidrome and Picard read the remixer. It now goes with the other credits, and there's a new **Remixer** field (filled in by Find in MusicBrainz too). Arrangers saved by older versions show up as remixers; move them back if needed.
 - **Release country on M4A** is saved under the name Picard uses and Navidrome reads. Files saved by older versions still read fine and switch over on their next save.
