@@ -51,6 +51,7 @@ CREDIT_TYPES = {
     "engineer": "engineer", "audio": "engineer", "recording": "engineer", "sound": "engineer",
     "mix": "mixer",
     "mix-DJ": "djmixer",
+    "remixer": "remixer",
     "arranger": "arranger", "orchestrator": "arranger", "instrument arranger": "arranger",
     "vocal arranger": "arranger", "instrumentator": "arranger",
     "conductor": "conductor", "chorus master": "conductor",
@@ -63,7 +64,7 @@ CREDIT_TYPES = {
 FIELD_GROUPS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("basics", "Titles & numbering", ("title", "artist", "album", "albumartist", "tracknumber", "discnumber", "date")),
     ("credits", "Credits", ("artists", "albumartists", "composer", "lyricist", "producer", "engineer",
-                            "mixer", "djmixer", "arranger", "conductor")),
+                            "mixer", "djmixer", "remixer", "arranger", "conductor")),
     ("release", "Release details", ("originaldate", "releasetype", "releasestatus", "releasecountry", "label",
                                     "catalognumber", "barcode", "media", "discsubtitle", "compilation", "script")),
     ("sorting", "Sort names", ("artistsort", "albumartistsort")),

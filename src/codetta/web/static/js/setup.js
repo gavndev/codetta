@@ -6,6 +6,7 @@ import { api } from "./api.js";
 import { state, toast } from "./state.js";
 import { renderSlskdSettings, renderSlskdStep } from "./search.js";
 import { loadLidarr, renderLidarrSettings, renderLidarrStep } from "./lidarr.js";
+import { loadServer, renderServerSettings, renderServerStep } from "./mediaserver.js";
 import { renderFolderHead } from "./tools.js";
 import { renderEditor } from "./editor.js";
 import { loadSlskd, refreshInboxBadge, sk } from "./inbox.js";
@@ -121,6 +122,7 @@ export function renderConnections() {
     : "Codetta never tracks you, and stays offline unless you turn these on. Only what's listed is sent, and only to these sites.";
   loadSlskd().then(renderSlskdSettings);
   loadLidarr().then(renderLidarrSettings);
+  loadServer().then(renderServerSettings);
   setKids($("#conn-list"), conn.connections.map((c) => connectionRow(c, c.enabled, async (item, input) => {
     input.disabled = true;
     try {
@@ -130,6 +132,7 @@ export function renderConnections() {
       applyConnections();
       if (item.id === "slskd") { await loadSlskd(); renderSlskdSettings(); }
       if (item.id === "lidarr") { await loadLidarr(); renderLidarrSettings(); }
+      if (item.id === "mediaserver") { await loadServer(); renderServerSettings(); }
       if (item.id === "updates") refreshUpdate();
     } catch (err) {
       input.checked = !input.checked;
@@ -244,6 +247,8 @@ async function renderSetupStep(step) {
     await renderSlskdStep(form, step);
   } else if (step === "lidarr") {
     await renderLidarrStep(form, step);
+  } else if (step === "mediaserver") {
+    await renderServerStep(form, step);
   } else if (step === "inbox") {
     let root = { folders: [] };
     let external = { available: false };

@@ -1154,6 +1154,9 @@ dialog::backdrop { background: var(--backdrop); }
   white-space: nowrap;
 }
 .segmented input:checked + span { background: var(--surface-raised); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); }
+.ms-kind span { height: 36px; padding: 0 6px; }
+@media (pointer: coarse) { .ms-kind span { height: 44px; } }
+.ms-sign-in { display: contents; }
 .segmented input:focus-visible + span { outline: 2px solid var(--accent); }
 .segmented input:disabled + span { opacity: 0.4; cursor: default; }
 

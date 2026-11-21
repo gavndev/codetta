@@ -113,7 +113,7 @@ def test_api_first_run_flow(make_client, tmp_path):
     data = c.get("/api/connections").json()
     assert data["needs_choice"] and data["offline"]
     ids = [x["id"] for x in data["connections"]]
-    assert ids == ["musicbrainz", "deezer", "itunes", "acoustid", "lyrics", "slskd", "lidarr", "updates"]
+    assert ids == ["musicbrainz", "deezer", "itunes", "acoustid", "lyrics", "slskd", "lidarr", "mediaserver", "updates"]
     assert all(x["hosts"] and x["sends"] for x in data["connections"])
 
     data = c.put("/api/connections", json={"enabled": {"musicbrainz": True}}).json()

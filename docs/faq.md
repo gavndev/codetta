@@ -3,8 +3,11 @@
 # FAQ
 
 **Does it work with Jellyfin, Plex or other players?**
-Yes. Codetta writes standard tags that any player reads. It's tuned for
-Navidrome's extra fields, but nothing about it is Navidrome-only.
+Yes. Codetta writes standard tags, stored the way MusicBrainz Picard stores
+them, so Navidrome, Jellyfin, Emby, Plex and any Subsonic server read them.
+It's tuned for Navidrome's extra fields, but nothing about it is
+Navidrome-only. Turn on the **Music server** connection and your server
+rescans after every change. See [Using Codetta with your music server](media-servers.md).
 
 **Does it rename or move my files?**
 Only when you ask. Editing changes tags and embedded album art, nothing else.

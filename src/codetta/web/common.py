@@ -62,6 +62,8 @@ class Settings:
     lidarr: bool | None = None  # keeping the user's Lidarr in step
     lidarr_url: str | None = None  # CODETTA_LIDARR_URL / _API_KEY: set (and lock) the connection details
     lidarr_api_key: str | None = None
+    media_server: bool | None = None  # rescans on the user's Navidrome / Jellyfin / Emby / Plex
+    media_server_env: dict | None = None  # CODETTA_MEDIA_SERVER_KIND/_URL/_USER/_PASSWORD/_TOKEN: set (and lock) details
     inbox_dir: Path | None = None  # a downloads folder outside the library (e.g. slskd's), used as "@inbox"
     inbox_settle_seconds: float = 120  # wait this long after a file changes (downloads still arriving)
     slskd_poll_seconds: float = 4  # how often a Soulseek request under way is checked on
@@ -94,6 +96,10 @@ class Settings:
             lidarr=parse_switch(env("LIDARR")),
             lidarr_url=(env("LIDARR_URL") or "").strip() or None,
             lidarr_api_key=(env("LIDARR_API_KEY") or "").strip() or None,
+            media_server=parse_switch(env("MEDIA_SERVER")),
+            media_server_env={"kind": env("MEDIA_SERVER_KIND"), "url": env("MEDIA_SERVER_URL"),
+                              "username": env("MEDIA_SERVER_USER"), "password": env("MEDIA_SERVER_PASSWORD"),
+                              "token": env("MEDIA_SERVER_TOKEN")},
             inbox_dir=Path(env("INBOX_DIR")).expanduser() if env("INBOX_DIR") else None,
             update_repo=env("UPDATE_REPO", DEFAULT_REPO),
             allowed_hosts=tuple(h.strip() for h in (env("ALLOWED_HOSTS") or "").split(",") if h.strip()),
@@ -282,6 +288,14 @@ class LidarrSettingsIn(BaseModel):
     url: str = Field("", max_length=500)
     api_key: str | None = Field(default=None, max_length=500)  # None: keep the saved key
     names: Literal["auto", "codetta"] = "auto"
+
+
+class MediaServerSettingsIn(BaseModel):
+    kind: Literal["subsonic", "jellyfin", "emby", "plex"] = "subsonic"
+    url: str = Field("", max_length=500)
+    username: str = Field("", max_length=200)
+    password: str | None = Field(default=None, max_length=500)  # None: keep the saved one
+    token: str | None = Field(default=None, max_length=500)  # None: keep the saved one
 
 
 class SlskdSearchIn(BaseModel):

@@ -78,6 +78,7 @@ FIELDS: tuple[Field, ...] = (
     Field("mixer", "Mixer", "Credits", multi=True),
     Field("djmixer", "DJ mixer", "Credits", multi=True),
     Field("arranger", "Arranger", "Credits", multi=True),
+    Field("remixer", "Remixer", "Credits", multi=True),
     Field("conductor", "Conductor", "Credits", multi=True),
     Field("releasetype", "Release type", "Release"),
     Field("releasestatus", "Release status", "Release"),
@@ -472,8 +473,12 @@ for _key, _role in {
     "mixer": "mix",
     "producer": "producer",
     "djmixer": "DJ-mix",
+    # mutagen puts "arranger" in TPE4, but TPE4 means remixer to Picard, Navidrome and
+    # most players. Arranger goes in TIPL like the other credits; TPE4 is the remixer.
+    "arranger": "arranger",
 }.items():
     _register_id3_credit(_key, _role)
+EasyID3.RegisterTextKey("remixer", "TPE4")
 
 
 # --- M4A (MP4 atoms) -----------------------------------------------------------
@@ -504,6 +509,7 @@ for _key, _atom_name in {
     "lyricist": "LYRICIST",
     "conductor": "CONDUCTOR",
     "arranger": "ARRANGER",
+    "remixer": "REMIXER",
     "engineer": "ENGINEER",
     "mixer": "MIXER",
     "producer": "PRODUCER",
@@ -517,6 +523,37 @@ for _key, _atom_name in {
     "musicbrainz_workid": "MusicBrainz Work Id",
 }.items():
     EasyMP4Tags.RegisterFreeformKey(_key, _atom_name)
+
+
+def _register_mp4_release_country() -> None:
+    """``releasecountry`` -> "MusicBrainz Album Release Country", the atom Picard writes and
+    Navidrome reads. mutagen's own name ("MusicBrainz Release Country", which older Codetta
+    versions wrote) is still read, and replaced on the next save."""
+    new, old = "----:com.apple.iTunes:MusicBrainz Album Release Country", "----:com.apple.iTunes:MusicBrainz Release Country"
+
+    def get(tags, key):
+        for atom in (new, old):
+            if atom in tags:
+                return [v.decode("utf-8", "replace") for v in tags[atom]]
+        raise KeyError(key)
+
+    def set_(tags, key, value):
+        tags.pop(old, None)
+        tags[new] = [v.encode("utf-8") for v in value]
+
+    def delete(tags, key):
+        found = False
+        for atom in (new, old):
+            if atom in tags:
+                del tags[atom]
+                found = True
+        if not found:
+            raise KeyError(key)
+
+    EasyMP4Tags.RegisterKey("releasecountry", get, set_, delete)
+
+
+_register_mp4_release_country()
 
 
 def _register_mp4_compilation() -> None:

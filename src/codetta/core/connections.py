@@ -85,6 +85,13 @@ CONNECTIONS: tuple[Connection, ...] = (
         ("your Lidarr server",), "LIDARR",
     ),
     Connection(
+        "mediaserver", "Music server",
+        "Your Navidrome, Jellyfin, Emby or Plex picks up Codetta's changes straight away: after Codetta "
+        "changes files, it asks the server for a quick scan, so edits show up in your player.",
+        "Only a request to scan, sent to your own server when files change.",
+        ("your music server",), "MEDIA_SERVER",
+    ),
+    Connection(
         "updates", "Update check",
         "Tell you when a new version of Codetta is out.",
         "Nothing about you or your music: it asks GitHub for the latest release, twice a day.",

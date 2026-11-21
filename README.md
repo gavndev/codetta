@@ -251,6 +251,14 @@ as soon as Codetta changes something, file names stay Lidarr's while its
 renaming is on, and Codetta warns you if a Lidarr setting would undo your
 fixes. [Using Codetta with Lidarr →](docs/lidarr.md)
 
+### Works with your music server
+
+Navidrome, any Subsonic server (Gonic, Airsonic, Ampache), Jellyfin, Emby and
+Plex all read Codetta's tags: they're stored the way Picard stores them, with
+Navidrome's full field list. Connect your server and Codetta asks it for a
+quick scan after every change, so edits show up in your player straight away,
+even on network shares. [Using Codetta with your music server →](docs/media-servers.md)
+
 **Also:** lyrics (plain or synced, with **Find lyrics** from LRCLIB), sort and
 classical fields, an Advanced mode with the raw tags, Tag Presets for turning
 loose downloads into proper releases, smart suggestions from the rest of the

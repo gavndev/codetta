@@ -44,6 +44,11 @@ switch in the app, which is handy if you manage everything from your compose fil
 | `CODETTA_SLSKD_URL` | set in the app | slskd's address as Codetta sees it, e.g. `http://slskd:5030` (same Docker network) or `http://192.168.1.50:5030`. Locks the field in the app. |
 | `CODETTA_LIDARR` | chosen in the app | `on`/`off`: **Lidarr**: after Codetta changes files in Lidarr's folders, Lidarr rescans them straight away, and Codetta warns about Lidarr settings that would undo your fixes. See [Using Codetta with Lidarr](lidarr.md). |
 | `CODETTA_LIDARR_URL` | set in the app | Lidarr's address as Codetta sees it, e.g. `http://lidarr:8686`. Locks the field in the app. |
+| `CODETTA_MEDIA_SERVER` | chosen in the app | `on`/`off`: **Music server**: after Codetta changes files, your Navidrome (or other Subsonic server), Jellyfin, Emby or Plex gets a quick scan. See [Using Codetta with your music server](media-servers.md). |
+| `CODETTA_MEDIA_SERVER_KIND` | set in the app | `subsonic`, `jellyfin`, `emby` or `plex`. |
+| `CODETTA_MEDIA_SERVER_URL` | set in the app | The server's address as Codetta sees it, e.g. `http://navidrome:4533`. |
+| `CODETTA_MEDIA_SERVER_USER` / `CODETTA_MEDIA_SERVER_PASSWORD` | set in the app | Sign-in for Subsonic servers (Navidrome needs an admin user to start scans). |
+| `CODETTA_MEDIA_SERVER_TOKEN` | set in the app | The Jellyfin/Emby API key or Plex token. Saved sign-ins live in `mediaserver.json` in the config folder, readable by Codetta only, and are never sent back to the browser. |
 | `CODETTA_LIDARR_API_KEY` | set in the app | Lidarr's API key (Settings → General). Saved keys live in `lidarr.json` in the config folder, readable by Codetta only, and are never sent back to the browser. |
 | `CODETTA_SLSKD_API_KEY` | set in the app | An API key from slskd's settings (`web → authentication → api_keys`, 16+ characters). Saved keys live in `slskd.json` in the config folder, readable by Codetta only, and are never sent back to the browser. |
 | `CODETTA_LYRICS_LOOKUP` | chosen in the app | `on`/`off`: **Find lyrics** in the editor. Pressing it asks [lrclib.net](https://lrclib.net) for that one track (artist, title, album and length only). |

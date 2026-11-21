@@ -371,6 +371,8 @@ NAVIDROME_TAGS = {
     "lyricist": ["Lyric Writer"],
     "conductor": ["Con Ductor"],
     "arranger": ["Arr Anger"],
+    "remixer": ["Re Mixer"],
+    "releasecountry": ["GB"],
     "engineer": ["Engi Neer"],
     "mixer": ["Mix Er"],
     "producer": ["Pro Ducer", "Co Producer"],
@@ -393,6 +395,32 @@ def test_navidrome_tags_round_trip_on_every_format(engine, fixture_copy, name):
     # The original tags are still there too.
     for key, value in EXPECTED_TAGS.items():
         assert tags.get(key) == value, f"{name}: tag '{key}'"
+
+
+def test_mp3_credits_land_where_navidrome_and_picard_read_them(engine, fixture_copy):
+    # mutagen's own "arranger" is TPE4, which Picard and Navidrome read as the remixer.
+    from mutagen.id3 import ID3
+
+    path = fixture_copy("sample.mp3")
+    engine.update_tags(path, {"arranger": "Arr Anger", "remixer": "Re Mixer"})
+    id3 = ID3(path)
+    assert ["arranger", "Arr Anger"] in [list(p) for p in id3["TIPL"].people]
+    assert id3["TPE4"].text == ["Re Mixer"]
+
+
+def test_m4a_release_country_uses_picards_atom_and_reads_the_old_one(engine, fixture_copy):
+    from mutagen.mp4 import MP4
+
+    path = fixture_copy("sample.m4a")
+    old = "----:com.apple.iTunes:MusicBrainz Release Country"  # what older Codetta versions wrote
+    a = MP4(path)
+    a[old] = [b"FR"]
+    a.save()
+    assert engine.load_metadata(path).tags["releasecountry"] == ["FR"]
+    engine.update_tags(path, {"releasecountry": "GB"})
+    a = MP4(path)
+    assert a["----:com.apple.iTunes:MusicBrainz Album Release Country"] == [b"GB"] and old not in a
+    assert engine.load_metadata(path).tags["releasecountry"] == ["GB"]
 
 
 @pytest.mark.parametrize("name", SAMPLE_FILES)

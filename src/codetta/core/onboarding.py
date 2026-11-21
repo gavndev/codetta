@@ -13,7 +13,7 @@ import tempfile
 import threading
 from pathlib import Path
 
-STEPS = ("connections", "organize", "library", "inbox", "health", "slskd", "lidarr")  # in the order they're shown
+STEPS = ("connections", "organize", "library", "inbox", "health", "slskd", "lidarr", "mediaserver")  # in the order they're shown
 
 
 class OnboardingStore:

@@ -340,6 +340,14 @@ something there, Codetta leaves file names to Lidarr while Lidarr's renaming is
 on, and it warns you when a Lidarr setting would undo your fixes. See
 [Using Codetta with Lidarr](lidarr.md).
 
+## Works with your music server
+
+Turn on the **Music server** connection for Navidrome (or any Subsonic
+server), Jellyfin, Emby or Plex, and Codetta asks the server for a quick scan
+a few seconds after it changes files, so edits show up in your player straight
+away, network shares included. Jellyfin, Emby and Plex scan only their music
+libraries. See [Using Codetta with your music server](media-servers.md).
+
 ## Listen
 
 Every track has a play button at the end of its row. It streams the file

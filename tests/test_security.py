@@ -642,3 +642,27 @@ def test_lidarr_routes_need_sign_in_and_never_show_the_key(music, tmp_path):
         for res in (c.put("/api/lidarr/settings", json={"url": "lidarr:8686", "api_key": key}),
                     c.get("/api/lidarr"), c.post("/api/lidarr/test"), c.get("/api/connections")):
             assert res.status_code == 200 and key not in res.text
+
+
+# --- Music server: its routes are private, and its password / token never leave the server ---------
+
+
+def test_media_server_routes_need_sign_in_and_never_show_secrets(music, tmp_path):
+    password, token = "server-password-123", "0123456789abcdef0123456789abcdef"
+
+    def fake(method, url, headers, body):
+        return 401, b""  # a server that turns everything down: enough for this test
+
+    with TestClient(create_app(Settings(music_dir=music, config_dir=tmp_path / "config"), server_request=fake)) as c:
+        body = {"kind": "subsonic", "url": "navidrome:4533", "username": "admin", "password": password}
+        assert c.get("/api/mediaserver").status_code == 401
+        assert c.put("/api/mediaserver/settings", json=body).status_code == 401
+        assert c.post("/api/mediaserver/test").status_code == 401
+        assert c.post("/api/mediaserver/scan").status_code == 401
+        c.post("/api/auth/setup", json={"username": "listener", "password": "correct horse 1"})
+        c.put("/api/connections", json={"enabled": {"mediaserver": True}})
+        for res in (c.put("/api/mediaserver/settings", json=body), c.get("/api/mediaserver"),
+                    c.post("/api/mediaserver/test"), c.post("/api/mediaserver/scan"), c.get("/api/connections")):
+            assert res.status_code == 200 and password not in res.text
+        res = c.put("/api/mediaserver/settings", json={"kind": "jellyfin", "url": "jellyfin:8096", "token": token})
+        assert res.status_code == 200 and token not in res.text and token not in c.get("/api/mediaserver").text
