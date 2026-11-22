@@ -3022,3 +3022,7 @@ dialog:focus { outline: none; }
 .lang-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 0; }
 .lang-row .switch-text { flex: 1; min-width: 0; }
 .lang-row select { width: auto; flex: none; max-width: 50%; }
+
+/* Desktop app, after Quit Codetta in a browser tab */
+.quit-note { max-width: 420px; margin: 18vh auto 0; padding: 0 16px; text-align: center; }
+.quit-note p { color: var(--muted); }

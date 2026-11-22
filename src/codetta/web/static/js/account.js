@@ -204,10 +204,13 @@ export function openAccount() {
   const signedIn = !!a.auth_enabled;
   $("#account-title").textContent = signedIn ? "Account" : "Settings";
   $(".profile").hidden = !signedIn;
-  $("#sign-out").hidden = !signedIn;
+  // The desktop app signs its own window in: no signing out (there'd be no password to sign back
+  // in with), and Quit Codetta instead, for when it opened in a browser tab.
+  $("#sign-out").hidden = !signedIn || !!a.desktop;
+  $("#quit-app").hidden = !a.desktop;
   $("#account-name").textContent = a.username || "";
   $("#pw-username").value = a.username || "";
-  $("#pw-tile").hidden = !signedIn;
+  $("#pw-tile").hidden = !signedIn || !!a.desktop;
   $("#pw-toggle").hidden = !!a.managed_by_env;
   setPasswordOpen(false);
   $("#pw-env-note").hidden = !signedIn || !a.managed_by_env;
@@ -284,6 +287,13 @@ export async function boot() {
   $("#account-btn").addEventListener("click", openAccount);
   $("#password-form").addEventListener("submit", changePassword);
   $("#sign-out").addEventListener("click", signOut);
+  $("#quit-app").addEventListener("click", async () => {
+    if (isDirty() && !(await ask({ title: "Quit Codetta?", message: "Your unsaved tag changes will be lost.",
+      confirmLabel: "Quit", danger: true }))) return;
+    try { await api("POST", "/api/desktop/quit"); } catch { /* it may stop before answering */ }
+    document.body.replaceChildren(h("main", { class: "quit-note" }, h("h1", {}, "Codetta has closed"),
+      h("p", {}, "You can close this tab. Open Codetta again whenever you like.")));
+  });
   $("#check-updates").addEventListener("click", () => refreshUpdate(true));
   const pickAvatar = () => $("#avatar-file").click();
   $("#profile-avatar").addEventListener("click", pickAvatar);

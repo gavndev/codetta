@@ -160,7 +160,7 @@ def test_first_run_requires_setup(client):
     assert status.pop("version")  # shown on the sign-in screen
     assert status == {
         "auth_enabled": True, "setup_required": True, "signed_in": False,
-        "username": None, "managed_by_env": False, "avatar": None,
+        "username": None, "managed_by_env": False, "avatar": None, "desktop": False,
     }
     assert client.get("/api/browse").status_code == 401
 

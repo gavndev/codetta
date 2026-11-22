@@ -17,7 +17,8 @@ from tests.conftest import FIXTURES_DIR
 # Routes anyone may call without signing in.
 PUBLIC = {("GET", "/"), ("GET", "/api/health"), ("GET", "/api/changelog"), ("GET", "/api/auth/status"),
           ("POST", "/api/auth/setup"), ("POST", "/api/auth/login"), ("POST", "/api/auth/logout"),
-          ("POST", "/api/auth/password")}  # checks the session itself (tested below)
+          ("POST", "/api/auth/password"),  # checks the session itself (tested below)
+          ("GET", "/api/auth/desktop")}  # the desktop app's window signing in: 404 without its launch secret (test_desktop.py)
 
 
 @pytest.fixture

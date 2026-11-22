@@ -37,7 +37,11 @@ Settings (environment variables):
 
 from __future__ import annotations
 
+import getpass
+import hmac
 import os
+import re
+import secrets
 import threading
 from collections import OrderedDict
 from contextlib import asynccontextmanager
@@ -45,7 +49,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from codetta.core import changelog, configversion
@@ -332,9 +336,41 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             "signed_in": (not settings.auth) or user is not None,
             "username": user,
             "managed_by_env": accounts.managed_by_env,
+            "desktop": settings.desktop_token is not None,
             # Changes when the profile picture does; None if there isn't one.
             "avatar": avatars.version(user) if user else None,
         }
+
+    @app.get("/api/auth/desktop", include_in_schema=False)
+    def auth_desktop(request: Request, token: str = ""):
+        """The desktop app's window: signs in with the secret made for this launch (no sign-in screen).
+        The first time, it makes the account itself, with a random password nobody needs to know
+        (``codetta set-password`` sets a real one, to reach Codetta from other devices)."""
+        expected = settings.desktop_token
+        if not settings.auth or not expected or not hmac.compare_digest(token.encode(), expected.encode()):
+            raise HTTPException(404, "Not Found")
+        if accounts.setup_required:
+            try:
+                name = re.sub(r"[^A-Za-z0-9._-]", "", getpass.getuser())[:64]
+            except (OSError, KeyError, ImportError):
+                name = ""
+            try:
+                accounts.create(name if len(name) >= 3 else "codetta", secrets.token_urlsafe(24))
+            except (AuthError, OSError) as exc:
+                raise HTTPException(500, f"Could not save the account to the config folder: {exc}") from exc
+        account = accounts.get()
+        response = RedirectResponse("/", status_code=303)
+        start_session(request, response, account.username)
+        return response
+
+    @app.post("/api/desktop/quit", include_in_schema=False)
+    def desktop_quit() -> dict:
+        """Quit the desktop app (when it opened in a browser tab, there's no window to close)."""
+        quit_app = getattr(app.state, "desktop_quit", None)
+        if settings.desktop_token is None or quit_app is None:
+            raise HTTPException(404, "Not Found")
+        threading.Timer(0.3, quit_app).start()  # answer first, then stop
+        return {"ok": True}
 
     @app.post("/api/auth/setup")
     def auth_setup(body: Credentials, request: Request, response: Response) -> dict:

@@ -72,6 +72,7 @@ class Settings:
     update_repo: str = DEFAULT_REPO
     allowed_hosts: tuple[str, ...] = ()  # empty = answer to any host name
     allow_public_setup: bool = False  # first-run setup only from private addresses
+    desktop_token: str | None = None  # the desktop app: its window signs in with this (fresh each launch)
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -104,6 +105,7 @@ class Settings:
             update_repo=env("UPDATE_REPO", DEFAULT_REPO),
             allowed_hosts=tuple(h.strip() for h in (env("ALLOWED_HOSTS") or "").split(",") if h.strip()),
             allow_public_setup=(env("ALLOW_PUBLIC_SETUP") or "").strip().lower() in ("on", "true", "1", "yes"),
+            desktop_token=(env("DESKTOP_TOKEN") or "").strip() or None,
         )
 
 

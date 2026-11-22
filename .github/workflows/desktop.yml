@@ -1,0 +1,56 @@
+# The desktop app for Windows, macOS and Linux (packaging/build.py), each one started and
+# checked by packaging/smoke.py before it's kept. Parked (a preview, not released yet): it
+# only runs by hand from the Actions tab, and the builds appear as downloads on the run.
+# To ship it with releases, add `push: tags: ["v*"]` back under `on:`.
+name: Desktop
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [windows-latest, macos-latest, ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - name: Install
+        run: python -m pip install pyinstaller pillow -e .
+      - name: Build
+        run: python packaging/build.py
+      - name: Start it and check it works
+        shell: bash
+        run: python packaging/smoke.py packaging/dist/*-Portable.zip
+      - uses: actions/upload-artifact@v7
+        with:
+          name: codetta-${{ matrix.runner }}
+          path: packaging/dist/*.zip
+          if-no-files-found: error
+
+  release:  # only when started from a release tag (see the note at the top)
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Add to the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          # release.yml makes the release; wait for it if the builds finished first.
+          for i in $(seq 1 30); do gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 && break; sleep 20; done
+          gh release upload "$GITHUB_REF_NAME" dist/*.zip --clobber
