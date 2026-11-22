@@ -2,11 +2,13 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.9.5 (2026-11-21)
 
+Codetta speaks Spanish, and tracks download one at a time or many as a .zip.
+
+- **Codetta speaks Spanish:** the whole page (menus, dialogs, messages, the setup steps and the server's own messages) is now in Spanish for browsers set to Spanish, and **Account → Language** picks English or Español for each browser. Your music is never translated: titles, artists and folder names always show as they are. Want Codetta in your language? See [Translating Codetta](docs/translating.md).
 - **Download tracks:** right-click (or long-press) a track and choose **Download** to get the file itself, tags and cover included. Select several tracks and press **Download** in the selection bar (or the … menu on phones) to get them as one .zip, with their lyrics files and the album's folder layout kept.
 - **Phone menus stay on screen:** the selection bar's … menu now opens upwards instead of below the bottom of the screen.
-- **Codetta speaks Spanish:** the whole page (menus, dialogs, messages, the setup steps and the server's own messages) is now in Spanish for browsers set to Spanish, and **Account → Language** picks English or Español for each browser. Your music is never translated: titles, artists and folder names always show as they are. Want Codetta in your language? See [Translating Codetta](docs/translating.md).
 
 ## 0.9.4 (2026-11-21)
 
