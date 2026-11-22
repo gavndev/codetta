@@ -25,6 +25,8 @@ jobs:
           python-version: ${{ matrix.python }}
           cache: pip
       - run: pip install -e ".[dev]"
+      - name: ffmpeg, so the ReplayGain tests run too
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg
       - run: pytest -q
 
   docker:

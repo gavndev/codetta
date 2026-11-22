@@ -379,3 +379,33 @@ def test_folder_covers_come_from_a_track_inside_with_art(tmp_path):
         assert set(covers) == {"Artist", "Artist/Album"}  # paths outside the library are simply ignored
         assert c.get("/api/art", params={"path": covers["Artist"]["path"]}).status_code == 200
         assert c.post("/api/folder-covers", json={"paths": ["x"] * 201}).status_code == 422  # one grid page at a time
+
+
+def test_a_search_waits_for_an_edit_the_background_is_storing(library, tmp_path):
+    # The race CI caught: the background thread takes the edited file, the search finds nothing
+    # left to re-read and must still wait for it to be stored instead of showing the old tags.
+    import threading
+    import time
+
+    from codetta.core.index import LibraryIndex
+    root, _, _ = library
+    genre = ["Trap"]
+    idx = LibraryIndex(root, tmp_path / "idx.sqlite3", lambda p, rel: {"path": rel, "name": p.name, "tags": {"genre": list(genre)}})
+    idx.scan()
+    genre[:] = ["Drill"]  # the edit
+    slow_read = idx._read
+
+    def read(rel, st):
+        time.sleep(0.3)  # the background thread is half-way through storing it
+        return slow_read(rel, st)
+
+    idx._read = read
+    rel = "Trap Lord/01 - Trap Song.flac"
+    idx.mark_dirty([rel])
+    t = threading.Thread(target=idx._flush_dirty)
+    t.start()
+    time.sleep(0.05)
+    idx._flush_dirty()  # the search's own flush: must wait for the background one
+    (_, _, track), = idx.stored([rel]).values()
+    assert track["tags"]["genre"] == ["Drill"]  # stored by the time the search's flush returned
+    t.join()

@@ -3,6 +3,7 @@
 import math
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -55,6 +56,8 @@ def test_measurements_match_ffmpegs_own(tmp_path):
 
 @pytest.fixture
 def lib(tmp_path):
+    if not FFMPEG:
+        pytest.skip("ffmpeg isn't installed here")
     album = tmp_path / "music" / "Artist" / "Album (2020)"
     (album / "CD2").mkdir(parents=True)
     tone(album / "01 Loud.flac", 0.9)
@@ -107,14 +110,25 @@ def test_track_mode_leaves_out_album_values(client, lib):
     assert r["changed"] == 1 and "replaygain_track_gain" in tags and "replaygain_album_gain" not in tags
 
 
-def test_without_ffmpeg_it_says_so(lib, tmp_path):
+@pytest.fixture
+def plain_lib(tmp_path):
+    """A library that needs no ffmpeg to make."""
+    album = tmp_path / "music" / "Artist"
+    album.mkdir(parents=True)
+    shutil.copy2(Path(__file__).parent / "fixtures" / "sample.flac", album / "01.flac")
+    return tmp_path / "music"
+
+
+def test_without_ffmpeg_it_says_so(plain_lib, tmp_path):
+    lib = plain_lib
     with TestClient(create_app(Settings(music_dir=lib, config_dir=tmp_path / "c2", auth=False, ffmpeg="/nope/ffmpeg"))) as c:
         assert c.get("/api/status").json()["replaygain"] is False
         r = c.post("/api/replaygain", json={"folder": "Artist"})
         assert r.status_code == 409 and "ffmpeg" in r.json()["detail"]
 
 
-def test_paths_stay_in_the_library(client):
+def test_paths_stay_in_the_library(plain_lib, tmp_path):
+    client = TestClient(create_app(Settings(music_dir=plain_lib, config_dir=tmp_path / "c3", auth=False)))
     assert client.post("/api/replaygain", json={"paths": ["../x.flac"]}).status_code in (400, 409, 422)
 
 

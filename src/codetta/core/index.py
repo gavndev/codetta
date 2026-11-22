@@ -325,6 +325,9 @@ class LibraryIndex:
         self.version = 0  # goes up whenever a file is added, changed or removed (for caches)
         self._dirty: set[str] = set()
         self._dirty_lock = threading.Lock()
+        # Held while edited files are re-read and stored: a search waits for a re-read already under
+        # way (the background thread may have taken the files), so it never shows the old tags.
+        self._flush_lock = threading.Lock()
         self._stop = threading.Event()
         self._wake = threading.Event()
         self._thread: threading.Thread | None = None
@@ -538,6 +541,10 @@ class LibraryIndex:
         self._wake.set()
 
     def _flush_dirty(self) -> None:
+        with self._flush_lock:
+            self._flush_dirty_locked()
+
+    def _flush_dirty_locked(self) -> None:
         with self._dirty_lock:
             dirty, self._dirty = self._dirty, set()
         if not dirty:
