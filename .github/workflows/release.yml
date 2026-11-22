@@ -1,6 +1,6 @@
 # Publishing a release: push a tag like v0.1.0 and this workflow
 #   1. runs the tests,
-#   2. builds the image for Intel/AMD and ARM servers and pushes it to
+#   2. builds the image for Intel/AMD and ARM servers (each on its own native machine) and pushes it to
 #      ghcr.io/gavndev/codetta (tags: 0.1.0, 0.1, latest),
 #
 # A test build: give the tag a suffix, like v0.9.2-rc.1 (with version "0.9.2rc1" in
@@ -53,16 +53,65 @@ jobs:
           PY
       - run: pytest -q
 
-  image:
+  # Each half of the image is built on its own kind of machine (no slow ARM emulation:
+  # compiling the small ffmpeg under emulation took most of 12+ minutes), pushed without a
+  # tag, and the "image" job below joins the two halves under the version tags.
+  image-build:
     needs: tests
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v7
       - name: Check the tag matches the version in pyproject.toml
         run: |
           want="$(grep -m1 '^version' pyproject.toml | cut -d'"' -f2)"
           test "${GITHUB_REF_NAME#v}" = "$want" || { echo "Tag $GITHUB_REF_NAME != version $want"; exit 1; }
-      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository }}
+      - id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=ghcr.io/${{ github.repository }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ matrix.platform }}
+          cache-to: type=gha,scope=${{ matrix.platform }},mode=max
+      - name: Remember this half's digest
+        run: |
+          mkdir -p "$RUNNER_TEMP/digests"
+          touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: digest-${{ matrix.runner }}
+          path: ${{ runner.temp }}/digests/*
+          retention-days: 1
+
+  image:
+    needs: image-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digest-*
+          merge-multiple: true
       - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4
         with:
@@ -78,15 +127,17 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
             type=raw,value=beta,enable=${{ contains(github.ref_name, '-') }}
-      - uses: docker/build-push-action@v7
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Join both halves under the version tags
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          test "$(ls | wc -l)" = 2 || { echo "expected 2 image halves, got: $(ls)"; exit 1; }
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf 'ghcr.io/${{ github.repository }}@sha256:%s ' *)
+      - name: Both architectures are there
+        run: |
+          docker buildx imagetools inspect "ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.version }}" | tee inspect.txt
+          grep -q 'linux/amd64' inspect.txt && grep -q 'linux/arm64' inspect.txt
 
   release:
     needs: image
