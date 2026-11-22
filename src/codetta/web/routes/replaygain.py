@@ -73,7 +73,7 @@ def register(app, shared) -> None:
                 try:
                     fmt = engine.load_metadata(files[rel]).format
                 except (MetadataError, OSError) as exc:
-                    failed.append({"path": rel, "error": str(exc)})
+                    failed.append({"path": rel, "error": library.message(exc)})
                     continue
                 plan[rel] = tag_changes(fmt, m, whole)
                 tracks_out.append({"path": rel, "loudness": _round(m.loudness), "gain": gain_text(m.loudness),

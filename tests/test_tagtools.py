@@ -106,3 +106,18 @@ def test_split_writes_separate_values(client):
     client.post("/api/actions/tagtools.split/run",
                 json={"folder": "Album", "options": {"field": "genre", "separator": ";"}, "dry_run": False})
     assert client.get("/api/track", params={"path": "Album/01.flac"}).json()["tags"]["genre"] == ["Rock", "Pop"]
+
+
+def test_activity_says_what_changed_in_plain_words(client):
+    """Not Python's "['Rock', 'Pop']" or "None": the values, before and after, as people read them."""
+    client.post("/api/actions/tagtools.split/run",
+                json={"folder": "Album", "options": {"field": "genre", "separator": ";"}, "dry_run": False})
+    entry = client.get("/api/activity").json()[0]
+    assert entry["changes"] == [{"key": "genre", "old": "Rock; Pop", "new": "Rock; Pop"}]  # one value -> two
+    client.post("/api/actions/tagtools.case/run",
+                json={"folder": "Album", "options": {"field": "title", "style": "upper"}, "dry_run": False})
+    entry = client.get("/api/activity").json()[0]
+    assert entry["changes"] == [{"key": "title", "old": "various", "new": "various"}]
+    client.post("/api/actions/tagtools.keep-only/run", json={"folder": "Album", "dry_run": False})
+    for ch in client.get("/api/activity").json()[0]["changes"]:
+        assert "None" not in ch["new"] and "[" not in ch["new"] and "[" not in ch["old"]

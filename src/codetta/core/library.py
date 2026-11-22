@@ -87,6 +87,15 @@ class Library:
         rel = path.relative_to(self.root).as_posix()
         return "" if rel == "." else rel
 
+    def message(self, exc: BaseException | str) -> str:
+        """An error for the page: paths on the server's disk in the form people see them
+        ("Could not write to /music/A/b.flac" -> "Could not write to A/b.flac")."""
+        text = str(exc)
+        for base, shown in ((self.inbox, INBOX), (self.replaced, REPLACED), (self.deleted, DELETED), (self.root, None)):
+            if base is not None and str(base) in text:
+                text = text.replace(str(base) + os.sep, f"{shown}/" if shown else "").replace(str(base), shown or "the music folder")
+        return text
+
     def list_folder(self, relative: str = "") -> FolderListing:
         """Subfolders and audio files directly inside one folder.
 

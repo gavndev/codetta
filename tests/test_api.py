@@ -433,3 +433,24 @@ def test_player_lyrics_from_tag_or_lrc_file(tmp_path):
         assert b["source"] == "file" and b["synced"] and "From a file" in b["lyrics"]
         assert c.get("/api/lyrics", params={"path": "c.flac"}).json() == {"lyrics": "", "source": None, "synced": False}
         assert c.get("/api/lyrics", params={"path": "../etc/passwd"}).status_code == 400
+
+
+def test_errors_name_files_the_way_people_see_them(client, music):
+    """A failed save says "Artist/Broken/bad.flac", not the server's own /music/... path."""
+    import os
+    res = client.patch("/api/tracks", json={"paths": ["Artist/Broken/bad.flac"], "changes": {"title": "x"}}).json()
+    assert not res[0]["ok"] and str(music) not in res[0]["error"]
+    album = music / "Artist" / "Album" / "01 - Intro.flac"
+    os.chmod(album, 0o444)
+    os.chmod(album.parent, 0o555)
+    try:
+        res = client.patch("/api/tracks", json={"paths": ["Artist/Album/01 - Intro.flac"], "changes": {"title": "x"}}).json()
+        applied = client.post("/api/presets/apply", json={"name": "Explicit", "paths": ["Artist/Album/01 - Intro.flac"],
+                                                          "dry_run": False}).json()
+    finally:
+        os.chmod(album.parent, 0o755)
+        os.chmod(album, 0o644)
+    assert not res[0]["ok"] and str(music) not in res[0]["error"] and "Artist/Album/01 - Intro.flac" in res[0]["error"]
+    assert applied[0]["error"] and str(music) not in applied[0]["error"]
+    missing = client.post("/api/presets/apply", json={"name": "Explicit", "folder": "Nope", "dry_run": False})
+    assert missing.status_code == 404 and missing.json()["detail"] == "No such folder: Nope"

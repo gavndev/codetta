@@ -55,10 +55,13 @@ def register(app, shared) -> None:
         require_library()
         preset = store.get(body.name)
         if body.folder is not None:
+            folder = library.resolve(body.folder)
+            if not folder.is_dir():  # named as the person sees it, never the server's own path
+                raise HTTPException(404, f"No such folder: {body.folder or '/'}")
             results = apply_preset_to_folder(
                 engine,
                 preset,
-                library.resolve(body.folder),
+                folder,
                 mode=body.mode,
                 recursive=body.recursive,
                 dry_run=body.dry_run,

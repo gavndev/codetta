@@ -39,7 +39,7 @@ def register(app, shared) -> None:
                                        "after": {k: after.get(k, []) for k in diff}}
                 return rel, None
             except (MetadataError, LibraryPathError, OSError) as exc:
-                return rel, str(exc)
+                return rel, library.message(exc)
 
         items = list(per_file.items())
         with engine.batch() as wb:  # each folder is flushed once, at the end
@@ -50,12 +50,17 @@ def register(app, shared) -> None:
                 results = [one(i) for i in items]
         done = [r for r, e in results if e is None]
         failed = [{"path": r, "error": e} for r, e in results if e is not None]
-        keys = sorted({k for c in per_file.values() for k in c})
-        news = {k: {str(c.get(k)) for c in per_file.values() if k in c} for k in keys}
+        # What really changed, read back from the files: "Rock; Pop", "" for removed, "various" when it differs.
+        keys = sorted({k for f in undo_files.values() for k in f["after"]})
+
+        def shown(side: str, key: str) -> str:
+            values = {"; ".join(f[side].get(key, [])) for f in undo_files.values() if key in f[side]}
+            return values.pop() if len(values) == 1 else "various"
+
         activity.add(
             "edit", message if not failed else f"{message.split(':')[0]}: changed {len(done)} of {len(items)} tracks",
             ok=not failed, files=done + [f["path"] for f in failed],
-            changes=[{"key": k, "old": "", "new": news[k].pop() if len(news[k]) == 1 else "various"} for k in keys],
+            changes=[{"key": k, "old": shown("before", k), "new": shown("after", k)} for k in keys],
             errors=failed, undo={"type": "tags", "files": undo_files} if undo_files else None,
         )
         lib_index.mark_dirty(done)

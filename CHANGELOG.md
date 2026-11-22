@@ -16,6 +16,9 @@ All notable changes to Codetta. Versions follow [Semantic Versioning](https://se
 - **Choose the iTunes store:** Account → Album editions has an **iTunes store** setting, for when the store you want to search isn't your preferred edition country. It follows the preferred country by default, and falls back to the US store when the chosen one has nothing. (The rest of [#3](https://github.com/gavndev/codetta/issues/3)'s suggestions arrived in 0.9.6.)
 - **Paste an iTunes ID:** besides Apple Music, Deezer and MusicBrainz links, the Find dialog's paste box takes a bare iTunes collection ID (`296393419` or `id296393419`).
 - **Spanish:** sentences that count things ("1 pista de 5 cambiaría", "3 archivos no tienen etiqueta…") are now grammatical, with no English words left in them, and the summaries in Find, Tag Presets and Organize are translated in full.
+- **Off really means off:** with a connection switched off, or `CODETTA_OFFLINE` on, saving or testing slskd, Lidarr, music server or Discogs settings no longer contacts them. A new test checks that no route reaches the network while connections are off.
+- **Clearer Activity entries:** bulk changes (Tag tools, Find & replace, Paste a tracklist, Tags from file names, ReplayGain) now show the values before and after in plain words, instead of things like `None` or `['Rock']`.
+- **Errors name files the way you see them:** a failed save says `Artist/Album/01.flac`, not the server's own `/music/...` path.
 
 ## 0.9.6 (2026-11-22)
 

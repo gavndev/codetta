@@ -82,7 +82,7 @@ def register(app, shared) -> None:
         try:
             check_pattern(body.pattern)
         except PatternError as exc:
-            return {"ok": False, "error": str(exc)}
+            return {"ok": False, "error": library.message(exc)}
         sample = Source("Some Folder/track.flac", {
             "albumartist": ["Kōsei Mori"], "artist": ["Kōsei Mori"], "album": ["Northern Signal"],
             "title": ["Harbour Lights"], "tracknumber": ["3/10"], "discnumber": ["2/2"], "date": ["2021-04-09"],

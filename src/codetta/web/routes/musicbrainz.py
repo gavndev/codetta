@@ -586,7 +586,7 @@ def register(app, shared) -> None:
                 else:
                     meta, new = engine.update_tags(target, changes, batch=wb), None
             except (MetadataError, LibraryPathError, OSError) as exc:
-                return {"path": rel, "ok": False, "error": str(exc), "tags": 0, "cover": False}
+                return {"path": rel, "ok": False, "error": library.message(exc), "tags": 0, "cover": False}
             if f["changes"]:
                 tag_undo[rel] = {"before": {k: c["old"] for k, c in f["changes"].items()},
                                  "after": {k: meta.tags.get(k, []) for k in f["changes"]}}

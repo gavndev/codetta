@@ -569,7 +569,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         except (MetadataError, OSError) as exc:
             with track_memory_lock:
                 track_memory.pop(rel, None)
-            return TrackOut(path=rel, name=name, error=str(exc))
+            return TrackOut(path=rel, name=name, error=library.message(exc))
 
     def tracks_out(rels: list[str]) -> list[TrackOut]:
         """A folder's tracks. Files the search index already knows unchanged (same modification
@@ -595,7 +595,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
             applied=r.applied,
             kept_existing=r.kept_existing,
             unsupported=r.unsupported,
-            error=r.error,
+            error=library.message(r.error) if r.error else r.error,
         )
 
     # --- The API, one area per module in codetta/web/routes ----------------------------------

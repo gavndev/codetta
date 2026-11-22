@@ -94,7 +94,7 @@ def register(app, shared) -> None:
                     return UpdateResult(path=rel, ok=True, track=out)
                 return UpdateResult(path=rel, ok=True, track=to_out(rel, meta))
             except (MetadataError, LibraryPathError, OSError) as exc:
-                return UpdateResult(path=rel, ok=False, error=str(exc))
+                return UpdateResult(path=rel, ok=False, error=library.message(exc))
 
         with engine.batch() as wb:  # each album folder is flushed once, at the end
             if len(paths) > 8:
@@ -175,7 +175,7 @@ def register(app, shared) -> None:
                     pass  # couldn't keep a copy: this change just won't be undoable
                 results.append(UpdateResult(path=rel, ok=True, track=to_out(rel, engine.load_metadata(target))))
             except (MetadataError, LibraryPathError, OSError) as exc:
-                results.append(UpdateResult(path=rel, ok=False, error=str(exc)))
+                results.append(UpdateResult(path=rel, ok=False, error=library.message(exc)))
         wb.flush()  # the folders' renames, once, before the change is logged
         _log_art(activity, image is not None, art, had_art, results,
                  undo={"type": "art", "files": undo_files} if undo_files else None)
