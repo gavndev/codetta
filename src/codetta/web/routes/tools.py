@@ -8,6 +8,7 @@ from pathlib import Path
 from fastapi import HTTPException
 
 from codetta.core.engine import MetadataError
+from codetta.core.fromnames import PatternError, compile_pattern, suggest
 from codetta.core.library import LibraryPathError, audio_files
 from codetta.core.organize import Move, apply_moves, safe_name
 from codetta.core.plugins import ActionError, PluginManager
@@ -16,6 +17,7 @@ from codetta.web.common import (
     REPLACE_FIELDS,
     ActionRunIn,
     FolderNewIn,
+    FromNamesIn,
     FolderRenameIn,
     PluginToggleIn,
     ReplaceIn,
@@ -89,6 +91,61 @@ def register(app, shared) -> None:
             return out
         label = plugins.actions[action_id].label
         done, failed = apply_per_file(plan, f"{label}: {len(plan)} track{'s' if len(plan) != 1 else ''}")
+        return {**out, "changed": len(done), "failed": len(failed), "errors": failed[:20]}
+
+    @app.post("/api/tags/from-names")
+    def tags_from_names(body: FromNamesIn) -> dict:
+        """Fill tags from file and folder names with a pattern ("{track} - {artist} - {title}"). With no
+        pattern, Codetta suggests the one that fits these files best. ``dry_run`` (the default) only
+        shows what would change; otherwise it writes, as one undoable activity entry."""
+        require_library()
+        targets = _unique(body.paths) if body.paths else (
+            audio_files(library, body.folder.strip("/"), False, MAX_PATHS_PER_REQUEST) if body.folder is not None else [])
+        if not targets:
+            raise HTTPException(422, "Choose some tracks or a folder.")
+        for rel in targets:
+            if rel.startswith("@"):
+                raise HTTPException(422, "Choose files or folders inside your music folder.")
+            try:
+                library.resolve(rel)
+            except LibraryPathError as exc:
+                raise HTTPException(400, str(exc)) from exc
+        names = [rel.replace("_", " ") if body.underscores else rel for rel in targets]
+        text = body.pattern.strip() or suggest(names) or "{title}"
+        try:
+            pattern = compile_pattern(text)
+        except PatternError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        plan: dict[str, dict] = {}
+        preview, unmatched, misses, unreadable = [], [], 0, 0
+        for rel, name in zip(targets, names, strict=True):
+            found = pattern.match(name)
+            if found is None:
+                misses += 1
+                if len(unmatched) < 50:
+                    unmatched.append(rel)
+                continue
+            try:
+                tags = engine.load_metadata(library.resolve(rel)).tags
+            except (MetadataError, LibraryPathError, OSError):
+                unreadable += 1
+                continue
+            changes, shown = {}, []
+            for key, value in found.items():
+                old = tags.get(key) or []
+                if old == [value] or (body.keep_existing and any(v.strip() for v in old)):
+                    continue
+                changes[key] = [value]
+                shown.append({"key": key, "old": "; ".join(old), "new": value})
+            if changes:
+                plan[rel] = changes
+                if len(preview) < 200:
+                    preview.append({"path": rel, "changes": shown})
+        out = {"pattern": text, "suggested": not body.pattern.strip(), "tracks": len(targets),
+               "matched": len(targets) - misses, "unmatched": unmatched, "unmatched_count": misses, "changing": len(plan), "unreadable": unreadable, "preview": preview}
+        if body.dry_run or not plan:
+            return out
+        done, failed = apply_per_file(plan, f"Tags from file names: {len(plan)} track{'s' if len(plan) != 1 else ''}")
         return {**out, "changed": len(done), "failed": len(failed), "errors": failed[:20]}
 
     @app.post("/api/tracks/replace")

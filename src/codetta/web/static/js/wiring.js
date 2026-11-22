@@ -18,6 +18,7 @@ import {
   saveToFolder, setAdvanced, stopLogPolling, syncLogTile,
 } from "./editor.js";
 import { activity, renderActivity } from "./activity.js";
+import { openFromNames } from "./fromnames.js";
 import { doApply, openApply, openManage, runPreview, syncApplyUi } from "./presets.js";
 import { openEditionPrefs } from "./musicbrainz.js";
 import { chooseCare, setHealthEnabled } from "./library.js";
@@ -128,6 +129,7 @@ export function bindEvents() {
     { icon: "preset", label: "Apply preset", run: () => $("#sel-preset").click() },
     { icon: "replace", label: "Find & replace", run: () => $("#sel-replace").click() },
     { icon: "wand", label: "Actions", run: () => $("#sel-actions").click() },
+    { icon: "tag", label: "Tags from file names", run: () => openFromNames({ paths: [...state.selected] }, plural(state.selected.size, "selected track")) },
     { icon: "download", label: state.selected.size > 1 ? `Download ${state.selected.size} as .zip` : "Download", run: () => $("#sel-download").click() },
   ]), { cls: "sel-more phone-only" });
   selMore.id = "sel-more";

@@ -226,6 +226,12 @@ Activity that **Undo** reverses. On phones they're in the **…** menu.
   duplicate values** and **Keep only the essentials** (covers, lyrics and
   ReplayGain always stay). Some ask for a choice first, like which tags or
   which separator.
+- **Tags from file names**: fills in tags from how files and folders are
+  named. Write the pattern (`{track} - {artist} - {title}`; a `/` reads the
+  folders above too, as in `{artist}/{album} ({year})/{track} - {title}`;
+  `{skip}` leaves a part out), or take the one Codetta suggests for your files.
+  Tags that already have a value are kept unless you untick that, and files
+  that don't fit are listed and left alone.
 - **Rename folder**: every file moves with it, nothing is overwritten.
 - **Download as .zip**: the whole folder (subfolders, covers and lyrics files
   included) as one .zip, to back up an album or share it. Codetta builds the

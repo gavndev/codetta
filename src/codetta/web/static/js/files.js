@@ -11,6 +11,7 @@ import { closeEditor, confirmDiscard } from "./editor.js";
 import { refreshActivity } from "./activity.js";
 import { openMusicBrainzFor } from "./musicbrainz.js";
 import { openReplayGain, replayGainReady } from "./replaygain.js";
+import { openFromNames } from "./fromnames.js";
 import { loadInbox, skReady } from "./inbox.js";
 import { appStarted, copyText, showAuth } from "./account.js";
 
@@ -89,6 +90,7 @@ function trackMenu(t) {
     { icon: "move", label: "Move to…", run: () => moveEntries(paths, label) },
     many ? null : { icon: "select", label: "Select", run: () => { if (isPhone()) setSelectMode(true); toggleSelect(t.path, true, false); } },
     { icon: "wand", label: "Actions…", run: () => openActions({ paths }, label) },
+    { icon: "tag", label: "Tags from file names…", run: () => openFromNames({ paths }, label) },
     replayGainReady() ? { icon: "volume", label: "ReplayGain…", run: () => openReplayGain({ paths }, label) } : null,
     many ? null : { icon: "info", label: "Get info", run: () => showInfo(t.path) },
     many ? { icon: "download", label: `Download ${paths.length} as .zip`, run: () => downloadSelection(paths) }

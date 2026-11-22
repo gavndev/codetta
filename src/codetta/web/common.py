@@ -326,6 +326,15 @@ class ReplayGainIn(BaseModel):
     dry_run: bool = True
 
 
+class FromNamesIn(BaseModel):
+    paths: list[str] = Field(default=[], max_length=MAX_PATHS_PER_REQUEST)  # these files...
+    folder: str | None = Field(default=None, max_length=MAX_PATH_CHARS)  # ...or the audio files in this folder
+    pattern: str = Field("", max_length=300)  # "": Codetta suggests one
+    keep_existing: bool = True  # tags that already have a value stay as they are
+    underscores: bool = False  # "_" in names means a space
+    dry_run: bool = True
+
+
 class ReplaceIn(BaseModel):
     paths: list[str] = Field(default=[], max_length=MAX_PATHS_PER_REQUEST)  # these files...
     folder: str | None = Field(default=None, max_length=MAX_PATH_CHARS)  # ...or the audio files in this folder

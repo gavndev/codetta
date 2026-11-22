@@ -16,6 +16,7 @@ import { openApply } from "./presets.js";
 import { skReady } from "./inbox.js";
 import { openOrganize, updateHealthSlot } from "./library.js";
 import { openReplayGain, replayGainReady } from "./replaygain.js";
+import { openFromNames } from "./fromnames.js";
 
 // ---- Batch tools: find & replace in tags, rename a folder, actions -----------------------------------
 
@@ -31,6 +32,8 @@ function folderTools(f) {
     replayGainReady() && (f.tracks.length || (f.folders.length && !f.search && !f.mb)) && !f.mb
       ? { icon: "volume", label: "ReplayGain", run: () => openReplayGain(f.search ? target : { folder: state.path }, label),
         title: "Even out the volume: measure loudness and write ReplayGain tags (you see every value first)" } : null,
+    f.tracks.length ? { icon: "tag", label: "Tags from file names", run: () => openFromNames(target, label),
+      title: "Fill in tags from file and folder names with a pattern (you see every change first)" } : null,
     f.tracks.length ? { icon: "wand", label: "Actions", run: () => openActions(target, label),
       title: "Clean up titles, Title Case and trim spaces (you see every change first)" } : null,
     state.path && !f.search && !f.mb ? { icon: "rename", label: "Rename folder", run: renameFolder, title: "Rename this folder" } : null,

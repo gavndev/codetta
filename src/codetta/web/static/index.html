@@ -464,6 +464,18 @@
     <div class="sheet-foot" id="actions-foot"></div>
   </dialog>
 
+  <!-- Tags from file names (drawn by js/fromnames.js) -->
+  <dialog class="sheet wide" id="names-dialog" aria-labelledby="names-title">
+    <div class="sheet-head">
+      <h2 id="names-title">Tags from file names</h2>
+      <button class="icon-btn" type="button" data-close aria-label="Close">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body" id="names-body"></div>
+    <div class="sheet-foot" id="names-foot"></div>
+  </dialog>
+
   <!-- ReplayGain (drawn by js/replaygain.js) -->
   <dialog class="sheet wide" id="rg-dialog" aria-labelledby="rg-title">
     <div class="sheet-head">
@@ -572,6 +584,7 @@
   <link rel="modulepreload" href="/static/js/mediaserver.js">
   <link rel="modulepreload" href="/static/js/i18n.js">
   <link rel="modulepreload" href="/static/js/replaygain.js">
+  <link rel="modulepreload" href="/static/js/fromnames.js">
   <link rel="modulepreload" href="/static/js/musicbrainz.js">
   <link rel="modulepreload" href="/static/js/notifications.js">
   <link rel="modulepreload" href="/static/js/player.js">

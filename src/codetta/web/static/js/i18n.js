@@ -59,7 +59,7 @@ function addPattern(english, translated) {
     if (i % 2) { names.push(part); return "(.+?)"; }
     return escapeRe(part);
   }).join("")}$`, "s");
-  const entry = { re, names, translated };
+  const entry = { re, names, translated, weight: english.replace(/\{[a-z0-9_]+\}/gi, "").length };
   const head = literal[0];
   const tail = literal[literal.length - 1];
   // Indexed by a literal word at either end, so a text only tries a handful of patterns.
@@ -142,6 +142,9 @@ export async function startI18n() {
     if (/\{[a-z0-9_]+\}/i.test(english)) addPattern(english, translated);
     else cat.exact.set(english, translated);
   }
+  // The most specific sentence first: "Nothing to change in {x}: their tags already say this." before
+  // "Nothing to change in {x}.", which would otherwise swallow the rest as if it were a name.
+  for (const bucket of [...cat.byFirst.values(), ...cat.byLast.values()]) bucket.sort((a, b) => b.weight - a.weight);
   document.documentElement.lang = code;
   // The few words the stylesheet draws itself (quick settings' On / Off).
   for (const [v, word] of [["--t-on", "On"], ["--t-off", "Off"]]) {

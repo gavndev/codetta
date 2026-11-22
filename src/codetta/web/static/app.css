@@ -3044,3 +3044,15 @@ dialog:focus { outline: none; }
 .act-options { display: flex; flex-wrap: wrap; gap: 10px 14px; margin: 12px 0 0; }
 .act-options:empty { display: none; }
 .act-options .field { flex: 1 1 200px; margin: 0; }
+
+/* Tags from file names */
+.fn-pattern { font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace); }
+.fn-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0 4px; }
+.fn-chip { font: 500 13px/1 var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace); padding: 7px 10px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--surface-raised); color: var(--text); cursor: pointer; }
+.fn-chip:hover { background: var(--hover); }
+.fn-chips select { width: auto; margin-left: auto; }
+@media (pointer: coarse) { .fn-chip { min-height: 40px; } }
+.fn-unmatched { margin-top: 12px; }
+.fn-unmatched summary { cursor: pointer; color: var(--muted); }
+@media (max-width: 760px) { .fn-chips select { margin-left: 0; width: 100%; } }
