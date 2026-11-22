@@ -340,6 +340,7 @@ class ReplaceIn(BaseModel):
 class ActionRunIn(BaseModel):
     paths: list[str] = Field(default=[], max_length=MAX_PATHS_PER_REQUEST)  # these files...
     folder: str | None = Field(default=None, max_length=MAX_PATH_CHARS)  # ...or the audio files in this folder
+    options: dict[str, Annotated[str, Field(max_length=100)]] = Field(default={}, max_length=10)  # the action's choices
     dry_run: bool = True
 
 

@@ -218,7 +218,14 @@ Activity that **Undo** reverses. On phones they're in the **…** menu.
   (`\d+`, and `(…)` with `\1` to keep parts).
 - **Actions**: one-tap tidy-ups. Built in: **Clean up titles** (removes
   "(Official Video)", "[Explicit]", "(Lyrics)"…), **Write features as
-  "feat."**, **Title Case** and **Trim spaces**.
+  "feat."**, **Title Case**, **Trim spaces**, and the tag tools: **Change
+  case** (UPPER, lower, Title or Sentence case), **Fix garbled text**
+  ("BeyoncÃ©" → "Beyoncé", and Cyrillic, Japanese, Chinese or Korean from old
+  Windows rips; correct names are never touched), **Split into separate
+  values** / **Join into one value** ("Rock; Pop" ↔ two genres), **Remove
+  duplicate values** and **Keep only the essentials** (covers, lyrics and
+  ReplayGain always stay). Some ask for a choice first, like which tags or
+  which separator.
 - **Rename folder**: every file moves with it, nothing is overwritten.
 - **Download as .zip**: the whole folder (subfolders, covers and lyrics files
   included) as one .zip, to back up an album or share it. Codetta builds the

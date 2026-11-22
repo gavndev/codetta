@@ -67,6 +67,24 @@ titles" now shows in **Actions**.
 If `run` raises an error, the person sees "*Your action* failed: …" and
 nothing is written.
 
+### Asking for a choice
+
+An action can show a dropdown or two before it runs. Give `add_action` a list of
+`options`, each with an `id`, a `label` and its `choices` (value, label; the
+first is the default). `run` then gets the picks as a second argument:
+
+```python
+codetta.add_action(
+    id="shout", label="Upper case",
+    options=[{"id": "field", "label": "Tags",
+              "choices": [["title", "Titles"], ["album", "Albums"]]}],
+    run=lambda tags, o: {o["field"]: [v.upper() for v in tags.get(o["field"], [])]},
+)
+```
+
+A value that isn't one of the choices is replaced by the default, so `run`
+only ever sees values you listed.
+
 ## plugin.json
 
 | Key | |

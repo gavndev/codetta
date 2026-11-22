@@ -3039,3 +3039,8 @@ dialog:focus { outline: none; }
 .rg-list .hint, .rg-album-head .hint { white-space: nowrap; margin: 0; }
 .rg-mode + .hint { margin-top: 8px; }
 .rg-failed { margin-top: 12px; }
+
+/* Actions with choices (case, tags, separator) */
+.act-options { display: flex; flex-wrap: wrap; gap: 10px 14px; margin: 12px 0 0; }
+.act-options:empty { display: none; }
+.act-options .field { flex: 1 1 200px; margin: 0; }

@@ -88,6 +88,17 @@ def server_strings() -> dict[str, list[str]]:
         found.setdefault(f.group, set()).add("core/tagmap.py")
     for label in [*health.CATEGORIES.values(), *(c.label for c in health.CHECKS)]:
         found.setdefault(label, set()).add("core/health.py")
+    from codetta.plugins import PluginAPI
+    from codetta.plugins.builtin import BUILTIN
+    import importlib
+    for name in BUILTIN:  # built-in actions: labels, descriptions and every choice
+        mod = importlib.import_module(f"codetta.plugins.builtin.{name}")
+        found.setdefault(getattr(mod, "NAME", "Tidy-up actions" if name == "tidy" else name), set()).add("plugins")
+        def collect(a):
+            for text in (a.label, a.description, *(o.label for o in a.options), *(lbl for o in a.options for _, lbl in o.choices)):
+                if text:
+                    found.setdefault(text, set()).add("plugins")
+        mod.setup(PluginAPI(name, collect))
     for word in ("On", "Off"):  # drawn by the stylesheet (quick settings), see js/i18n.js
         found.setdefault(word, set()).add("web/static/app.css")
     for c in connections.CONNECTIONS:

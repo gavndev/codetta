@@ -163,11 +163,12 @@ class PluginManager:
             self.reload()
             return self.plugins[pid]
 
-    def run_action(self, action_id: str, tags: dict[str, list[str]]) -> dict:
+    def run_action(self, action_id: str, tags: dict[str, list[str]], options: dict | None = None) -> dict:
         """The changes an action wants for one track (only real changes, values as lists)."""
         action = self.actions[action_id]
         try:
-            result = action.run({k: list(v) for k, v in tags.items()})
+            copy = {k: list(v) for k, v in tags.items()}
+            result = action.run(copy, action.chosen(options)) if action.options else action.run(copy)
         except Exception as exc:  # noqa: BLE001 - a plugin bug is reported, never crashes Codetta
             raise ActionError(f"{action.label} failed: {type(exc).__name__}: {exc}") from exc
         if not result:

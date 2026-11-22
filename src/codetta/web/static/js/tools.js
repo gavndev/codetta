@@ -91,7 +91,7 @@ export function openToolsMenu(anchor, tools) {
   setTimeout(() => document.addEventListener("pointerdown", close, true), 0);
 }
 
-const act = { target: null, label: "", data: null, chosen: null, token: 0 };
+const act = { target: null, label: "", data: null, chosen: null, options: {}, token: 0 };
 
 export async function openActions(target, label) {
   act.target = target; act.label = label; act.chosen = null;
@@ -114,21 +114,40 @@ function renderActions() {
       h("div", { class: "act-list" }, list.map((a) => h("button", { class: `act-item${act.chosen === a.id ? " on" : ""}`, type: "button",
         onclick: () => chooseAction(a.id) },
         h("strong", {}, a.label), a.description ? h("span", {}, a.description) : null))))),
+    h("div", { class: "act-options", id: "act-options" }, actionOptions()),
     h("div", { class: "rep-preview", id: "act-preview" }, null));
   setKids($("#actions-foot"), h("span", { class: "spacer" }),
     h("button", { class: "btn", type: "button", "data-close": true }, "Cancel"),
     h("button", { class: "btn primary", type: "button", id: "act-apply", disabled: true, onclick: applyAction }, "Apply"));
 }
 
+/** Dropdowns for the chosen action's choices (case, which tags, separator...). */
+function actionOptions() {
+  const a = act.data?.actions.find((x) => x.id === act.chosen);
+  if (!a?.options?.length) return null;
+  return a.options.map((o) => {
+    const sel = h("select", { name: `act-${o.id}` }, o.choices.map(([v, label]) =>
+      h("option", { value: v, selected: (act.options[o.id] ?? o.choices[0][0]) === v }, label)));
+    sel.addEventListener("change", () => { act.options[o.id] = sel.value; previewAction(); });
+    return h("label", { class: "field" }, h("span", { class: "field-label" }, o.label), sel);
+  });
+}
+
 async function chooseAction(id) {
+  if (act.chosen !== id) act.options = {};
   act.chosen = id;
   renderActions();
+  previewAction();
+}
+
+async function previewAction() {
+  const id = act.chosen;
   const box = $("#act-preview");
   const go = $("#act-apply");
   const token = ++act.token;
   setKids(box, h("p", { class: "hint mbx-wait" }, h("span", { class: "spinner", "aria-hidden": "true" }), "Looking…"));
   try {
-    const d = await api("POST", `/api/actions/${encodeURIComponent(id)}/run`, { ...act.target, dry_run: true });
+    const d = await api("POST", `/api/actions/${encodeURIComponent(id)}/run`, { ...act.target, options: act.options, dry_run: true });
     if (token !== act.token) return;
     go.disabled = !d.changing;
     go.textContent = d.changing ? `Apply to ${plural(d.changing, "track")}` : "Apply";
@@ -149,7 +168,7 @@ async function applyAction() {
   const go = $("#act-apply");
   go.disabled = true; go.textContent = "Applying…";
   try {
-    const d = await api("POST", `/api/actions/${encodeURIComponent(act.chosen)}/run`, { ...act.target, dry_run: false });
+    const d = await api("POST", `/api/actions/${encodeURIComponent(act.chosen)}/run`, { ...act.target, options: act.options, dry_run: false });
     closeDialog($("#actions-dialog"));
     toast(d.failed ? `Changed ${d.changed}, ${d.failed} couldn't be changed` : `Changed ${plural(d.changed, "track")}`, d.failed ? "error" : "success");
     folderCache.clear(); folderCovers.clear();

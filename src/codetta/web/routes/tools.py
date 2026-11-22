@@ -41,7 +41,8 @@ def register(app, shared) -> None:
         with plugins.lock:
             return {"folder": str(plugins.dir), "plugins": [p.public() for p in plugins.plugins.values()],
                     "actions": [{"id": a.id, "label": a.label, "description": a.description, "fields": list(a.fields),
-                                 "plugin": a.plugin} for a in plugins.actions.values()]}
+                                 "plugin": a.plugin, "options": [o.public() for o in a.options]}
+                                for a in plugins.actions.values()]}
 
     @app.put("/api/plugins/{plugin_id}")
     def toggle_plugin(plugin_id: str, body: PluginToggleIn) -> dict:
@@ -75,7 +76,7 @@ def register(app, shared) -> None:
                 unreadable += 1
                 continue
             try:
-                changes = plugins.run_action(action_id, tags)
+                changes = plugins.run_action(action_id, tags, body.options)
             except ActionError as exc:
                 raise HTTPException(422, str(exc)) from exc
             if changes:

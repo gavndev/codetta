@@ -67,7 +67,7 @@ def test_peoples_plugins_are_paused(make, tmp_path):
     (tmp_path / "config" / "plugins.json").write_text(json.dumps({"enabled": ["shout"]}))
     with make({"shout": plugin}) as c:
         d = c.get("/api/plugins").json()
-        assert [p["id"] for p in d["plugins"]] == ["tidy"] and not marker.exists()
+        assert [p["id"] for p in d["plugins"]] == ["tidy", "tagtools"] and not marker.exists()  # only the built-ins
         assert c.put("/api/plugins/shout", json={"enabled": True}).status_code == 404
         assert c.post("/api/actions/shout.up/run", json={"folder": "Album"}).status_code == 404
         assert not marker.exists()
