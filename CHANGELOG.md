@@ -2,7 +2,9 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.10.0 (2026-11-22)
+
+Discogs as a fourth album source, a set of tag tools (change case, fix garbled text, split and join values, tags from file names, paste a tracklist), covers saved as files for Plex and Jellyfin, and three more formats: Monkey's Audio, Musepack and DSDIFF.
 
 - **Discogs:** a fourth album source next to MusicBrainz, Deezer and iTunes, and the one for vinyl, electronic music, white labels and regional pressings. Use **Find in Discogs** (the chevron next to Find in MusicBrainz), type `!dg` in the search bar, or paste a Discogs release or album link into the Find dialog. It brings the label, catalogue number, barcode, country, format, year, styles and per-track credits (producer, mixer, engineer, composer, lyricist, arranger, remixer), with the usual review before anything is written. Pasting a link works as it is; searching needs a free Discogs token, added in Account → Connections → Discogs (it stays on your server and is never shown again).
 - **Three more formats:** Monkey's Audio (`.ape`), Musepack (`.mpc`) and DSDIFF (`.dff`, the other DSD format next to `.dsf`), with tags, covers, matching, Organize, ReplayGain and everything else, for 18 file types in all. The Docker image's ffmpeg reads them too.
