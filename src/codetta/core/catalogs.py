@@ -18,9 +18,12 @@ import urllib.parse
 from collections import OrderedDict
 from collections.abc import Callable
 
+from codetta.core import discogs as discogs_mod
+from codetta.core.providers import ProviderError
+
 DEEZER_API = "https://api.deezer.com"
 ITUNES_API = "https://itunes.apple.com"
-SOURCES = ("deezer", "itunes")
+SOURCES = ("deezer", "itunes", "discogs")
 Fetcher = Callable[[str], object]  # url -> parsed JSON (or None)
 
 
@@ -36,7 +39,10 @@ def catalog_link_id(text: str, itunes: bool = False) -> str | None:
     if m:
         return f"itunes:{m.group(1)}"
     m = re.search(r"deezer\.(?:com|page\.link)/(?:[a-z]{2}/)?album/(\d{3,})", text, re.I)
-    return f"deezer:{m.group(1)}" if m else None
+    if m:
+        return f"deezer:{m.group(1)}"
+    m = re.search(r"discogs\.com/(?:[a-z]{2}/)?(?:[^/\s]+/)?(release|master)/(\d+)", text, re.I)
+    return f"discogs:{'m' if m.group(1).lower() == 'master' else ''}{m.group(2)}" if m else None
 
 
 def is_catalog_id(release_id: str) -> bool:
@@ -45,10 +51,14 @@ def is_catalog_id(release_id: str) -> bool:
 
 class Catalogs:
     def __init__(self, fetch: Fetcher, enabled: Callable[[str], bool],
-                 country: Callable[[], str] | None = None) -> None:
+                 country: Callable[[], str] | None = None, discogs: discogs_mod.Fetch | None = None,
+                 discogs_token: Callable[[], str] | None = None) -> None:
         self.fetch = fetch
         self.enabled = enabled  # source -> is its connection on?
         self.country = country or (lambda: "")  # the preferred edition country: iTunes' storefront
+        self.discogs = discogs  # (url, headers) -> JSON; the token goes in a header, never the address
+        self.discogs_token = discogs_token or (lambda: "")
+        self._throttle = discogs_mod.Throttle()
         self._releases: OrderedDict[str, dict] = OrderedDict()  # recent lookups (covers and re-opens)
         self._lock = threading.Lock()
 
@@ -64,7 +74,44 @@ class Catalogs:
             out += self._deezer_search(album, artist, limit)
         if self.enabled("itunes") and only in (None, "itunes"):
             out += self._itunes_search(album, artist, limit)
+        if self.enabled("discogs") and only in (None, "discogs"):
+            if self.discogs_token():
+                out += self._discogs_search(album, artist, limit)
+            elif only == "discogs":
+                raise discogs_mod.DiscogsTokenError("Searching Discogs needs your Discogs token: add it in Account → Connections → Discogs.")
         return out
+
+    # --- Discogs ------------------------------------------------------------------------------
+
+    def _dg(self, path: str) -> object:
+        if self.discogs is None:
+            raise LookupError("Discogs isn't set up on this server")
+        self._throttle.wait()
+        token = self.discogs_token()
+        headers = {"Authorization": f"Discogs token={token}"} if token else {}
+        try:
+            return self.fetch_discogs(discogs_mod.API + path, headers)
+        except ProviderError as exc:
+            if "(401)" in str(exc) or "(403)" in str(exc):
+                raise discogs_mod.DiscogsTokenError("Discogs turned down the token. Make a new one on discogs.com "
+                                                    "(Settings → Developers) and add it in Account → Connections.") from exc
+            raise
+
+    def fetch_discogs(self, url: str, headers: dict) -> object:
+        return self.discogs(url, headers)
+
+    def _discogs_search(self, album: str, artist: str, limit: int) -> list[dict]:
+        q = {"type": "release", "per_page": "40"}
+        if album:
+            q["release_title"] = album
+        if artist:
+            q["artist"] = artist
+        data = self._dg("/database/search?" + urllib.parse.urlencode(q)) or {}
+        found = [r for r in (data.get("results") or []) if isinstance(r, dict) and r.get("id")]
+        rels = [discogs_mod.summary(r) for r in found]
+        rels = [r for r in rels if not album or _similar(r["title"], album)]
+        picked = _only_the_artist(rels, album, artist, lambda r: r["title"], lambda r: r["_artist"])
+        return picked[:limit]
 
     def _deezer_search(self, album: str, artist: str, limit: int) -> list[dict]:
         parts = [f'album:"{album}"' if album else "", f'artist:"{artist}"' if artist else ""]
@@ -128,6 +175,19 @@ class Catalogs:
         """Albums matching free text on one source (the !dz and !it bangs), as release-shaped dicts."""
         if source not in SOURCES or not self.enabled(source):
             raise LookupError(f"{source.title()} isn't on")
+        if source == "discogs":  # one entry per album (a "master"), not every pressing
+            if not self.discogs_token():
+                raise discogs_mod.DiscogsTokenError("Searching Discogs needs your Discogs token: add it in Account → Connections → Discogs.")
+            data = self._dg("/database/search?" + urllib.parse.urlencode({"q": text.strip(), "type": "master",
+                                                                           "per_page": str(limit)})) or {}
+            out = []
+            for r in data.get("results") or []:
+                if isinstance(r, dict) and r.get("id"):
+                    rel = discogs_mod.summary(r)
+                    rel["id"] = f"discogs:m{r['id']}"
+                    rel["_url"] = f"https://www.discogs.com/master/{r['id']}"
+                    out.append(rel)
+            return out
         q = urllib.parse.quote(text.strip())
         if source == "deezer":
             data = self.fetch(f"{DEEZER_API}/search/album?q={q}&limit={limit}") or {}
@@ -143,14 +203,29 @@ class Catalogs:
                 self._releases.move_to_end(release_id)
                 return self._releases[release_id]
         source, _, raw = release_id.partition(":")
-        if not raw.isdigit() or not self.enabled(source):
+        master = source == "discogs" and raw[:1] == "m" and raw[1:].isdigit()
+        if not (raw.isdigit() or master) or not self.enabled(source):
             raise LookupError("That album isn't available (is its connection on?)")
-        rel = self._deezer_release(raw) if source == "deezer" else self._itunes_release(raw)
+        if source == "discogs":
+            rel = self._discogs_release(raw)
+        else:
+            rel = self._deezer_release(raw) if source == "deezer" else self._itunes_release(raw)
         with self._lock:
             self._releases[release_id] = rel
             while len(self._releases) > 32:
                 self._releases.popitem(last=False)
         return rel
+
+    def _discogs_release(self, raw: str) -> dict:
+        if raw.startswith("m"):  # an album ("master"): its main release
+            m = self._dg(f"/masters/{raw[1:]}") or {}
+            raw = str(m.get("main_release") or "")
+            if not raw.isdigit():
+                raise LookupError("Discogs doesn't have that album")
+        r = self._dg(f"/releases/{raw}") or {}
+        if not r.get("id"):
+            raise LookupError("Discogs doesn't have that release")
+        return discogs_mod.release(r)
 
     def _deezer_release(self, album_id: str) -> dict:
         a = self.fetch(f"{DEEZER_API}/album/{album_id}") or {}

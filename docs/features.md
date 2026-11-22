@@ -37,6 +37,7 @@ service. Press <kbd>Enter</kbd> to search it:
 - `!mb`: artists and releases on **MusicBrainz**, with the albums you already have marked.
 - `!dz`: albums on **Deezer** (its search doesn't include release years; a small note says so).
 - `!it`: albums on **iTunes** and Apple Music.
+- `!dg`: albums on **Discogs** (needs your free Discogs token, see below).
 - `!slskd`: **Soulseek**, through your own slskd (see below).
 
 Deezer and iTunes results mark what's already in your library and link to the
@@ -159,6 +160,15 @@ album they came from. Junk like "(Official Audio)", "[Explicit]" or "ft. …" is
 cleaned off before searching. If MusicBrainz is down or doesn't know an album
 yet, Deezer and iTunes (optional connections, no account needed) step in with
 details and big covers.
+
+**Discogs** is the fourth source, and the one for vinyl, electronic music, white
+labels and regional pressings: **Find in Discogs** (the chevron next to Find in
+MusicBrainz), `!dg` in the search bar, or paste a Discogs release or album link
+into the Find dialog. It brings the label, catalogue number, barcode, country,
+format, styles and per-track credits (producer, mixer, engineer, composer,
+lyricist, arranger, remixer). Pasting a link works as it is; searching needs a
+free personal token from discogs.com (Settings → Developers → Generate new
+token), saved in Account → Connections → Discogs and never shown again.
 
 <p align="center">
   <img src="media/match.webp" alt="Matching Rumours on MusicBrainz, opening Other editions and switching to the recommended CD edition, with every change listed per file" width="900">

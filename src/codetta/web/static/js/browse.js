@@ -367,7 +367,7 @@ export function renderSearchHead(f) {
 /** Find in MusicBrainz, with a chevron for Deezer and iTunes when they're on (a split button). */
 export function mbFindButton(where) {
   const mbOn = connectionOn("musicbrainz");
-  const others = [["deezer", "Find in Deezer"], ["itunes", "Find in iTunes"]].filter(([s]) => connectionOn(s));
+  const others = [["deezer", "Find in Deezer"], ["itunes", "Find in iTunes"], ["discogs", "Find in Discogs"]].filter(([s]) => connectionOn(s));
   const main = h("button", {
     class: "mb-find-inner", type: "button", onclick: () => openMusicBrainz(),
     "aria-label": mbOn ? "Find in MusicBrainz" : "Find album details",
@@ -375,7 +375,7 @@ export function mbFindButton(where) {
   }, icon("musicbrainz"),
   h("span", { class: "mb-find-long" }, mbOn ? "Find in MusicBrainz" : "Find album details"), h("span", { class: "mb-find-short" }, "Find"));
   const more = others.length ? h("button", {
-    class: "mb-find-more", type: "button", "aria-label": "Find somewhere else", "aria-haspopup": "menu", title: "Find in Deezer or iTunes instead",
+    class: "mb-find-more", type: "button", "aria-label": "Find somewhere else", "aria-haspopup": "menu", title: "Find in another catalogue instead (Deezer, iTunes, Discogs)",
     onclick: (e) => openToolsMenu(e.currentTarget, [
       mbOn ? { icon: "musicbrainz", label: "Find in MusicBrainz", run: () => openMusicBrainz() } : null,
       ...others.map(([s, label]) => ({ icon: s, label, run: () => openMusicBrainz({ source: s }) })),

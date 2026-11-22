@@ -56,7 +56,7 @@ def register(app, shared) -> None:
         return {**g, "in_library": owned_folder(g["artist"], g["title"]) if g["artist"] else None}
 
     @app.get("/api/catalog/search")
-    def catalog_search(source: Literal["deezer", "itunes"], q: str = Query(..., min_length=1, max_length=200)) -> dict:
+    def catalog_search(source: Literal["deezer", "itunes", "discogs"], q: str = Query(..., min_length=1, max_length=200)) -> dict:
         """The !dz and !it bangs: albums on Deezer or iTunes, marked when they're already in the library."""
         require_connection(source)
         if sum(ch.isalnum() for ch in q) < 2:

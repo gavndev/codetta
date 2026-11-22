@@ -85,13 +85,14 @@ _opener = urllib.request.build_opener(_HttpsOnlyRedirects)
 
 
 def http_get(url: str, user_agent: str, *, accept: str = "application/json", max_bytes: int = MAX_RESPONSE_BYTES,
-             service: str = "the lyrics service", allow_http: bool = False, timeout: float = TIMEOUT) -> bytes | None:
+             service: str = "the lyrics service", allow_http: bool = False, timeout: float = TIMEOUT,
+             headers: dict | None = None) -> bytes | None:
     """GET a provider URL, size- and time-limited. None means 404 (not found).
 
     Only https, unless ``allow_http`` (a self-hosted mirror the admin set up)."""
     if not (url.startswith("https://") or (allow_http and url.startswith("http://"))):
         raise ProviderError("Providers must use https")
-    req = urllib.request.Request(url, headers={"User-Agent": user_agent, "Accept": accept})
+    req = urllib.request.Request(url, headers={**(headers or {}), "User-Agent": user_agent, "Accept": accept})
     try:
         with _opener.open(req, timeout=timeout) as res:  # nosec B310: http(s) only, fixed provider hosts
             data = res.read(max_bytes + 1)
@@ -143,9 +144,11 @@ def http_post_json(url: str, user_agent: str, form: dict[str, str], *, service: 
 
 
 def http_get_json(url: str, user_agent: str, *, max_bytes: int = MAX_RESPONSE_BYTES,
-                  service: str = "the lyrics service", allow_http: bool = False, timeout: float = TIMEOUT) -> object:
-    """GET a JSON document (None for 404)."""
-    data = http_get(url, user_agent, max_bytes=max_bytes, service=service, allow_http=allow_http, timeout=timeout)
+                  service: str = "the lyrics service", allow_http: bool = False, timeout: float = TIMEOUT,
+                  headers: dict | None = None) -> object:
+    """GET a JSON document (None for 404). ``headers``: extra ones (a token that mustn't go in the address)."""
+    data = http_get(url, user_agent, max_bytes=max_bytes, service=service, allow_http=allow_http, timeout=timeout,
+                    headers=headers)
     if data is None:
         return None
     try:

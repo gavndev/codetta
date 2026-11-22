@@ -111,6 +111,7 @@ export function openDialog(dialog) {
 }
 
 const ICONS = {
+  discogs: '<svg class="brand-logo" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 1a9 9 0 1 1 0 18 9 9 0 0 1 0-18zm0 3.2a5.8 5.8 0 1 0 0 11.6 5.8 5.8 0 0 0 0-11.6zm0 4.3a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z"/><path d="M10 6.4a3.6 3.6 0 0 0-3.6 3.6" fill="none" stroke="currentColor" stroke-width=".9" opacity=".55"/></svg>',
   volume: '<svg viewBox="0 0 20 20"><path d="M3.5 8v4h3l4 3.5v-11l-4 3.5z"/><path d="M13.5 7.5a3.5 3.5 0 0 1 0 5M15.5 5.5a6.3 6.3 0 0 1 0 9"/></svg>',
   download: '<svg viewBox="0 0 20 20"><path d="M10 3.5V13M6 9l4 4 4-4M3.5 12.5v2A1.5 1.5 0 0 0 5 16h10a1.5 1.5 0 0 0 1.5-1.5v-2"/></svg>',
   upload: '<svg viewBox="0 0 20 20"><path d="M10 13V3.5M6 7.5l4-4 4 4M3.5 12.5v2A1.5 1.5 0 0 0 5 16h10a1.5 1.5 0 0 0 1.5-1.5v-2"/></svg>',

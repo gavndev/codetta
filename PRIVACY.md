@@ -28,9 +28,14 @@ Out of the box Codetta never connects to the internet. Online features are
 | Connection | Sends | To |
 |---|---|---|
 | MusicBrainz | the album and artist names you search for, and the release IDs you pick | musicbrainz.org, coverartarchive.org |
+| Deezer | the album and artist names you search for, and the IDs of albums you pick | api.deezer.com, its image server |
+| iTunes | the album and artist names you search for, and the IDs of albums you pick | itunes.apple.com, is1-ssl.mzstatic.com |
+| Discogs | the album and artist names you search for, the IDs of releases you pick, and your Discogs token (in a header, to Discogs only) | api.discogs.com, i.discogs.com |
 | AcoustID | a fingerprint of each track's sound (a short code, never the audio) and its length, when you press Listen | api.acoustid.org |
 | LRCLIB lyrics | a track's artist, title, album and length, when you press Find lyrics | lrclib.net |
 | Soulseek (slskd) | your searches, to your own slskd (which asks other Soulseek users) | your slskd server |
+| Lidarr | which folders changed; Codetta also reads Lidarr's folders and settings | your Lidarr server |
+| Music server | only a request to scan, when files change | your Navidrome, Jellyfin, Emby or Plex |
 | Update check | nothing about you: it asks GitHub for the latest version, twice a day | api.github.com |
 
 `CODETTA_OFFLINE=on` blocks every connection, whatever else is set. Each

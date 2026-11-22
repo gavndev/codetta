@@ -205,6 +205,12 @@ export const BANGS = {
     missing: "iTunes isn't on. Turn it on in Account → Connections.",
     run: (q) => catalogSearch("itunes", q),
   },
+  dg: {
+    names: ["dg", "discogs"], label: "Discogs", icon: "discogs", about: "Albums on Discogs",
+    placeholder: "Search Discogs: artists, albums", available: () => connectionOn("discogs"),
+    missing: "Discogs isn't on. Turn it on in Account → Connections.",
+    run: (q) => catalogSearch("discogs", q),
+  },
 };
 
 // ---- !dz and !it: albums on Deezer or iTunes, in a sheet -------------------------------------------

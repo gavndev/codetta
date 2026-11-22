@@ -118,7 +118,8 @@ def register(app, shared) -> None:
         return max(counts, key=counts.get) if counts else ""
 
     catalogs = Catalogs(fetch_catalog or catalog_fetch, connections.enabled,
-                        country=lambda: editions.prefs.store or editions.prefs.country)
+                        country=lambda: editions.prefs.store or editions.prefs.country,
+                        discogs=shared.discogs_fetch, discogs_token=lambda: shared.discogs_token.token)
 
     def require_matching() -> None:
         """Matching needs MusicBrainz, Deezer or iTunes (any one of them)."""
@@ -275,6 +276,8 @@ def register(app, shared) -> None:
             found = catalogs.search(album, artist, limit=10, only=source)
         except ProviderError as exc:
             raise HTTPException(502, str(exc)) from exc
+        except LookupError as exc:  # Discogs without a token (or one it turned down)
+            raise HTTPException(409, str(exc)) from exc
         candidates = []
         for r in found:
             c = summarize(r)

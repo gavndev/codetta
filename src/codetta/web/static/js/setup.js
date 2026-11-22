@@ -7,6 +7,7 @@ import { api } from "./api.js";
 import { state, toast } from "./state.js";
 import { renderSlskdSettings, renderSlskdStep } from "./search.js";
 import { loadLidarr, renderLidarrSettings, renderLidarrStep } from "./lidarr.js";
+import { loadDiscogs, renderDiscogsSettings } from "./discogs.js";
 import { loadServer, renderServerSettings, renderServerStep } from "./mediaserver.js";
 import { renderFolderHead } from "./tools.js";
 import { renderEditor } from "./editor.js";
@@ -123,6 +124,7 @@ export function renderConnections() {
     : "Codetta never tracks you, and stays offline unless you turn these on. Only what's listed is sent, and only to these sites.";
   loadSlskd().then(renderSlskdSettings);
   loadLidarr().then(renderLidarrSettings);
+  loadDiscogs().then(renderDiscogsSettings);
   loadServer().then(renderServerSettings);
   setKids($("#conn-list"), conn.connections.map((c) => connectionRow(c, c.enabled, async (item, input) => {
     input.disabled = true;
@@ -133,6 +135,7 @@ export function renderConnections() {
       applyConnections();
       if (item.id === "slskd") { await loadSlskd(); renderSlskdSettings(); }
       if (item.id === "lidarr") { await loadLidarr(); renderLidarrSettings(); }
+      if (item.id === "discogs") { await loadDiscogs(); renderDiscogsSettings(); }
       if (item.id === "mediaserver") { await loadServer(); renderServerSettings(); }
       if (item.id === "updates") refreshUpdate();
     } catch (err) {

@@ -133,7 +133,7 @@ album, tag) with examples from your own music.
 
 Start with a bang to search somewhere else from the same box: `!mb` for artists
 and releases on MusicBrainz, `!dz` for Deezer, `!it` for iTunes and Apple Music,
-and `!slskd` for Soulseek if you use it. Albums you already have are marked, so
+`!dg` for Discogs, and `!slskd` for Soulseek if you use it. Albums you already have are marked, so
 you can see what's missing at a glance.
 
 | Type | Searches |
@@ -141,6 +141,7 @@ you can see what's missing at a glance.
 | `!mb björk` | MusicBrainz: artists and releases |
 | `!dz in rainbows` | Deezer albums |
 | `!it rumours` | iTunes and Apple Music albums |
+| `!dg selected ambient works` | Discogs albums |
 | `!slskd album name` | Soulseek, through your own slskd |
 
 <p align="center">
@@ -155,7 +156,8 @@ choose which edition Codetta prefers (original year, format, country), then
 review every change per file before anything is written. Loose songs (a single
 download, a YouTube rip) are matched to the album they came from. Untagged files are recognised by sound. When
 MusicBrainz is down or doesn't know an album yet, Deezer and iTunes (optional,
-no account needed) step in with details and big covers.
+no account needed) step in with details and big covers, and **Discogs** (with a
+free token) brings credits and covers for vinyl, electronic and rare releases.
 
 <p align="center">
   <img src="docs/media/match.webp" alt="Matching Rumours on MusicBrainz, opening Other editions and switching to the recommended CD edition, with every change listed per file" width="900">

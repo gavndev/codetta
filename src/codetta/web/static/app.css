@@ -3064,3 +3064,8 @@ dialog:focus { outline: none; }
 
 /* Save covers as files */
 .rep-list li.ce-skip .rep-change { color: var(--muted); }
+
+/* Discogs */
+.bang-chip.bang-dg { background: linear-gradient(115deg, #1f1f1f, #4a4a4a); }
+.search.banged:has(.bang-dg):focus-within { box-shadow: 0 0 0 2px #4a4a4a; }
+.src-badge.discogs { background: linear-gradient(115deg, #1f1f1f, #4a4a4a); }

@@ -65,7 +65,7 @@ def register(app, shared) -> None:
         install = install_kind()
         lines = [ln for ln in log_buffer.since(0) if ln.get("level") in ("warning", "error", "critical")][-30:]
         return {"version": VERSION, "install": install, "python": platform.python_version(), "system": platform.system(),
-                "connections": sorted(k for k in ("musicbrainz", "acoustid", "deezer", "itunes", "lyrics", "slskd", "updates")
+                "connections": sorted(k for k in ("musicbrainz", "acoustid", "deezer", "itunes", "discogs", "lyrics", "slskd", "updates")
                                       if connections.enabled(k)),
                 "tracks": lib_index.status().files, "tidy_up": care.mode,
                 "log": [{"time": ln["time"], "level": ln["level"], "message": ln["message"]} for ln in lines]}

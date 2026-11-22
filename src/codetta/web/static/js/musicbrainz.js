@@ -47,7 +47,7 @@ export async function openMusicBrainz({ source = "auto" } = {}) {
   openMusicBrainzFor(mbTarget(), { source });
 }
 
-const SOURCE_NAMES = { auto: "MusicBrainz", deezer: "Deezer", itunes: "iTunes" };
+const SOURCE_NAMES = { auto: "MusicBrainz", deezer: "Deezer", itunes: "iTunes", discogs: "Discogs" };
 const sourceName = () => (mb.source === "auto" && !connectionOn("musicbrainz") ? "Deezer and iTunes" : SOURCE_NAMES[mb.source || "auto"]);
 
 /** Open the match dialog for any set of files; ``release`` jumps straight to its review. */
@@ -171,7 +171,7 @@ function renderMbSearch() {
         h("span", { class: "mb-cand-meta" }, mbMeta(c)),
         c.heard != null ? h("span", { class: "mb-heard" }, `${c.heard} of your ${plural(res.total, "track")} ${c.heard === 1 ? "is" : "are"} on it`) : null,
         c.current ? h("span", { class: "mb-current" }, h("span", { class: "badge" }, "Your files use this release")) : null,
-        c.source && c.source !== "musicbrainz" ? h("span", { class: `src-badge ${c.source}` }, c.source === "deezer" ? "From Deezer" : "From iTunes") : null),
+        c.source && c.source !== "musicbrainz" ? h("span", { class: `src-badge ${c.source}` }, { deezer: "From Deezer", itunes: "From iTunes", discogs: "From Discogs" }[c.source] || c.source) : null),
       h("span", { class: "mb-cand-side" },
         h("span", { class: `mb-score ${c.score >= 85 ? "good" : c.score >= 60 ? "ok" : "low"}`, title: "How well this release fits these files" }, `${c.score}%`),
         h("span", { class: "mb-chev" }, icon("chevron"))))));
@@ -198,7 +198,8 @@ function renderMbSearch() {
       h("label", { class: "field" }, h("span", { class: "field-label" }, "Or paste a release link"), link),
       h("button", { class: "btn", type: "submit", disabled: mb.busy }, "Use link")),
     list);
-  const credit = { deezer: ["Deezer", "https://www.deezer.com"], itunes: ["iTunes", "https://music.apple.com"] }[mb.source] || ["MusicBrainz", "https://musicbrainz.org"];
+  const credit = { deezer: ["Deezer", "https://www.deezer.com"], itunes: ["iTunes", "https://music.apple.com"],
+    discogs: ["Discogs", "https://www.discogs.com"] }[mb.source] || ["MusicBrainz", "https://musicbrainz.org"];
   setKids($("#mb-foot"),
     h("span", { class: "mb-credit" }, "Data from ", h("a", { href: credit[1], target: "_blank", rel: "noopener noreferrer" }, credit[0])),
     h("span", { class: "spacer" }),

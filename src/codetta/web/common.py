@@ -57,6 +57,8 @@ class Settings:
     acoustid_key: str | None = None  # an own application key instead of Codetta's
     fpcalc: str | None = None  # Chromaprint's fpcalc; None = look on PATH
     ffmpeg: str | None = None  # ffmpeg, for ReplayGain; None = look on PATH
+    discogs: bool | None = None  # the Discogs connection (CODETTA_DISCOGS)
+    discogs_token: str | None = None  # CODETTA_DISCOGS_TOKEN: set (and lock) the token
     slskd: bool | None = None  # Soulseek through the user's slskd
     slskd_url: str | None = None  # CODETTA_SLSKD_URL / _API_KEY: set (and lock) the connection details
     slskd_api_key: str | None = None
@@ -92,6 +94,8 @@ class Settings:
             acoustid_key=(env("ACOUSTID_KEY") or "").strip() or None,
             fpcalc=(env("FPCALC") or "").strip() or None,
             ffmpeg=(env("FFMPEG") or "").strip() or None,
+            discogs=parse_switch(env("DISCOGS")),
+            discogs_token=(env("DISCOGS_TOKEN") or "").strip() or None,
             index_workers=int(env("INDEX_WORKERS") or 0) if (env("INDEX_WORKERS") or "0").isdigit() else 0,
             slskd=parse_switch(env("SLSKD")),
             slskd_url=(env("SLSKD_URL") or "").strip() or None,
@@ -353,6 +357,10 @@ class CoverExportIn(BaseModel):
     dry_run: bool = True
 
 
+class DiscogsTokenIn(BaseModel):
+    token: str = Field("", max_length=200)  # "": forget the saved token
+
+
 class ReplaceIn(BaseModel):
     paths: list[str] = Field(default=[], max_length=MAX_PATHS_PER_REQUEST)  # these files...
     folder: str | None = Field(default=None, max_length=MAX_PATH_CHARS)  # ...or the audio files in this folder
@@ -467,7 +475,7 @@ class MBSearchIn(MBTarget):
     artist: str = Field("", max_length=500)
     release: str = Field("", max_length=500)  # a release link or ID instead of a search
     # "auto": MusicBrainz first, Deezer / iTunes when it has nothing good. Or just one of those two.
-    source: Literal["auto", "deezer", "itunes"] = "auto"
+    source: Literal["auto", "deezer", "itunes", "discogs"] = "auto"
 
 
 class MBProposalIn(MBTarget):

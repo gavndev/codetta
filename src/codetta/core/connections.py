@@ -55,6 +55,13 @@ CONNECTIONS: tuple[Connection, ...] = (
         ("itunes.apple.com", "is1-ssl.mzstatic.com"), "ITUNES",
     ),
     Connection(
+        "discogs", "Discogs",
+        "Album details, credits and covers from the Discogs database: strong for vinyl, electronic music "
+        "and rare or regional releases. Searching needs your own free Discogs token.",
+        "The album and artist names you search for, the IDs of releases you pick, and your Discogs token.",
+        ("api.discogs.com", "i.discogs.com"), "DISCOGS",
+    ),
+    Connection(
         "acoustid", "AcoustID: identify by sound",
         "Recognise tracks by how they sound, even untagged ones, to find the right MusicBrainz "
         "release. Works together with MusicBrainz.",
