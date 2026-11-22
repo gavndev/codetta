@@ -116,3 +116,28 @@ def test_without_ffmpeg_it_says_so(lib, tmp_path):
 
 def test_paths_stay_in_the_library(client):
     assert client.post("/api/replaygain", json={"paths": ["../x.flac"]}).status_code in (400, 409, 422)
+
+
+def test_the_meter_remembers_one_entry_per_file(tmp_path, monkeypatch):
+    out = "\n".join(f"M: -20.{i % 10}" for i in range(50)) + "\n  Peak:  -1.0 dBFS\n"
+    meter = loudness.Meter("/bin/ffmpeg", run=lambda cmd: out)
+    monkeypatch.setattr(loudness, "CACHE_FILES", 3)
+    f = tmp_path / "a.flac"
+    for i in range(5):  # the file changes each time (a tag save): still one entry for it
+        f.write_bytes(b"x" * (i + 1))
+        meter.measure(f)
+    assert len(meter._cache) == 1
+    for n in range(5):
+        p = tmp_path / f"{n}.flac"
+        p.write_bytes(b"y")
+        meter.measure(p)
+    assert len(meter._cache) == 3  # the least recently used files were dropped
+
+
+@needs_ffmpeg
+def test_a_playlist_dressed_as_a_song_isnt_followed(tmp_path):
+    # ffmpeg picks formats by content: an HLS playlist named .flac must not make it fetch URLs.
+    f = tmp_path / "evil.flac"
+    f.write_text("#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXTINF:1,\nhttp://127.0.0.1:9/x.ts\n#EXT-X-ENDLIST\n")
+    with pytest.raises(loudness.LoudnessError):
+        loudness.Meter(FFMPEG).measure(f)

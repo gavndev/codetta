@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import math
 import os
+from array import array
+from collections import OrderedDict
 import re
 import shutil
 import subprocess  # nosec B404: runs only ffmpeg, never a shell
@@ -36,6 +38,13 @@ ABSOLUTE_GATE = -70.0
 RELATIVE_GATE = -10.0
 TIMEOUT_SECONDS = 600  # per file (a three-hour DJ mix still reads in well under this)
 WORKERS = max(1, min(4, (os.cpu_count() or 2)))
+CACHE_FILES = 3000  # files remembered (one entry each, least recently used dropped first)
+
+# ffmpeg picks a file's format by its content, not its name: a "song" that's really a playlist
+# (HLS, concat...) could make a full ffmpeg fetch URLs or read other files. Only local files,
+# and only the audio formats Codetta reads.
+INPUT_LIMITS = ["-protocol_whitelist", "file", "-format_whitelist",
+                "flac,mp3,mov,mp4,m4a,3gp,3g2,mj2,ogg,wav,aiff,w64,wv,tta,asf,dsf,aac"]
 
 _M = re.compile(r"\bM:\s*(-?\d+(?:\.\d+)?)")
 _PEAK = re.compile(r"Peak:\s*(-?inf|-?\d+(?:\.\d+)?)\s*dBFS")
@@ -58,7 +67,7 @@ def find_ffmpeg(configured: str | None = None) -> str | None:
 class Measured:
     loudness: float  # integrated, LUFS (-inf for silence)
     peak: float  # sample peak, linear (1.0 = full scale)
-    blocks: list[float] = field(default_factory=list, repr=False)  # 400 ms readings, LUFS
+    blocks: array = field(default_factory=lambda: array("f"), repr=False)  # 400 ms readings, LUFS (4 bytes each)
 
 
 def integrated(blocks: Iterable[float]) -> float:
@@ -81,7 +90,7 @@ class Meter:
     def __init__(self, ffmpeg: str | None, run: Callable[[list[str]], str] | None = None) -> None:
         self.ffmpeg = ffmpeg
         self._run = run or self._ffmpeg_stderr
-        self._cache: dict[tuple[str, int, int], Measured] = {}
+        self._cache: OrderedDict[str, tuple[int, int, Measured]] = OrderedDict()  # path -> (size, mtime, result)
         self._lock = threading.Lock()
 
     @property
@@ -98,30 +107,34 @@ class Meter:
         except OSError as exc:
             raise LoudnessError(f"Couldn't run ffmpeg: {exc}") from exc
         if proc.returncode != 0:
-            last = (proc.stderr.strip().splitlines() or ["unknown error"])[-1]
-            raise LoudnessError(f"ffmpeg couldn't read it: {last[:200]}")
+            lines = [ln for ln in proc.stderr.strip().splitlines() if ln.strip() and not ln.startswith("Exiting with")]
+            why = re.sub(r"^\[[^\]]*\]\s*", "", lines[-1]) if lines else "not an audio file it can read"
+            raise LoudnessError(f"ffmpeg couldn't read it: {why[:200]}")
         return proc.stderr
 
     def measure(self, path: Path) -> Measured:
         if not self.ffmpeg:
             raise LoudnessError("ffmpeg isn't installed on this server (it's included in the Docker image)")
         st = path.stat()
-        key = (str(path), st.st_size, st.st_mtime_ns)
+        key, stamp = str(path), (st.st_size, st.st_mtime_ns)
         with self._lock:
-            if key in self._cache:
-                return self._cache[key]
-        out = self._run([self.ffmpeg, "-nostdin", "-hide_banner", "-nostats", "-v", "verbose", "-i", str(path),
+            hit = self._cache.get(key)
+            if hit and hit[:2] == stamp:
+                self._cache.move_to_end(key)
+                return hit[2]
+        out = self._run([self.ffmpeg, "-nostdin", "-hide_banner", "-nostats", "-v", "verbose", *INPUT_LIMITS, "-i", str(path),
                          "-map", "0:a:0", "-af", "ebur128=peak=sample:framelog=verbose", "-f", "null", "-"])
-        blocks = [float(m.group(1)) for m in _M.finditer(out)]
+        blocks = array("f", (float(m.group(1)) for m in _M.finditer(out)))
         peaks = _PEAK.findall(out)
         if not blocks or not peaks:
             raise LoudnessError("ffmpeg didn't report a loudness for it (is there any audio in it?)")
         peak_db = peaks[-1]
         result = Measured(integrated(blocks), 0.0 if "inf" in peak_db else 10 ** (float(peak_db) / 20), blocks)
         with self._lock:
-            if len(self._cache) > 20000:
-                self._cache.clear()
-            self._cache[key] = result
+            self._cache[key] = (*stamp, result)  # replaces what this file measured before it changed
+            self._cache.move_to_end(key)
+            while len(self._cache) > CACHE_FILES:
+                self._cache.popitem(last=False)
         return result
 
     def measure_many(self, paths: list[Path]) -> dict[Path, Measured | LoudnessError]:
@@ -138,7 +151,9 @@ class Meter:
 def album(measured: Iterable[Measured]) -> Measured:
     """An album's loudness: all its tracks' readings gated together; its peak is the loudest track's."""
     ms = list(measured)
-    blocks = [b for m in ms for b in m.blocks]
+    blocks = array("f")
+    for m in ms:
+        blocks.extend(m.blocks)
     return Measured(integrated(blocks), max((m.peak for m in ms), default=0.0), blocks)
 
 

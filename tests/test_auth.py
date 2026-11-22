@@ -356,3 +356,17 @@ def test_old_coda_env_names_still_work(monkeypatch):
     assert s.auth is False and str(s.music_dir) == "/old/music"
     monkeypatch.setenv("CODETTA_MUSIC_DIR", "/new/music")  # the new name wins
     assert str(Settings.from_env().music_dir) == "/new/music"
+
+
+def test_sessions_are_capped_oldest_first(tmp_path, monkeypatch):
+    import codetta.core.auth as auth_mod
+
+    monkeypatch.setattr(auth_mod, "MAX_SESSIONS", 5)
+    store = auth_mod.SessionStore(tmp_path / "sessions.json")
+    tokens = []
+    for i in range(8):
+        monkeypatch.setattr(auth_mod.time, "time", lambda i=i: 1_000_000 + i)
+        tokens.append(store.create("me"))
+    kept = set(store._sessions)
+    assert len(kept) == 5
+    assert kept == {auth_mod._token_hash(t) for t in tokens[3:]}  # the three oldest were signed out

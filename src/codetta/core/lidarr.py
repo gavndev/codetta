@@ -55,6 +55,8 @@ Request = Callable[[str, str, dict, bytes | None], tuple[int, bytes]]  # (method
 
 
 def http_request(method: str, url: str, headers: dict, body: bytes | None, timeout: float = 15) -> tuple[int, bytes]:
+    if not url.lower().startswith(("http://", "https://")):  # an address set by env var skips the page's check
+        raise LidarrError("The address must start with http:// or https://")
     req = urllib.request.Request(url, data=body, method=method, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 (the admin's own server)

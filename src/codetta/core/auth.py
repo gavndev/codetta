@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 SESSION_DAYS = 30
+MAX_SESSIONS = 200  # signed-in browsers kept at once; the oldest is signed out past this
 MIN_PASSWORD_LENGTH = 8
 
 # scrypt cost parameters (~100 ms and 32 MB per hash on a typical home server).
@@ -257,6 +258,9 @@ class SessionStore:
             self._sessions[_token_hash(token)] = {
                 "username": username, "created": int(now), "expires": int(now + self.lifetime),
             }
+            if len(self._sessions) > MAX_SESSIONS:  # each sign-in (and each desktop window) adds one: drop the oldest
+                for key, _ in sorted(self._sessions.items(), key=lambda kv: kv[1].get("created", 0))[:len(self._sessions) - MAX_SESSIONS]:
+                    del self._sessions[key]
             self._persist()
         return token
 

@@ -59,6 +59,8 @@ Request = Callable[[str, str, dict, bytes | None], tuple[int, bytes]]  # (method
 
 
 def http_request(method: str, url: str, headers: dict, body: bytes | None, timeout: float = 15) -> tuple[int, bytes]:
+    if not url.lower().startswith(("http://", "https://")):  # an address set by env var skips the page's check
+        raise ServerError("The address must start with http:// or https://")
     req = urllib.request.Request(url, data=body, method=method, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 (the admin's own server)
@@ -115,7 +117,7 @@ class SubsonicClient:
         if self.plain:
             return {"u": self.username, "p": "enc:" + self.password.encode().hex()}
         salt = secrets.token_hex(8)
-        token = hashlib.md5((self.password + salt).encode()).hexdigest()  # noqa: S324 (the Subsonic API's own scheme)
+        token = hashlib.md5((self.password + salt).encode(), usedforsecurity=False).hexdigest()  # the Subsonic API's own scheme
         return {"u": self.username, "t": token, "s": salt}
 
     def call(self, method: str, **params) -> dict:

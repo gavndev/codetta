@@ -139,7 +139,7 @@ def _lossless(track: dict) -> bool:
 
 
 def issue_id(check: str, folder: str) -> str:
-    return hashlib.sha1(f"{check}\0{folder}".encode()).hexdigest()[:12]
+    return hashlib.sha1(f"{check}\0{folder}".encode(), usedforsecurity=False).hexdigest()[:12]  # an id, not a secret
 
 
 @dataclass
