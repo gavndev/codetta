@@ -152,6 +152,9 @@ class TrackMetadata:
     bitrate: int | None = None  # bits per second
     sample_rate: int | None = None  # Hz
     channels: int | None = None
+    # FLAC stores a checksum of the decoded audio: two files with the same one hold the same
+    # recording, whatever their tags say (Library health uses it). None for other formats.
+    audio_md5: str | None = None
 
 
 class MetadataEngine:
@@ -199,6 +202,7 @@ class MetadataEngine:
             bitrate=getattr(info, "bitrate", None) or None,
             sample_rate=sample_rate or None,
             channels=channels or None,
+            audio_md5=f"{info.md5_signature:032x}" if getattr(info, "md5_signature", 0) else None,
         )
 
     def update_tags(self, path: str | Path, changes: Mapping[str, TagValue],

@@ -35,7 +35,7 @@ def describe_file(path: Path, rel: str) -> dict:
         art = None
     return {"path": rel, "name": rel.rsplit("/", 1)[-1], "format": meta.format, "tags": meta.tags,
             "duration": meta.duration, "bitrate": meta.bitrate, "sample_rate": meta.sample_rate,
-            "channels": meta.channels, "mtime": mtime, "art": art, "error": None, "partial": False}
+            "channels": meta.channels, "audio_md5": meta.audio_md5, "mtime": mtime, "art": art, "error": None, "partial": False}
 
 
 def describe_many(root: str, items: list[tuple[str, int, int]]) -> list[tuple[str, int, int, dict]]:

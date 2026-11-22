@@ -2,6 +2,10 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+- **Library health knows a duplicate from a namesake:** "Same song twice" now compares the audio itself in FLAC files. Two tracks with identical audio are flagged even when their titles differ (a download with one remix twice under two names), and the message says one is probably the wrong file. Two versions that only share a name, like a remix with a different guest, are no longer flagged. An MP3 next to its FLAC is still caught.
+
 ## 0.10.0 (2026-11-22)
 
 Discogs as a fourth album source, a set of tag tools (change case, fix garbled text, split and join values, tags from file names, paste a tracklist), covers saved as files for Plex and Jellyfin, and three more formats: Monkey's Audio, Musepack and DSDIFF.

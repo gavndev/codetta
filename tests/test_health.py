@@ -100,6 +100,51 @@ def test_duplicate_songs_need_the_same_length():
     assert ("duplicate_track", "R") not in checks(remixes)
 
 
+def with_md5(track, md5):
+    path, d = track
+    return path, {**d, "audio_md5": md5}
+
+
+def test_identical_audio_is_flagged_even_under_different_titles():
+    # 400 Degreez: tracks 11 and 18 tagged as two different remixes, but the same audio twice.
+    t = album("J/400", n=4)
+    t[1] = with_md5(t[1], "a" * 32)
+    t[3] = with_md5(t[3], "a" * 32)
+    issue = checks(t)[("duplicate_track", "J/400")]
+    assert issue["message"] == "2 tracks with identical audio"
+    assert "identical audio" in issue["detail"][0] and "02 T2.flac" in issue["detail"][0]
+
+
+def test_same_title_with_different_audio_is_two_versions():
+    t = [with_md5(tr(f"V/{i}.flac", art=COVER, title="Ha (remix)", artist="Juvenile", album="V", tracknumber=str(i)),
+                  str(i) * 32) for i in (1, 2)]
+    assert ("duplicate_track", "V") not in checks(t)
+
+
+def test_same_title_and_length_credited_to_different_artists_is_two_versions():
+    t = [tr(f"G/{i}.mp3", art=COVER, fmt="mp3", bitrate=320_000, title="Ha (remix)", album="G", tracknumber=str(i),
+            artist=a) for i, a in ((1, "Juvenile feat. Hot Boy$"), (2, "Juvenile feat. JAY-Z"))]
+    assert ("duplicate_track", "G") not in checks(t)
+
+
+def test_an_mp3_next_to_its_flac_is_still_flagged():
+    t = album("M/Alb", n=3)
+    t[0] = with_md5(t[0], "b" * 32)  # the FLAC has a checksum, the MP3 can't
+    t.append(tr("M/Alb/01 T1.mp3", art=COVER, fmt="mp3", bitrate=320_000, title="T1", artist="Someone else",
+                album="Alb", tracknumber="1"))
+    assert checks(t)[("duplicate_track", "M/Alb")]["message"] == "1 song twice"
+
+
+def test_the_flac_audio_checksum_is_read(tmp_path):
+    f = tmp_path / "a.flac"
+    shutil.copy(FIXTURES_DIR / "sample.flac", f)
+    md5 = MetadataEngine().load_metadata(f).audio_md5
+    assert md5 is None or len(md5) == 32
+    g = tmp_path / "b.flac"
+    shutil.copy(f, g)
+    assert MetadataEngine().load_metadata(g).audio_md5 == md5
+
+
 def test_disc_folders_join_and_number_themselves():
     t = album("A/Alb/CD1", n=2) + album("A/Alb/CD2", n=2)
     for p, tt in t:

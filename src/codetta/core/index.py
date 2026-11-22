@@ -48,7 +48,7 @@ from codetta.core.tagmap import FIELDS
 
 log = logging.getLogger("codetta.index")
 
-SCHEMA_VERSION = 5  # 4: a stored natural sort key per file; 5: keeps musicbrainz_albumid (Library health)
+SCHEMA_VERSION = 6  # 4: a stored natural sort key per file; 5: keeps musicbrainz_albumid (Library health); 6: FLAC audio checksum
 RESCAN_SECONDS = 15 * 60  # a search re-checks the library if the last scan is older than this
 BATCH = 200  # files per database transaction while scanning
 PAR_CHUNK = 128  # files per job when worker processes help with a big scan

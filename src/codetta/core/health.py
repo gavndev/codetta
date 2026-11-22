@@ -70,7 +70,9 @@ CHECKS: tuple[Check, ...] = (
     Check("duplicate_album", "tags", "Album in two folders",
           "The same album (same album artist and name) lives in more than one folder."),
     Check("duplicate_track", "tags", "Same song twice",
-          "The same title appears twice on one disc of an album (often an MP3 next to a FLAC)."),
+          "Two files on one album hold the same recording: identical audio (even under different titles), "
+          "or the same title and length in another format (often an MP3 next to a FLAC). Versions that share "
+          "a name, like a remix with a different guest, don't count."),
     Check("unreadable", "tags", "Unreadable files",
           "Audio files Codetta couldn't read (damaged, or not what their name says)."),
     Check("mixed_quality", "tags", "Mixed quality",
@@ -343,24 +345,16 @@ def check_album(album: Album, has_folder_image: Callable[[str], bool]) -> list[d
                           affected, [p.rsplit("/", 1)[-1] for p in affected], fix))
 
     if is_album:
-        by_title: dict[tuple[int, str], list[tuple[str, float]]] = {}
-        for p, t in tracks:
-            title = _first(t.get("tags") or {}, "title")
-            if title:
-                by_title.setdefault((album.disc_of(p, t), fold(title)), []).append((p, t.get("duration") or 0))
-        doubles = []
-        for items in by_title.values():
-            # The same recording twice (an MP3 next to the FLAC) is the same length; remixes and
-            # versions sharing a title aren't.
-            items.sort(key=lambda x: x[1])
-            same = [items[i] for i in range(len(items))
-                    if any(j != i and abs(items[i][1] - items[j][1]) <= 2 for j in range(len(items)))]
-            if len(same) > 1:
-                doubles.append([p for p, _ in same])
-        if doubles:
-            out.append(_issue("duplicate_track", album, f"{len(doubles)} song{'s' if len(doubles) != 1 else ''} twice",
-                              [p for ps in doubles for p in ps],
-                              [" = ".join(p.rsplit("/", 1)[-1] for p in ps) for ps in doubles]))
+        doubles, copies = _same_song_twice(album, tracks)
+        if doubles or copies:
+            n = len(doubles) + len(copies)
+            summary = (f"{sum(map(len, copies))} tracks with identical audio"
+                       if copies and not doubles else f"{n} song{'s' if n != 1 else ''} twice")
+            detail = ([" = ".join(p.rsplit("/", 1)[-1] for p in ps) + " (identical audio: one is probably the wrong file)"
+                       for ps in copies]
+                      + [" = ".join(p.rsplit("/", 1)[-1] for p in ps) for ps in doubles])
+            out.append(_issue("duplicate_track", album, summary,
+                              [p for ps in copies + doubles for p in ps], detail))
 
     broken = [p for p, t in tracks if t.get("error")]
     if broken:
@@ -375,6 +369,47 @@ def check_album(album: Album, has_folder_image: Callable[[str], bool]) -> list[d
                           if len(lossy) < len(readable) / 2 else "Lossless and lossy tracks mixed",
                           lossy, [p.rsplit("/", 1)[-1] for p in lossy], None, ("open", "slskd")))
     return out
+
+
+
+def _same_song_twice(album: "Album", tracks: list[tuple[str, dict]]) -> tuple[list[list[str]], list[list[str]]]:
+    """Groups of files holding the same recording: ``(doubles, copies)``.
+
+    ``copies`` are FLACs whose audio checksums match: the same recording, whatever the titles
+    say (a download that has one remix twice under two names). ``doubles`` share a disc, a
+    title and a length (within 2 s) without proof either way: an MP3 next to the FLAC counts;
+    two FLACs with different audio, or the same name credited to different artists (a remix
+    with another guest), are versions and don't.
+    """
+    by_md5: dict[str, list[str]] = {}
+    for p, t in tracks:
+        if t.get("audio_md5"):
+            by_md5.setdefault(t["audio_md5"], []).append(p)
+    copies = [ps for ps in by_md5.values() if len(ps) > 1]
+    copied = {p for ps in copies for p in ps}
+
+    by_title: dict[tuple[int, str], list[tuple[str, dict]]] = {}
+    for p, t in tracks:
+        title = _first(t.get("tags") or {}, "title")
+        if title and p not in copied:
+            by_title.setdefault((album.disc_of(p, t), fold(title)), []).append((p, t))
+
+    def same(a: dict, b: dict) -> bool:
+        if abs((a.get("duration") or 0) - (b.get("duration") or 0)) > 2:
+            return False
+        if a.get("audio_md5") and b.get("audio_md5"):
+            return False  # both checksummed and different (equal ones are copies above)
+        if (a.get("format") or "").lower() != (b.get("format") or "").lower():
+            return True  # the same song in another format: the case this check is for
+        artist = lambda t: fold(_first(t.get("tags") or {}, "artist"))
+        return artist(a) == artist(b)
+
+    doubles = []
+    for items in by_title.values():
+        group = [p for i, (p, t) in enumerate(items) if any(j != i and same(t, u) for j, (_, u) in enumerate(items))]
+        if len(group) > 1:
+            doubles.append(group)
+    return doubles, copies
 
 
 def duplicate_albums(albums: dict[str, Album]) -> list[dict]:
@@ -412,7 +447,8 @@ def _slim(track: dict) -> dict:
         if first:
             kept[k] = first  # the first value is all the checks read: keep just that
     return {"tags": kept, "art": track.get("art"), "error": track.get("error"),
-            "format": track.get("format"), "bitrate": track.get("bitrate"), "duration": track.get("duration")}
+            "format": track.get("format"), "bitrate": track.get("bitrate"), "duration": track.get("duration"),
+            "audio_md5": track.get("audio_md5")}
 
 
 def _album_folder(path: str) -> str:
