@@ -1,6 +1,7 @@
 # Contributing
 
 Thanks for your interest! Bug reports, ideas and pull requests are all welcome. For anything big, please open an issue first so we can talk it through.
+Everyone taking part agrees to the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Running it locally
 
@@ -10,10 +11,15 @@ HTML/CSS/JavaScript front end (no framework, no build step).
 
 ```sh
 python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
+python tools/lockpins.py > /tmp/pins.txt && pip install -c /tmp/pins.txt -e ".[dev]"
 pytest
 CODETTA_MUSIC_DIR=~/some-test-music uvicorn codetta.web.app:app --reload --port 8111
 ```
+
+`uv.lock` records the exact versions of Codetta's dependencies that the tests ran
+against; the Docker image, the snap and CI all install those. If you add or change a
+dependency in `pyproject.toml`, run [`uv lock`](https://docs.astral.sh/uv/) and commit
+both files (a test fails if they disagree). Dependabot proposes updates monthly.
 
 To build the Docker image yourself instead of downloading it, add this to
 your `docker-compose.override.yml` and run `docker compose up -d --build`:
