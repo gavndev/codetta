@@ -218,7 +218,7 @@ export const BANGS = {
 async function catalogSearch(source, q) {
   const query = q.trim();
   if (!query) return;
-  const name = source === "deezer" ? "Deezer" : "iTunes";
+  const name = { deezer: "Deezer", itunes: "iTunes", discogs: "Discogs" }[source];
   if (!enoughText(query)) { toast(`Type at least two letters or numbers to search ${name}.`, "error"); return; }
   const chip = $("#bang-chip");
   chip?.classList.add("busy");
@@ -243,7 +243,7 @@ async function catalogSearch(source, q) {
         ? h("a", { class: "mbx-owned", href: hashFor(a.in_library), title: `In your library: ${a.in_library}`,
           onclick: () => closeDialog($("#confirm-dialog")) }, icon("check"), "In your library")
         : h("span", { class: "catalog-actions" },
-          a.url ? h("a", { class: "link-btn", href: a.url, target: "_blank", rel: "noopener noreferrer" }, `Open on ${source === "deezer" ? "Deezer" : "Apple Music"}`) : null,
+          a.url ? h("a", { class: "link-btn", href: a.url, target: "_blank", rel: "noopener noreferrer" }, `Open on ${{ deezer: "Deezer", itunes: "Apple Music", discogs: "Discogs" }[source]}`) : null,
           skReady() ? h("button", { class: "link-btn", type: "button", onclick: () => {
             closeDialog($("#confirm-dialog")); setTimeout(() => skSearch(`${a.artist} ${a.title}`.trim(), ""), 250);
           } }, "Find in slskd") : null)));

@@ -174,7 +174,7 @@ def summary(r: dict) -> dict:
     elif " - " in title:  # search results: "Artist - Title"
         artist, title = (clean_name(p) for p in title.split(" - ", 1))
     primary, _secondary = kind_of(r.get("formats") or [{"descriptions": r.get("format") or []}])
-    labels = r.get("labels") or [{"name": n} for n in (r.get("label") or [])[:1]]
+    labels = r.get("labels") or [{"name": n, "catno": r.get("catno")} for n in (r.get("label") or [])[:1]]
     label = clean_name((labels[0] or {}).get("name", "")) if labels else ""
     cover = next((i.get("uri") for i in r.get("images") or [] if i.get("type") == "primary"), None) \
         or next((i.get("uri") for i in r.get("images") or []), None) or r.get("cover_image") or ""

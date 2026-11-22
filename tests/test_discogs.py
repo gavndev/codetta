@@ -171,3 +171,26 @@ def test_searching_without_a_token_explains_itself(album_dir, tmp_path):  # noqa
     r = c.get("/api/catalog/search", params={"source": "discogs", "q": "fixture album"})
     assert r.status_code == 403 and "Discogs token" in r.json()["detail"]
     c.__exit__(None, None, None)
+
+
+def test_search_results_carry_their_cover_and_catalogue_number():
+    """Thumbnails come from the search itself: no slow release lookup per cover (one request a second)."""
+    fake = FakeDiscogs()
+    cat = Catalogs(lambda url: None, lambda s: s == "discogs", discogs=fake, discogs_token=lambda: TOKEN)
+    cat._throttle.interval = 0
+    found = cat.search("Fixture Album", "Coda Tester", only="discogs")
+    assert found[0]["label-info"][0]["catalog-number"] == "FIX 001"
+    asked = len(fake.calls)
+    assert cat.cover("discogs:4950798") == "c.jpg" and len(fake.calls) == asked
+    albums = cat.search_text("discogs", "fixture album")
+    assert cat.cover(albums[0]["id"]) == "x.jpg" and len(fake.calls) == asked + 1
+
+
+def test_album_thumbnails_from_dg_load(album_dir, tmp_path):  # noqa: F811
+    """!dg lists albums ("discogs:m21491"); their thumbnails must load like any other."""
+    c, _fake = make(album_dir, tmp_path, env_token=TOKEN)
+    c.get("/api/catalog/search", params={"source": "discogs", "q": "fixture album"})
+    r = c.get("/api/musicbrainz/cover/discogs:m21491", params={"size": 250})
+    assert r.status_code == 200 and r.headers["content-type"] == "image/png"
+    assert c.get("/api/musicbrainz/cover/discogs:mx1", params={"size": 250}).status_code in (403, 422)  # refused
+    c.__exit__(None, None, None)

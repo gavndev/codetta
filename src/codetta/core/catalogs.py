@@ -49,6 +49,12 @@ def is_catalog_id(release_id: str) -> bool:
     return release_id.split(":", 1)[0] in SOURCES and ":" in release_id
 
 
+def catalog_raw_ok(release_id: str) -> bool:
+    """A well-formed catalog ID: digits, or "m" + digits for a Discogs album ("master")."""
+    source, _, raw = release_id.partition(":")
+    return raw.isdigit() or (source == "discogs" and raw[:1] == "m" and raw[1:].isdigit())
+
+
 class Catalogs:
     def __init__(self, fetch: Fetcher, enabled: Callable[[str], bool],
                  country: Callable[[], str] | None = None, discogs: discogs_mod.Fetch | None = None,
@@ -59,8 +65,18 @@ class Catalogs:
         self.discogs = discogs  # (url, headers) -> JSON; the token goes in a header, never the address
         self.discogs_token = discogs_token or (lambda: "")
         self._throttle = discogs_mod.Throttle()
+        self._covers: OrderedDict[str, str] = OrderedDict()  # Discogs covers seen in search results
         self._releases: OrderedDict[str, dict] = OrderedDict()  # recent lookups (covers and re-opens)
         self._lock = threading.Lock()
+
+    def _remember_covers(self, rels: list[dict]) -> None:
+        with self._lock:
+            for r in rels:
+                if r.get("_cover"):
+                    self._covers[r["id"]] = r["_cover"]
+                    self._covers.move_to_end(r["id"])
+            while len(self._covers) > 200:
+                self._covers.popitem(last=False)
 
     def available(self) -> list[str]:
         return [s for s in SOURCES if self.enabled(s)]
@@ -110,8 +126,9 @@ class Catalogs:
         found = [r for r in (data.get("results") or []) if isinstance(r, dict) and r.get("id")]
         rels = [discogs_mod.summary(r) for r in found]
         rels = [r for r in rels if not album or _similar(r["title"], album)]
-        picked = _only_the_artist(rels, album, artist, lambda r: r["title"], lambda r: r["_artist"])
-        return picked[:limit]
+        picked = _only_the_artist(rels, album, artist, lambda r: r["title"], lambda r: r["_artist"])[:limit]
+        self._remember_covers(picked)
+        return picked
 
     def _deezer_search(self, album: str, artist: str, limit: int) -> list[dict]:
         parts = [f'album:"{album}"' if album else "", f'artist:"{artist}"' if artist else ""]
@@ -187,6 +204,7 @@ class Catalogs:
                     rel["id"] = f"discogs:m{r['id']}"
                     rel["_url"] = f"https://www.discogs.com/master/{r['id']}"
                     out.append(rel)
+            self._remember_covers(out)
             return out
         q = urllib.parse.quote(text.strip())
         if source == "deezer":
@@ -203,8 +221,7 @@ class Catalogs:
                 self._releases.move_to_end(release_id)
                 return self._releases[release_id]
         source, _, raw = release_id.partition(":")
-        master = source == "discogs" and raw[:1] == "m" and raw[1:].isdigit()
-        if not (raw.isdigit() or master) or not self.enabled(source):
+        if not catalog_raw_ok(release_id) or not self.enabled(source):
             raise LookupError("That album isn't available (is its connection on?)")
         if source == "discogs":
             rel = self._discogs_release(raw)
@@ -271,6 +288,10 @@ class Catalogs:
 
     def cover(self, release_id: str) -> str | None:
         """The biggest cover the source offers for this album."""
+        with self._lock:
+            known = self._covers.get(release_id)  # Discogs: already known from the search (saves a slow lookup)
+        if known:
+            return known
         try:
             return self.release(release_id).get("_cover") or None
         except LookupError:

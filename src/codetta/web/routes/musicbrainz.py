@@ -12,7 +12,7 @@ from fastapi.responses import Response
 
 from codetta.core.acoustid import FingerprintError, rank_releases
 from codetta.core.artwork import sniff_image_type
-from codetta.core.catalogs import Catalogs, catalog_link_id, is_catalog_id
+from codetta.core.catalogs import Catalogs, catalog_link_id, catalog_raw_ok, is_catalog_id
 from codetta.core.editions import FORMATS as EDITION_FORMATS
 from codetta.core.editions import edition_fit, padded_date
 from codetta.core.engine import MetadataError, TrackMetadata
@@ -528,7 +528,7 @@ def register(app, shared) -> None:
                  kind: Literal["release", "release-group"] = "release"):
         """A release's (or release group's) front cover from the Cover Art Archive, fetched
         by the server (so the page never loads anything from another site)."""
-        catalog = is_catalog_id(mbid) and mbid.split(":", 1)[1].isdigit()
+        catalog = is_catalog_id(mbid) and catalog_raw_ok(mbid)
         if catalog:
             require_connection(mbid.split(":", 1)[0])
         else:
