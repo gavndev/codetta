@@ -24,10 +24,14 @@ SOURCES = ("deezer", "itunes")
 Fetcher = Callable[[str], object]  # url -> parsed JSON (or None)
 
 
-def catalog_link_id(text: str) -> str | None:
+def catalog_link_id(text: str, itunes: bool = False) -> str | None:
     """"itunes:<id>" / "deezer:<id>" from a pasted album link, e.g.
-    music.apple.com/de/album/kala/1440857781 or deezer.com/en/album/302127. None: not one."""
+    music.apple.com/de/album/kala/1440857781 or deezer.com/en/album/302127. With ``itunes`` (its
+    connection is on), a bare iTunes collection id ("296393419" or "id296393419") counts too.
+    None: not one."""
     text = (text or "").strip()
+    if itunes and re.fullmatch(r"(?:id)?\d{6,12}", text, re.I):
+        return f"itunes:{text.lower().removeprefix('id')}"
     m = re.search(r"(?:music|itunes)\.apple\.com/(?:[a-z]{2}/)?album/(?:[^/?#]+/)?(?:id)?(\d{5,})", text, re.I)
     if m:
         return f"itunes:{m.group(1)}"

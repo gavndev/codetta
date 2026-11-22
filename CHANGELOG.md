@@ -2,6 +2,11 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+- **Choose the iTunes store:** Account → Album editions has an **iTunes store** setting, for when the store you want to search isn't your preferred edition country. It follows the preferred country by default, and falls back to the US store when the chosen one has nothing. (The rest of [#3](https://github.com/gavndev/codetta/issues/3)'s suggestions arrived in 0.9.6.)
+- **Paste an iTunes ID:** besides Apple Music, Deezer and MusicBrainz links, the Find dialog's paste box takes a bare iTunes collection ID (`296393419` or `id296393419`).
+
 ## 0.9.6 (2026-11-22)
 
 ReplayGain: one volume for every album, measured the EBU R128 way. Plus Find in iTunes that finds the right album, and a sweep for leaks and weak spots.

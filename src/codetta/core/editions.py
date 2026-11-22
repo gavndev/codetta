@@ -38,6 +38,7 @@ class EditionPrefs:
     format: str = "any"
     country: str = ""  # ISO code ("US", "GB"), "XW" for worldwide, "" for any
     avoid_deluxe: bool = True
+    store: str = ""  # Apple's store iTunes is searched in ("DE"); "" = the preferred country's (or the US one)
 
 
 class EditionStore:
@@ -52,7 +53,7 @@ class EditionStore:
             self.set(**{k: v for k, v in data.items() if k in asdict(self.prefs)}, save=False)
 
     def set(self, original_year: bool | None = None, format: str | None = None, country: str | None = None,
-            avoid_deluxe: bool | None = None, save: bool = True) -> EditionPrefs:
+            avoid_deluxe: bool | None = None, store: str | None = None, save: bool = True) -> EditionPrefs:
         p = self.prefs
         if original_year is not None:
             p.original_year = bool(original_year)
@@ -67,6 +68,11 @@ class EditionStore:
             p.country = country
         if avoid_deluxe is not None:
             p.avoid_deluxe = bool(avoid_deluxe)
+        if store is not None:
+            store = store.strip().upper()
+            if store and not re.fullmatch(r"[A-Z]{2}", store):
+                raise ValueError("Use a two-letter country code for the iTunes store (like DE or US), or leave it empty")
+            p.store = store
         if save:
             self.file.parent.mkdir(parents=True, exist_ok=True)
             fd, tmp = tempfile.mkstemp(prefix=".editions-", dir=self.file.parent)

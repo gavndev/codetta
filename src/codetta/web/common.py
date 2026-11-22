@@ -372,6 +372,7 @@ class EditionPrefsIn(BaseModel):
     format: Literal["any", "digital", "cd", "vinyl"] | None = None
     country: str | None = Field(None, max_length=2)
     avoid_deluxe: bool | None = None
+    store: str | None = Field(None, max_length=2)  # the iTunes store; "" = the preferred country's
 
 
 class TrashIn(BaseModel):

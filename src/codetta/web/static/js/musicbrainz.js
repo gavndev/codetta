@@ -137,7 +137,7 @@ function renderMbSearch() {
   const album = h("input", { type: "text", value: mb.query.album, dir: "auto", autocomplete: "off", spellcheck: "false", "aria-label": "Album" });
   const artist = h("input", { type: "text", value: mb.query.artist, dir: "auto", autocomplete: "off", spellcheck: "false", "aria-label": "Artist" });
   const link = h("input", { type: "text", value: mb.query.link, autocomplete: "off", spellcheck: "false", inputmode: "url",
-    placeholder: "MusicBrainz, Apple Music or Deezer link", "aria-label": "Release link from MusicBrainz, Apple Music or Deezer" });
+    placeholder: "MusicBrainz, Apple Music or Deezer link (or an iTunes ID)", "aria-label": "Release link from MusicBrainz, Apple Music or Deezer" });
   for (const [input, key] of [[album, "album"], [artist, "artist"], [link, "link"]]) {
     input.addEventListener("input", () => { mb.query[key] = input.value; });
   }
@@ -244,17 +244,23 @@ export async function openEditionPrefs() {
     ["DE", "Germany"], ["FR", "France"], ["JP", "Japan"], ["NL", "Netherlands"], ["SE", "Sweden"], ["IT", "Italy"], ["ES", "Spain"], ["BR", "Brazil"]];
   if (p.country && !countries.some(([v]) => v === p.country)) countries.push([p.country, p.country]);
   const country = h("select", { name: "country" }, countries.map(([v, l]) => h("option", { value: v, selected: p.country === v }, l)));
+  // Apple's store differs by country (some albums are only in some): which one iTunes is searched in.
+  const stores = [["", "Same as preferred country"], ...countries.filter(([v]) => v && v !== "XW")];
+  if (p.store && !stores.some(([v]) => v === p.store)) stores.push([p.store, p.store]);
+  const store = h("select", { name: "store" }, stores.map(([v, l]) => h("option", { value: v, selected: (p.store || "") === v }, l)));
   const form = h("div", { class: "edition-prefs" },
     sw("original_year", "Use the album's original year", "A 2011 reissue of a 1977 album is tagged and filed as 1977.", p.original_year),
     h("label", { class: "field" }, h("span", { class: "field-label" }, "Preferred format"), format),
     h("label", { class: "field" }, h("span", { class: "field-label" }, "Preferred country"), country),
-    sw("avoid_deluxe", "Prefer the standard edition", "Skip deluxe and expanded editions, unless your files match one.", p.avoid_deluxe));
+    sw("avoid_deluxe", "Prefer the standard edition", "Skip deluxe and expanded editions, unless your files match one.", p.avoid_deluxe),
+    h("label", { class: "field" }, h("span", { class: "field-label" }, "iTunes store"), store),
+    h("p", { class: "hint" }, "Apple's catalogue differs by country, and some albums are only in some stores. Codetta tries the US store when this one has nothing."));
   const ok = await ask({ title: "Album editions", confirmLabel: "Save", details: form,
     message: "An album can have dozens of editions. When Codetta matches on its own (the inbox, Tidy up), it picks the one you'd pick." });
   if (!ok) return;
   try {
     await api("PUT", "/api/editions", { original_year: $('[name="original_year"]', form).checked, format: format.value,
-      country: country.value, avoid_deluxe: $('[name="avoid_deluxe"]', form).checked });
+      country: country.value, avoid_deluxe: $('[name="avoid_deluxe"]', form).checked, store: store.value });
     toast("Saved", "success");
   } catch (err) { toast(err.message, "error"); }
 }

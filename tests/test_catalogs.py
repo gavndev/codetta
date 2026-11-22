@@ -247,3 +247,21 @@ def test_deezer_leaves_out_albums_that_dont_match():
                          {"id": 3, "title": "Kala", "artist": {"name": "Someone Else"}}]}
     found = Catalogs(fake, lambda s: s == "deezer").search("Kala", "M.I.A.", only="deezer")
     assert [r["id"] for r in found] == ["deezer:1"]
+
+
+def test_the_itunes_store_can_be_chosen_apart_from_the_preferred_country(album_dir, tmp_path):  # noqa: F811
+    c, fake, arts = make(album_dir, tmp_path, {"itunes": True})
+    d = c.put("/api/editions", json={"country": "XW", "store": "de"}).json()
+    assert d["store"] == "DE" and d["country"] == "XW"
+    c.post("/api/musicbrainz/search", json={"folder": FOLDER, "source": "itunes"})
+    assert any("country=de" in u for u in fake.urls)
+    assert c.put("/api/editions", json={"store": "Germany"}).status_code == 422
+    c.__exit__(None, None, None)
+
+
+def test_a_bare_itunes_id_can_be_pasted(album_dir, tmp_path):  # noqa: F811
+    c, fake, arts = make(album_dir, tmp_path, {"musicbrainz": True, "itunes": True})
+    for pasted in ("1440857781", "id1440857781"):
+        r = c.post("/api/musicbrainz/search", json={"folder": FOLDER, "release": pasted})
+        assert r.status_code == 200 and r.json()["candidates"][0]["id"] == "itunes:1440857781", pasted
+    c.__exit__(None, None, None)

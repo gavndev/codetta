@@ -117,7 +117,8 @@ def register(app, shared) -> None:
                 counts[v] = counts.get(v, 0) + 1
         return max(counts, key=counts.get) if counts else ""
 
-    catalogs = Catalogs(fetch_catalog or catalog_fetch, connections.enabled, country=lambda: editions.prefs.country)
+    catalogs = Catalogs(fetch_catalog or catalog_fetch, connections.enabled,
+                        country=lambda: editions.prefs.store or editions.prefs.country)
 
     def require_matching() -> None:
         """Matching needs MusicBrainz, Deezer or iTunes (any one of them)."""
@@ -167,7 +168,7 @@ def register(app, shared) -> None:
     def mb_release_id(text: str) -> str:
         if is_catalog_id(text.strip()):
             return text.strip()
-        linked = catalog_link_id(text)  # an Apple Music / iTunes or Deezer album link
+        linked = catalog_link_id(text, itunes=connections.enabled("itunes"))  # an album link, or an iTunes id
         if linked:
             return linked
         mbid = parse_release_id(text)
