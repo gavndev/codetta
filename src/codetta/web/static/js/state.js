@@ -58,7 +58,7 @@ export const fmtDuration = (s) => {
   return `${m}:${String(Math.round(s % 60)).padStart(2, "0")}`;
 };
 export const first = (track, key) => (track.tags[key] || [])[0] || "";
-const FORMAT_LABELS = { wavpack: "WV", oggflac: "Ogg FLAC", speex: "SPX", wma: "WMA" };
+const FORMAT_LABELS = { wavpack: "WV", oggflac: "Ogg FLAC", speex: "SPX", wma: "WMA", ape: "APE", mpc: "MPC", dff: "DFF" };
 export const fmtLabel = (format) => FORMAT_LABELS[format] || (format || "").toUpperCase();
 export const runtime = (tracks) => {
   const secs = tracks.reduce((sum, t) => sum + (t.duration || 0), 0);

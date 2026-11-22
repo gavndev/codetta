@@ -35,7 +35,7 @@ GENRE_CODE = re.compile(r"\(?(\d+|RX|CR)\)?")
 
 def values_for(f: str, key: str):
     if key == "genre" and f in ID3_FORMATS:
-        return TEXT.filter(lambda v: not GENRE_CODE.fullmatch(v))
+        return TEXT.filter(lambda v: not GENRE_CODE.fullmatch(v) and not re.match(r"\(\(|\(\d+\)", v))  # see test_engine
     return TEXT
 
 

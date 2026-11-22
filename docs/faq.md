@@ -97,7 +97,7 @@ change from the activity log.
 ## Known limitations
 
 - One account per Codetta instance.
-- Raw `.aac`, Monkey's Audio (`.ape`) and Musepack (`.mpc`) files aren't supported yet.
+- Raw `.aac` files (AAC outside an `.m4a`) aren't supported: they have no proper place for tags.
 - Custom tag names (beyond Codetta's field list) work in FLAC, Ogg, Opus, WavPack and WMA files, not in ID3 or MP4 formats.
 
 **How big a library can it handle?**

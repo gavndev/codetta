@@ -21,11 +21,14 @@ from pathlib import Path
 import mutagen
 from mutagen.aiff import AIFF
 from mutagen.asf import ASF
+from mutagen.dsdiff import DSDIFF
 from mutagen.dsf import DSF
 from mutagen.easymp4 import EasyMP4
 from mutagen.flac import FLAC
 from mutagen.mp3 import MP3, EasyMP3
+from mutagen.monkeysaudio import MonkeysAudio
 from mutagen.mp4 import MP4
+from mutagen.musepack import Musepack
 from mutagen.oggflac import OggFLAC
 from mutagen.oggopus import OggOpus
 from mutagen.oggspeex import OggSpeex
@@ -61,6 +64,7 @@ SUPPORTED_EXTENSIONS: frozenset[str] = frozenset({
     ".flac", ".mp3", ".m4a", ".ogg", ".opus",  # the original five
     ".wav", ".aif", ".aiff", ".aifc", ".dsf", ".tta", ".mp2",  # ID3 tags
     ".wv", ".wma", ".m4b", ".oga", ".spx",  # APEv2, ASF, audiobooks, Ogg FLAC, Speex
+    ".ape", ".mpc", ".mp+", ".dff",  # Monkey's Audio and Musepack (APEv2), DSDIFF (ID3)
 })
 
 # The mutagen class detected from the file's contents -> Codetta's format name.
@@ -80,6 +84,9 @@ _FORMAT_NAMES: dict[type, str] = {
     EasyTrueAudio: "tta",
     WavPack: "wavpack",
     ASF: "wma",
+    MonkeysAudio: "ape",
+    Musepack: "mpc",
+    DSDIFF: "dff",
 }
 
 
@@ -391,6 +398,12 @@ class MetadataEngine:
                         f"numbered genres, so {values[0]!r} would become {written.get(key, ['?'])[0]!r}. "
                         "Add a word to it (for example \"Genre 0\")."
                     )
+                if key == "genre" and meta.format in ID3_FORMATS and any(re.match(r"\(\(|\(\d+\)", v) for v in values):
+                    raise MetadataError(
+                        f"{meta.format.upper()} tags read a genre starting with “((” or a number in brackets "
+                        f"(“(17)”) as one of the old numbered genres, so {values[0]!r} would become "
+                        f"{written.get(key, ['?'])[0]!r}. Start it differently (for example without the brackets)."
+                    )
                 raise MetadataError(
                     f"Tag '{key}' did not save correctly "
                     f"(wanted {values!r}, file has {written.get(key, [])!r})"
@@ -467,6 +480,12 @@ def _sniff_format(path: Path) -> type | None:
         return EasyTrueAudio
     if head.startswith(b"wvpk"):
         return WavPack
+    if head.startswith(b"MAC "):
+        return MonkeysAudio
+    if head.startswith((b"MPCK", b"MP+")):  # Musepack SV8, SV7
+        return Musepack
+    if head[:4] == b"FRM8" and head[12:16] == b"DSD ":
+        return DSDIFF
     if head.startswith(b"\x30\x26\xb2\x75\x8e\x66\xcf\x11"):  # ASF header GUID
         return ASF
     if head[4:8] == b"ftyp":

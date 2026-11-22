@@ -466,15 +466,14 @@ Your library matters, so Codetta is careful with it:
 |---|---|---|---|
 | FLAC | `.flac` | Vorbis comments | ✅ |
 | Ogg Vorbis, Opus, Ogg FLAC, Speex | `.ogg` `.opus` `.oga` `.spx` | Vorbis comments | ✅ |
-| WavPack | `.wv` | APEv2 | ✅ |
+| WavPack, Monkey's Audio, Musepack | `.wv` `.ape` `.mpc` | APEv2 | ✅ |
 | WMA | `.wma` | ASF attributes | ✅ |
 | MP3, MP2 | `.mp3` `.mp2` | ID3v2.4 | Codetta's field list |
 | WAV, AIFF | `.wav` `.aif` `.aiff` `.aifc` | ID3v2.4 (as Picard and Navidrome use) | Codetta's field list |
-| DSF (DSD) | `.dsf` | ID3v2.4 | Codetta's field list |
+| DSF, DSDIFF (DSD) | `.dsf` `.dff` | ID3v2.4 | Codetta's field list |
 | TrueAudio | `.tta` | ID3v2.4 | Codetta's field list |
 | AAC / ALAC, audiobooks | `.m4a` `.m4b` | MP4 atoms | Codetta's field list |
 
 Every format supports album art and every field in the editor. Codetta detects
 the real format from each file's contents, so a mislabelled file still opens
-correctly. Monkey's Audio (`.ape`), Musepack (`.mpc`) and other APEv2 formats
-are planned once we have sample files to test against.
+correctly.

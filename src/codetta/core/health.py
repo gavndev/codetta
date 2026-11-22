@@ -78,7 +78,7 @@ CHECKS: tuple[Check, ...] = (
 )
 BY_ID = {c.id: c for c in CHECKS}
 
-LOSSLESS = {"flac", "wav", "aiff", "aif", "ape", "wv", "wavpack", "dsf", "tta", "alac", "oggflac"}
+LOSSLESS = {"flac", "wav", "aiff", "aif", "ape", "wv", "wavpack", "dsf", "dff", "tta", "alac", "oggflac"}
 IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 SMALL_COVER = 500
 MB_RELEASE_KEYS = ("musicbrainz_albumid", "musicbrainz album id")

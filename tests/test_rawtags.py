@@ -13,6 +13,7 @@ NATIVE_TITLE = {
     "flac": "title", "ogg": "title", "opus": "title", "oga": "TITLE", "spx": "TITLE",
     "mp3": "TIT2", "mp2": "TIT2", "wav": "TIT2", "aiff": "TIT2", "dsf": "TIT2", "tta": "TIT2",
     "m4a": "\xa9nam", "m4b": "\xa9nam", "wv": "Title", "wma": "Title",
+    "ape": "Title", "mpc": "Title", "dff": "TIT2",
 }
 
 

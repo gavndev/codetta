@@ -283,7 +283,7 @@ the page in English or Spanish ([add yours](docs/translating.md)), light and dar
 | Search the whole library by tag | ✅ | ➖ | ✅ Query language | ➖ Filtering |
 | Play tracks | ✅ In the browser | ➖ Basic player | ➖ Via external player | ✅ In the browser |
 | Plugins | Not yet (built-in actions, plus opt-in connections) | ✅ | ✅ | ❌ |
-| Formats | 15 file types | 20+ | Most common formats | 9 |
+| Formats | 18 file types | 20+ | Most common formats | 9 |
 | License | AGPL-3.0 | GPL-2.0 | MIT | AGPL-3.0 |
 
 ✅ yes · ➖ partly or with extra setup · ❌ no

@@ -21,7 +21,7 @@ from mutagen.id3 import APIC, ID3
 from mutagen.mp4 import MP4, MP4Cover
 
 from codetta.core.engine import MetadataEngine, MetadataError, UnsupportedFormatError
-from tests.conftest import EXPECTED_TAGS, FIXTURES_DIR, SAMPLE_FILES
+from tests.conftest import SAMPLE_DURATIONS, EXPECTED_TAGS, FIXTURES_DIR, SAMPLE_FILES
 
 IS_ROOT = hasattr(os, "geteuid") and os.geteuid() == 0
 HAS_FFMPEG = shutil.which("ffmpeg") is not None
@@ -114,7 +114,7 @@ def test_unicode_and_odd_filenames(engine, tmp_path, filename):
 # --- Cover art must survive tag edits ----------------------------------------------
 
 
-ID3_EXTS = {".mp3", ".mp2", ".wav", ".aiff", ".dsf", ".tta"}
+ID3_EXTS = {".mp3", ".mp2", ".wav", ".aiff", ".dsf", ".tta", ".dff"}
 
 
 def _wm_picture(data):
@@ -141,7 +141,7 @@ def _add_cover(path):
         audio = MP4(path)
         audio["covr"] = [MP4Cover(PNG_1X1, imageformat=MP4Cover.FORMAT_PNG)]
         audio.save()
-    elif fmt == ".wv":
+    elif fmt in (".wv", ".ape", ".mpc"):  # APEv2
         audio = mutagen.File(path)
         audio.tags["Cover Art (Front)"] = APEValue(b"cover.png\x00" + PNG_1X1, APE_BINARY)
         audio.save()
@@ -166,7 +166,7 @@ def _cover_bytes(path):
         return [f.data for f in tags.getall("APIC")] if tags is not None else []
     if fmt in (".m4a", ".m4b"):
         return [bytes(c) for c in MP4(path).tags.get("covr", [])]
-    if fmt == ".wv":
+    if fmt in (".wv", ".ape", ".mpc"):
         item = (mutagen.File(path).tags or {}).get("Cover Art (Front)")
         return [bytes(item.value).partition(b"\x00")[2]] if item else []
     if fmt == ".wma":
@@ -329,7 +329,7 @@ def test_mislabelled_file_is_detected_by_content(engine, tmp_path):
     assert engine.load_metadata(path).tags["title"] == ["Still Works"]
 
 
-@pytest.mark.parametrize("ext", [".aac", ".ape", ".mpc", ".txt", ".jpg", ""])
+@pytest.mark.parametrize("ext", [".aac", ".mka", ".txt", ".jpg", ""])
 def test_unsupported_extensions(engine, tmp_path, ext):
     path = tmp_path / f"file{ext}"
     shutil.copy2(FIXTURES_DIR / "sample.flac", path)  # real audio inside, wrong type
@@ -381,7 +381,7 @@ def test_many_edits_in_a_row_stay_healthy(engine, fixture_copy, name):
 
     meta = engine.load_metadata(path)
     assert meta.tags["title"] == ["Edit 24"]
-    assert meta.duration == pytest.approx(1.0, abs=0.1)
+    assert meta.duration == pytest.approx(SAMPLE_DURATIONS.get(name, 1.0), abs=0.1)
     for key in ("artist", "album", "tracknumber"):
         assert meta.tags[key] == EXPECTED_TAGS[key]
     assert decodes_cleanly(path)

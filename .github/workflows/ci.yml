@@ -40,7 +40,7 @@ jobs:
       - name: ffmpeg measures loudness of every format in the image (ReplayGain)
         run: |
           docker run --rm --entrypoint sh codetta:ci -c 'ls -lh /usr/local/bin/ffmpeg'
-          for f in sample.flac sample.mp3 sample.m4a sample.ogg sample.opus sample.wav sample.aiff sample.wv sample.wma sample.dsf sample.tta sample.mp2 sample.m4b sample.oga; do
+          for f in sample.flac sample.mp3 sample.m4a sample.ogg sample.opus sample.wav sample.aiff sample.wv sample.wma sample.dsf sample.tta sample.mp2 sample.m4b sample.oga sample.ape sample.mpc sample.dff; do
             echo "== $f"
             docker run --rm -v "$PWD/tests/fixtures:/f:ro" --entrypoint ffmpeg codetta:ci \
               -nostdin -hide_banner -nostats -i "/f/$f" -map 0:a:0 -af ebur128=peak=sample -f null - 2>&1 | grep -E "I:|Peak:" | tail -2 \

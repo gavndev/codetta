@@ -195,6 +195,7 @@ STREAM_TYPES = {
     ".ogg": "audio/ogg", ".oga": "audio/ogg", ".opus": "audio/ogg", ".spx": "audio/ogg", ".wav": "audio/wav",
     ".aif": "audio/aiff", ".aiff": "audio/aiff", ".aifc": "audio/aiff", ".wma": "audio/x-ms-wma",
     ".wv": "audio/x-wavpack", ".dsf": "audio/x-dsf", ".tta": "audio/x-tta",
+    ".ape": "audio/x-ape", ".mpc": "audio/x-musepack", ".mp+": "audio/x-musepack", ".dff": "audio/x-dff",
 }
 MAX_IDENTIFY = 200
 MAX_ORGANIZE = 5000  # files planned/moved in one request  # files fingerprinted in one request (each takes a moment to decode)

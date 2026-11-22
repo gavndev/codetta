@@ -291,7 +291,7 @@ export function setupContextMenu() {
 // where they're matched and filed like new music, or "Imported" in the library, where Organize
 // places them. Anything that isn't audio gets a warning first, never a refusal.
 
-const AUDIO_EXT = /\.(flac|mp3|m4a|m4b|aac|ogg|oga|opus|wav|aif|aiff|dsf|wv|tta|mp2|wma|spx)$/i;
+const AUDIO_EXT = /\.(flac|mp3|m4a|m4b|aac|ogg|oga|opus|wav|aif|aiff|dsf|dff|wv|tta|mp2|wma|spx|ape|mpc|mp\+)$/i;
 const MAX_IMPORT_BYTES = 2 * 1024 ** 3; // the server's limit per file (MAX_IMPORT_BYTES in core/importer.py)
 
 export function pickImport() {

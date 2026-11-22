@@ -13,10 +13,15 @@ SAMPLE_FILES = [
     # added in 0.2 (see fixtures/make_more_fixtures.py)
     "sample.wav", "sample.aiff", "sample.tta", "sample.mp2", "sample.dsf",
     "sample.wv", "sample.wma", "sample.m4b", "sample.oga", "sample.spx",
+    # added in 0.9.7 (see fixtures/make_mutagen_fixtures.py)
+    "sample.ape", "sample.mpc", "sample.dff",
 ]
 
 # Sample rates that aren't 44.1 kHz (Opus always decodes at 48 kHz).
-SAMPLE_RATES = {"sample.opus": 48000, "sample.spx": 16000, "sample.dsf": 2822400}
+SAMPLE_RATES = {"sample.opus": 48000, "sample.spx": 16000, "sample.dsf": 2822400, "sample.dff": 5644800}
+# The samples from mutagen's test files aren't one second of mono like the rest.
+SAMPLE_DURATIONS = {"sample.ape": 3.68, "sample.mpc": 0.07, "sample.dff": 0.01}
+SAMPLE_CHANNELS = {"sample.ape": 2, "sample.mpc": 2, "sample.dff": 2}
 
 # The tags make_fixtures.sh writes into every sample file.
 EXPECTED_TAGS = {

@@ -44,7 +44,7 @@ CACHE_FILES = 3000  # files remembered (one entry each, least recently used drop
 # (HLS, concat...) could make a full ffmpeg fetch URLs or read other files. Only local files,
 # and only the audio formats Codetta reads.
 INPUT_LIMITS = ["-protocol_whitelist", "file", "-format_whitelist",
-                "flac,mp3,mov,mp4,m4a,3gp,3g2,mj2,ogg,wav,aiff,w64,wv,tta,asf,dsf,aac"]
+                "flac,mp3,mov,mp4,m4a,3gp,3g2,mj2,ogg,wav,aiff,w64,wv,tta,asf,dsf,aac,ape,mpc,mpc8,iff"]
 
 _M = re.compile(r"\bM:\s*(-?\d+(?:\.\d+)?)")
 _PEAK = re.compile(r"Peak:\s*(-?inf|-?\d+(?:\.\d+)?)\s*dBFS")
@@ -126,8 +126,9 @@ class Meter:
                          "-map", "0:a:0", "-af", "ebur128=peak=sample:framelog=verbose", "-f", "null", "-"])
         blocks = array("f", (float(m.group(1)) for m in _M.finditer(out)))
         peaks = _PEAK.findall(out)
-        if not blocks or not peaks:
+        if not peaks:
             raise LoudnessError("ffmpeg didn't report a loudness for it (is there any audio in it?)")
+        # Under a tenth of a second there's no reading at all: too short to have a loudness (no gain is written).
         peak_db = peaks[-1]
         result = Measured(integrated(blocks), 0.0 if "inf" in peak_db else 10 ** (float(peak_db) / 20), blocks)
         with self._lock:

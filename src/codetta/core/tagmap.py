@@ -14,6 +14,7 @@ works the same on every format.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from mutagen._vorbis import is_valid_key as _is_valid_vorbis_key
@@ -26,9 +27,9 @@ from mutagen.id3 import COMM, MVIN, TIPL, USLT
 
 # Formats grouped by how they store tags. Each family shares one mapping.
 VORBIS_FORMATS = frozenset({"flac", "ogg", "opus", "oggflac", "speex"})  # free-form comments
-ID3_FORMATS = frozenset({"mp3", "mp2", "tta", "wav", "aiff", "dsf"})  # ID3 frames
-ID3_CONTAINERS = frozenset({"wav", "aiff", "dsf"})  # ID3 inside another container (no "easy" class)
-APE_FORMATS = frozenset({"wavpack"})  # APEv2 items
+ID3_FORMATS = frozenset({"mp3", "mp2", "tta", "wav", "aiff", "dsf", "dff"})  # ID3 frames
+ID3_CONTAINERS = frozenset({"wav", "aiff", "dsf", "dff"})  # ID3 inside another container (no "easy" class)
+APE_FORMATS = frozenset({"wavpack", "ape", "mpc"})  # APEv2 items
 ASF_FORMATS = frozenset({"wma"})  # ASF attributes
 MP4_FORMATS = frozenset({"m4a"})
 

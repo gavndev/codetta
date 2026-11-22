@@ -13,7 +13,7 @@ from codetta.core.engine import (
     TrackMetadata,
     UnsupportedFormatError,
 )
-from tests.conftest import EXPECTED_TAGS, SAMPLE_FILES, SAMPLE_RATES
+from tests.conftest import SAMPLE_CHANNELS, SAMPLE_DURATIONS, EXPECTED_TAGS, SAMPLE_FILES, SAMPLE_RATES
 
 
 @pytest.fixture
@@ -51,9 +51,9 @@ def test_detects_format(engine, fixture_copy, name, expected_format):
 def test_reads_audio_properties(engine, fixture_copy, name):
     meta = engine.load_metadata(fixture_copy(name))
 
-    assert meta.duration == pytest.approx(1.0, abs=0.1)
+    assert meta.duration == pytest.approx(SAMPLE_DURATIONS.get(name, 1.0), abs=0.1)
     assert meta.sample_rate == SAMPLE_RATES.get(name, 44100)
-    assert meta.channels == 1
+    assert meta.channels == SAMPLE_CHANNELS.get(name, 1)
 
 
 @pytest.mark.parametrize("name", SAMPLE_FILES)
@@ -552,3 +552,16 @@ def test_lyrics_use_standard_storage(engine, fixture_copy):
     assert MP4(paths["sample.m4a"])["\xa9lyr"] == [LRC]
     assert str(mutagen.File(paths["sample.wma"]).tags["WM/Lyrics"][0]) == LRC
     assert mutagen.File(paths["sample.flac"])["LYRICS"] == [LRC]
+
+
+@pytest.mark.parametrize("name", ["sample.mp3", "sample.dsf", "sample.dff", "sample.wav"])
+def test_id3_genres_that_read_as_old_codes_are_refused_with_a_reason(engine, fixture_copy, name):
+    # ID3 reads "((" as an escaped "(" and "(17)" as genre 17, and mutagen re-reads them that way on
+    # every save, so they can't be stored as typed. The save is refused (nothing changes) and says why.
+    path = fixture_copy(name)
+    before = sha256(path)
+    for genre in ("((", "(1)Rock"):
+        with pytest.raises(MetadataError, match="numbered genres"):
+            engine.update_tags(path, {"genre": genre})
+    assert sha256(path) == before
+    assert engine.update_tags(path, {"genre": "(Hip-Hop)"}).tags["genre"] == ["(Hip-Hop)"]  # other brackets are fine
