@@ -13,6 +13,7 @@ import { openMusicBrainzFor } from "./musicbrainz.js";
 import { openReplayGain, replayGainReady } from "./replaygain.js";
 import { openFromNames } from "./fromnames.js";
 import { openTracklist } from "./tracklist.js";
+import { openCoverExport } from "./coverexport.js";
 import { loadInbox, skReady } from "./inbox.js";
 import { appStarted, copyText, showAuth } from "./account.js";
 
@@ -113,6 +114,7 @@ function folderMenu(path) {
     { icon: "info", label: "Get info", run: () => showInfo(path) },
     { icon: "download", label: "Download as .zip", run: () => downloadZip(path) },
     { icon: "paste", label: "Paste a tracklist…", run: () => openTracklist({ folder: path }, `“${name}”`) },
+    { icon: "folder", label: "Save covers as files…", run: () => openCoverExport({ folder: path }, `“${name}”`) },
     replayGainReady() ? { icon: "volume", label: "ReplayGain…", run: () => openReplayGain({ folder: path }, `“${name}”`) } : null,
     state.status?.matching ? { icon: "musicbrainz", label: "Find in MusicBrainz", run: () => openMusicBrainzFor({ body: { folder: path }, label: `“${name}”` }) } : null,
     skReady() ? { icon: "slskd", label: "Find in slskd", run: () => slskdFor(parts.slice(-2).join(" ").replace(/\s*[([]\d{4}[)\]]\s*/g, " ").trim()) } : null,

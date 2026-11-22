@@ -3061,3 +3061,6 @@ dialog:focus { outline: none; }
 .tl-text { width: 100%; font: 14px/1.5 var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace); resize: vertical; margin-top: 4px; }
 .tl-line { display: block; color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rep-list li.tl-warn { border-left: 3px solid var(--danger, #c0392b); padding-left: 9px; }
+
+/* Save covers as files */
+.rep-list li.ce-skip .rep-change { color: var(--muted); }

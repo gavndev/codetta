@@ -226,6 +226,10 @@ Activity that **Undo** reverses. On phones they're in the **…** menu.
   duplicate values** and **Keep only the essentials** (covers, lyrics and
   ReplayGain always stay). Some ask for a choice first, like which tags or
   which separator.
+- **Save covers as files**: writes each album's embedded cover as `cover.jpg`
+  (or `folder.jpg` / `front.jpg`; PNG covers stay PNG) in the album folder, for
+  apps that look for an image file. Existing image files are kept unless you
+  tick Replace, and Activity can undo it (a replaced file comes back as it was).
 - **Paste a tracklist**: paste a tracklist from Discogs, Bandcamp, Wikipedia
   or anywhere, one track per line, and Codetta fills in the titles (plus track
   numbers, discs and artists when the list has them). Lines are paired with

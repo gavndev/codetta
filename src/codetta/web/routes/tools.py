@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import re
+import tempfile
 from pathlib import Path
 
 from fastapi import HTTPException
@@ -18,6 +19,7 @@ from codetta.web.common import (
     REPLACE_FIELDS,
     ActionRunIn,
     FolderNewIn,
+    CoverExportIn,
     FromNamesIn,
     TracklistIn,
     FolderRenameIn,
@@ -36,6 +38,7 @@ def register(app, shared) -> None:
     require_library = shared.require_library
     settings = shared.settings
     apply_per_file = shared.later("apply_per_file")  # defined in routes/activity.py
+    art_store = shared.art_store
 
     plugins = PluginManager(settings.config_dir)
 
@@ -217,6 +220,90 @@ def register(app, shared) -> None:
             return out
         done, failed = apply_per_file(plan, f"Tracklist: {len(plan)} track{'s' if len(plan) != 1 else ''}")
         return {**out, "changed": len(done), "failed": len(failed), "errors": failed[:20]}
+
+    @app.post("/api/covers/export")
+    def export_covers(body: CoverExportIn) -> dict:
+        """Save each album's embedded cover as cover.jpg (or folder.jpg / front.jpg) in its folder, for
+        players that look for a file. Disc folders count as part of their album. An image file of that
+        name already there is kept unless ``replace``. ``dry_run`` (the default) only shows the plan;
+        otherwise it writes, as one undoable activity entry."""
+        from codetta.web.routes.replaygain import album_of
+        require_library()
+        targets = _unique(body.paths) if body.paths else (
+            audio_files(library, body.folder.strip("/"), True, MAX_PATHS_PER_REQUEST) if body.folder is not None else [])
+        if not targets:
+            raise HTTPException(422, "Choose some tracks or a folder.")
+        albums: dict[str, list[str]] = {}
+        for rel in targets:
+            if rel.startswith("@"):
+                raise HTTPException(422, "Choose files or folders inside your music folder.")
+            try:
+                library.resolve(rel)
+            except LibraryPathError as exc:
+                raise HTTPException(400, str(exc)) from exc
+            albums.setdefault(album_of(rel), []).append(rel)
+        plan, preview = [], []
+        for folder, rels in albums.items():
+            art = None
+            for rel in rels[:50]:  # the first track with a cover
+                try:
+                    art = engine.read_artwork(library.resolve(rel))
+                except (MetadataError, OSError):
+                    art = None
+                if art:
+                    break
+            row = {"folder": folder, "tracks": len(rels)}
+            if not art:
+                preview.append({**row, "status": "no_cover"})
+                continue
+            name = body.name + (".png" if art.mime == "image/png" else ".jpg")
+            target_rel = f"{folder}/{name}" if folder else name
+            target = library.resolve(target_rel)
+            try:
+                same = sorted(e.name for e in target.parent.iterdir()
+                              if e.is_file() and e.stem.lower() == body.name and e.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp"))
+            except OSError:
+                same = []
+            info = {**row, "file": name, "width": art.width, "height": art.height, "size": len(art.data)}
+            if target.is_file() and target.read_bytes() == art.data:
+                preview.append({**info, "status": "same"})
+                continue
+            if same and not body.replace:
+                preview.append({**info, "status": "exists", "existing": same[0]})
+                continue
+            status = "replace" if target.exists() else "write"
+            preview.append({**info, "status": status})
+            plan.append((target_rel, target, art.data, rels))
+        counts = {s: sum(1 for p in preview if p["status"] == s) for s in ("write", "replace", "exists", "same", "no_cover")}
+        out = {"albums": len(albums), "counts": counts, "writing": len(plan), "preview": preview[:300]}
+        if body.dry_run or not plan:
+            return out
+        undo_files, errors, touched = {}, [], []
+        for target_rel, target, data, rels in plan:
+            try:
+                before = art_store.save(target.read_bytes()) if target.is_file() else None
+                fd, tmp = tempfile.mkstemp(prefix=".codetta-", dir=target.parent)
+                try:
+                    with os.fdopen(fd, "wb") as f:
+                        f.write(data)
+                        f.flush()
+                        os.fsync(f.fileno())
+                    os.replace(tmp, target)
+                except BaseException:
+                    Path(tmp).unlink(missing_ok=True)
+                    raise
+                os.chmod(target, 0o644)
+                undo_files[target_rel] = {"before": before, "after": art_store.save(data)}
+                touched += rels[:1]
+            except OSError as exc:
+                errors.append({"path": target_rel, "error": exc.strerror or str(exc)})
+        if undo_files:
+            n = len(undo_files)
+            activity.add("art", f"Exported covers: {n} album{'s' if n != 1 else ''}", ok=not errors,
+                         files=list(undo_files), errors=errors[:20], undo={"type": "files", "files": undo_files},
+                         changes=[{"key": "cover", "old": "", "new": rel} for rel in list(undo_files)[:50]])
+            lib_index.mark_dirty(touched)  # Lidarr and the music server hear about it
+        return {**out, "written": len(undo_files), "failed": len(errors), "errors": errors[:20]}
 
     @app.post("/api/tracks/replace")
     def replace_in_tags(body: ReplaceIn) -> dict:

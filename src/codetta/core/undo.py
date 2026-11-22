@@ -11,6 +11,8 @@ file, the exact values before and after the change:
     {"type": "multi", "parts": [<tags record>, <art record>]}   (e.g. a MusicBrainz match)
     {"type": "moves", "moves": [["old/path.flac", "new/path.flac"], ...]}   (Organize)
     {"type": "folder", "path": "Artist/New", "made": true}   (New folder: undo removes it while it's empty)
+    {"type": "files", "files": {"Artist/Album/cover.jpg": {"before": "<sha256 or null>", "after": "<sha256>"}}}
+        (plain files Codetta wrote, like exported covers: undo puts back what was there, or removes them)
 
 Album art is too big for the log, so images are kept in an ``ArtStore``
 (one file per distinct image, so a cover shared by a whole album is stored
@@ -80,7 +82,7 @@ def art_hashes(undo: dict | None) -> set[str]:
     """Image hashes an undo record refers to (for pruning the ArtStore)."""
     if undo and undo.get("type") == "multi":
         return {h for part in undo.get("parts", []) for h in art_hashes(part)}
-    if not undo or undo.get("type") != "art":
+    if not undo or undo.get("type") not in ("art", "files"):
         return set()
     return {h for f in undo["files"].values() for h in (f.get("before"), f.get("after")) if h}
 
@@ -113,6 +115,8 @@ def undo_change(
         return _undo_moves(resolve, record)
     if kind == "folder":
         return _undo_folder(resolve, record)
+    if kind == "files":
+        return _undo_files(resolve, art, record)
     outcome = UndoOutcome()
     reverse_files: dict[str, dict] = {}
 
@@ -197,6 +201,45 @@ def _undo_folder(resolve: Callable[[str], Path], record: dict) -> UndoOutcome:
         return outcome
     outcome.results.append(UndoResult(rel, ok=True))
     outcome.reverse = {"type": "folder", "path": rel, "made": not record.get("made", True)}
+    return outcome
+
+
+def _undo_files(resolve: Callable[[str], Path], art: ArtStore, record: dict) -> UndoOutcome:
+    """Plain files Codetta wrote go back to what they were: removed if they were new, the old
+    content restored if one was replaced. A file changed since is left alone."""
+    outcome = UndoOutcome()
+    reverse: dict[str, dict] = {}
+    for rel, change in (record.get("files") or {}).items():
+        try:
+            target = resolve(rel)
+            current = sha256(target.read_bytes()) if target.is_file() else None
+            if current != change.get("after"):
+                outcome.results.append(UndoResult(rel, ok=False, skipped=True, error="Changed since, so it was left as it is"))
+                continue
+            before = change.get("before")
+            if before is None:
+                target.unlink()
+            else:
+                data = art.load(before)
+                if data is None:
+                    outcome.results.append(UndoResult(rel, ok=False, error="The saved copy of this file is gone"))
+                    continue
+                fd, tmp = tempfile.mkstemp(prefix=".codetta-", dir=target.parent)
+                try:
+                    with os.fdopen(fd, "wb") as f:
+                        f.write(data)
+                        f.flush()
+                        os.fsync(f.fileno())
+                    os.replace(tmp, target)
+                except BaseException:
+                    Path(tmp).unlink(missing_ok=True)
+                    raise
+            reverse[rel] = {"before": change.get("after"), "after": before}
+            outcome.results.append(UndoResult(rel, ok=True))
+        except OSError as exc:
+            outcome.results.append(UndoResult(rel, ok=False, error=str(exc)))
+    if reverse:
+        outcome.reverse = {"type": "files", "files": reverse}
     return outcome
 
 

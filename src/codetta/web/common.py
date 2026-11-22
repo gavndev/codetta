@@ -344,6 +344,14 @@ class TracklistIn(BaseModel):
     dry_run: bool = True
 
 
+class CoverExportIn(BaseModel):
+    paths: list[str] = Field(default=[], max_length=MAX_PATHS_PER_REQUEST)  # these files...
+    folder: str | None = Field(default=None, max_length=MAX_PATH_CHARS)  # ...or this folder (and its subfolders)
+    name: Literal["cover", "folder", "front"] = "cover"  # cover.jpg, folder.jpg or front.jpg
+    replace: bool = False  # replace an image file of that name that's already there
+    dry_run: bool = True
+
+
 class ReplaceIn(BaseModel):
     paths: list[str] = Field(default=[], max_length=MAX_PATHS_PER_REQUEST)  # these files...
     folder: str | None = Field(default=None, max_length=MAX_PATH_CHARS)  # ...or the audio files in this folder
