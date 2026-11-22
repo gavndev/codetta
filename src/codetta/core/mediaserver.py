@@ -393,14 +393,14 @@ class MediaServer:
         """Files Codetta just changed: ask the server for a scan soon (one for a whole batch)."""
         if not self.active or not any(r and not r.startswith("@") for r in rels):
             return
-        with self._cv:
+        with self._cv:  # the thread check too: two saves at once start one worker
             self._pending = True
             self._last_change = time.monotonic()
             self._cv.notify()
-        if not (self._thread and self._thread.is_alive()):
-            self._stop = False
-            self._thread = threading.Thread(target=self._run, name="codetta-mediaserver", daemon=True)
-            self._thread.start()
+            if not (self._thread and self._thread.is_alive()):
+                self._stop = False
+                self._thread = threading.Thread(target=self._run, name="codetta-mediaserver", daemon=True)
+                self._thread.start()
 
     def stop(self) -> None:
         with self._cv:

@@ -276,10 +276,12 @@ def register(app, shared) -> None:
                 soulseek_store.save()
             except OSError as exc:
                 raise HTTPException(500, f"Could not save to the config folder: {exc}") from exc
-        return soulseek_out(sk_check() if soulseek_store.configured else None)
+        # Only checked while the connection is on (off, or offline mode: nothing leaves the server).
+        return soulseek_out(sk_check() if soulseek_store.configured and connections.enabled("slskd") else None)
 
     @app.post("/api/slskd/test")
     def test_soulseek() -> dict:
+        shared.require_connection("slskd")
         return soulseek_out(sk_check())
 
     @app.post("/api/slskd/search")

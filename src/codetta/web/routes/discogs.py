@@ -42,6 +42,8 @@ def register(app, shared) -> None:
         if token.locked:
             raise HTTPException(409, "The Discogs token is set on the server (CODETTA_DISCOGS_TOKEN).")
         new = body.token.strip()
+        if new:  # it's checked with Discogs before it's kept, so Discogs must be on (forgetting it never needs to)
+            shared.require_connection("discogs")
         if new and (any(c.isspace() for c in new) or not new.isprintable() or len(new) < 20):
             raise HTTPException(422, "That doesn't look like a Discogs token (Settings → Developers → Generate new token).")
         old = token.saved
@@ -56,4 +58,5 @@ def register(app, shared) -> None:
 
     @app.post("/api/discogs/test")
     def test_discogs() -> dict:
+        shared.require_connection("discogs")
         return out(check())

@@ -337,9 +337,10 @@ class Lidarr:
             self._pending |= folders
             self._last_change = time.monotonic()
             self._cv.notify()
-        self._ensure_thread()
+            self._ensure_thread()
 
     def _ensure_thread(self) -> None:
+        """Start the worker unless it's running (called holding the lock: two saves at once start one)."""
         if self._thread and self._thread.is_alive():
             return
         self._stop = False

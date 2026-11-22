@@ -62,11 +62,13 @@ def register(app, shared) -> None:
                 store.save()
             except OSError as exc:
                 raise HTTPException(500, f"Could not save to the config folder: {exc}") from exc
-        lidarr.check()
+        if connections.enabled("lidarr"):  # off, or offline mode: nothing leaves the server
+            lidarr.check()
         return lidarr_out()
 
     @app.post("/api/lidarr/test")
     def test_lidarr() -> dict:
         """Check the connection again and re-read Lidarr's folders and settings."""
+        shared.require_connection("lidarr")
         lidarr.check()
         return lidarr_out()

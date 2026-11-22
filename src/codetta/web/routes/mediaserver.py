@@ -73,12 +73,14 @@ def register(app, shared) -> None:
                 store.save()
             except OSError as exc:
                 raise HTTPException(500, f"Could not save to the config folder: {exc}") from exc
-        server.check()
+        if connections.enabled("mediaserver"):  # off, or offline mode: nothing leaves the server
+            server.check()
         return server_out()
 
     @app.post("/api/mediaserver/test")
     def test_media_server() -> dict:
         """Check the connection again."""
+        shared.require_connection("mediaserver")
         server.check()
         return server_out()
 

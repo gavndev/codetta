@@ -56,7 +56,7 @@ def fetch_latest_release(repo: str) -> dict:
         headers={"Accept": "application/vnd.github+json", "User-Agent": "Codetta-update-check"},
     )
     with urllib.request.urlopen(req, timeout=5) as res:  # nosec B310: fixed https://api.github.com URL
-        return json.loads(res.read().decode("utf-8"))
+        return json.loads(res.read(2_000_000).decode("utf-8"))  # a release list is a few kB
 
 
 def _github_url(url: object) -> str | None:
