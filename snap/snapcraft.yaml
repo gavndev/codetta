@@ -55,8 +55,11 @@ parts:
   codetta:
     plugin: python
     source: .
+    python-constraints:
+      - pins.txt         # uv.lock's exact versions (written by override-pull below)
     stage-packages:
       - python3-venv     # core26 has the standard library but no python3 program
     override-pull: |
       craftctl default
       craftctl set version="$(grep -m1 '^version' pyproject.toml | cut -d'"' -f2)"
+      python3 tools/lockpins.py uv.lock > pins.txt

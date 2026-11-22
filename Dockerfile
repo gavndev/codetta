@@ -15,10 +15,13 @@ ENV PIP_NO_CACHE_DIR=1 \
 RUN python -m venv --without-pip /opt/venv
 WORKDIR /src
 
-# Install dependencies first (cached until pyproject.toml changes)...
-COPY pyproject.toml ./
+# Install dependencies first (cached until pyproject.toml or uv.lock changes), at exactly the
+# versions in uv.lock, the ones Codetta's tests ran against...
+COPY pyproject.toml uv.lock ./
+COPY tools/lockpins.py ./tools/
 RUN mkdir -p src/codetta && touch src/codetta/__init__.py README.md \
-    && pip --python /opt/venv/bin/python install . \
+    && python tools/lockpins.py uv.lock > /tmp/pins.txt \
+    && pip --python /opt/venv/bin/python install -c /tmp/pins.txt . \
     && pip --python /opt/venv/bin/python uninstall -y codetta
 
 # ...then Codetta itself (src/codetta/CHANGELOG.md links to the CHANGELOG.md beside the README).

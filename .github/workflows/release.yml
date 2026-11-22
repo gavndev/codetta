@@ -35,7 +35,9 @@ jobs:
         with:
           python-version: "3.14"
           cache: pip
-      - run: pip install -e ".[dev]"
+          cache-dependency-path: uv.lock
+      - name: Install, at the versions in uv.lock
+        run: python tools/lockpins.py > "$RUNNER_TEMP/pins.txt" && pip install -c "$RUNNER_TEMP/pins.txt" -e ".[dev]"
       - name: The tag matches the version in pyproject.toml
         run: |
           pip install -q packaging
