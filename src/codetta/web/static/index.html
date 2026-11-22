@@ -464,6 +464,18 @@
     <div class="sheet-foot" id="actions-foot"></div>
   </dialog>
 
+  <!-- Paste a tracklist (drawn by js/tracklist.js) -->
+  <dialog class="sheet wide" id="tl-dialog" aria-labelledby="tl-title">
+    <div class="sheet-head">
+      <h2 id="tl-title">Paste a tracklist</h2>
+      <button class="icon-btn" type="button" data-close aria-label="Close">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body" id="tl-body"></div>
+    <div class="sheet-foot" id="tl-foot"></div>
+  </dialog>
+
   <!-- Tags from file names (drawn by js/fromnames.js) -->
   <dialog class="sheet wide" id="names-dialog" aria-labelledby="names-title">
     <div class="sheet-head">
@@ -585,6 +597,7 @@
   <link rel="modulepreload" href="/static/js/i18n.js">
   <link rel="modulepreload" href="/static/js/replaygain.js">
   <link rel="modulepreload" href="/static/js/fromnames.js">
+  <link rel="modulepreload" href="/static/js/tracklist.js">
   <link rel="modulepreload" href="/static/js/musicbrainz.js">
   <link rel="modulepreload" href="/static/js/notifications.js">
   <link rel="modulepreload" href="/static/js/player.js">

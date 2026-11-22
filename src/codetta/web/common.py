@@ -335,6 +335,15 @@ class FromNamesIn(BaseModel):
     dry_run: bool = True
 
 
+class TracklistIn(BaseModel):
+    paths: list[str] = Field(default=[], max_length=MAX_PATHS_PER_REQUEST)  # these files...
+    folder: str | None = Field(default=None, max_length=MAX_PATH_CHARS)  # ...or the audio files in this folder
+    text: str = Field(min_length=1, max_length=50_000)  # the pasted tracklist
+    artist_first: bool | None = None  # lines start with the artist; None: Codetta works it out
+    numbers: bool = True  # also set track (and disc) numbers
+    dry_run: bool = True
+
+
 class ReplaceIn(BaseModel):
     paths: list[str] = Field(default=[], max_length=MAX_PATHS_PER_REQUEST)  # these files...
     folder: str | None = Field(default=None, max_length=MAX_PATH_CHARS)  # ...or the audio files in this folder

@@ -3056,3 +3056,8 @@ dialog:focus { outline: none; }
 .fn-unmatched { margin-top: 12px; }
 .fn-unmatched summary { cursor: pointer; color: var(--muted); }
 @media (max-width: 760px) { .fn-chips select { margin-left: 0; width: 100%; } }
+
+/* Paste a tracklist */
+.tl-text { width: 100%; font: 14px/1.5 var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace); resize: vertical; margin-top: 4px; }
+.tl-line { display: block; color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rep-list li.tl-warn { border-left: 3px solid var(--danger, #c0392b); padding-left: 9px; }

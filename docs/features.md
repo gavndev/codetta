@@ -226,6 +226,11 @@ Activity that **Undo** reverses. On phones they're in the **…** menu.
   duplicate values** and **Keep only the essentials** (covers, lyrics and
   ReplayGain always stay). Some ask for a choice first, like which tags or
   which separator.
+- **Paste a tracklist**: paste a tracklist from Discogs, Bandcamp, Wikipedia
+  or anywhere, one track per line, and Codetta fills in the titles (plus track
+  numbers, discs and artists when the list has them). Lines are paired with
+  files by disc and number, or in order; a different count or lengths that
+  don't match are flagged first, so a wrong pairing is easy to spot.
 - **Tags from file names**: fills in tags from how files and folders are
   named. Write the pattern (`{track} - {artist} - {title}`; a `/` reads the
   folders above too, as in `{artist}/{album} ({year})/{track} - {title}`;

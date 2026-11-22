@@ -9,6 +9,7 @@ from fastapi import HTTPException
 
 from codetta.core.engine import MetadataError
 from codetta.core.fromnames import PatternError, compile_pattern, suggest
+from codetta.core.tracklist import pair, parse
 from codetta.core.library import LibraryPathError, audio_files
 from codetta.core.organize import Move, apply_moves, safe_name
 from codetta.core.plugins import ActionError, PluginManager
@@ -18,6 +19,7 @@ from codetta.web.common import (
     ActionRunIn,
     FolderNewIn,
     FromNamesIn,
+    TracklistIn,
     FolderRenameIn,
     PluginToggleIn,
     ReplaceIn,
@@ -146,6 +148,74 @@ def register(app, shared) -> None:
         if body.dry_run or not plan:
             return out
         done, failed = apply_per_file(plan, f"Tags from file names: {len(plan)} track{'s' if len(plan) != 1 else ''}")
+        return {**out, "changed": len(done), "failed": len(failed), "errors": failed[:20]}
+
+    def _number(values) -> int | None:
+        m = re.match(r"\s*(\d+)", (values or [""])[0])
+        return int(m.group(1)) if m else None
+
+    @app.post("/api/tags/tracklist")
+    def tags_from_tracklist(body: TracklistIn) -> dict:
+        """Titles (and numbers, discs, artists) from a pasted tracklist, paired with these files by
+        number or in order. ``dry_run`` (the default) only shows the pairing; otherwise it writes, as one
+        undoable activity entry."""
+        require_library()
+        targets = _unique(body.paths) if body.paths else (
+            audio_files(library, body.folder.strip("/"), True, MAX_PATHS_PER_REQUEST) if body.folder is not None else [])
+        if not targets:
+            raise HTTPException(422, "Choose some tracks or a folder.")
+        parsed = parse(body.text, body.artist_first)
+        if not parsed.tracks:
+            raise HTTPException(422, "Codetta couldn't find any tracks in that text. Paste one track per line.")
+        files, loaded = [], {}
+        for rel in targets:
+            if rel.startswith("@"):
+                raise HTTPException(422, "Choose files or folders inside your music folder.")
+            try:
+                meta = engine.load_metadata(library.resolve(rel))
+            except LibraryPathError as exc:
+                raise HTTPException(400, str(exc)) from exc
+            except (MetadataError, OSError):
+                continue
+            loaded[rel] = meta.tags
+            files.append((rel, _number(meta.tags.get("discnumber")), _number(meta.tags.get("tracknumber")), meta.duration))
+        # Unnumbered files go in the order they're listed (by disc, number, then name), like a player would.
+        files.sort(key=lambda f: (f[1] or 1, f[2] or 10_000, f[0]))
+        pairs = pair(files, parsed.tracks)
+        plan: dict[str, dict] = {}
+        preview = []
+        used = set()
+        for i, p in enumerate(pairs):
+            if p.track is None:
+                preview.append({"path": p.path, "line": None, "changes": [], "warning": "No line for this file"})
+                continue
+            used.add(id(p.track))
+            tags = loaded[p.path]
+            want = {"title": p.track.title}
+            if body.numbers:
+                want["tracknumber"] = str(p.track.number or i + 1)
+                if p.track.disc:
+                    want["discnumber"] = str(p.track.disc)
+            if p.track.artist:
+                want["artist"] = p.track.artist
+            changes, shown = {}, []
+            for key, value in want.items():
+                old = tags.get(key) or []
+                if key in ("tracknumber", "discnumber") and _number(old) == int(value):
+                    continue
+                if old != [value]:
+                    changes[key] = [value]
+                    shown.append({"key": key, "old": "; ".join(old), "new": value})
+            if changes:
+                plan[p.path] = changes
+            preview.append({"path": p.path, "line": p.track.line, "changes": shown, "warning": p.warning})
+        leftover = [t.line for t in parsed.tracks if id(t) not in used]
+        out = {"tracks": len(files), "lines": len(parsed.tracks), "artist_first": parsed.artist_first,
+               "changing": len(plan), "preview": preview[:300], "leftover": leftover[:50],
+               "warnings": sum(1 for p in pairs if p.warning)}
+        if body.dry_run or not plan:
+            return out
+        done, failed = apply_per_file(plan, f"Tracklist: {len(plan)} track{'s' if len(plan) != 1 else ''}")
         return {**out, "changed": len(done), "failed": len(failed), "errors": failed[:20]}
 
     @app.post("/api/tracks/replace")
