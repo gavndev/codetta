@@ -137,7 +137,7 @@ function renderMbSearch() {
   const album = h("input", { type: "text", value: mb.query.album, dir: "auto", autocomplete: "off", spellcheck: "false", "aria-label": "Album" });
   const artist = h("input", { type: "text", value: mb.query.artist, dir: "auto", autocomplete: "off", spellcheck: "false", "aria-label": "Artist" });
   const link = h("input", { type: "text", value: mb.query.link, autocomplete: "off", spellcheck: "false", inputmode: "url",
-    placeholder: "https://musicbrainz.org/release/…", "aria-label": "MusicBrainz release link" });
+    placeholder: "MusicBrainz, Apple Music or Deezer link", "aria-label": "Release link from MusicBrainz, Apple Music or Deezer" });
   for (const [input, key] of [[album, "album"], [artist, "artist"], [link, "link"]]) {
     input.addEventListener("input", () => { mb.query[key] = input.value; });
   }

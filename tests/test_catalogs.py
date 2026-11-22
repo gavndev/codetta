@@ -150,3 +150,71 @@ def test_find_in_deezer_or_itunes_searches_only_there(album_dir, tmp_path):  # n
     c.put("/api/connections", json={"enabled": {"musicbrainz": True, "deezer": False, "itunes": True}})
     assert c.post("/api/musicbrainz/search", json={"folder": FOLDER, "source": "deezer"}).status_code == 403
     c.__exit__(None, None, None)
+
+
+# --- Issue #3: iTunes matching returned unrelated albums (M.I.A. – Kala) ------------------------------
+
+
+class FakeITunesForKala:
+    """Apple's search as it behaves: "M.I.A. Kala" falls back to popular albums, "Kala" finds other artists'."""
+
+    def __init__(self):
+        self.urls = []
+
+    def __call__(self, url):
+        self.urls.append(url)
+        u = urllib.parse.urlparse(url)
+        q = dict(urllib.parse.parse_qsl(u.query))
+        album = lambda cid, name, artist: {"wrapperType": "collection", "collectionId": cid, "collectionName": name,  # noqa: E731
+                                           "artistName": artist, "trackCount": 10, "releaseDate": "2007-08-08T07:00:00Z"}
+        if u.path == "/search" and q.get("entity") == "musicArtist":
+            return {"results": [{"wrapperType": "artist", "artistId": 14677454, "artistName": "M.I.A."},
+                                {"wrapperType": "artist", "artistId": 262217748, "artistName": "M.I.A."}]}
+        if u.path == "/lookup" and q.get("id") == "14677454":
+            return {"results": [{"wrapperType": "artist", "artistId": 14677454},
+                                album(1440857781, "Kala", "M.I.A."), album(1, "Arular", "M.I.A."), album(2, "MAYA", "M.I.A.")]}
+        if u.path == "/lookup":
+            return {"results": []}
+        if u.path == "/search" and q.get("attribute") == "albumTerm":
+            return {"results": [album(10, "KALA (Deluxe Edition)", "Trevor Hall"), album(11, "Kala - Single", "Professional Beat")]}
+        if u.path == "/search":
+            return {"results": [album(20, "Greatest Hits", "Fleetwood Mac"), album(21, "CrazySexyCool", "TLC"),
+                                album(22, "Daydream", "Mariah Carey")]}
+        return None
+
+
+def test_issue_3_the_right_album_comes_first_and_unrelated_ones_never_show():
+    fake = FakeITunesForKala()
+    found = Catalogs(fake, lambda s: s == "itunes").search("Kala", "M.I.A.", only="itunes")
+    assert found[0]["id"] == "itunes:1440857781" and found[0]["title"] == "Kala"
+    shown = {(r["title"], r["_artist"]) for r in found}
+    assert not shown & {("Greatest Hits", "Fleetwood Mac"), ("CrazySexyCool", "TLC"), ("Daydream", "Mariah Carey")}
+    assert ("Arular", "M.I.A.") not in shown  # the artist's other albums aren't this one
+
+
+def test_the_preferred_edition_country_picks_the_itunes_store():
+    fake = FakeITunesForKala()
+    Catalogs(fake, lambda s: True, country=lambda: "DE").search("Kala", "M.I.A.", only="itunes")
+    urls = [u for u in fake.urls if "itunes.apple.com" in u]
+    assert urls[0].endswith("&country=de")
+    for i, u in enumerate(urls):  # the US store only as a second try, when the German one had nothing
+        assert "country=de" in u or urls[i - 1] == u + "&country=de"
+    fake2 = FakeITunesForKala()
+    Catalogs(fake2, lambda s: True, country=lambda: "XW").search("Kala", "M.I.A.", only="itunes")
+    assert not any("country=" in u for u in fake2.urls)  # "worldwide" isn't a store
+
+
+def test_apple_music_and_deezer_links_can_be_pasted():
+    from codetta.core.catalogs import catalog_link_id
+    assert catalog_link_id("https://music.apple.com/de/album/kala/1440857781") == "itunes:1440857781"
+    assert catalog_link_id("https://itunes.apple.com/us/album/kala/id1440857781?i=1440857800") == "itunes:1440857781"
+    assert catalog_link_id("https://www.deezer.com/en/album/302127") == "deezer:302127"
+    assert catalog_link_id("https://musicbrainz.org/release/abc") is None and catalog_link_id("Kala") is None
+
+
+def test_a_pasted_apple_music_link_opens_that_album(album_dir, tmp_path):  # noqa: F811
+    c, fake, arts = make(album_dir, tmp_path, {"musicbrainz": True, "itunes": True})
+    r = c.post("/api/musicbrainz/search", json={"folder": FOLDER, "release": "https://music.apple.com/us/album/x/1440857781"})
+    assert r.status_code == 200, r.text
+    assert r.json()["candidates"][0]["id"] == "itunes:1440857781"
+    c.__exit__(None, None, None)

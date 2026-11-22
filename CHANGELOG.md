@@ -4,6 +4,10 @@ All notable changes to Codetta. Versions follow [Semantic Versioning](https://se
 
 ## Unreleased
 
+- **Find in iTunes finds the right album** ([#3](https://github.com/gavndev/codetta/issues/3)): Apple's search stumbles on names like "M.I.A." and fell back to popular albums, so looking for *Kala* showed Fleetwood Mac and Mariah Carey. Codetta now finds the artist first and looks through their albums, and only shows albums whose title or artist actually match. Thanks to BernoldM for the detailed report.
+- **iTunes uses your country's store:** with a preferred edition country set (Account → Album editions), iTunes is searched in that country's store, where some albums only exist, and falls back to the US store.
+- **Paste an Apple Music or Deezer link** in Find in MusicBrainz's "Or paste a release link" box to go straight to that album.
+
 - **ReplayGain:** even out the volume, so a quiet album and a loud one play at the same level in Navidrome, Plex, Jellyfin and most players. Open **ReplayGain** on a folder (or right-click a folder or tracks): Codetta measures each track's loudness the EBU R128 way (ReplayGain 2.0), shows the gain every track and album gets, and writes the tags only when you say so. **As albums** keeps an album's quiet and loud songs as the artist meant; **Each track on its own** levels everything. Opus files get the R128 tags Opus players read, and it can all be undone in Activity. The Docker image and the snap now include a small ffmpeg for it; other installs need ffmpeg installed.
 - **ReplayGain tags on MP3 and M4A** are now saved where players read them (TXXX and iTunes-style tags, as Picard writes them), not in the old RVA2 frame few players understand.
 

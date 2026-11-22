@@ -11,6 +11,8 @@ nothing from these sources is ever written as a MusicBrainz ID.
 
 from __future__ import annotations
 
+import difflib
+import re
 import threading
 import urllib.parse
 from collections import OrderedDict
@@ -22,14 +24,27 @@ SOURCES = ("deezer", "itunes")
 Fetcher = Callable[[str], object]  # url -> parsed JSON (or None)
 
 
+def catalog_link_id(text: str) -> str | None:
+    """"itunes:<id>" / "deezer:<id>" from a pasted album link, e.g.
+    music.apple.com/de/album/kala/1440857781 or deezer.com/en/album/302127. None: not one."""
+    text = (text or "").strip()
+    m = re.search(r"(?:music|itunes)\.apple\.com/(?:[a-z]{2}/)?album/(?:[^/?#]+/)?(?:id)?(\d{5,})", text, re.I)
+    if m:
+        return f"itunes:{m.group(1)}"
+    m = re.search(r"deezer\.(?:com|page\.link)/(?:[a-z]{2}/)?album/(\d{3,})", text, re.I)
+    return f"deezer:{m.group(1)}" if m else None
+
+
 def is_catalog_id(release_id: str) -> bool:
     return release_id.split(":", 1)[0] in SOURCES and ":" in release_id
 
 
 class Catalogs:
-    def __init__(self, fetch: Fetcher, enabled: Callable[[str], bool]) -> None:
+    def __init__(self, fetch: Fetcher, enabled: Callable[[str], bool],
+                 country: Callable[[], str] | None = None) -> None:
         self.fetch = fetch
         self.enabled = enabled  # source -> is its connection on?
+        self.country = country or (lambda: "")  # the preferred edition country: iTunes' storefront
         self._releases: OrderedDict[str, dict] = OrderedDict()  # recent lookups (covers and re-opens)
         self._lock = threading.Lock()
 
@@ -53,11 +68,53 @@ class Catalogs:
         data = self.fetch(f"{DEEZER_API}/search/album?q={q}&limit={limit}") or {}
         return [_deezer_summary(a) for a in (data.get("data") or []) if isinstance(a, dict) and a.get("id")]
 
+    def _store(self) -> str:
+        """``&country=..`` for iTunes when a preferred edition country is set (stores differ by country)."""
+        c = (self.country() or "").upper()
+        return f"&country={c.lower()}" if re.fullmatch(r"[A-Z]{2}", c) and c != "XW" else ""
+
+    def _itunes(self, path: str) -> list[dict]:
+        """An iTunes API call in the preferred store, falling back to the US store when it has nothing."""
+        store = self._store()
+        data = self.fetch(f"{ITUNES_API}{path}{store}") or {}
+        results = [r for r in (data.get("results") or []) if isinstance(r, dict)]
+        if not results and store:
+            data = self.fetch(f"{ITUNES_API}{path}") or {}
+            results = [r for r in (data.get("results") or []) if isinstance(r, dict)]
+        return results
+
     def _itunes_search(self, album: str, artist: str, limit: int) -> list[dict]:
-        term = urllib.parse.quote(" ".join(p for p in (artist, album) if p))
-        data = self.fetch(f"{ITUNES_API}/search?term={term}&entity=album&media=music&limit={limit}") or {}
-        return [_itunes_summary(a) for a in (data.get("results") or [])
-                if isinstance(a, dict) and a.get("collectionId") and a.get("wrapperType") == "collection"]
+        """Apple's free-text search stumbles on names like "M.I.A." (it falls back to popular albums), so:
+        find the artist and look through their albums first, then the combined search, then the album
+        title alone, keeping only albums whose title or artist actually match."""
+        found: dict[str, dict] = {}
+
+        def keep(results: list[dict], need_artist: bool) -> None:
+            for a in results:
+                if not (a.get("wrapperType") == "collection" and a.get("collectionId")):
+                    continue
+                name = a.get("collectionName") or ""
+                title_ok = not album or _similar(name, album)
+                exact = bool(album) and _norm(name) == _norm(album)  # the very title: kept, ranked by artist
+                artist_ok = not artist or _similar(a.get("artistName") or "", artist)
+                if title_ok and (artist_ok or exact or not need_artist):
+                    found.setdefault(str(a["collectionId"]), a)
+
+        enc = urllib.parse.quote
+        if artist:
+            people = self._itunes(f"/search?term={enc(artist)}&entity=musicArtist&attribute=artistTerm&limit=10")
+            same = [p for p in people if p.get("artistId") and _norm(p.get("artistName") or "") == _norm(artist)]
+            for person in (same or [p for p in people if p.get("artistId") and _similar(p.get("artistName") or "", artist)])[:3]:
+                keep(self._itunes(f"/lookup?id={person['artistId']}&entity=album&limit=200"), need_artist=False)
+        if len(found) < limit:
+            term = enc(" ".join(p for p in (artist, album) if p))
+            keep(self._itunes(f"/search?term={term}&entity=album&media=music&limit=50"), need_artist=bool(artist))
+        if len(found) < limit and album:
+            keep(self._itunes(f"/search?term={enc(album)}&entity=album&media=music&attribute=albumTerm&limit=50"),
+                 need_artist=bool(artist))
+        ranked = sorted(found.values(), key=lambda a: -(_closeness(a.get("collectionName") or "", album)
+                                                         + _closeness(a.get("artistName") or "", artist)))
+        return [_itunes_summary(a) for a in ranked[:limit]]
 
     def search_text(self, source: str, text: str, limit: int = 24) -> list[dict]:
         """Albums matching free text on one source (the !dz and !it bangs), as release-shaped dicts."""
@@ -67,9 +124,8 @@ class Catalogs:
         if source == "deezer":
             data = self.fetch(f"{DEEZER_API}/search/album?q={q}&limit={limit}") or {}
             return [_deezer_summary(a) for a in (data.get("data") or []) if isinstance(a, dict) and a.get("id")]
-        data = self.fetch(f"{ITUNES_API}/search?term={q}&entity=album&media=music&limit={limit}") or {}
-        return [_itunes_summary(a) for a in (data.get("results") or [])
-                if isinstance(a, dict) and a.get("collectionId") and a.get("wrapperType") == "collection"]
+        return [_itunes_summary(a) for a in self._itunes(f"/search?term={q}&entity=album&media=music&limit={limit}")
+                if a.get("collectionId") and a.get("wrapperType") == "collection"]
 
     # --- One album, with its tracks -----------------------------------------------------------
 
@@ -111,8 +167,7 @@ class Catalogs:
         return rel
 
     def _itunes_release(self, collection_id: str) -> dict:
-        data = self.fetch(f"{ITUNES_API}/lookup?id={collection_id}&entity=song&limit=200") or {}
-        results = [r for r in (data.get("results") or []) if isinstance(r, dict)]
+        results = self._itunes(f"/lookup?id={collection_id}&entity=song&limit=200")
         album = next((r for r in results if r.get("wrapperType") == "collection"), None)
         if album is None:
             raise LookupError("iTunes doesn't have that album")
@@ -200,6 +255,24 @@ def _itunes_summary(a: dict) -> dict:
     label = label[5:].strip() if label[:4].isdigit() else label  # "2016 Boys Don't Cry" -> "Boys Don't Cry"
     return _base("itunes", str(a["collectionId"]), title, a.get("artistName") or "", date, big,
                  a.get("collectionViewUrl") or "", kind, label, "", a.get("trackCount"))
+
+
+def _norm(s: str) -> str:
+    """For comparing names: "M.I.A." == "MIA" == "m i a"; "Kala (Deluxe Edition) - Single" -> "kala"."""
+    s = re.sub(r"\s*[([](?:[^)\]]*(?:edition|version|remaster|deluxe|expanded|bonus|explicit|clean)[^)\]]*)[)\]]", "", s, flags=re.I)
+    s = re.sub(r"\s+-\s+(single|ep)$", "", s, flags=re.I)
+    return "".join(ch for ch in s.casefold() if ch.isalnum())
+
+
+def _similar(found: str, wanted: str) -> bool:
+    a, b = _norm(found), _norm(wanted)
+    if not a or not b:
+        return False
+    return a == b or (len(b) >= 3 and (b in a or a in b)) or difflib.SequenceMatcher(None, a, b).ratio() >= 0.8
+
+
+def _closeness(found: str, wanted: str) -> float:
+    return difflib.SequenceMatcher(None, _norm(found), _norm(wanted)).ratio() if wanted else 0.0
 
 
 def _close(a: str, b: str) -> bool:

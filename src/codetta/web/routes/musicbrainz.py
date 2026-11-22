@@ -12,7 +12,7 @@ from fastapi.responses import Response
 
 from codetta.core.acoustid import FingerprintError, rank_releases
 from codetta.core.artwork import sniff_image_type
-from codetta.core.catalogs import Catalogs, is_catalog_id
+from codetta.core.catalogs import Catalogs, catalog_link_id, is_catalog_id
 from codetta.core.editions import FORMATS as EDITION_FORMATS
 from codetta.core.editions import edition_fit, padded_date
 from codetta.core.engine import MetadataError, TrackMetadata
@@ -117,7 +117,7 @@ def register(app, shared) -> None:
                 counts[v] = counts.get(v, 0) + 1
         return max(counts, key=counts.get) if counts else ""
 
-    catalogs = Catalogs(fetch_catalog or catalog_fetch, connections.enabled)
+    catalogs = Catalogs(fetch_catalog or catalog_fetch, connections.enabled, country=lambda: editions.prefs.country)
 
     def require_matching() -> None:
         """Matching needs MusicBrainz, Deezer or iTunes (any one of them)."""
@@ -167,9 +167,12 @@ def register(app, shared) -> None:
     def mb_release_id(text: str) -> str:
         if is_catalog_id(text.strip()):
             return text.strip()
+        linked = catalog_link_id(text)  # an Apple Music / iTunes or Deezer album link
+        if linked:
+            return linked
         mbid = parse_release_id(text)
         if not mbid:
-            raise HTTPException(422, "Paste a MusicBrainz release link (musicbrainz.org/release/…) or its ID.")
+            raise HTTPException(422, "Paste a release link from MusicBrainz, Apple Music or Deezer (or a MusicBrainz ID).")
         return mbid
 
     @app.post("/api/musicbrainz/search")
