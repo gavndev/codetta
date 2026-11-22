@@ -15,6 +15,7 @@ All notable changes to Codetta. Versions follow [Semantic Versioning](https://se
 - **Actions can ask for choices:** some Actions now show a dropdown or two (which tags, which case, which separator), and the preview updates as you change them. Plugins can use this too.
 - **Choose the iTunes store:** Account → Album editions has an **iTunes store** setting, for when the store you want to search isn't your preferred edition country. It follows the preferred country by default, and falls back to the US store when the chosen one has nothing. (The rest of [#3](https://github.com/gavndev/codetta/issues/3)'s suggestions arrived in 0.9.6.)
 - **Paste an iTunes ID:** besides Apple Music, Deezer and MusicBrainz links, the Find dialog's paste box takes a bare iTunes collection ID (`296393419` or `id296393419`).
+- **Spanish:** sentences that count things ("1 pista de 5 cambiaría", "3 archivos no tienen etiqueta…") are now grammatical, with no English words left in them, and the summaries in Find, Tag Presets and Organize are translated in full.
 
 ## 0.9.6 (2026-11-22)
 

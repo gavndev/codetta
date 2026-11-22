@@ -138,7 +138,8 @@ function renderInbox() {
     if (g.status !== "filed" && g.status !== "matching") {
       actions.push(h("button", { class: "link-btn inbox-skip danger-text", type: "button", onclick: async () => {
         if (await ask({ title: `Remove “${name}” from the inbox?`, danger: true, confirmLabel: "Move to Recently deleted",
-          message: `Its ${plural(g.files, "file")} go to Recently deleted for 30 days. Activity can put ${g.files === 1 ? "it" : "them"} back.` })) {
+          message: g.files === 1 ? "Its 1 file goes to Recently deleted for 30 days. Activity can put it back."
+            : `Its ${plural(g.files, "file")} go to Recently deleted for 30 days. Activity can put them back.` })) {
           inboxAction("/api/inbox/remove", { key: g.key }, () => toast(`Removed “${name}”. Undo is in Activity.`, "success"));
         }
       } }, "Remove"));
@@ -185,7 +186,9 @@ function renderInbox() {
     h("button", { class: "btn", type: "button", onclick: loadInbox }, "Check again"),
     h("span", { class: "spacer" }),
     ready.length ? h("button", { class: "btn primary", type: "button", onclick: () => inboxAction("/api/inbox/accept-ready", {}, (res) =>
-      toast(`Filed ${plural(res.filed, "album")}${res.filed < res.total ? ` (${res.total - res.filed} need a look)` : ""}`, "success")) },
+      toast(res.filed >= res.total ? `Filed ${plural(res.filed, "album")}`
+        : res.total - res.filed === 1 ? `Filed ${plural(res.filed, "album")} (1 needs a look)`
+        : `Filed ${plural(res.filed, "album")} (${res.total - res.filed} need a look)`, "success")) },
       `File ${plural(ready.length, "confident match", "confident matches")}`) : h("button", { class: "btn", type: "button", "data-close": true }, "Close"));
 }
 

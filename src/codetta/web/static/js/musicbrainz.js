@@ -1,7 +1,7 @@
 // Matching on MusicBrainz and switching editions.
 // Part of Codetta's page; app.js is the entry point (see the note at its top).
 
-import { $, ask, closeDialog, h, icon, openDialog, setKids } from "./dom.js";
+import { $, ask, closeDialog, h, icon, openDialog, sentences, setKids } from "./dom.js";
 import { api } from "./api.js";
 import { fmtDuration, plural, relativeToFolder, state, toast } from "./state.js";
 import { folderCache, isSearch, loadFolder } from "./browse.js";
@@ -169,7 +169,7 @@ function renderMbSearch() {
         h("span", { class: "mb-cand-title", dir: "auto" }, c.title, c.disambiguation ? h("span", { class: "mb-dis" }, ` (${c.disambiguation})`) : null),
         h("span", { class: "mb-cand-artist", dir: "auto" }, c.artist),
         h("span", { class: "mb-cand-meta" }, mbMeta(c)),
-        c.heard != null ? h("span", { class: "mb-heard" }, `${c.heard} of your ${plural(res.total, "track")} ${c.heard === 1 ? "is" : "are"} on it`) : null,
+        c.heard != null ? h("span", { class: "mb-heard" }, c.heard === 1 ? `1 of your ${plural(res.total, "track")} is on it` : `${c.heard} of your ${plural(res.total, "track")} are on it`) : null,
         c.current ? h("span", { class: "mb-current" }, h("span", { class: "badge" }, "Your files use this release")) : null,
         c.source && c.source !== "musicbrainz" ? h("span", { class: `src-badge ${c.source}` }, { deezer: "From Deezer", itunes: "From iTunes", discogs: "From Discogs" }[c.source] || c.source) : null),
       h("span", { class: "mb-cand-side" },
@@ -403,10 +403,11 @@ function renderMbReview() {
   const spare = p.tracks.filter((t) => !used.has(t.id)).length;
 
   const summary = [];
-  if (changing.length) summary.push(`${plural(changing.length, "track")} will change (${plural(tagTotal, "tag")}${covers ? `, cover on ${covers}` : ""}).`);
+  const what = covers ? `${plural(tagTotal, "tag")}, cover on ${covers}` : plural(tagTotal, "tag");
+  if (changing.length) summary.push(changing.length === 1 ? `1 track will change (${what}).` : `${plural(changing.length, "track")} will change (${what}).`);
   else summary.push("Nothing to change with these settings.");
   if (check) summary.push(`${plural(check, "file")} to check.`);
-  if (spare) summary.push(`${plural(spare, "track")} on this release ${spare === 1 ? "has" : "have"} no file here.`);
+  if (spare) summary.push(spare === 1 ? "1 track on this release has no file here." : `${plural(spare, "track")} on this release have no file here.`);
 
   setKids(body,
     h("div", { class: "mb-release" },
@@ -430,7 +431,7 @@ function renderMbReview() {
         segmented("mb-cover", r.has_cover === false ? "none" : mb.cover,
           [["missing", "Where missing"], ["all", "Replace all"], ["none", "Leave"]], (v) => { mb.cover = v; }, r.has_cover === false),
         r.has_cover === false ? h("p", { class: "hint" }, "This release has no cover art on the Cover Art Archive.") : null)),
-    h("p", { class: "preview-summary", "aria-live": "polite" }, summary.join(" ")),
+    h("p", { class: "preview-summary", "aria-live": "polite" }, sentences(summary)),
     h("div", { class: "mb-files" }, files));
   body.scrollTop = scroll;
 

@@ -1,7 +1,7 @@
 // Tag Presets: applying and managing them.
 // Part of Codetta's page; app.js is the entry point (see the note at its top).
 
-import { $, ask, closeDialog, h, icon, openDialog, setKids } from "./dom.js";
+import { $, ask, closeDialog, h, icon, openDialog, sentences, setKids } from "./dom.js";
 import { api } from "./api.js";
 import { els, plural, relativeToFolder, state, toast } from "./state.js";
 import { isSearch, loadFolder } from "./browse.js";
@@ -94,10 +94,11 @@ function renderPreview(results) {
 
   const summary = [];
   if (!results.length) summary.push("There are no audio files to apply this to.");
-  else if (changing.length) summary.push(`${plural(tagCount, "tag")} will be set across ${plural(changing.length, "file")}.`);
+  else if (changing.length) summary.push(tagCount === 1 ? `1 tag will be set across ${plural(changing.length, "file")}.`
+    : `${plural(tagCount, "tag")} will be set across ${plural(changing.length, "file")}.`);
   else summary.push("Nothing to change — these files already match.");
   if (unchanged && changing.length) summary.push(`${plural(unchanged, "file")} already up to date.`);
-  if (errors.length) summary.push(`${plural(errors.length, "file")} can't be read.`);
+  if (errors.length) summary.push(errors.length === 1 ? "1 file can't be read." : `${plural(errors.length, "file")} can't be read.`);
 
   const shown = [...errors, ...changing].slice(0, 200);
   const items = shown.map((r) => {
@@ -112,7 +113,7 @@ function renderPreview(results) {
       notes.map((n) => h("div", { class: "note" }, n)));
   });
   setKids($("#apply-preview"),
-    h("p", { class: "preview-summary" }, summary.join(" ")),
+    h("p", { class: "preview-summary" }, sentences(summary)),
     items.length ? h("div", { class: "preview-list" }, items) : null,
     shown.length < changing.length + errors.length ? h("p", { class: "hint" }, `…and ${changing.length + errors.length - shown.length} more`) : null,
   );

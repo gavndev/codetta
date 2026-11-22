@@ -55,7 +55,7 @@ async function preview() {
     go.disabled = !d.writing;
     go.textContent = d.writing ? `Save ${plural(d.writing, "cover")}` : "Save covers";
     setKids(box,
-      h("p", { class: "rep-count" }, d.writing ? `${plural(d.writing, "album")} of ${d.albums} would get a cover file`
+      h("p", { class: "rep-count" }, d.writing === 1 ? `1 album of ${d.albums} would get a cover file` : d.writing ? `${plural(d.writing, "album")} of ${d.albums} would get a cover file`
         : `Nothing to save in ${plural(d.albums, "album")}.`),
       h("ul", { class: "rep-list" }, d.preview.map((p) => h("li", { class: ["write", "replace"].includes(p.status) ? null : "ce-skip" },
         h("span", { class: "rep-file", dir: "auto" }, folderName(p.folder)),

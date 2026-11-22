@@ -299,7 +299,7 @@ def register(app, shared) -> None:
                 errors.append({"path": target_rel, "error": exc.strerror or str(exc)})
         if undo_files:
             n = len(undo_files)
-            activity.add("art", f"Exported covers: {n} album{'s' if n != 1 else ''}", ok=not errors,
+            activity.add("art", ("Exported covers: 1 album" if n == 1 else f"Exported covers: {n} albums"), ok=not errors,
                          files=list(undo_files), errors=errors[:20], undo={"type": "files", "files": undo_files},
                          changes=[{"key": "cover", "old": "", "new": rel} for rel in list(undo_files)[:50]])
             lib_index.mark_dirty(touched)  # Lidarr and the music server hear about it

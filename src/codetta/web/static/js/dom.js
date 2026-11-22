@@ -6,6 +6,9 @@
 export const $ = (sel, root = document) => root.querySelector(sel);
 
 /** Create an element: h("div", {class: "x", onclick: fn}, child, "text", ...) */
+/** Sentences side by side, each its own text (a translation matches whole sentences). */
+export const sentences = (list) => list.flatMap((s, i) => (i ? [" ", h("span", {}, s)] : [h("span", {}, s)]));
+
 export function h(tag, attrs = {}, ...children) {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) {

@@ -105,7 +105,8 @@ async function undoEntry(e) {
       toast(res.results.find((r) => r.error)?.error || "Nothing could be undone", "error");
     } else if (res.skipped || res.failed) {
       const left = res.skipped + res.failed;
-      toast(`${res.message}. ${plural(left, "file")} left as ${left === 1 ? "it is" : "they are"} (changed since or unreadable).`);
+      toast(res.message + ". " + (left === 1 ? "1 file left as it is (changed since or unreadable)."
+        : `${plural(left, "file")} left as they are (changed since or unreadable).`));
     } else {
       toast(res.message, "success");
     }

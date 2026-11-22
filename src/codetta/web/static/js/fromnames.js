@@ -3,7 +3,7 @@
 
 import { $, closeDialog, h, openDialog, setKids } from "./dom.js";
 import { api } from "./api.js";
-import { plural, state, toast } from "./state.js";
+import { changeLine, plural, state, toast } from "./state.js";
 import { folderCache, loadFolder } from "./browse.js";
 import { refreshActivity } from "./activity.js";
 import { fieldLabel } from "./editor.js";
@@ -75,7 +75,7 @@ async function preview() {
     go.disabled = !d.changing;
     go.textContent = d.changing ? `Fill in ${plural(d.changing, "track")}` : "Fill in tags";
     setKids(box,
-      h("p", { class: "rep-count" }, d.changing ? `${plural(d.changing, "track")} of ${d.tracks} would change`
+      h("p", { class: "rep-count" }, d.changing ? changeLine(d)
         : d.matched ? `Nothing to change in ${plural(d.matched, "track")}: their tags already say this.` : "No file names fit this pattern."),
       d.suggested && d.matched ? h("p", { class: "hint" }, "Codetta picked the pattern that fits these files best. Change it if it's not right.") : null,
       d.preview.length ? h("ul", { class: "rep-list" }, d.preview.map((p) => h("li", {},

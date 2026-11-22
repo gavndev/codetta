@@ -773,7 +773,7 @@ function renderChangesPopover(folderCount) {
     h("div", { class: "pop-head" }, `${plural(pendingCount(ed), "change")}`),
     changeList(),
     h("div", { class: "pop-foot" },
-      `Save → ${n === 1 ? "this track" : `${n} selected tracks`}`,
+      n === 1 ? "Save → this track" : `Save → ${n} selected tracks`,
       els.editorSaveFolder.hidden ? null : ` · Save to folder → all ${folderCount} tracks`));
 }
 
@@ -793,7 +793,8 @@ export async function saveToFolder() {
     details: [
       changeList(),
       risky.length ? h("div", { class: "confirm-warning" },
-        `${risky.join(", ")} ${risky.length === 1 ? "is" : "are"} usually different on every track, so all ${paths.length} would get the same value.`) : null,
+        risky.length === 1 ? `${risky[0]} is usually different on every track, so all ${paths.length} would get the same value.`
+          : `${risky.join(", ")} are usually different on every track, so all ${paths.length} would get the same value.`) : null,
       h("p", { class: "hint", style: "margin:10px 0 0" }, "You can undo this from the activity log."),
     ],
     confirmLabel: `Save to ${paths.length} tracks`,

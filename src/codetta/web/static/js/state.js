@@ -66,6 +66,13 @@ export const runtime = (tracks) => {
 };
 export const trackNo = (v) => { const n = (v || "").split("/")[0].trim(); return /^\d$/.test(n) ? `0${n}` : n; };
 export const plural = (n, word, many = `${word}s`) => countWord(n, word, many);
+
+/** "3 tracks of 12 would change", in a preview's summary. One track gets its own sentence, so a
+ * translation can use a singular verb ("1 pista de 12 cambiaría"). */
+export function changeLine(d) {
+  if (!d.changing) return `Nothing to change in ${plural(d.tracks, "track")}.`;
+  return d.changing === 1 ? `1 track of ${d.tracks} would change` : `${plural(d.changing, "track")} of ${d.tracks} would change`;
+}
 export const baseName = (path) => path.split("/").pop();
 
 export function relativeToFolder(path) {

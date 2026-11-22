@@ -37,7 +37,8 @@ function checkView(d) {
     (d.warnings || []).map((w) => h("div", { class: "sk-warn" }, h("strong", {}, w.title), h("span", {}, w.text))),
     d.last_sync?.at ? h("p", { class: "hint" }, d.last_sync.error
       ? `Last rescan request failed (${ago(d.last_sync.at)}): ${d.last_sync.error}`
-      : `Last asked Lidarr to rescan ${d.last_sync.folders === 1 ? "a folder" : `${d.last_sync.folders} folders`} ${ago(d.last_sync.at)}.`) : null);
+      : (d.last_sync.folders === 1 ? `Last asked Lidarr to rescan a folder ${ago(d.last_sync.at)}.`
+        : `Last asked Lidarr to rescan ${d.last_sync.folders} folders ${ago(d.last_sync.at)}.`)) : null);
 }
 
 /** The connection fields (Account → Connections and the setup step). */

@@ -315,12 +315,14 @@ async function importFiles(list) {
   const huge = list.filter((x) => x.file.size > MAX_IMPORT_BYTES);
   if (huge.length) {
     list = list.filter((x) => x.file.size <= MAX_IMPORT_BYTES);
-    toast(`${huge.length === 1 ? `“${huge[0].path.split("/").pop()}” is` : `${huge.length} files are`} over 2 GB, the most one file can be, so ${huge.length === 1 ? "it was" : "they were"} skipped.`, "error");
+    toast(huge.length === 1 ? `“${huge[0].path.split("/").pop()}” is over 2 GB, the most one file can be, so it was skipped.`
+      : `${huge.length} files are over 2 GB, the most one file can be, so they were skipped.`, "error");
   }
   if (!list.length) return;
   const other = list.filter((x) => !AUDIO_EXT.test(x.path));
   if (other.length && !(await ask({ title: other.length === list.length ? "These aren't music files" : "Some of these aren't music",
-    message: `${plural(other.length, "file")} of ${list.length} ${other.length === 1 ? "isn't" : "aren't"} audio (${other.slice(0, 3).map((x) => x.path.split("/").pop()).join(", ")}${other.length > 3 ? "…" : ""}). ${other.length === 1 ? "It'll" : "They'll"} be imported too, next to the music.`,
+    message: other.length === 1 ? `1 file of ${list.length} isn't audio (${other[0].path.split("/").pop()}). It'll be imported too, next to the music.`
+      : `${plural(other.length, "file")} of ${list.length} aren't audio (${other.slice(0, 3).map((x) => x.path.split("/").pop()).join(", ")}${other.length > 3 ? "…" : ""}). They'll be imported too, next to the music.`,
     confirmLabel: "Import anyway" }))) return;
   const stamp = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
   const batch = `${stamp}-${Math.random().toString(36).slice(2, 6)}`;
@@ -350,7 +352,7 @@ async function importFiles(list) {
     const r = await api("POST", "/api/import/done", { batch, paths: done });
     const extra = failed ? ` ${plural(failed, "file")} couldn't be imported.` : "";
     if (r.where === "inbox") {
-      toast(`Imported ${plural(r.files, "file")} into your inbox: Codetta is matching ${r.files === 1 ? "it" : "them"}.${extra}`, failed ? "error" : "success");
+      toast((r.files === 1 ? "Imported 1 file into your inbox: Codetta is matching it." : `Imported ${plural(r.files, "file")} into your inbox: Codetta is matching them.`) + extra, failed ? "error" : "success");
       if ($("#inbox-dialog").open) loadInbox();
     } else {
       const why = [r.stayed_taken ? `${r.stayed_taken} already in your library` : "", r.stayed_untagged ? `${r.stayed_untagged} without enough tags` : ""].filter(Boolean).join(", ");
@@ -435,7 +437,8 @@ export async function openTrash() {
     const input = h("input", { type: "text", inputmode: "numeric", autocomplete: "off", placeholder: String(files), class: "rename-input" });
     setTimeout(() => input.focus(), 80);
     const ok = await ask({ title: `Delete ${what === "everything" ? "everything" : `“${what.split("/").pop()}”`} for good?`, danger: true,
-      message: `${plural(files, "file")} will be erased from the disk. This can't be undone, not even from Activity. To confirm, type ${files}.`,
+      message: files === 1 ? "1 file will be erased from the disk. This can't be undone, not even from Activity. To confirm, type 1."
+        : `${plural(files, "file")} will be erased from the disk. This can't be undone, not even from Activity. To confirm, type ${files}.`,
       details: h("label", { class: "field" }, h("span", { class: "field-label" }, "Number of files"), input), confirmLabel: "Delete permanently" });
     if (!ok) { openTrash(); return; }
     if (Number(input.value.trim()) !== files) { toast("That number doesn't match, so nothing was deleted.", "error"); openTrash(); return; }

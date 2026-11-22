@@ -1,7 +1,7 @@
 // Library health, Tidy up and Organize.
 // Part of Codetta's page; app.js is the entry point (see the note at its top).
 
-import { $, ask, closeDialog, h, icon, openDialog, setKids } from "./dom.js";
+import { $, ask, closeDialog, h, icon, openDialog, sentences, setKids } from "./dom.js";
 import { api } from "./api.js";
 import { els, plural, state, toast } from "./state.js";
 import { folderCache, loadFolder, navigate, renderSelectionBar } from "./browse.js";
@@ -380,7 +380,9 @@ function renderHealth() {
       d.indexing ? "Codetta is still reading your library, so this list may grow. " : "",
       d.count ? `${plural(d.count, "thing")} to look at across ${plural(d.albums, "album")}.`
         : `Nothing to fix across ${plural(d.albums, "album")}. Your library looks healthy.`,
-      d.unmatched ? ` ${plural(d.unmatched, "album")} ${d.unmatched === 1 ? "isn't" : "aren't"} matched on MusicBrainz yet (Find in MusicBrainz on an album does it).` : ""),
+      d.unmatched ? " " : "",
+      d.unmatched ? h("span", {}, d.unmatched === 1 ? "1 album isn't matched on MusicBrainz yet (Find in MusicBrainz on an album does it)."
+        : `${plural(d.unmatched, "album")} aren't matched on MusicBrainz yet (Find in MusicBrainz on an album does it).`) : ""),
     d.count ? h("div", { class: "health-chips", role: "group", "aria-label": "Show" },
       chip("all", "All", d.count),
       d.categories.filter((c) => c.count).map((c) => chip(c.id, c.label, c.count))) : null,
@@ -512,14 +514,20 @@ function renderOrganizePreview() {
   const kept = p.moves.filter((m) => m.status === "keep");
   const byLidarr = p.moves.filter((m) => m.status === "lidarr");
   const summary = [];
-  if (moving.length) summary.push(`${plural(moving.length, "file")} will move${p.extras ? `, plus ${plural(p.extras, "other file")} that come${p.extras === 1 ? "s" : ""} along (cover, lyrics, booklet…)` : ""}.`);
+  if (moving.length) summary.push(moving.length === 1 ? "1 file will move." : `${plural(moving.length, "file")} will move.`);
+  if (moving.length && p.extras) summary.push(p.extras === 1 ? "1 other file comes along (cover, lyrics, booklet…)."
+    : `${plural(p.extras, "other file")} come along (cover, lyrics, booklet…).`);
   else summary.push(c.same ? "Everything is already where this pattern puts it." : "Nothing to move.");
   if (c.same && moving.length) summary.push(`${plural(c.same, "file")} already in place.`);
-  if (problems.length) summary.push(`${plural(problems.length, "file")} can't move (see below).`);
-  if (kept.length) summary.push(`${plural(kept.length, "file")} ${kept.length === 1 ? "stays" : "stay"} where ${kept.length === 1 ? "it is" : "they are"}: not enough tags to place ${kept.length === 1 ? "it" : "them"} (find ${kept.length === 1 ? "its" : "their"} details first).`);
-  if (byLidarr.length) summary.push(`${plural(byLidarr.length, "file")} ${byLidarr.length === 1 ? "stays" : "stay"} where ${byLidarr.length === 1 ? "it is" : "they are"}: Lidarr names the files in its folders (Account → Connections → Lidarr).`);
+  if (problems.length) summary.push(problems.length === 1 ? "1 file can't move (see below)." : `${plural(problems.length, "file")} can't move (see below).`);
+  if (kept.length) summary.push(kept.length === 1 ? "1 file stays where it is: not enough tags to place it (find its details first)."
+    : `${plural(kept.length, "file")} stay where they are: not enough tags to place them (find their details first).`);
+  if (byLidarr.length) summary.push(byLidarr.length === 1 ? "1 file stays where it is: Lidarr names the files in its folders (Account → Connections → Lidarr)."
+    : `${plural(byLidarr.length, "file")} stay where they are: Lidarr names the files in its folders (Account → Connections → Lidarr).`);
   const unknown = moving.filter((m) => /(^|\/)Unknown (Artist|Album)\//.test(m.dst)).length;
-  const warn = unknown ? h("p", { class: "org-warn" }, `${plural(unknown, "file")} ${unknown === 1 ? "has" : "have"} no artist or album tag, so ${unknown === 1 ? "it" : "they"} would go to “Unknown Artist” / “Unknown Album”. Tag ${unknown === 1 ? "it" : "them"} first (Find in MusicBrainz can help), or move them anyway.`) : null;
+  const warn = unknown ? h("p", { class: "org-warn" }, unknown === 1
+    ? "1 file has no artist or album tag, so it would go to “Unknown Artist” / “Unknown Album”. Tag it first (Find in MusicBrainz can help), or move it anyway."
+    : `${plural(unknown, "file")} have no artist or album tag, so they would go to “Unknown Artist” / “Unknown Album”. Tag them first (Find in MusicBrainz can help), or move them anyway.`) : null;
   const row = (m) => h("div", { class: `org-move ${m.status}` },
     h("div", { class: "org-from", dir: "auto" }, m.src),
     h("div", { class: "org-to", dir: "auto" }, ["error", "keep", "lidarr"].includes(m.status) ? "" : ["→ ", m.dst]),
@@ -527,7 +535,7 @@ function renderOrganizePreview() {
     m.companions.length ? h("div", { class: "note" }, `+ ${m.companions.map((x) => x.src.split("/").pop()).join(", ")}`) : null);
   const shown = [...problems, ...kept, ...byLidarr, ...moving].slice(0, 300);
   setKids(box,
-    h("p", { class: "preview-summary" }, summary.join(" ")),
+    h("p", { class: "preview-summary" }, sentences(summary)),
     warn,
     shown.length ? h("div", { class: "org-list" }, shown.map(row)) : null,
     shown.length < problems.length + kept.length + moving.length ? h("p", { class: "hint" }, `…and ${problems.length + kept.length + moving.length - shown.length} more`) : null);

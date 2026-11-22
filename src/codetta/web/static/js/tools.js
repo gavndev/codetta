@@ -3,7 +3,7 @@
 
 import { $, ask, closeDialog, drawInBatches, h, icon, openDialog, replay, setKids } from "./dom.js";
 import { api } from "./api.js";
-import { els, first, fmtDuration, fmtLabel, plural, runtime, state, toast, trackNo } from "./state.js";
+import { changeLine, els, first, fmtDuration, fmtLabel, plural, runtime, state, toast, trackNo } from "./state.js";
 import {
   discInfo, fold, folderCache, hashFor, loadFolder, mbFindButton, navigate, renderSearchHead,
   renderSelectionBar, selectAll, toggleSelect, updateRowStates, visibleTracks,
@@ -162,7 +162,7 @@ async function previewAction() {
     go.disabled = !d.changing;
     go.textContent = d.changing ? `Apply to ${plural(d.changing, "track")}` : "Apply";
     setKids(box,
-      h("p", { class: "rep-count" }, d.changing ? `${plural(d.changing, "track")} of ${d.tracks} would change` : `Nothing to change in ${plural(d.tracks, "track")}.`),
+      h("p", { class: "rep-count" }, changeLine(d)),
       d.preview.length ? h("ul", { class: "rep-list" }, d.preview.map((p) => h("li", {},
         h("span", { class: "rep-file", dir: "auto" }, p.path.split("/").pop()),
         p.changes.map((ch) => h("span", { class: "rep-change" }, h("b", {}, fieldLabel(ch.key)), " ",
@@ -243,7 +243,7 @@ async function replacePreview() {
     go.disabled = !d.changing;
     go.textContent = d.changing ? `Replace in ${plural(d.changing, "track")}` : "Replace";
     setKids(box,
-      h("p", { class: "rep-count" }, d.changing ? `${plural(d.changing, "track")} of ${d.tracks} would change` : `Nothing to change in ${plural(d.tracks, "track")}.`),
+      h("p", { class: "rep-count" }, changeLine(d)),
       d.preview.length ? h("ul", { class: "rep-list" }, d.preview.map((p) => h("li", {},
         h("span", { class: "rep-file", dir: "auto" }, p.path.split("/").pop()),
         p.changes.map((ch) => h("span", { class: "rep-change" }, h("b", {}, fieldLabel(ch.key)), " ",

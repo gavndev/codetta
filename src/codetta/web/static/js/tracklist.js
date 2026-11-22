@@ -3,7 +3,7 @@
 
 import { $, closeDialog, h, openDialog, setKids } from "./dom.js";
 import { api } from "./api.js";
-import { plural, state, toast } from "./state.js";
+import { changeLine, plural, state, toast } from "./state.js";
 import { folderCache, loadFolder } from "./browse.js";
 import { refreshActivity } from "./activity.js";
 import { fieldLabel } from "./editor.js";
@@ -64,7 +64,7 @@ async function preview() {
     go.textContent = d.changing ? `Write ${plural(d.changing, "track")}` : "Write titles";
     const mismatch = d.lines !== d.tracks;
     setKids(box,
-      h("p", { class: "rep-count" }, d.changing ? `${plural(d.changing, "track")} of ${d.tracks} would change` : `Nothing to change in ${plural(d.tracks, "track")}.`),
+      h("p", { class: "rep-count" }, changeLine(d)),
       mismatch ? h("p", { class: "field-error" }, `The tracklist has ${plural(d.lines, "line")} and the folder has ${plural(d.tracks, "track")}. Check the pairs below before writing.`) : null,
       d.warnings ? h("p", { class: "field-error" }, `${plural(d.warnings, "pair")} with very different lengths: probably not the same song.`) : null,
       h("ul", { class: "rep-list" }, d.preview.map((p) => h("li", { class: p.warning ? "tl-warn" : null },

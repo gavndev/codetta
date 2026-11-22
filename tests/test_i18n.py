@@ -40,3 +40,13 @@ def test_the_users_music_is_never_translated():
     # dir="auto" marks titles, artists and folder names; h() turns it into translate="no".
     dom = (STATIC / "js" / "dom.js").read_text("utf-8")
     assert 'attrs?.dir === "auto"' in dom and '"translate", "no"' in dom
+
+
+def test_no_english_words_stitched_into_sentences_by_count():
+    """`${n === 1 ? "is" : "are"}` inside a sentence leaves English words in a translation ("3 archivos
+    have…"). Write one whole sentence for exactly one and another for more than one instead."""
+    stitched = re.compile(r'\$\{[^{}`]*[=!<>]=?=? *1 *\? *"[a-z]|\$\{[^{}`]*\? *"s" *: *""')
+    js = Path(__file__).resolve().parent.parent / "src" / "codetta" / "web" / "static" / "js"
+    found = [f"{f.name}:{i}" for f in sorted(js.glob("*.js")) if f.name != "i18n.js"
+             for i, line in enumerate(f.read_text("utf-8").splitlines(), 1) if stitched.search(line)]
+    assert not found, f"Count-dependent words inside a sentence: {found}"
