@@ -40,6 +40,18 @@ apps:
       - network-bind     # serve the page
 
 parts:
+  ffmpeg:
+    # The same tiny ffmpeg as the Docker image (ReplayGain's loudness meter): see docker/ffmpeg-configure.sh.
+    plugin: nil
+    source: https://ffmpeg.org/releases/ffmpeg-9.1.tar.xz
+    source-checksum: sha256/1a4d394ae63d190a526cd052eb4415c156b5c5e2df37efab41a7de0b8fde2433
+    build-packages: [build-essential]
+    override-build: |
+      sh "$CRAFT_PROJECT_DIR/docker/ffmpeg-configure.sh"
+      make -j"$CRAFT_PARALLEL_BUILD_COUNT" ffmpeg
+      strip ffmpeg
+      install -D -m 755 ffmpeg "$CRAFT_PART_INSTALL/bin/ffmpeg"
+
   codetta:
     plugin: python
     source: .

@@ -4,7 +4,7 @@ All notable changes to Codetta. Versions follow [Semantic Versioning](https://se
 
 ## Unreleased
 
-- **ReplayGain:** even out the volume, so a quiet album and a loud one play at the same level in Navidrome, Plex, Jellyfin and most players. Open **ReplayGain** on a folder (or right-click a folder or tracks): Codetta measures each track's loudness the EBU R128 way (ReplayGain 2.0), shows the gain every track and album gets, and writes the tags only when you say so. **As albums** keeps an album's quiet and loud songs as the artist meant; **Each track on its own** levels everything. Opus files get the R128 tags Opus players read, and it can all be undone in Activity. Needs ffmpeg.
+- **ReplayGain:** even out the volume, so a quiet album and a loud one play at the same level in Navidrome, Plex, Jellyfin and most players. Open **ReplayGain** on a folder (or right-click a folder or tracks): Codetta measures each track's loudness the EBU R128 way (ReplayGain 2.0), shows the gain every track and album gets, and writes the tags only when you say so. **As albums** keeps an album's quiet and loud songs as the artist meant; **Each track on its own** levels everything. Opus files get the R128 tags Opus players read, and it can all be undone in Activity. The Docker image and the snap now include a small ffmpeg for it; other installs need ffmpeg installed.
 - **ReplayGain tags on MP3 and M4A** are now saved where players read them (TXXX and iTunes-style tags, as Picard writes them), not in the old RVA2 frame few players understand.
 
 ## 0.9.5 (2026-11-21)

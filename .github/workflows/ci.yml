@@ -35,6 +35,15 @@ jobs:
         run: docker build -t codetta:ci .
       - name: fpcalc runs in the image (Identify by sound)
         run: docker run --rm --entrypoint fpcalc codetta:ci -version
+      - name: ffmpeg measures loudness of every format in the image (ReplayGain)
+        run: |
+          docker run --rm --entrypoint sh codetta:ci -c 'ls -lh /usr/local/bin/ffmpeg'
+          for f in sample.flac sample.mp3 sample.m4a sample.ogg sample.opus sample.wav sample.aiff sample.wv sample.wma sample.dsf sample.tta sample.mp2 sample.m4b sample.oga; do
+            echo "== $f"
+            docker run --rm -v "$PWD/tests/fixtures:/f:ro" --entrypoint ffmpeg codetta:ci \
+              -nostdin -hide_banner -nostats -i "/f/$f" -map 0:a:0 -af ebur128=peak=sample -f null - 2>&1 | grep -E "I:|Peak:" | tail -2 \
+              | grep -q "Peak:" || { echo "ffmpeg couldn't measure $f"; exit 1; }
+          done
       - name: Start it and wait until healthy
         run: |
           mkdir -p music config && sudo chown 1000:1000 music config

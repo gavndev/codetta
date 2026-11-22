@@ -44,6 +44,25 @@ RUN case "${TARGETARCH:-$(uname -m)}" in \
     && tar -xzf /tmp/fpcalc.tgz -C /tmp \
     && install -m 755 "/tmp/${name}/fpcalc" /usr/local/bin/fpcalc
 
+# ---- ffmpeg, for ReplayGain ----------------------------------------------------------
+# A tiny build from ffmpeg's own source (checked against its SHA-256): only the audio
+# decoders Codetta needs and the loudness meter (see docker/ffmpeg-configure.sh). A few MB
+# instead of Alpine's package, which pulls in every video codec.
+FROM python:3.15-alpine AS ffmpeg
+ARG FFMPEG_VERSION=9.1
+ARG FFMPEG_SHA256=1a4d394ae63d190a526cd052eb4415c156b5c5e2df37efab41a7de0b8fde2433
+RUN apk add --no-cache build-base xz
+COPY docker/ffmpeg-configure.sh /tmp/ffmpeg-configure.sh
+RUN python -c "import sys, urllib.request; urllib.request.urlretrieve(sys.argv[1], '/tmp/ffmpeg.tar.xz')" \
+         "https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz" \
+    && echo "${FFMPEG_SHA256}  /tmp/ffmpeg.tar.xz" | sha256sum -c - \
+    && tar -xJf /tmp/ffmpeg.tar.xz -C /tmp \
+    && cd "/tmp/ffmpeg-${FFMPEG_VERSION}" \
+    && sh /tmp/ffmpeg-configure.sh \
+    && make -j"$(nproc)" ffmpeg \
+    && strip ffmpeg \
+    && install -m 755 ffmpeg /usr/local/bin/ffmpeg
+
 # ---- Runtime -----------------------------------------------------------------------
 # Alpine keeps the image small (fits starter hardware); everything Codetta needs
 # is pure Python or has musl wheels.
@@ -74,6 +93,7 @@ RUN apk add --no-cache setpriv \
 
 COPY --from=build /opt/venv /opt/venv
 COPY --from=build /usr/local/bin/fpcalc /usr/local/bin/fpcalc
+COPY --from=ffmpeg /usr/local/bin/ffmpeg /usr/local/bin/ffmpeg
 COPY docker/entrypoint.sh /usr/local/bin/codetta-entrypoint
 COPY CHANGELOG.md /opt/codetta/CHANGELOG.md
 COPY docker/codetta-admin.sh /usr/local/bin/codetta-admin
