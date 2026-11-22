@@ -10,6 +10,7 @@ import { downloadFile, downloadSelection, downloadZip, folderCovers, isPhone, ma
 import { closeEditor, confirmDiscard } from "./editor.js";
 import { refreshActivity } from "./activity.js";
 import { openMusicBrainzFor } from "./musicbrainz.js";
+import { openReplayGain, replayGainReady } from "./replaygain.js";
 import { loadInbox, skReady } from "./inbox.js";
 import { appStarted, copyText, showAuth } from "./account.js";
 
@@ -88,6 +89,7 @@ function trackMenu(t) {
     { icon: "move", label: "Move to…", run: () => moveEntries(paths, label) },
     many ? null : { icon: "select", label: "Select", run: () => { if (isPhone()) setSelectMode(true); toggleSelect(t.path, true, false); } },
     { icon: "wand", label: "Actions…", run: () => openActions({ paths }, label) },
+    replayGainReady() ? { icon: "volume", label: "ReplayGain…", run: () => openReplayGain({ paths }, label) } : null,
     many ? null : { icon: "info", label: "Get info", run: () => showInfo(t.path) },
     many ? { icon: "download", label: `Download ${paths.length} as .zip`, run: () => downloadSelection(paths) }
       : { icon: "download", label: "Download", run: () => downloadFile(t.path) },
@@ -106,6 +108,7 @@ function folderMenu(path) {
     { icon: "move", label: "Move to…", run: () => moveEntries([path], `“${name}”`) },
     { icon: "info", label: "Get info", run: () => showInfo(path) },
     { icon: "download", label: "Download as .zip", run: () => downloadZip(path) },
+    replayGainReady() ? { icon: "volume", label: "ReplayGain…", run: () => openReplayGain({ folder: path }, `“${name}”`) } : null,
     state.status?.matching ? { icon: "musicbrainz", label: "Find in MusicBrainz", run: () => openMusicBrainzFor({ body: { folder: path }, label: `“${name}”` }) } : null,
     skReady() ? { icon: "slskd", label: "Find in slskd", run: () => slskdFor(parts.slice(-2).join(" ").replace(/\s*[([]\d{4}[)\]]\s*/g, " ").trim()) } : null,
     "-",

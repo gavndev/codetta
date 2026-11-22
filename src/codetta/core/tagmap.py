@@ -342,6 +342,10 @@ EasyID3.RegisterTXXXKey("work", "WORK")
 EasyID3.RegisterTXXXKey("showmovement", "SHOWMOVEMENT")
 EasyID3.RegisterTXXXKey("script", "SCRIPT")
 EasyID3.RegisterTXXXKey("itunesadvisory", "ITUNESADVISORY")
+# ReplayGain as TXXX frames (what Picard, rsgain and foobar2000 write, and Navidrome reads),
+# rather than mutagen's own replaygain_* names, which use the old RVA2 frame few players read.
+for _rg in ("track_gain", "track_peak", "album_gain", "album_peak"):
+    EasyID3.RegisterTXXXKey(f"replaygain_{_rg}", f"REPLAYGAIN_{_rg.upper()}")
 
 
 def _register_id3_movement() -> None:
@@ -521,6 +525,10 @@ for _key, _atom_name in {
     "musicbrainz_releasetrackid": "MusicBrainz Release Track Id",
     "musicbrainz_releasegroupid": "MusicBrainz Release Group Id",
     "musicbrainz_workid": "MusicBrainz Work Id",
+    "replaygain_track_gain": "REPLAYGAIN_TRACK_GAIN",
+    "replaygain_track_peak": "REPLAYGAIN_TRACK_PEAK",
+    "replaygain_album_gain": "REPLAYGAIN_ALBUM_GAIN",
+    "replaygain_album_peak": "REPLAYGAIN_ALBUM_PEAK",
 }.items():
     EasyMP4Tags.RegisterFreeformKey(_key, _atom_name)
 

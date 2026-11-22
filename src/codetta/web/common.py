@@ -56,6 +56,7 @@ class Settings:
     acoustid: bool | None = None  # "Identify by sound" (fingerprints looked up on AcoustID)
     acoustid_key: str | None = None  # an own application key instead of Codetta's
     fpcalc: str | None = None  # Chromaprint's fpcalc; None = look on PATH
+    ffmpeg: str | None = None  # ffmpeg, for ReplayGain; None = look on PATH
     slskd: bool | None = None  # Soulseek through the user's slskd
     slskd_url: str | None = None  # CODETTA_SLSKD_URL / _API_KEY: set (and lock) the connection details
     slskd_api_key: str | None = None
@@ -90,6 +91,7 @@ class Settings:
             acoustid=parse_switch(env("ACOUSTID")),
             acoustid_key=(env("ACOUSTID_KEY") or "").strip() or None,
             fpcalc=(env("FPCALC") or "").strip() or None,
+            ffmpeg=(env("FFMPEG") or "").strip() or None,
             index_workers=int(env("INDEX_WORKERS") or 0) if (env("INDEX_WORKERS") or "0").isdigit() else 0,
             slskd=parse_switch(env("SLSKD")),
             slskd_url=(env("SLSKD_URL") or "").strip() or None,
@@ -315,6 +317,13 @@ class SlskdImportIn(BaseModel):
 
 
 REPLACE_FIELDS = ("title", "artist", "album", "albumartist", "genre", "composer", "comment", "label", "grouping")
+
+
+class ReplayGainIn(BaseModel):
+    paths: list[str] = Field(default=[], max_length=MAX_PATHS_PER_REQUEST)  # these files...
+    folder: str | None = Field(default=None, max_length=MAX_PATH_CHARS)  # ...or this folder (and its subfolders)
+    mode: Literal["album", "track"] = "album"  # album: each album folder together; track: each on its own
+    dry_run: bool = True
 
 
 class ReplaceIn(BaseModel):

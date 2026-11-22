@@ -306,7 +306,6 @@ the page in English or Spanish ([add yours](docs/translating.md)), light and dar
 What has to be true before 1.0 is on [the road to 1.0](docs/road-to-1.0.md). Also planned:
 
 - **Refresh from MusicBrainz:** pick up corrections made since an album was matched.
-- **ReplayGain:** volume levelling, opt-in.
 - **More ways to install:** Windows and Homebrew.
 - **A home on the web:** a small, simple website for Codetta.
 

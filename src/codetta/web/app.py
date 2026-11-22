@@ -94,6 +94,7 @@ from codetta.core.presets import (
 from codetta.core.providers import LRCLib, http_get, http_get_json, http_post_json
 from codetta.core.lidarr import Lidarr, LidarrStore
 from codetta.core.lidarr import http_request as lidarr_http_request
+from codetta.core.loudness import Meter, find_ffmpeg
 from codetta.core.mediaserver import MediaServer, ServerStore
 from codetta.core.mediaserver import http_request as server_http_request
 from codetta.core.slskd import Soulseek, SoulseekStore
@@ -127,6 +128,7 @@ from codetta.web.routes import (
     library,
     lidarr as lidarr_routes,
     mediaserver as mediaserver_routes,
+    replaygain as replaygain_routes,
     musicbrainz,
     onboarding,
     organize,
@@ -141,7 +143,7 @@ from codetta.web.security import GuardMiddleware, SelectiveGZip
 
 # The order matters a little: an area can use what earlier areas share right away,
 # and reaches later ones through shared.later(...).
-ROUTES = (status, library, musicbrainz, tags, organize, onboarding, inbox, care, soulseek, lidarr_routes, mediaserver_routes, explore, health, tools,
+ROUTES = (status, library, musicbrainz, tags, organize, onboarding, inbox, care, soulseek, lidarr_routes, mediaserver_routes, replaygain_routes, explore, health, tools,
           files, support, activity, presets)
 # Also importable from here, as before the split.
 __all__ = ["ACTIVITY_VALUE_CHARS", "VERSION", "Settings", "_is_public_address", "_to_track_out", "app", "create_app"]
@@ -150,7 +152,7 @@ __all__ = ["ACTIVITY_VALUE_CHARS", "VERSION", "Settings", "_is_public_address", 
 def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_latest_release,
                fetch_json=None, fetch_mb=None, fetch_art=None, post_acoustid=None, run_fpcalc=None,
                slskd_request=None, fetch_catalog=None, lidarr_request=None,
-               server_request=None) -> FastAPI:
+               server_request=None, run_ffmpeg=None) -> FastAPI:
     """``fetch_*`` replace the network in tests: LRCLIB and MusicBrainz take
     (url) -> parsed JSON or None, the Cover Art Archive (url) -> bytes or None,
     AcoustID (form) -> parsed JSON; ``run_fpcalc`` replaces running fpcalc;
@@ -203,6 +205,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
 
     fpcalc_path = find_fpcalc(settings.fpcalc) or ("fpcalc" if run_fpcalc else None)
     fingerprinter = Fingerprinter(fpcalc_path, **({"run": run_fpcalc} if run_fpcalc else {}))
+    meter = Meter(find_ffmpeg(settings.ffmpeg), run=run_ffmpeg)
     acoustid = AcoustID(post_acoustid or (lambda form: http_post_json(ACOUSTID_URL, user_agent, form, service="AcoustID")),
                         key=settings.acoustid_key or ACOUSTID_KEY)
     download_art = fetch_art or (lambda url: http_get(url, user_agent, accept="image/*", max_bytes=MAX_ART_BYTES,
@@ -591,7 +594,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     shared = Shared(
         acoustid=acoustid, activity=activity, art_cache=art_cache, art_info=art_info, art_store=art_store,
         catalog_fetch=catalog_fetch, connections=connections, download_art=download_art, editions=editions,
-        engine=engine, fetch_catalog=fetch_catalog, fingerprinter=fingerprinter, folder_out=folder_out,
+        engine=engine, fetch_catalog=fetch_catalog, fingerprinter=fingerprinter, folder_out=folder_out, meter=meter,
         lib_index=lib_index, library=library, lidarr=lidarr, lrclib=lrclib, media_server=media_server, mb=mb, mb_mirror=mb_mirror, notices=notices,
         require_library=require_library, result_out=result_out, settings=settings, soulseek=soulseek,
         soulseek_store=soulseek_store, store=store, to_out=to_out, tracks_out=tracks_out, updates=updates,

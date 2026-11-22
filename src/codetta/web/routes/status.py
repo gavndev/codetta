@@ -58,6 +58,7 @@ def register(app, shared) -> None:
             "musicbrainz": connections.enabled("musicbrainz"),
             # Album matching works with any of MusicBrainz, Deezer or iTunes switched on.
             "matching": any(connections.enabled(c) for c in ("musicbrainz", "deezer", "itunes")),
+            "replaygain": shared.meter.available,
         }
 
     # --- Connections (online features, all opt-in) ---------------------------------------

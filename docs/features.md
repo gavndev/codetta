@@ -227,6 +227,14 @@ Activity that **Undo** reverses. On phones they're in the **…** menu.
 - **Download** selected tracks: one track comes as it is, several come as one
   .zip (lyrics files included, folders kept as they are in your library).
 - **Organize** (above) renames and moves many files and folders from their tags.
+- **ReplayGain**: evens out the volume. Codetta measures each track's loudness
+  (EBU R128, ReplayGain 2.0, with ffmpeg), shows the gain each track and album
+  gets, then writes the ReplayGain tags Navidrome, Plex, Jellyfin and most
+  players use. **As albums** (each album folder, disc folders included, is
+  measured as one) keeps an album's quiet songs quieter than its loud ones;
+  **Each track on its own** levels everything, handy for playlists of singles.
+  Opus files get R128 tags instead, as the Opus standard asks. Only tags change,
+  never the audio, and Activity can undo it.
 - **Edit** a selection of tracks (or **Save to folder**) to set the same tags on
   all of them, and **Tag Presets** to apply a saved set.
 
