@@ -4,7 +4,7 @@ All notable changes to Codetta. Versions follow [Semantic Versioning](https://se
 
 ## Unreleased
 
-- **Find in iTunes finds the right album** ([#3](https://github.com/gavndev/codetta/issues/3)): Apple's search stumbles on names like "M.I.A." and fell back to popular albums, so looking for *Kala* showed Fleetwood Mac and Mariah Carey. Codetta now finds the artist first and looks through their albums, and only shows albums whose title or artist actually match. Thanks to BernoldM for the detailed report.
+- **Find in iTunes finds the right album** ([#3](https://github.com/gavndev/codetta/issues/3)): Apple's search stumbles on names like "M.I.A." and fell back to popular albums, so looking for *Kala* showed Fleetwood Mac and Mariah Carey. Codetta now finds the artist first and looks through their albums, and only shows albums that really match: other artists' albums that just share the title stay out when the artist's own is found. Find in Deezer got the same treatment. Thanks to BernoldM for the detailed report.
 - **iTunes uses your country's store:** with a preferred edition country set (Account → Album editions), iTunes is searched in that country's store, where some albums only exist, and falls back to the US store.
 - **Paste an Apple Music or Deezer link** in Find in MusicBrainz's "Or paste a release link" box to go straight to that album.
 

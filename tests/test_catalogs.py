@@ -218,3 +218,32 @@ def test_a_pasted_apple_music_link_opens_that_album(album_dir, tmp_path):  # noq
     assert r.status_code == 200, r.text
     assert r.json()["candidates"][0]["id"] == "itunes:1440857781"
     c.__exit__(None, None, None)
+
+
+def test_other_artists_albums_that_only_share_the_title_are_left_out():
+    fake = FakeITunesForKala()
+    found = Catalogs(fake, lambda s: s == "itunes").search("Kala", "M.I.A.", only="itunes")
+    assert [(r["title"], r["_artist"]) for r in found] == [("Kala", "M.I.A.")]  # not Trevor Hall's KALA
+
+
+def test_with_no_album_by_the_artist_same_title_albums_still_show():
+    fake = FakeITunesForKala()
+    found = Catalogs(fake, lambda s: s == "itunes").search("Kala", "Somebody Unknown", only="itunes")
+    assert {r["_artist"] for r in found} >= {"Trevor Hall"}  # exact title, ranked as the best there is
+
+
+def test_names_match_the_way_people_tag_them():
+    from codetta.core.catalogs import _similar
+    assert _similar("Drake feat. Rihanna", "Drake", artist=True) and _similar("MIA", "M.I.A.", artist=True)
+    assert _similar("Kala (Deluxe Edition)", "Kala") and _similar("good kid, m.A.A.d city", "Good Kid M.A.A.D City")
+    assert not _similar("Nithur Kala", "Kala")  # a short title inside a longer one isn't the same album
+    assert not _similar("Greatest Hits", "Kala")
+
+
+def test_deezer_leaves_out_albums_that_dont_match():
+    def fake(url):
+        return {"data": [{"id": 1, "title": "Kala", "artist": {"name": "M.I.A."}},
+                         {"id": 2, "title": "Nithur Kala", "artist": {"name": "Sohail Mia"}},
+                         {"id": 3, "title": "Kala", "artist": {"name": "Someone Else"}}]}
+    found = Catalogs(fake, lambda s: s == "deezer").search("Kala", "M.I.A.", only="deezer")
+    assert [r["id"] for r in found] == ["deezer:1"]

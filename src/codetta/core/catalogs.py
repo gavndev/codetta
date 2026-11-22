@@ -65,8 +65,12 @@ class Catalogs:
     def _deezer_search(self, album: str, artist: str, limit: int) -> list[dict]:
         parts = [f'album:"{album}"' if album else "", f'artist:"{artist}"' if artist else ""]
         q = urllib.parse.quote(" ".join(p for p in parts if p))
-        data = self.fetch(f"{DEEZER_API}/search/album?q={q}&limit={limit}") or {}
-        return [_deezer_summary(a) for a in (data.get("data") or []) if isinstance(a, dict) and a.get("id")]
+        data = self.fetch(f"{DEEZER_API}/search/album?q={q}&limit={max(limit, 25)}") or {}
+        results = [a for a in (data.get("data") or []) if isinstance(a, dict) and a.get("id")]
+        title = lambda a: a.get("title") or ""  # noqa: E731
+        name = lambda a: (a.get("artist") or {}).get("name") or ""  # noqa: E731
+        results = [a for a in results if not album or _similar(title(a), album)]  # Deezer's search is loose too
+        return [_deezer_summary(a) for a in _only_the_artist(results, album, artist, title, name)[:limit]]
 
     def _store(self) -> str:
         """``&country=..`` for iTunes when a preferred edition country is set (stores differ by country)."""
@@ -96,7 +100,7 @@ class Catalogs:
                 name = a.get("collectionName") or ""
                 title_ok = not album or _similar(name, album)
                 exact = bool(album) and _norm(name) == _norm(album)  # the very title: kept, ranked by artist
-                artist_ok = not artist or _similar(a.get("artistName") or "", artist)
+                artist_ok = not artist or _similar(a.get("artistName") or "", artist, artist=True)
                 if title_ok and (artist_ok or exact or not need_artist):
                     found.setdefault(str(a["collectionId"]), a)
 
@@ -112,9 +116,9 @@ class Catalogs:
         if len(found) < limit and album:
             keep(self._itunes(f"/search?term={enc(album)}&entity=album&media=music&attribute=albumTerm&limit=50"),
                  need_artist=bool(artist))
-        ranked = sorted(found.values(), key=lambda a: -(_closeness(a.get("collectionName") or "", album)
-                                                         + _closeness(a.get("artistName") or "", artist)))
-        return [_itunes_summary(a) for a in ranked[:limit]]
+        picked = _only_the_artist(list(found.values()), album, artist, lambda a: a.get("collectionName") or "",
+                                  lambda a: a.get("artistName") or "")
+        return [_itunes_summary(a) for a in picked[:limit]]
 
     def search_text(self, source: str, text: str, limit: int = 24) -> list[dict]:
         """Albums matching free text on one source (the !dz and !it bangs), as release-shaped dicts."""
@@ -264,11 +268,31 @@ def _norm(s: str) -> str:
     return "".join(ch for ch in s.casefold() if ch.isalnum())
 
 
-def _similar(found: str, wanted: str) -> bool:
+def _lead_artist(s: str) -> str:
+    """The first credited artist: "Drake feat. Rihanna" / "Drake & Future" -> "Drake"."""
+    return re.split(r"\s+(?:feat\.?|ft\.?|featuring|with|x|vs\.?)\s+|\s*[&,;/]\s*", s, maxsplit=1, flags=re.I)[0]
+
+
+def _similar(found: str, wanted: str, artist: bool = False) -> bool:
+    if artist and (_norm(_lead_artist(found)) == _norm(_lead_artist(wanted)) != ""):
+        return True
     a, b = _norm(found), _norm(wanted)
     if not a or not b:
         return False
-    return a == b or (len(b) >= 3 and (b in a or a in b)) or difflib.SequenceMatcher(None, a, b).ratio() >= 0.8
+    if a == b or difflib.SequenceMatcher(None, a, b).ratio() >= 0.8:
+        return True
+    short, long_ = sorted((a, b), key=len)  # one inside the other only counts when it's most of it
+    return len(short) >= 3 and short in long_ and len(short) >= 0.6 * len(long_)
+
+
+def _only_the_artist(items: list, album: str, artist: str, title, name) -> list:
+    """Best first. When some albums are by the artist asked for, other artists' albums that only
+    share the title (another band's "Kala") are left out; otherwise they stay, ranked lower."""
+    if artist:
+        theirs = [a for a in items if _similar(name(a), artist, artist=True)]
+        if theirs:
+            items = theirs
+    return sorted(items, key=lambda a: -(_closeness(title(a), album) + _closeness(name(a), artist)))
 
 
 def _closeness(found: str, wanted: str) -> float:
