@@ -6,6 +6,7 @@ import time
 
 from fastapi import HTTPException, Query
 
+from codetta.core.library import is_special
 from codetta.core.health import (
     CATEGORIES as HEALTH_CATEGORIES,
 )
@@ -44,7 +45,7 @@ def register(app, shared) -> None:
             key = lib_index.version
             complete = lib_index.status().ready  # made from the whole library, not mid-way through the first scan
             inbox_folder = inbox.settings.folder
-            skip = [inbox_folder] if inbox_folder and not inbox_folder.startswith("@") else []
+            skip = [inbox_folder] if inbox_folder and not is_special(inbox_folder) else []
             data = health_run(lib_index.iter_tracks(), folder_has_image(library.resolve),
                               lib_index.paths_with_any(MB_RELEASE_KEYS), skip)
             with health_lock:

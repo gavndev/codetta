@@ -7,6 +7,7 @@ from pathlib import Path
 
 from fastapi import HTTPException, Query
 
+from codetta.core.library import is_special
 from codetta.core.logbuffer import shared_buffer
 from codetta.core.musicbrainz import clean_title
 from codetta.core.tagmap import FIELDS, native_names
@@ -79,7 +80,7 @@ def register(app, shared) -> None:
     def list_subfolders(path: str = Query("", max_length=MAX_PATH_CHARS, description="Folder, relative to the music folder")) -> dict:
         """Just the subfolders of one folder (for the "Move to" picker): no tags are read."""
         require_library()
-        if path.strip("/").startswith("@"):
+        if is_special(path):
             raise HTTPException(422, "Choose a folder inside your music folder.")
         listing = library.list_folder(path)
         return {"path": listing.path, "folders": [{"name": f.rsplit("/", 1)[-1], "path": f} for f in listing.folders]}

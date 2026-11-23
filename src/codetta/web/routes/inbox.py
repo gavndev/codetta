@@ -9,6 +9,7 @@ from pathlib import Path
 
 from fastapi import HTTPException
 
+from codetta.core.library import is_special
 from codetta.core.catalogs import is_catalog_id
 from codetta.core.inbox import (
     DOWNLOADING,
@@ -201,7 +202,7 @@ def register(app, shared) -> None:
             top = library.resolve(folder)
         except LibraryPathError as exc:
             return [str(exc)]
-        if folder.startswith("@") or not folder or not top.is_dir():
+        if is_special(folder) or not folder or not top.is_dir():
             return []  # nothing there (any more): the download is simply new
         stamp = time.strftime("%Y%m%d-%H%M%S")
         moves = []
@@ -311,7 +312,7 @@ def register(app, shared) -> None:
                 lib_index.paths_where("albumartist", g.artist) | lib_index.paths_where("artist", g.artist))
         base = inbox.settings.folder
         mine = set(g.paths)
-        found = {p for p in found if not p.startswith("@") and p not in mine and not (base and p.startswith(base + "/"))}
+        found = {p for p in found if not is_special(p) and p not in mine and not (base and p.startswith(base + "/"))}
         out = None
         if found:
             folders: dict[str, int] = {}
@@ -371,7 +372,7 @@ def register(app, shared) -> None:
     def put_inbox_settings(body: InboxSettingsIn) -> dict:
         require_library()
         folder = body.folder.strip().strip("/")
-        if folder.startswith("@") and folder != INBOX_ALIAS and not folder.startswith(INBOX_ALIAS + "/"):
+        if is_special(folder) and folder != INBOX_ALIAS and not folder.startswith(INBOX_ALIAS + "/"):
             raise HTTPException(422, "The inbox can be your downloads folder or a folder in your music folder.")
         if not folder:
             raise HTTPException(422, "Choose your downloads folder, or a folder inside your music folder (not the whole library).")

@@ -34,6 +34,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from codetta.core.library import is_special
 from codetta.core.engine import SUPPORTED_EXTENSIONS, file_lock
 
 PRESETS: tuple[tuple[str, str], ...] = (
@@ -246,7 +247,7 @@ def _at(root: Root, rel: str) -> Path:
 
 def _is_top(folder: str) -> bool:
     """The music folder itself, or a root alias like "@inbox": never removed."""
-    return folder == "" or ("/" not in folder and folder.startswith("@"))
+    return folder == "" or ("/" not in folder and is_special(folder))
 
 _NUMBERING = re.compile(r"^\s*\d{1,3}(?:[-.]\d{1,3})?(?:\s*[-.]\s*|\s+|_)")  # "02 ", "1-02 ", "02. ", "02 - "
 

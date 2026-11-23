@@ -6,6 +6,7 @@ import re
 from fastapi import HTTPException, Query
 from fastapi.responses import FileResponse
 
+from codetta.core.library import is_special
 from codetta.core.engine import MetadataError
 from codetta.core.library import LibraryPathError
 from codetta.core.providers import ProviderError, TrackQuery
@@ -59,7 +60,7 @@ def register(app, shared) -> None:
                 folders.append(library.relative(library.resolve(rel)))  # rejects anything outside the library
             except (LibraryPathError, ValueError):
                 continue
-        found = lib_index.cover_tracks(f for f in folders if not f.startswith("@"))
+        found = lib_index.cover_tracks(f for f in folders if not is_special(f))
         return {"covers": {f: {"path": p, "hash": h} for f, (p, h) in found.items()}}
 
     @app.get("/api/track", response_model=TrackOut)

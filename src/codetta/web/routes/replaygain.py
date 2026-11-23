@@ -7,6 +7,7 @@ import posixpath
 
 from fastapi import HTTPException
 
+from codetta.core.library import is_special
 from codetta.core.engine import MetadataError
 from codetta.core.inbox import DISC_FOLDER
 from codetta.core.library import LibraryPathError, TooManyFilesError, audio_files
@@ -49,7 +50,7 @@ def register(app, shared) -> None:
             raise HTTPException(422, "Choose some tracks or a folder.")
         files = {}
         for rel in targets:
-            if rel.startswith("@"):
+            if is_special(rel):
                 raise HTTPException(422, "Choose files or folders inside your music folder.")
             files[rel] = library.resolve(rel)
         results = meter.measure_many(list(files.values()))

@@ -42,6 +42,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from codetta.core.library import is_skipped
 from codetta.core.engine import SUPPORTED_EXTENSIONS
 from codetta.core.library import _is_valid_text, _sort_text
 from codetta.core.tagmap import FIELDS
@@ -457,7 +458,7 @@ class LibraryIndex:
             except OSError:
                 continue
             for entry in items:
-                if entry.name.startswith(".") or not _is_valid_text(entry.name):
+                if is_skipped(entry.name) or not _is_valid_text(entry.name):
                     continue
                 rel = f"{rel_dir}/{entry.name}" if rel_dir else entry.name
                 try:

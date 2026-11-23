@@ -8,6 +8,7 @@ from pathlib import Path
 
 from fastapi import HTTPException
 
+from codetta.core.library import is_special
 from codetta.core.engine import MetadataError
 from codetta.core.fromnames import PatternError, compile_pattern, suggest
 from codetta.core.tracklist import pair, parse
@@ -109,7 +110,7 @@ def register(app, shared) -> None:
         if not targets:
             raise HTTPException(422, "Choose some tracks or a folder.")
         for rel in targets:
-            if rel.startswith("@"):
+            if is_special(rel):
                 raise HTTPException(422, "Choose files or folders inside your music folder.")
             try:
                 library.resolve(rel)
@@ -172,7 +173,7 @@ def register(app, shared) -> None:
             raise HTTPException(422, "Codetta couldn't find any tracks in that text. Paste one track per line.")
         files, loaded = [], {}
         for rel in targets:
-            if rel.startswith("@"):
+            if is_special(rel):
                 raise HTTPException(422, "Choose files or folders inside your music folder.")
             try:
                 meta = engine.load_metadata(library.resolve(rel))
@@ -235,7 +236,7 @@ def register(app, shared) -> None:
             raise HTTPException(422, "Choose some tracks or a folder.")
         albums: dict[str, list[str]] = {}
         for rel in targets:
-            if rel.startswith("@"):
+            if is_special(rel):
                 raise HTTPException(422, "Choose files or folders inside your music folder.")
             try:
                 library.resolve(rel)
@@ -353,7 +354,7 @@ def register(app, shared) -> None:
         """Make an empty folder (undo removes it again while it's still empty)."""
         require_library()
         parent = body.parent.strip().strip("/")
-        if parent.startswith("@"):
+        if is_special(parent):
             raise HTTPException(422, "Choose a folder inside your music folder.")
         if not library.resolve(parent).is_dir():
             raise HTTPException(404, "That folder isn't there any more.")
@@ -378,7 +379,7 @@ def register(app, shared) -> None:
         """Rename a folder (each file is moved like Organize does: nothing overwritten, one undo)."""
         require_library()
         folder = body.path.strip().strip("/")
-        if not folder or folder.startswith("@"):
+        if not folder or is_special(folder):
             raise HTTPException(422, "Choose a folder inside your music folder.")
         src = library.resolve(folder)
         if not src.is_dir():

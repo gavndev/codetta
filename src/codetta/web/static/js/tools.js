@@ -3,7 +3,7 @@
 
 import { $, ask, closeDialog, drawInBatches, h, icon, openDialog, replay, setKids } from "./dom.js";
 import { api } from "./api.js";
-import { changeLine, els, first, fmtDuration, fmtLabel, plural, runtime, state, toast, trackNo } from "./state.js";
+import { changeLine, els, first, fmtDuration, fmtLabel, isSpecialPath, plural, runtime, state, toast, trackNo } from "./state.js";
 import {
   discInfo, fold, folderCache, hashFor, loadFolder, mbFindButton, navigate, renderSearchHead,
   renderSelectionBar, selectAll, toggleSelect, updateRowStates, visibleTracks,
@@ -46,7 +46,7 @@ function folderTools(f) {
       title: "Clean up titles, Title Case and trim spaces (you see every change first)" } : null,
     state.path && !f.search && !f.mb ? { icon: "rename", label: "Rename folder", group: "Folder", run: renameFolder, title: "Rename this folder" } : null,
     !f.search && !f.mb ? { icon: "plus", label: "New folder", group: "Folder", run: newFolderHere, title: "Make a new folder in here" } : null,
-    state.path && !f.search && !f.mb && !state.path.startsWith("@") && (f.tracks.length || f.folders.length)
+    state.path && !f.search && !f.mb && !isSpecialPath(state.path) && (f.tracks.length || f.folders.length)
       ? { icon: "download", label: "Download as .zip", group: "Folder", run: () => downloadZip(state.path), title: "Download this folder as a .zip file" } : null,
   ].filter(Boolean).sort((a, b) => GROUPS.indexOf(a.group) - GROUPS.indexOf(b.group));
 }
@@ -352,7 +352,7 @@ export function renderFolderHead() {
     return set.size === 1 ? [...set][0] : "";
   })();
   const canMatch = f.tracks.length && state.status?.matching;
-  const canSoulseek = f.tracks.length && skReady() && !state.path.startsWith("@");
+  const canSoulseek = f.tracks.length && skReady() && !isSpecialPath(state.path);
   const heading = coverTrack
     // A folder of tracks with a cover reads as the album's booklet spread.
     ? h("div", { class: "album-head" },
@@ -466,7 +466,7 @@ function folderCoverImg(folder) {
 }
 
 async function loadFolderCovers(paths) {
-  const todo = paths.filter((p) => !folderCovers.has(p) && !p.startsWith("@"));
+  const todo = paths.filter((p) => !folderCovers.has(p) && !isSpecialPath(p));
   for (let i = 0; i < todo.length; i += 200) {
     const chunk = todo.slice(i, i + 200);
     let found = {};

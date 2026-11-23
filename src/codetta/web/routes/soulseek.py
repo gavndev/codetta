@@ -10,6 +10,7 @@ from urllib.parse import urlsplit
 
 from fastapi import HTTPException
 
+from codetta.core.library import is_special
 from codetta.core.inbox import FILED, MATCHING, WAITING
 from codetta.core.inbox import signature as inbox_signature
 from codetta.core.library import DELETED, LibraryPathError
@@ -293,7 +294,7 @@ def register(app, shared) -> None:
         upgrade = body.upgrade.strip().strip("/")
         if upgrade:
             try:
-                if upgrade.startswith("@") or not library.resolve(upgrade).is_dir():
+                if is_special(upgrade) or not library.resolve(upgrade).is_dir():
                     raise HTTPException(422, "That album folder isn't in your library.")
             except LibraryPathError as exc:
                 raise HTTPException(422, str(exc)) from exc

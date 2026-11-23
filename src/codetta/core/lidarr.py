@@ -37,6 +37,7 @@ import urllib.request
 from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from codetta.core.library import is_special
 
 NAMES_AUTO = "auto"  # Lidarr names files in its folders when its renaming is on
 NAMES_CODETTA = "codetta"  # Codetta's Organize pattern everywhere, Lidarr's renaming or not
@@ -330,7 +331,7 @@ class Lidarr:
         """Files Codetta just changed (library paths): tell Lidarr soon, in one go."""
         if not self.active:
             return
-        folders = {posixpath.dirname(r) for r in rels if r and not r.startswith("@")}
+        folders = {posixpath.dirname(r) for r in rels if r and not is_special(r)}
         if not folders:
             return
         with self._cv:

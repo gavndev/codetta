@@ -28,6 +28,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from codetta.core.library import is_special
 from codetta.core.inbox import DISC_FOLDER
 
 CATEGORIES = {
@@ -181,7 +182,7 @@ def group_albums(tracks: Iterable[tuple[str, dict]], skip: Iterable[str] = ()) -
     skip = tuple(s.rstrip("/") + "/" for s in skip if s)
     albums: dict[str, Album] = {}
     for path, track in tracks:
-        if path.startswith("@") or (skip and path.startswith(skip)):
+        if is_special(path) or (skip and path.startswith(skip)):
             continue
         folder = path.rsplit("/", 1)[0] if "/" in path else ""
         name = folder.rsplit("/", 1)[-1]
@@ -487,7 +488,7 @@ def run(tracks: Iterable[tuple[str, dict]], has_folder_image: Callable[[str], bo
                 dupes.setdefault(key, []).append(light)
 
     for path, track in tracks:
-        if path.startswith("@") or (skip and path.startswith(skip)):
+        if is_special(path) or (skip and path.startswith(skip)):
             continue
         stats["tracks"] += 1
         folder = _album_folder(path)

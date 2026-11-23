@@ -37,6 +37,7 @@ import urllib.request
 from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from codetta.core.library import is_special
 
 KINDS = {  # kind -> (name people know it by, what it signs in with)
     "subsonic": ("Navidrome or another Subsonic server", "password"),
@@ -391,7 +392,7 @@ class MediaServer:
 
     def changed(self, rels: Iterable[str]) -> None:
         """Files Codetta just changed: ask the server for a scan soon (one for a whole batch)."""
-        if not self.active or not any(r and not r.startswith("@") for r in rels):
+        if not self.active or not any(r and not is_special(r) for r in rels):
             return
         with self._cv:  # the thread check too: two saves at once start one worker
             self._pending = True

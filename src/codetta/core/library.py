@@ -34,6 +34,20 @@ class FolderListing:
 INBOX = "@inbox"  # paths starting with this live in the inbox folder, outside the library
 REPLACED = "@replaced"  # albums an upgrade replaced (kept in the config folder so it can be undone)
 DELETED = "@deleted"  # "Recently deleted": files you deleted, kept in the config folder for 30 days
+SPECIAL = (INBOX, REPLACED, DELETED)  # Codetta's own areas; any other "@name" is an ordinary folder (#5)
+# System folders NAS boxes put inside shared folders (Synology's thumbnails and recycle bin):
+# never music, so skipped like hidden folders.
+SYSTEM_FOLDERS = frozenset({"@eaDir", "#recycle", "#snapshot", "@Recycle", "@Recently-Snapshot"})
+
+
+def is_special(relative: str) -> bool:
+    """Is ``relative`` in one of Codetta's own areas (the inbox, Recently deleted…), not the library?"""
+    return relative.strip("/").split("/", 1)[0] in SPECIAL
+
+
+def is_skipped(name: str) -> bool:
+    """Hidden files and folders, and NAS system folders: never shown or indexed."""
+    return name.startswith(".") or name in SYSTEM_FOLDERS
 
 
 class Library:
@@ -68,7 +82,7 @@ class Library:
             return self.replaced.joinpath(*rel.parts[1:])
         if rel.parts and rel.parts[0] == DELETED and self.deleted is not None:
             return self.deleted.joinpath(*rel.parts[1:])
-        if rel.parts and rel.parts[0].startswith("@"):
+        if rel.parts and rel.parts[0] in SPECIAL:  # an area that isn't set up here
             raise LibraryPathError(f"Unknown folder: {rel.parts[0]}")
         return self.root.joinpath(*rel.parts)
 
@@ -109,7 +123,7 @@ class Library:
         folders, files, skipped = [], [], 0
         with os.scandir(folder) as entries:
             for entry in entries:
-                if entry.name.startswith("."):
+                if is_skipped(entry.name):
                     continue
                 if not _is_valid_text(entry.name):
                     skipped += 1
@@ -157,7 +171,7 @@ def count_contents(folder: Path) -> tuple[int, int] | None:
     try:
         with os.scandir(folder) as entries:
             for entry in entries:
-                if entry.name.startswith("."):
+                if is_skipped(entry.name):
                     continue
                 try:
                     if entry.is_dir():

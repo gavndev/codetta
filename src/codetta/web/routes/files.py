@@ -11,6 +11,7 @@ from urllib.parse import quote
 from fastapi import HTTPException, Query, Request
 from fastapi.responses import FileResponse, StreamingResponse
 
+from codetta.core.library import is_special
 from codetta.core import importer, trash
 from codetta.core.archive import Prepared, folder_files, selection_files, zip_size, zip_stream
 from codetta.core.fileinfo import file_info, folder_info
@@ -76,7 +77,7 @@ def register(app, shared) -> None:
             activity.add(kind, message, ok=not failed, files=[b for _, b in pairs], changes=changes,
                          errors=[{"path": r.src, "error": r.error or ""} for r in failed],
                          undo={"type": "moves", "moves": [list(p) for p in pairs]})
-        lib_index.mark_dirty([p for pair in pairs for p in pair if not p.startswith("@")])
+        lib_index.mark_dirty([p for pair in pairs for p in pair if not is_special(p)])
         art_cache.clear()
         return {"moved": len([r for r in results if r.ok]), "failed": len(failed),
                 "errors": [{"path": r.src, "error": r.error or ""} for r in failed][:20]}
@@ -84,7 +85,7 @@ def register(app, shared) -> None:
     def library_entries(paths: list[str]) -> list[str]:
         rels = [p.strip().strip("/") for p in _unique(paths)]
         for rel in rels:
-            if not rel or rel.startswith("@"):
+            if not rel or is_special(rel):
                 raise HTTPException(422, "Choose files or folders inside your music folder.")
             library.resolve(rel)  # rejects anything outside the library
         return rels
@@ -94,7 +95,7 @@ def register(app, shared) -> None:
         """Move files and folders into another folder (like Organize: nothing is overwritten, one undo)."""
         require_library()
         to = body.to.strip().strip("/")
-        if to.startswith("@") or not library.resolve(to).is_dir():
+        if is_special(to) or not library.resolve(to).is_dir():
             raise HTTPException(404, "That folder isn't there any more.")
         moves = []
         rels = library_entries(body.paths)

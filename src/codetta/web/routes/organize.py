@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from fastapi import HTTPException
 
+from codetta.core.library import is_special
 from codetta.core.engine import MetadataError
 from codetta.core.library import LibraryPathError, TooManyFilesError, audio_files
 from codetta.core.organize import (
@@ -118,7 +119,7 @@ def register(app, shared) -> None:
                 errors=[{"path": r.src, "error": r.error or ""} for r in failed],
                 undo={"type": "moves", "moves": [list(p) for p in moved]} if moved else None,
             )
-        lib_index.mark_dirty([p for pair in moved for p in pair if not p.startswith("@")])  # the index covers the library only
+        lib_index.mark_dirty([p for pair in moved for p in pair if not is_special(p)])  # the index covers the library only
         art_cache.clear()
         return {
             "moved": len(ok), "failed": len(failed), "extras": len(moved) - len(ok),

@@ -90,3 +90,6 @@ export function toast(message, kind = "") {
   els.toasts.append(el);
   setTimeout(() => playOut(el, "leaving", () => el.remove()), kind === "error" ? 7000 : 3500);
 }
+
+/** Codetta's own areas ("@inbox/…", "@deleted/…"); any other folder starting with "@" is ordinary (#5). */
+export const isSpecialPath = (path) => /^@(inbox|replaced|deleted)(\/|$)/.test(path || "");

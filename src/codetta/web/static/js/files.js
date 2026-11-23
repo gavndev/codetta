@@ -3,7 +3,7 @@
 
 import { $, ask, closeDialog, h, icon, replay, setKids } from "./dom.js";
 import { api } from "./api.js";
-import { els, first, plural, state, toast } from "./state.js";
+import { els, first, isSpecialPath, plural, state, toast } from "./state.js";
 import { folderCache, loadFolder, renderSelectionBar, toggleSelect, trackByPath } from "./browse.js";
 import { setBang } from "./search.js";
 import { downloadFile, downloadSelection, downloadZip, folderCovers, isPhone, makeFolder, openActions, setSelectMode } from "./tools.js";
@@ -246,7 +246,7 @@ function contextTarget(el) {
   const row = el.closest(".track-row:not(.head)");
   if (row?.dataset.path) { const t = trackByPath(row.dataset.path); return t && !t.error ? { items: () => trackMenu(t) } : null; }
   const folder = el.closest(".folder[data-path]");
-  if (folder && !folder.dataset.path.startsWith("@")) return { items: () => folderMenu(folder.dataset.path) };
+  if (folder && !isSpecialPath(folder.dataset.path)) return { items: () => folderMenu(folder.dataset.path) };
   return null;
 }
 

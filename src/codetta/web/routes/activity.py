@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import HTTPException, Query
 
+from codetta.core.library import is_special
 from codetta.core.engine import MetadataError
 from codetta.core.library import LibraryPathError
 from codetta.core.undo import undo_change
@@ -89,7 +90,7 @@ def register(app, shared) -> None:
             raise HTTPException(409, f"This change can't be undone any more: {exc}") from exc
         lib_index.mark_dirty(r.path for r in outcome.results if r.ok)
         if entry["undo"].get("type") == "moves" and outcome.reverse:
-            lib_index.mark_dirty(p for pair in outcome.reverse["moves"] for p in pair if not p.startswith("@"))
+            lib_index.mark_dirty(p for pair in outcome.reverse["moves"] for p in pair if not is_special(p))
             art_cache.clear()
         done = [r for r in outcome.results if r.ok]
         skipped = [r for r in outcome.results if r.skipped]

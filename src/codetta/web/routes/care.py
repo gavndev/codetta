@@ -6,6 +6,7 @@ import time
 
 from fastapi import HTTPException, Query
 
+from codetta.core.library import is_special
 from codetta.core import librarycare as care_mod
 from codetta.core.library import LibraryPathError, audio_files
 from codetta.core.organize import load_pattern
@@ -47,7 +48,7 @@ def register(app, shared) -> None:
         folders = set()
         for path, _ in lib_index.iter_tracks():
             parent = path.rsplit("/", 1)[0] if "/" in path else ""
-            if parent.startswith("@") or (base and (parent == base or parent.startswith(base + "/"))):
+            if is_special(parent) or (base and (parent == base or parent.startswith(base + "/"))):
                 continue
             folders.add(parent)
         return sorted(folders)
@@ -292,7 +293,7 @@ def register(app, shared) -> None:
             care.ignore_all_review()
             return care_out()
         folder = body.folder.strip().strip("/")
-        if not folder or folder.startswith("@"):
+        if not folder or is_special(folder):
             raise HTTPException(422, "Choose an album in your library.")
         care.ignore(folder, body.ignore)
         if not body.ignore:
