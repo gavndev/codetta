@@ -352,12 +352,16 @@ must share your changes under the same license.
 Codetta was created by Gavin Griggs.  
 Copyright (C) 2026 Gavin Griggs and contributors.
 
-## More
+## Thanks
 
-Built with [mutagen](https://github.com/quodlibet/mutagen),
-[FastAPI](https://fastapi.tiangolo.com/) and the
-[Schibsted Grotesk](https://github.com/schibsted/schibsted-grotesk) typeface.
-Tag mappings follow [MusicBrainz Picard](https://picard.musicbrainz.org/docs/mappings/).
-The optional Soulseek integration talks to [slskd](https://github.com/slskd/slskd) over its API.
-The header and screenshots show real releases for illustration (the covers belong to their
-artists and labels; the audio files are silent stand-ins), and so do the feature clips.
+To everyone who reported a bug or shaped a feature:
+
+- [BernoldM](https://github.com/BernoldM): a detailed report on iTunes matching ([#3](https://github.com/gavndev/codetta/issues/3)) whose six suggestions all made it into Codetta
+
+Found a bug or have an idea? [Open an issue](https://github.com/gavndev/codetta/issues) and you could be next on this list.
+
+Codetta stands on [mutagen](https://github.com/quodlibet/mutagen), [FastAPI](https://fastapi.tiangolo.com/),
+the [Schibsted Grotesk](https://github.com/schibsted/schibsted-grotesk) typeface and
+[MusicBrainz Picard](https://picard.musicbrainz.org/docs/mappings/)'s tag mappings.
+
+<sub>The header, screenshots and clips show real releases for illustration: the covers belong to their artists and labels, and the audio files are silent stand-ins.</sub>
