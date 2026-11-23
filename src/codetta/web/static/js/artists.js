@@ -72,19 +72,33 @@ export async function openArtist(anchor, credits, before = () => {}) {
   artistMenu(anchor, found, before);
 }
 
-/** An artist name that can be tapped; ``pictures``: their pictures beside the name (overlapping when several). */
-export function artistButton(text, credits, { cls = "", before, pictures = false } = {}) {
+// Rows ask for their artists' pictures only once they scroll into view, so a long list stays light.
+const pending = new Map(); // element -> () => void
+const watcher = "IntersectionObserver" in window ? new IntersectionObserver((entries) => {
+  for (const e of entries) {
+    if (!e.isIntersecting) continue;
+    watcher.unobserve(e.target);
+    pending.get(e.target)?.();
+    pending.delete(e.target);
+  }
+}, { rootMargin: "300px 0px" }) : null;
+
+/** Put the credit's artist pictures (overlapping, up to 3) at the start of ``el``. */
+export function addArtistPictures(el, credits, size = 22, { lazy = false } = {}) {
+  const fill = () => artistsOf(credits).then((list) => {
+    if (list.length) el.prepend(h("span", { class: "artist-stack", "aria-hidden": "true" }, list.slice(0, 3).map((a) => artistAvatar(a, size))));
+  }).catch(() => {});
+  if (lazy && watcher) { pending.set(el, fill); watcher.observe(el); } else fill();
+  return el;
+}
+
+/** An artist name that can be tapped; ``pictures``: their pictures beside the name (a size in px). */
+export function artistButton(text, credits, { cls = "", before, pictures = 0, lazy = false } = {}) {
   const btn = h("button", {
     class: `artist-link ${cls}`.trim(), type: "button", dir: "auto", translate: "no",
     title: "Go to this artist",
     onclick: (e) => { e.stopPropagation(); openArtist(e.currentTarget, credits, before); },
   }, h("span", { class: "artist-link-text" }, text));
-  if (pictures) {
-    artistsOf(credits).then((list) => {
-      if (!list.length) return;
-      const shown = list.slice(0, 3);
-      btn.prepend(h("span", { class: "artist-stack" }, shown.map((a) => artistAvatar(a, 22))));
-    }).catch(() => {});
-  }
+  if (pictures) addArtistPictures(btn, credits, pictures === true ? 22 : pictures, { lazy });
   return btn;
 }

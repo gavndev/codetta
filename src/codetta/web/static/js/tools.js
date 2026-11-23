@@ -19,7 +19,7 @@ import { openReplayGain, replayGainReady } from "./replaygain.js";
 import { openFromNames } from "./fromnames.js";
 import { openTracklist } from "./tracklist.js";
 import { openCoverExport } from "./coverexport.js";
-import { artistButton } from "./artists.js";
+import { addArtistPictures, artistButton } from "./artists.js";
 
 // ---- Batch tools: find & replace in tags, rename a folder, actions -----------------------------------
 
@@ -570,6 +570,17 @@ export function renderTracks() {
   syncPlayer();
 }
 
+/** The line under a track's title: its artist (with their pictures on phones) and album. */
+function subLine(t, { artist, album, title, oneAlbum, albumArtist }) {
+  const text = t.error ? t.error
+    : oneAlbum ? (artist && artist !== albumArtist ? artist : "")
+      : [artist, album].filter(Boolean).join(" · ") || (title ? t.name : `${fmtLabel(t.format)} · No tags yet`);
+  const sub = h("span", { class: "sub", translate: t.error || !(artist || album || title) ? null : "no" }, h("span", { class: "sub-text" }, text));
+  // Phones show the artist here (the Artist column is hidden): their pictures go in front of it.
+  if (!t.error && artist && text.startsWith(artist)) addArtistPictures(sub, t.tags.artist || [], 18, { lazy: true });
+  return sub;
+}
+
 function trackRow(t, { oneAlbum, albumArtist, disc }) {
   const title = first(t, "title");
   const artist = (t.tags.artist || []).join(", ");
@@ -606,10 +617,8 @@ function trackRow(t, { oneAlbum, albumArtist, disc }) {
       : h("span", { class: "art-none", title: "No album art" }, icon("note"))),
     h("div", { class: "col-title" },
       h("span", { class: "main", translate: "no" }, title || h("span", { class: "untitled" }, t.name)),
-      h("span", { class: "sub", translate: t.error || !(artist || album || title) ? null : "no" }, t.error ? t.error
-        : oneAlbum ? (artist && artist !== albumArtist ? artist : "")
-        : [artist, album].filter(Boolean).join(" · ") || (title ? t.name : `${fmtLabel(t.format)} · No tags yet`))),
-    h("div", { class: "col-artist", translate: t.error ? null : "no" }, t.error ? t.error : artist ? artistButton(artist, t.tags.artist || []) : ""),
+      subLine(t, { artist, album, title, oneAlbum, albumArtist })),
+    h("div", { class: "col-artist", translate: t.error ? null : "no" }, t.error ? t.error : artist ? artistButton(artist, t.tags.artist || [], { pictures: 20, lazy: true }) : ""),
     h("div", { class: "col-album", translate: "no" }, album),
     h("div", { class: "col-fmt" }, t.format ? h("span", { class: "badge" }, fmtLabel(t.format)) : ""),
     h("div", { class: "col-dur" }, fmtDuration(t.duration)),
