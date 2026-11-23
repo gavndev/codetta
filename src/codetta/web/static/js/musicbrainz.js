@@ -128,7 +128,8 @@ const ownCover = (p) => {
 };
 
 export function mbMeta(c) {
-  return [mbYear(c.date), c.country, c.formats, c.track_count ? plural(c.track_count, "track") : "", c.labels[0], c.type]
+  // Any of these can be missing (an older inbox entry may hold only a release's ID, #4).
+  return [mbYear(c.date), c.country, c.formats, c.track_count ? plural(c.track_count, "track") : "", (c.labels || [])[0], c.type]
     .filter(Boolean).join(" · ");
 }
 

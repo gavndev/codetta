@@ -162,6 +162,15 @@ function renderInbox() {
           `${g.transfer.finished} of ${plural(g.transfer.files, "file")}`, etaText(g.transfer.eta)].filter(Boolean).join(" · ")) : null),
       h("div", { class: "inbox-actions" }, actions));
   };
+  // One entry that can't be drawn must never hide the rest of the inbox (#4): show it plainly instead.
+  const safeItem = (g) => {
+    try { return item(g); } catch (err) {
+      console.error("Inbox: couldn't show", g.key, err);
+      return h("div", { class: `inbox-item ${g.status}` }, h("div", { class: "inbox-main" },
+        h("div", { class: "inbox-title", dir: "auto" }, g.title || inboxLabel(g.key)),
+        h("div", { class: "mb-cand-meta" }, `${plural(g.files, "file")} in ${inboxLabel(g.key)}`)));
+    }
+  };
   setKids(body,
     h("div", { class: "inbox-head" },
       h("p", { class: "mb-lead" }, d.groups.length
@@ -180,7 +189,7 @@ function renderInbox() {
       return first ? [h("div", { class: "inbox-filed-head" }, h("span", {}, `Filed (${filed.length})`),
         filed.length > 1 ? h("button", { class: "link-btn", type: "button",
           onclick: () => inboxAction("/api/inbox/dismiss-all", {}, () => toast(`Dismissed ${plural(filed.length, "filed album")}`, "success")) }, "Dismiss all") : null),
-        item(g)] : [item(g)];
+        safeItem(g)] : [safeItem(g)];
     })) : null);
   setKids($("#inbox-foot"),
     h("button", { class: "btn", type: "button", onclick: loadInbox }, "Check again"),

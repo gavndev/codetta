@@ -2,6 +2,10 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+- **The Inbox always opens** ([#4](https://github.com/gavndev/codetta/issues/4)): an album filed with another edition than the one Codetta suggested was saved with only its ID, and the Inbox screen then got stuck on "Looking in your inbox…". The full edition details are kept now, an entry with missing details still shows, and one entry that can't be drawn no longer hides the rest. Thanks to BernoldM for tracking it down to the exact line.
+
 ## 0.11.1 (2026-11-23)
 
 A tidier Find in MusicBrainz button.

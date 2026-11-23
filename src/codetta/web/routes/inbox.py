@@ -157,9 +157,10 @@ def register(app, shared) -> None:
         if g is None:
             raise HTTPException(404, "That album is no longer in the inbox")
         release = release or (g.release or {}).get("id")
-        notes, moved_to = [], None
+        notes, moved_to, applied = [], None, None
         if release:
             res = mb_apply(MBProposalIn(paths=g.paths, release=release, recordings=recordings or g.recordings))
+            applied = res.get("release")  # the full summary of what was written
             if res["failed"]:
                 notes.append(f"{res['failed']} track(s) couldn't be tagged")
         if g.upgrade and not notes:
@@ -185,7 +186,9 @@ def register(app, shared) -> None:
                 notices.add("inbox", f"Couldn't file {name}", "; ".join(notes), {"open": "inbox"})
         inbox.update(key, status=status, dest=moved_to or "",
                      note="; ".join(notes) or (f"Filed in {moved_to}" if moved_to else "Tagged"),
-                     release=g.release if not release or (g.release or {}).get("id") == release else {"id": release})
+                     # Another edition than the suggestion: keep its full summary (title, labels…), not
+                     # just its ID, so the Inbox can describe it (#4).
+                     release=g.release if not release or (g.release or {}).get("id") == release else (applied or {"id": release}))
         job = soulseek_store.jobs.get(g.source) if g.source else None
         if job is not None and status == FILED:
             soulseek_store.update(job, status=SK_IMPORTED, note=f"Filed in {moved_to}" if moved_to else "Filed")

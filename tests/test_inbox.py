@@ -12,7 +12,7 @@ from codetta.core.inbox import find_groups
 from codetta.core.library import Library
 from codetta.web.app import Settings, create_app
 from tests.conftest import FIXTURES_DIR
-from tests.test_musicbrainz import ALBUM, PASSWORD, REL, FakeMB
+from tests.test_musicbrainz import ALBUM, OTHER, PASSWORD, REL, FakeMB, summary_source
 
 ALBUM_DIR = "Downloads/Coda Tester - Fixture Album"
 
@@ -417,3 +417,19 @@ def test_filed_albums_can_be_dismissed_one_or_all(make_client, music):
     assert (music / "Coda Tester" / "Fixture Album (2024)" / "01 Opening.flac").exists()  # the album stays put
     assert settle(c)["groups"] == []  # and it doesn't come back
     assert c.post("/api/inbox/dismiss-all").json()["groups"] == []
+
+
+def test_filing_another_edition_keeps_its_details(make_client, music):
+    # #4: an album filed with another edition than the suggestion was saved as {"id": ...} only,
+    # and the Inbox screen, which reads its labels, never finished loading.
+    other = {**ALBUM, "id": OTHER, "country": "GB"}  # a second edition MusicBrainz knows, never suggested
+    c = make_client(fake=FakeMB(releases=(ALBUM, other), search=[{**summary_source(ALBUM), "score": 100}]))
+    c.put("/api/inbox/settings", json={"folder": "Downloads"})
+    g = settle(c)["groups"][0]
+    assert (g["release"] or {}).get("id") == REL
+    r = c.post("/api/inbox/accept", json={"key": g["key"], "release": OTHER})
+    res = r.json()
+    assert r.status_code == 200 and res["status"] == "filed", res
+    filed = next(x for x in res["inbox"]["groups"] if x["key"] == g["key"])
+    assert filed["release"]["id"] == OTHER
+    assert "labels" in filed["release"] and filed["release"].get("title")
