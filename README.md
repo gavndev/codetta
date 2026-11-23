@@ -37,7 +37,7 @@
   <a href="#what-codetta-does">Features</a> ·
   <a href="#how-codetta-compares">Compare</a> ·
   <a href="#documentation">Docs</a> ·
-  <a href="#roadmap">Roadmap</a>
+  <a href="#whats-new-and-whats-next">What's new</a>
 </p>
 
 ---
@@ -56,15 +56,10 @@ Codetta does can be **undone**, and [Navidrome](https://www.navidrome.org/)
 and other music apps pick up the changes straight away (connect your server) or on their next scan.
 
 > [!NOTE]
-> **Codetta is in beta.** The latest, 0.11.0, brings Autoplay (similar songs from your own library keep playing when an album ends, picked by AudioMuse-AI, ListenBrainz or Deezer), tappable artist names with pictures, and tidier folder buttons. 0.10.0 added Discogs, tag tools (change case, fix garbled text, tags from file names, paste a tracklist) and three more formats (see the [changelog](CHANGELOG.md)). 0.9.0 was the biggest release yet:
-> - **Tidy up** looks after the music you already have, album by album in the background, with a preview first.
-> - **Album editions:** pick the original year, format and country you prefer, and switch editions in one tap.
-> - **Loose songs** (a single download, a YouTube rip) are matched to the album they came from.
-> - **Import** music from your computer or phone, and **Recently deleted** keeps anything you remove for 30 days.
-> - A search bar with ideas from your own library, Deezer and iTunes as backup album sources, and a calmer Soulseek.
->
-> Everything is in the [changelog](CHANGELOG.md). Codetta is careful with your files and used daily on real
-> libraries, but keep a backup of your music, as you would with any tool that edits files.
+> **Codetta is in beta.** The latest, 0.11, brings Autoplay (similar songs from your own library
+> keep playing when an album ends), tappable artist names with pictures, and tidier folder buttons.
+> Everything is in the [changelog](CHANGELOG.md). Codetta is careful with your files and used daily
+> on real libraries, but keep a backup of your music, as you would with any tool that edits files.
 
 > **Codetta is AI-Assisted.** I understand the controversy surrounding AI usage in software. I prioritize transparency, hence the disclaimer for those who do not favor AI. This project is assisted by Claude Opus 5.5.
 
@@ -103,245 +98,104 @@ No server? Run it on your own computer instead: `pipx install codetta`
 
 ## What Codetta does
 
-### Fix a whole album in one go
+### Fix tags, one track or a whole album
 
-Select tracks and change only what you need, or fill in one track and
-**Save to folder** to apply exactly those changes to the whole album, cover
-art included. You see every change before anything is written.
+Select tracks and change only what you need, or fill in one track and **Save to folder** to apply
+exactly those changes to the whole album, cover art included. You see every change before anything
+is written. Tag tools handle the tedious parts: tags from file names, paste a tracklist, fix garbled
+text, change case, lyrics, ReplayGain.
 
 <p align="center">
   <img src="docs/media/fix-an-album.webp" alt="Adding a genre and cover art on one track of Vespertine, then saving them to all twelve tracks in the folder" width="900">
 </p>
 
-### Search your entire library by tag
+### Match albums on MusicBrainz
 
-Type in the search box and press <kbd>Enter</kbd>. Results work like a folder,
-so you can edit them all at once. Tap the search box for shortcuts (artist,
-album, tag) with examples from your own music.
-
-| Type | Finds |
-|---|---|
-| `genre: rap, hip-hop` | Rap **or** Hip-Hop (but not "Trap") |
-| `artist: drake year: 2024` | both at once |
-| `night drive` | words in the title, artist, album or file name |
-
-<p align="center">
-  <img src="docs/media/search.webp" alt="The idle search bar rolling through ideas from the library, then searching for artist Frank Ocean and genre electronic" width="900">
-</p>
-
-### Search beyond your library with bangs
-
-Start with a bang to search somewhere else from the same box: `!mb` for artists
-and releases on MusicBrainz, `!dz` for Deezer, `!it` for iTunes and Apple Music,
-`!dg` for Discogs, and `!slskd` for Soulseek if you use it. Albums you already have are marked, so
-you can see what's missing at a glance.
-
-| Type | Searches |
-|---|---|
-| `!mb björk` | MusicBrainz: artists and releases |
-| `!dz in rainbows` | Deezer albums |
-| `!it rumours` | iTunes and Apple Music albums |
-| `!dg selected ambient works` | Discogs albums |
-| `!slskd album name` | Soulseek, through your own slskd |
-
-<p align="center">
-  <img src="docs/media/bangs.webp" alt="Typing bangs in the search bar: the Deezer chip and its note about release years, Deezer and iTunes albums with the ones already in the library marked, then !mb for artists on MusicBrainz" width="900">
-</p>
-
-### Match on MusicBrainz
-
-Official titles, credits, dates, labels, catalog numbers, MusicBrainz IDs and
-cover art for any album folder. Switch between every edition of an album, and
-choose which edition Codetta prefers (original year, format, country), then
-review every change per file before anything is written. Loose songs (a single
-download, a YouTube rip) are matched to the album they came from. Untagged files are recognised by sound. When
-MusicBrainz is down or doesn't know an album yet, Deezer and iTunes (optional,
-no account needed) step in with details and big covers, and **Discogs** (with a
-free token) brings credits and covers for vinyl, electronic and rare releases.
+Official titles, credits, dates, labels and cover art for any album folder, reviewed per file before
+anything is written. Switch editions, set the edition you prefer, and match loose songs or untagged
+files by sound. Discogs, Deezer and iTunes step in for albums MusicBrainz doesn't have.
 
 <p align="center">
   <img src="docs/media/match.webp" alt="Matching Rumours on MusicBrainz, opening Other editions and switching to the recommended CD edition, with every change listed per file" width="900">
 </p>
 
-### Organize your library
+### Organize, tidy up, keep it healthy
 
-**Organize** renames and moves files from their tags with a pattern like
-`{albumartist}/{album} ({year})/{disctrack} {title}`. You see every move
-first, nothing is ever overwritten, and the whole thing can be undone.
-
-### Tidy up your library
-
-Choose once how Codetta should treat the music you already have: leave it as
-it is, fix tags only, or tags plus file names and folders (with a preview
-first). It then works through your albums one at a time in the background,
-with a progress bar, writes only confident matches, and lists the rest for
-you. Every album can be undone.
+- **Organize** renames and moves files from their tags with a pattern like `{albumartist}/{album} ({year})/{disctrack} {title}`, with a preview first.
+- **Tidy up** works through the music you already have in the background, album by album, and writes only confident matches.
+- **Library health** finds albums your player shows split in two, missing tracks and covers, and real duplicates, with one-tap fixes.
 
 <p align="center">
   <img src="docs/media/tidy.webp" alt="Turning on Tidy up with tags, names and folders, previewing the new file names, then watching the progress bar work through the library" width="900">
 </p>
 
-### Keep it healthy
-
-A card on the Library page lists what's worth fixing across the whole library:
-albums your player shows split in two, missing tracks, missing or tiny covers,
-missing tags, duplicates, MP3s inside a FLAC album. Obvious fixes are one tap
-(with a preview and undo); switch off any check you don't care about.
-
 ### Bring in new music
 
-Point Codetta at your downloads folder. It groups what's there into albums
-(and loose songs), waits until downloads finish, finds each on **MusicBrainz**
-(by its tags, or **by sound** with AcoustID) and files it with your folder
-pattern. Confident
-matches can file themselves; the rest wait for a quick review. Albums you
-already have are never overwritten. You can also **import** music straight
-from your computer or phone (or drag it onto the page), and it takes the same
-route.
+Point Codetta at your downloads folder. It groups what arrives into albums, matches each one (by tags,
+or by sound) and files it with your folder pattern, on its own or after a quick review. You can also
+import from your computer or phone.
 
 <p align="center">
   <img src="docs/media/inbox.webp" alt="The inbox with four downloaded songs matched to their albums, two already in the library, one not found, and Hyperballad filed into Björk/Post (1995)" width="900">
 </p>
 
-### Listen and stay in the loop
+### Search, and search beyond your library
 
-- **Quick listen:** a play button on every track and a now-playing pill, so you
-  can check what a file is before you tag it.
-- **Notifications** tell you when the inbox has something for you, an album
-  filed itself, or an update is out.
-
-### Safe by design
-
-- **Verified writes.** Every save goes to a temporary copy that's checked
-  before it replaces the original, so a crash or full disk can't damage a file.
-- **Nothing moves without your say-so.** Organize and the inbox show every
-  move first and never overwrite a file; an album you replace is kept aside.
-- **Undo anything** from the activity log (tags, covers, moves, a whole
-  album), and it's kept across restarts. Deleted files wait in
-  **Recently deleted** for 30 days.
-- **Private by design.** No tracking, analytics or telemetry of any kind, no
-  ads, and the page never loads anything from another site. Codetta is
-  offline unless you opt in: MusicBrainz, AcoustID, lyrics, the update check
-  and integrations are *connections*, each off until you turn it on, each
-  saying exactly what it sends. See [PRIVACY.md](PRIVACY.md).
-- **Private by default.** Built-in sign-in, a strict security setup, and it
-  runs as your user. See [SECURITY.md](SECURITY.md).
-
-### Made for your phone
-
-Big touch targets, a full-screen editor sheet, and covers straight from your
-photo library. Add it to your home screen and it opens like an app.
+Search the whole library by any tag (`genre: rap, hip-hop`, `artist: drake year: 2024`) and edit the
+results like a folder. Start with a bang to search elsewhere from the same box: `!mb` MusicBrainz,
+`!dg` Discogs, `!dz` Deezer, `!it` iTunes. Albums you already have are marked.
 
 <p align="center">
-  <img src="docs/media/phone.webp" alt="Opening an album on a phone, editing a genre and saving" width="260">
-  &nbsp;
-  <img src="docs/screenshots/phone-album.png" alt="Album view on a phone" width="260">
+  <img src="docs/media/bangs.webp" alt="Typing bangs in the search bar: the Deezer chip and its note about release years, Deezer and iTunes albums with the ones already in the library marked, then !mb for artists on MusicBrainz" width="900">
 </p>
 
-### Optional: Soulseek through slskd
+### Safe and private by design
 
-Already run [slskd](https://github.com/slskd/slskd)? Connect it, and Codetta
-can look for an album for you: type `!slskd` in the search bar, or press
-**Find in slskd** on an album to look for a better copy. The best copy is
-downloaded into your inbox, and you decide whether it joins your library.
-It's off unless you set it up. [More about it →](docs/features.md#soulseek-through-slskd)
+- **Verified writes:** every save goes to a temporary copy that's checked before it replaces the original.
+- **Undo anything** from the activity log, across restarts. Deleted files wait 30 days in Recently deleted.
+- **Offline by default:** no tracking or telemetry; every online service is off until you turn it on, and says exactly what it sends. See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md).
 
-### Autoplay
+### Fits your setup
 
-When an album ends, similar songs from your own library keep playing. Picks
-come from your [AudioMuse-AI](https://github.com/NeptuneHub/AudioMuse-AI)
-server (songs that sound alike), ListenBrainz or Deezer if you connect them,
-and from your library alone when you don't. It only ever plays music you
-already have. [More about Autoplay →](docs/autoplay.md)
+- **Music servers:** Navidrome, Subsonic servers, Jellyfin, Emby and Plex read Codetta's tags, and rescan straight after every change. [More →](docs/media-servers.md)
+- **Lidarr:** rescans after Codetta's edits, and Codetta warns about settings that would undo them. [More →](docs/lidarr.md)
+- **Autoplay:** when an album ends, similar songs from your library keep playing, picked by AudioMuse-AI, ListenBrainz or Deezer. [More →](docs/autoplay.md)
+- **Your phone:** big touch targets and a full-screen editor; add it to your home screen and it opens like an app.
+- **Optional:** Soulseek through your own slskd. [More →](docs/features.md#soulseek-through-slskd)
 
-### Works with Lidarr
-
-Lidarr downloads, Codetta makes the tags right. Connect them and Lidarr rescans
-as soon as Codetta changes something, file names stay Lidarr's while its
-renaming is on, and Codetta warns you if a Lidarr setting would undo your
-fixes. [Using Codetta with Lidarr →](docs/lidarr.md)
-
-### Works with your music server
-
-Navidrome, any Subsonic server (Gonic, Airsonic, Ampache), Jellyfin, Emby and
-Plex all read Codetta's tags: they're stored the way Picard stores them, with
-Navidrome's full field list. Connect your server and Codetta asks it for a
-quick scan after every change, so edits show up in your player straight away,
-even on network shares. [Using Codetta with your music server →](docs/media-servers.md)
-
-**Also:** lyrics (plain or synced, with **Find lyrics** from LRCLIB), sort and
-classical fields, an Advanced mode with the raw tags, Tag Presets for turning
-loose downloads into proper releases, smart suggestions from the rest of the
-album, copy & paste tags, every field Navidrome shows (credits, mood, label,
-release type, multiple artists), multi-disc albums, any language and script,
-the page in English or Spanish ([add yours](docs/translating.md)), light and dark themes. [See every feature →](docs/features.md)
+[**See every feature →**](docs/features.md)
 
 ## How Codetta compares
 
-| | **Codetta** | [MusicBrainz Picard](https://picard.musicbrainz.org/) | [beets](https://beets.io/) | [Metadata Remote](https://github.com/wow-signal-dev/metadata-remote) |
+| | **Codetta** | [Picard](https://picard.musicbrainz.org/) | [beets](https://beets.io/) | [Metadata Remote](https://github.com/wow-signal-dev/metadata-remote) |
 |---|---|---|---|---|
-| What it is | Web app on your server (or your own computer) | Desktop app | Command-line library manager | Web app on your server |
-| Use it from your phone | ✅ Designed for it | ❌ | ❌ | ➖ Responsive layout |
-| Runs in Docker | ✅ Official image | ➖ Community images | ➖ Community images | ✅ Official image |
-| Built-in sign-in | ✅ | – (local app) | – (local app) | ❌ Use a reverse proxy |
-| Edit tags by hand, one track or many | ✅ | ✅ | ➖ `beet modify` | ✅ |
-| Album art | ✅ + Cover Art Archive | ✅ + Cover Art Archive | ✅ via plugin | ✅ |
-| Match releases on MusicBrainz | ✅ Opt-in, incl. audio fingerprints, reviewed per file | ✅ Incl. audio fingerprints | ✅ Automatic on import | ➖ Suggestions |
-| Import new music (match and file a downloads folder) | ✅ Inbox, reviewed or automatic | ❌ | ✅ `beet import` | ❌ |
-| Rename / organize files | ✅ Pattern, preview, undo | ✅ | ✅ | ✅ Rename |
-| Undo | ✅ Kept across restarts | ❌ | ❌ | ✅ Until restart |
-| Search the whole library by tag | ✅ | ➖ | ✅ Query language | ➖ Filtering |
-| Play tracks | ✅ In the browser | ➖ Basic player | ➖ Via external player | ✅ In the browser |
-| Plugins | Not yet (built-in actions, plus opt-in connections) | ✅ | ✅ | ❌ |
-| Formats | 18 file types | 20+ | Most common formats | 9 |
+| What it is | Web app on your server | Desktop app | Command line | Web app on your server |
+| Use it from your phone | ✅ Designed for it | ❌ | ❌ | ➖ Responsive |
+| Match on MusicBrainz | ✅ Reviewed per file | ✅ | ✅ On import | ➖ Suggestions |
+| Import a downloads folder | ✅ Inbox | ❌ | ✅ `beet import` | ❌ |
+| Organize files | ✅ Preview, undo | ✅ | ✅ | ✅ Rename |
+| Undo | ✅ Across restarts | ❌ | ❌ | ✅ Until restart |
 | License | AGPL-3.0 | GPL-2.0 | MIT | AGPL-3.0 |
 
-✅ yes · ➖ partly or with extra setup · ❌ no
-
-**Codetta takes your music from scattered files to a well-organized library in one place.** It covers the whole trip (import, match, fix, and file) right from your browser, and you can see and approve each step along the way. No terminal or desktop install is needed, and nothing changes without you seeing it first.
-
-<sub>Compared in November 2026 from each project's documentation. Spotted something out of date? Please [open an issue](https://github.com/gavndev/codetta/issues).</sub>
+[Full comparison →](docs/comparison.md)
 
 ## Documentation
 
-- **[Install & update](docs/install.md)**: step by step, updating, password reset, removing
-- **[Configuration](docs/configuration.md)**: settings, connections (incl. slskd), HTTPS and remote access
-- **[Features](docs/features.md)**: everything Codetta does, supported formats
-- **[FAQ](docs/faq.md)**: common questions and known limitations
-- **[Architecture](ARCHITECTURE.md)**: how the code fits together, for contributors
-- **[Privacy](PRIVACY.md)** · **[Security](SECURITY.md)** · **[Changelog](CHANGELOG.md)** · **[Contributing](CONTRIBUTING.md)**
+**[Install & update](docs/install.md)** · **[Configuration](docs/configuration.md)** · **[Features](docs/features.md)** ·
+**[FAQ](docs/faq.md)** · **[Architecture](ARCHITECTURE.md)** · **[Privacy](PRIVACY.md)** · **[Security](SECURITY.md)**
 
-## Roadmap
+## What's new and what's next
 
-What has to be true before 1.0 is on [the road to 1.0](docs/road-to-1.0.md). Also planned:
-
-- **Refresh from MusicBrainz:** pick up corrections made since an album was matched.
-- **More ways to install:** Windows and Homebrew.
-- **A home on the web:** a small, simple website for Codetta.
-
-## What's new
-
-Every change is in the [changelog](CHANGELOG.md); each version's notes are also on
-[GitHub Releases](https://github.com/gavndev/codetta/releases). Inside Codetta,
-**What's new** (in the account menu, or the link in the footer) shows the same notes for the
-version you're running.
+Every change is in the [changelog](CHANGELOG.md) and on [GitHub Releases](https://github.com/gavndev/codetta/releases);
+inside Codetta, **What's new** shows the notes for your version. What has to be true before 1.0 is on
+[the road to 1.0](docs/road-to-1.0.md).
 
 ## Contributing
 
-Codetta is open source, and there are two ways to make it your own:
-
-- **Run your own version.** Fork it, change whatever you like, and run it for yourself. If you run a modified version for other people, the AGPL asks you to share your changes under the same license, and to keep the original author credit (see [License](#license)).
-- **Help improve Codetta for everyone.** Bug reports, feature ideas, and pull requests are all welcome. Changes that land here ship to everyone in the next release.
-
-Not sure where to start?
-
-- **Found a bug or have an idea?** [Open an issue](https://github.com/gavndev/codetta/issues). Even a quick "this confused me" helps.
-- **Want to write code?** Read [CONTRIBUTING.md](CONTRIBUTING.md) for setup and guidelines and [ARCHITECTURE.md](ARCHITECTURE.md) for a map of the code, then open a pull request. For bigger changes, open an issue first so we can talk it through.
-- **Not a coder?** Testing new releases, improving the docs, and sharing your setup are just as valuable.
-
-Codetta is a hobby project in beta, so feedback from real libraries makes a big difference.
-
-**Forks and the name:** You're welcome to fork Codetta, but please give your fork a different name so people don't confuse it with the original project.
+Bug reports, ideas and pull requests are all welcome. [Open an issue](https://github.com/gavndev/codetta/issues)
+(even a quick "this confused me" helps), or read [CONTRIBUTING.md](CONTRIBUTING.md) and
+[ARCHITECTURE.md](ARCHITECTURE.md) before writing code. Testing new releases and improving the docs
+help just as much. Forks are welcome too; please give yours a different name.
 
 ## License
 
