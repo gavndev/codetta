@@ -2,7 +2,9 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.11.0 (2026-11-23)
+
+Autoplay: when an album ends, similar songs from your own library keep playing, picked by your AudioMuse-AI server, ListenBrainz or Deezer. Plus tappable artist names with artist pictures, tidier folder buttons, file names at a glance, and a Library health check that tells a real duplicate from a namesake.
 
 - **Tidier folder buttons:** on computers a folder now shows **Apply preset**, **Organize** and **Find & replace** with their names, and everything else in a **More** menu sorted into *Fix tags* and *Folder*. Phones keep one "…" menu, with the same groups.
 - **File names at a glance:** each track shows its file name in small italics under its title (and under the artist on phones).
