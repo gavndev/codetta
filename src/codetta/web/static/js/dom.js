@@ -161,6 +161,7 @@ const ICONS = {
   selectall: '<svg viewBox="0 0 20 20"><circle cx="8" cy="10" r="5.5"/><path d="M12.6 4.9a5.5 5.5 0 0 1 0 10.2"/><path d="m5.8 10 1.6 1.6 3-3.2"/></svg>',
   next: '<svg viewBox="0 0 20 20"><path d="M4.5 5.2v9.6a.6.6 0 0 0 .9.5l6.8-4.8a.6.6 0 0 0 0-1L5.4 4.7a.6.6 0 0 0-.9.5z" fill="currentColor" stroke="none"/><rect x="13.5" y="4.5" width="2.2" height="11" rx=".9" fill="currentColor" stroke="none"/></svg>',
   prev: '<svg viewBox="0 0 20 20"><path d="M15.5 5.2v9.6a.6.6 0 0 1-.9.5l-6.8-4.8a.6.6 0 0 1 0-1l6.8-4.8a.6.6 0 0 1 .9.5z" fill="currentColor" stroke="none"/><rect x="4.3" y="4.5" width="2.2" height="11" rx=".9" fill="currentColor" stroke="none"/></svg>',
+  autoplay: '<svg viewBox="0 0 20 20"><path d="M5.6 13.2c-1.8 0-3.1-1.4-3.1-3.2s1.3-3.2 3.1-3.2c3.1 0 5.7 6.4 8.8 6.4 1.8 0 3.1-1.4 3.1-3.2s-1.3-3.2-3.1-3.2c-3.1 0-5.7 6.4-8.8 6.4z"/></svg>',
   shuffle: '<svg viewBox="0 0 20 20"><path d="M3 6h2.4c2.6 0 3.6 1.6 4.6 4s2 4 4.6 4H17"/><path d="M3 14h2.4c1.2 0 2-.4 2.7-1.1M11.9 7.1c.7-.7 1.5-1.1 2.7-1.1H17"/><path d="m15 4 2 2-2 2M15 12l2 2-2 2"/></svg>',
   lyrics: '<svg viewBox="0 0 20 20"><path d="M3.5 5h11M3.5 8.5h11M3.5 12h6"/><circle cx="13" cy="15" r="1.8"/><path d="M14.8 15V10l2.4.8"/></svg>',
   replace: '<svg viewBox="0 0 20 20"><circle cx="7.5" cy="7.5" r="4"/><path d="m10.5 10.5 2.5 2.5"/><path d="M12 4.5h5M14.5 2l2.5 2.5-2.5 2.5"/><path d="M9 16.5h8M11.5 14l-2.5 2.5 2.5 2.5"/></svg>',

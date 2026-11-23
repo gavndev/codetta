@@ -77,16 +77,21 @@ def make_index(root, tmp_path, engine):
     return LibraryIndex(root, tmp_path / "config" / "library-index.sqlite3", describe)
 
 
-def test_musicbrainz_album_id_is_kept_for_library_health(library, tmp_path):
-    # Library health counts albums "not matched on MusicBrainz yet" from the index: the album
-    # ID must be there (other IDs are still left out, to keep the index small).
+def test_musicbrainz_album_artist_and_recording_ids_are_kept(library, tmp_path):
+    # Library health counts albums "not matched on MusicBrainz yet" from the index (album ID), and
+    # Autoplay finds ListenBrainz's suggestions by artist and recording ID. Other IDs are still left
+    # out, to keep the index small.
     root, add, engine = library
-    add("Drake/Views/01 - Keep the Family Close.flac", title="Keep the Family Close", artist="Drake",
-        musicbrainz_albumid="11111111-1111-4111-8111-111111111111", musicbrainz_trackid="22222222-2222-4222-8222-222222222222")
+    path = "Drake/Views/01 - Keep the Family Close.flac"
+    add(path, title="Keep the Family Close", artist="Drake",
+        musicbrainz_albumid="11111111-1111-4111-8111-111111111111", musicbrainz_trackid="22222222-2222-4222-8222-222222222222",
+        musicbrainz_artistid="33333333-3333-4333-8333-333333333333", musicbrainz_releasetrackid="44444444-4444-4444-8444-444444444444")
     idx = make_index(root, tmp_path, engine)
     idx.scan()
-    assert idx.paths_with_any(("musicbrainz_albumid",)) == {"Drake/Views/01 - Keep the Family Close.flac"}
-    assert not idx.has_key("musicbrainz_trackid")
+    assert idx.paths_with_any(("musicbrainz_albumid",)) == {path}
+    assert idx.paths_where("musicbrainz_trackid", "22222222-2222-4222-8222-222222222222") == {path}
+    assert idx.paths_where("musicbrainz_artistid", "33333333-3333-4333-8333-333333333333") == {path}
+    assert not idx.has_key("musicbrainz_releasetrackid")
 
 
 def titles(tracks):
@@ -242,13 +247,13 @@ def test_technical_and_long_tags_are_not_indexed_but_editor_gets_them(library, t
     root, add, engine = library
     big = "AQAD" + "x" * 3000
     add("Big/01 - Big.flac", title="Big", artist="Somebody", acoustid_fingerprint=big,
-        musicbrainz_trackid="4f0c3a8e-0000-4000-8000-000000000000", lyrics="la " * 2000)
+        musicbrainz_releasetrackid="4f0c3a8e-0000-4000-8000-000000000000", lyrics="la " * 2000)
     idx = make_index(root, tmp_path, engine)
     idx.scan()
     tracks, _ = idx.search(parse_query("artist: somebody"))
     t = tracks[0]
     assert t["partial"] is True
-    assert "acoustid_fingerprint" not in t["tags"] and "musicbrainz_trackid" not in t["tags"]
+    assert "acoustid_fingerprint" not in t["tags"] and "musicbrainz_releasetrackid" not in t["tags"]
     assert "lyrics" not in t["tags"]  # too long to store; the editor reloads it from the file
     assert idx.search(parse_query("acoustid_fingerprint: aqad"))[1] == 0
 

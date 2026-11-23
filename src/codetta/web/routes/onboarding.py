@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from fastapi import HTTPException
 
-from codetta.core.onboarding import OnboardingStore
+from codetta.core.onboarding import STEPS, OnboardingStore
 
 
 def register(app, shared) -> None:
@@ -18,7 +18,7 @@ def register(app, shared) -> None:
         steps = []
         if connections.needs_choice:
             steps.append("connections")
-        steps += [s for s in ("organize", "library", "inbox", "health", "slskd", "lidarr", "mediaserver") if s not in onboarding.done]
+        steps += [s for s in STEPS if s != "connections" and s not in onboarding.done]
         return {"steps": steps}
 
     @app.post("/api/onboarding/{step}")

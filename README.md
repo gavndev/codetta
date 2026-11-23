@@ -246,6 +246,14 @@ can look for an album for you: type `!slskd` in the search bar, or press
 downloaded into your inbox, and you decide whether it joins your library.
 It's off unless you set it up. [More about it →](docs/features.md#soulseek-through-slskd)
 
+### Autoplay
+
+When an album ends, similar songs from your own library keep playing. Picks
+come from your [AudioMuse-AI](https://github.com/NeptuneHub/AudioMuse-AI)
+server (songs that sound alike), ListenBrainz or Deezer if you connect them,
+and from your library alone when you don't. It only ever plays music you
+already have. [More about Autoplay →](docs/autoplay.md)
+
 ### Works with Lidarr
 
 Lidarr downloads, Codetta makes the tags right. Connect them and Lidarr rescans

@@ -48,7 +48,7 @@ from codetta.core.tagmap import FIELDS
 
 log = logging.getLogger("codetta.index")
 
-SCHEMA_VERSION = 6  # 4: a stored natural sort key per file; 5: keeps musicbrainz_albumid (Library health); 6: FLAC audio checksum
+SCHEMA_VERSION = 6  # 4: a stored natural sort key per file; 5: keeps musicbrainz_albumid (Library health); 6: FLAC audio checksum, artist/recording MBIDs (Autoplay)
 RESCAN_SECONDS = 15 * 60  # a search re-checks the library if the last scan is older than this
 BATCH = 200  # files per database transaction while scanning
 PAR_CHUNK = 128  # files per job when worker processes help with a big scan
@@ -58,9 +58,10 @@ MAX_QUERY_CHARS = 500
 # Tags searched by plain words (no "key:").
 FREE_TEXT_KEYS = ("title", "artist", "album", "albumartist")
 
-# Not worth searching, and often large: fingerprints, IDs, loudness data. The MusicBrainz
-# album ID stays: Library health tells matched albums from unmatched ones by it.
-_SKIP_KEY = re.compile(r"^(lyrics$|unsyncedlyrics$|acoustid_|musicbrainz_(?!albumid$)|replaygain_|itunnorm|itunsmpb|isrc$|barcode$|tidal_|spotify_|discogs_|deezer_|qobuz_|.*_id$|.*fingerprint)")
+# Not worth searching, and often large: fingerprints, IDs, loudness data. Some MusicBrainz
+# IDs stay: Library health tells matched albums from unmatched ones by the album ID, and
+# Autoplay finds ListenBrainz's suggestions in the library by artist and recording IDs.
+_SKIP_KEY = re.compile(r"^(lyrics$|unsyncedlyrics$|acoustid_|musicbrainz_(?!(albumid|artistid|albumartistid|trackid)$)|replaygain_|itunnorm|itunsmpb|isrc$|barcode$|tidal_|spotify_|discogs_|deezer_|qobuz_|.*_id$|.*fingerprint)")
 # Searchable, but not worth an index entry: sort names and credits repeat the real names.
 _DUPLICATE_KEY = re.compile(r"^(.*sort|.*_credit|.*sortorder)$")
 MAX_INDEXED_VALUE = 300  # longer values (lyrics, essays in comments) aren't searchable
@@ -695,6 +696,12 @@ class LibraryIndex:
                 "AND instr(char(31) || t.value || char(31), char(31) || ? || char(31)) > 0 LIMIT ?",
                 (kid, want, limit)).fetchall()
         return {p for (p,) in rows}
+
+    def random_paths(self, n: int) -> list[str]:
+        """Up to ``n`` files picked at random (Autoplay's last resort)."""
+        with self._lock:
+            rows = self.db.execute("SELECT path FROM files ORDER BY random() LIMIT ?", (max(0, n),)).fetchall()
+        return [p for (p,) in rows]
 
     def has_key(self, key: str) -> bool:
         with self._lock:

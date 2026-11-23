@@ -131,6 +131,7 @@ from codetta.web.routes import (
     mediaserver as mediaserver_routes,
     replaygain as replaygain_routes,
     discogs as discogs_routes,
+    autoplay as autoplay_routes,
     musicbrainz,
     onboarding,
     organize,
@@ -145,7 +146,7 @@ from codetta.web.security import GuardMiddleware, SelectiveGZip
 
 # The order matters a little: an area can use what earlier areas share right away,
 # and reaches later ones through shared.later(...).
-ROUTES = (status, library, musicbrainz, tags, organize, onboarding, inbox, care, soulseek, lidarr_routes, mediaserver_routes, replaygain_routes, discogs_routes, explore, health, tools,
+ROUTES = (status, library, musicbrainz, tags, organize, onboarding, inbox, care, soulseek, lidarr_routes, mediaserver_routes, replaygain_routes, discogs_routes, autoplay_routes, explore, health, tools,
           files, support, activity, presets)
 # Also importable from here, as before the split.
 __all__ = ["ACTIVITY_VALUE_CHARS", "VERSION", "Settings", "_is_public_address", "_to_track_out", "app", "create_app"]
@@ -154,12 +155,13 @@ __all__ = ["ACTIVITY_VALUE_CHARS", "VERSION", "Settings", "_is_public_address", 
 def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_latest_release,
                fetch_json=None, fetch_mb=None, fetch_art=None, post_acoustid=None, run_fpcalc=None,
                slskd_request=None, fetch_catalog=None, lidarr_request=None, fetch_discogs=None,
-               server_request=None, run_ffmpeg=None) -> FastAPI:
+               server_request=None, run_ffmpeg=None, audiomuse_request=None) -> FastAPI:
     """``fetch_*`` replace the network in tests: LRCLIB and MusicBrainz take
     (url) -> parsed JSON or None, the Cover Art Archive (url) -> bytes or None,
     AcoustID (form) -> parsed JSON; ``run_fpcalc`` replaces running fpcalc;
     ``slskd_request`` (method, url, headers, body) -> (status, body) stands in for slskd, and
-    ``lidarr_request`` the same for Lidarr, ``server_request`` for the music server."""
+    ``lidarr_request`` the same for Lidarr, ``server_request`` for the music server and
+    ``audiomuse_request`` for AudioMuse-AI."""
     settings = settings or Settings.from_env()
     config_state = configversion.upgrade(settings.config_dir, VERSION)
     if settings.index_workers <= 0:
@@ -168,7 +170,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         settings.config_dir / "connections.json", offline=settings.offline,
         forced={"updates": settings.update_check, "lyrics": settings.lyrics_lookup, "musicbrainz": settings.musicbrainz,
                 "acoustid": settings.acoustid, "slskd": settings.slskd, "lidarr": settings.lidarr,
-                "discogs": settings.discogs,
+                "discogs": settings.discogs, "audiomuse": settings.audiomuse, "listenbrainz": settings.listenbrainz,
                 "mediaserver": settings.media_server},
     )
     updates = UpdateChecker(VERSION, settings.update_repo, lambda: connections.enabled("updates"), fetch_release)
@@ -203,7 +205,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         min_interval=0 if mb_mirror else 1.0,  # musicbrainz.org allows one request a second
     )
     def catalog_fetch(url: str):
-        service = "Deezer" if "deezer" in url else "iTunes"
+        service = "Deezer" if "deezer" in url else "ListenBrainz" if "listenbrainz" in url else "iTunes"
         return http_get_json(url, user_agent, max_bytes=MAX_MB_BYTES, service=service)
 
     discogs_token = DiscogsToken(settings.config_dir / "discogs.json", settings.discogs_token)
@@ -600,7 +602,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
 
     # --- The API, one area per module in codetta/web/routes ----------------------------------
     shared = Shared(
-        acoustid=acoustid, activity=activity, art_cache=art_cache, art_info=art_info, art_store=art_store,
+        acoustid=acoustid, activity=activity, audiomuse_request=audiomuse_request, art_cache=art_cache, art_info=art_info, art_store=art_store,
         catalog_fetch=catalog_fetch, connections=connections, discogs_fetch=fetch_discogs or discogs_fetch,
         discogs_token=discogs_token, download_art=download_art, editions=editions,
         engine=engine, fetch_catalog=fetch_catalog, fingerprinter=fingerprinter, folder_out=folder_out, meter=meter,

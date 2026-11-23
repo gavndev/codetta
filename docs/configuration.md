@@ -54,6 +54,10 @@ switch in the app, which is handy if you manage everything from your compose fil
 | `CODETTA_MEDIA_SERVER_TOKEN` | set in the app | The Jellyfin/Emby API key or Plex token. Saved sign-ins live in `mediaserver.json` in the config folder, readable by Codetta only, and are never sent back to the browser. |
 | `CODETTA_LIDARR_API_KEY` | set in the app | Lidarr's API key (Settings → General). Saved keys live in `lidarr.json` in the config folder, readable by Codetta only, and are never sent back to the browser. |
 | `CODETTA_SLSKD_API_KEY` | set in the app | An API key from slskd's settings (`web → authentication → api_keys`, 16+ characters). Saved keys live in `slskd.json` in the config folder, readable by Codetta only, and are never sent back to the browser. |
+| `CODETTA_AUDIOMUSE` | chosen in the app | `on`/`off`: **AudioMuse-AI** for Autoplay: songs that sound like the one playing, from your own [AudioMuse-AI](https://github.com/NeptuneHub/AudioMuse-AI) server. Sends the playing song's title and artist to it. See [Autoplay](autoplay.md). |
+| `CODETTA_AUDIOMUSE_URL` | set in the app | AudioMuse-AI's address as Codetta sees it, e.g. `http://audiomuse-ai-flask-app:8000`. Locks the field in the app. |
+| `CODETTA_AUDIOMUSE_TOKEN` | set in the app | The `API_TOKEN` set on AudioMuse-AI (only needed when its sign-in is on). Saved tokens live in `audiomuse.json` in the config folder, readable by Codetta only, and are never sent back to the browser. |
+| `CODETTA_LISTENBRAINZ` | chosen in the app | `on`/`off`: **ListenBrainz** for Autoplay: artists people listen to together. Sends the playing artist's MusicBrainz ID to api.listenbrainz.org. No account needed. |
 | `CODETTA_LYRICS_LOOKUP` | chosen in the app | `on`/`off`: **Find lyrics** in the editor. Pressing it asks [lrclib.net](https://lrclib.net) for that one track (artist, title, album and length only). |
 | `CODETTA_UPDATE_CHECK` | chosen in the app | `on`/`off`: twice a day, ask GitHub whether a newer release exists. Nothing about you or your library is sent. |
 

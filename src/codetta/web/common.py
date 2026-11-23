@@ -63,6 +63,10 @@ class Settings:
     slskd_url: str | None = None  # CODETTA_SLSKD_URL / _API_KEY: set (and lock) the connection details
     slskd_api_key: str | None = None
     lidarr: bool | None = None  # keeping the user's Lidarr in step
+    audiomuse: bool | None = None  # the AudioMuse-AI connection (CODETTA_AUDIOMUSE)
+    audiomuse_url: str | None = None  # CODETTA_AUDIOMUSE_URL / _TOKEN: set (and lock) the connection details
+    audiomuse_token: str | None = None
+    listenbrainz: bool | None = None  # the ListenBrainz connection (CODETTA_LISTENBRAINZ)
     lidarr_url: str | None = None  # CODETTA_LIDARR_URL / _API_KEY: set (and lock) the connection details
     lidarr_api_key: str | None = None
     media_server: bool | None = None  # rescans on the user's Navidrome / Jellyfin / Emby / Plex
@@ -101,6 +105,10 @@ class Settings:
             slskd_url=(env("SLSKD_URL") or "").strip() or None,
             slskd_api_key=(env("SLSKD_API_KEY") or "").strip() or None,
             lidarr=parse_switch(env("LIDARR")),
+            audiomuse=parse_switch(env("AUDIOMUSE")),
+            audiomuse_url=(env("AUDIOMUSE_URL") or "").strip() or None,
+            audiomuse_token=(env("AUDIOMUSE_TOKEN") or "").strip() or None,
+            listenbrainz=parse_switch(env("LISTENBRAINZ")),
             lidarr_url=(env("LIDARR_URL") or "").strip() or None,
             lidarr_api_key=(env("LIDARR_API_KEY") or "").strip() or None,
             media_server=parse_switch(env("MEDIA_SERVER")),
@@ -297,6 +305,17 @@ class LidarrSettingsIn(BaseModel):
     url: str = Field("", max_length=500)
     api_key: str | None = Field(default=None, max_length=500)  # None: keep the saved key
     names: Literal["auto", "codetta"] = "auto"
+
+
+class AudioMuseSettingsIn(BaseModel):
+    url: str = Field("", max_length=500)
+    token: str | None = Field(default=None, max_length=500)  # None: keep the saved token
+
+
+class AutoplayIn(BaseModel):
+    seeds: list[str] = Field(default_factory=list, max_length=20)  # recently played, oldest first
+    avoid: list[str] = Field(default_factory=list, max_length=2000)  # already played or queued
+    n: int = Field(10, ge=1, le=30)
 
 
 class MediaServerSettingsIn(BaseModel):

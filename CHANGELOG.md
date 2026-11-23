@@ -4,6 +4,7 @@ All notable changes to Codetta. Versions follow [Semantic Versioning](https://se
 
 ## Unreleased
 
+- **Autoplay:** when an album or folder ends, similar songs from your own library keep playing, listed under **Autoplay** in the player's *Up next*. Turn it on or off with the new ∞ button in the player. Picks come from your own **AudioMuse-AI** server (songs that sound alike), **ListenBrainz** (artists people listen to together, no account) or **Deezer** when you connect them in Account → Connections, and from your library alone when you don't: same artist, then same genre. It only ever plays music you already have. A setup step introduces it. See [Autoplay](docs/autoplay.md).
 - **Library health knows a duplicate from a namesake:** "Same song twice" now compares the audio itself in FLAC files. Two tracks with identical audio are flagged even when their titles differ (a download with one remix twice under two names), and the message says one is probably the wrong file. Two versions that only share a name, like a remix with a different guest, are no longer flagged. An MP3 next to its FLAC is still caught.
 
 ## 0.10.0 (2026-11-22)

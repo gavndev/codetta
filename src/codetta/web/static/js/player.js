@@ -29,6 +29,11 @@ const player = {
   audio: null, path: null, folder: null, folderName: "", track: null, seeking: false,
   queue: [], order: [], pos: -1, // what plays (folder order), the play order (shuffled or not), where we are in it
   shuffle: (() => { try { return localStorage.getItem("codetta-shuffle") === "1"; } catch { return false; } })(),
+  // Autoplay: when the queue runs out, similar songs from the library keep playing (on unless switched off).
+  autoplay: (() => { try { return localStorage.getItem("codetta-autoplay") !== "0"; } catch { return true; } })(),
+  played: [], // paths played this visit, oldest first: Autoplay's seeds, and what it won't repeat
+  extending: null, // the Autoplay request on its way
+  because: "", source: "", // what the latest Autoplay songs are like, and who picked them
 };
 const shuffled = (list) => { const a = [...list]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
@@ -50,9 +55,48 @@ function playPos(pos) {
   startTrack(player.queue[player.order[pos]]);
 }
 
-function playNext() {
-  if (player.pos + 1 < player.order.length) playPos(player.pos + 1);
-  else stopPlayer(); // the end of the queue
+async function playNext() {
+  if (player.pos + 1 < player.order.length) { playPos(player.pos + 1); return; }
+  if (player.autoplay && await extendQueue()) { playPos(player.pos + 1); return; }
+  stopPlayer(); // the end of the queue
+}
+
+const canGoOn = () => player.pos + 1 < player.order.length || (player.autoplay && !!player.track);
+
+/** Autoplay: add similar songs from the library to the end of the queue. True if any came. */
+function extendQueue() {
+  if (player.extending) return player.extending;
+  const queued = new Set(player.queue.map((x) => x.path));
+  const body = { seeds: player.played.slice(-3), avoid: [...new Set([...player.played, ...queued])].slice(-2000), n: 10 };
+  player.extending = api("POST", "/api/autoplay/next", body).then((d) => {
+    const fresh = (d.tracks || []).filter((x) => !x.error && canPlay(x.format) && !queued.has(x.path));
+    for (const x of fresh) {
+      x.auto = true;
+      player.queue.push(x);
+      player.order.push(player.queue.length - 1);
+    }
+    if (fresh.length) { player.because = d.because || ""; player.source = d.source_name || ""; }
+    return fresh.length > 0;
+  }).catch(() => false).finally(() => {
+    player.extending = null;
+    renderPlayerSheet();
+    npRender(!!(player.audio && !player.audio.paused));
+  });
+  return player.extending;
+}
+
+function setAutoplay(on) {
+  player.autoplay = on;
+  try { localStorage.setItem("codetta-autoplay", on ? "1" : "0"); } catch { /* private mode */ }
+  if (!on) { // drop the Autoplay songs that haven't played yet
+    const keep = player.order.filter((qi, k) => k <= player.pos || !player.queue[qi].auto);
+    player.order = keep;
+  } else if (player.track && player.pos + 1 >= player.order.length) {
+    extendQueue();
+  }
+  renderPlayerSheet();
+  npRender(!!(player.audio && !player.audio.paused));
+  toast(on ? "Autoplay is on: similar songs keep playing when the queue ends." : "Autoplay is off: playback stops at the end of the queue.");
 }
 
 function playPrev() {
@@ -113,6 +157,8 @@ async function startTrack(t) {
   const a = playerAudio();
   player.path = t.path;
   player.track = t;
+  if (player.played.at(-1) !== t.path) player.played.push(t.path);
+  if (player.played.length > 2000) player.played.splice(0, player.played.length - 2000);
   lyr.path = null; // fetched again for the new track when shown
   a.src = `/api/stream?path=${encodeURIComponent(t.path)}`;
   if ("mediaSession" in navigator) { // lock screen / headphone controls
@@ -124,10 +170,11 @@ async function startTrack(t) {
     navigator.mediaSession.setActionHandler("pause", () => a.pause());
     navigator.mediaSession.setActionHandler("seekto", (d) => { if (d.seekTime != null) a.currentTime = d.seekTime; });
     try {
-      navigator.mediaSession.setActionHandler("nexttrack", player.pos + 1 < player.order.length ? playNext : null);
+      navigator.mediaSession.setActionHandler("nexttrack", canGoOn() ? playNext : null);
       navigator.mediaSession.setActionHandler("previoustrack", playPrev);
     } catch { /* older browsers */ }
   }
+  if (player.autoplay && player.pos + 1 >= player.order.length) extendQueue(); // ready before this one ends
   try {
     await a.play();
   } catch (err) {
@@ -218,7 +265,7 @@ function npRender(playing) {
   setKids(e.art, t.art ? h("img", { src: artUrlFor(t), alt: "" }) : icon("note"));
   setKids(e.play, icon(playing ? "pause" : "play"));
   e.play.setAttribute("aria-label", playing ? "Pause" : "Play");
-  e.next.disabled = player.pos + 1 >= player.order.length;
+  e.next.disabled = !canGoOn();
   box.classList.toggle("is-playing", playing);
   if (box.hidden) {
     box.classList.remove("np-leave");
@@ -333,6 +380,8 @@ function psBuild() {
   e.now = h("span", { class: "ps-time" });
   e.left = h("span", { class: "ps-time" });
   e.shuffle = h("button", { class: "ps-btn ps-shuffle", type: "button", "aria-label": "Shuffle", onclick: () => setShuffle(!player.shuffle) }, icon("shuffle"));
+  e.autoplay = h("button", { class: "ps-btn ps-autoplay", type: "button", "aria-label": "Autoplay", title: "Autoplay: keep playing similar songs when the queue ends",
+    onclick: () => setAutoplay(!player.autoplay) }, icon("autoplay"));
   e.prev = h("button", { class: "ps-btn", type: "button", "aria-label": "Previous track", onclick: playPrev }, icon("prev"));
   e.play = h("button", { class: "ps-btn ps-play", type: "button", onclick: () => player.track && togglePlay(player.track) });
   e.next = h("button", { class: "ps-btn", type: "button", "aria-label": "Next track", onclick: playNext }, icon("next"));
@@ -347,7 +396,7 @@ function psBuild() {
     h("div", { class: "ps-top" }, e.cover,
       h("div", { class: "ps-meta" }, e.title, e.artist, e.from)),
     h("div", { class: "ps-seekrow" }, e.now, e.seek, e.left),
-    h("div", { class: "ps-controls" }, e.shuffle, e.prev, e.play, e.next, e.lyricsBtn),
+    h("div", { class: "ps-controls" }, e.shuffle, e.prev, e.play, e.next, e.autoplay, e.lyricsBtn),
     e.tabs, e.queue, e.lyrics);
   ps.els = e;
 }
@@ -382,25 +431,38 @@ function renderPlayerSheet() {
   e.play.setAttribute("aria-label", playing ? "Pause" : "Play");
   e.shuffle.classList.toggle("on", player.shuffle);
   e.shuffle.setAttribute("aria-pressed", String(player.shuffle));
-  e.next.disabled = player.pos + 1 >= player.order.length;
+  e.autoplay.classList.toggle("on", player.autoplay);
+  e.autoplay.setAttribute("aria-pressed", String(player.autoplay));
+  e.next.disabled = !canGoOn();
   e.lyricsBtn.classList.toggle("on", ps.tab === "lyrics");
   for (const b of e.tabs.children) b.setAttribute("aria-selected", String(b.dataset.tab === ps.tab));
   d.classList.toggle("lyrics-mode", ps.tab === "lyrics");
   e.queue.hidden = ps.tab !== "queue";
   e.lyrics.hidden = ps.tab !== "lyrics";
   const upcoming = player.order.slice(player.pos + 1);
+  const firstAuto = upcoming.findIndex((qi) => player.queue[qi].auto);
+  const autoHead = () => h("li", { class: "ps-auto-head" },
+    h("span", { class: "ps-auto-title" }, icon("autoplay"), "Autoplay"),
+    h("span", { class: "ps-auto-sub" },
+      player.because ? h("span", {}, `Similar to ${player.because}`) : null,
+      player.because && player.source ? " · " : null,
+      player.source ? h("span", {}, `from ${player.source}`) : null));
+  const empty = player.autoplay
+    ? (player.extending ? "Finding similar songs…" : "Autoplay picks similar songs from your library when this one ends.")
+    : "Nothing after this one. Play a track in another album to queue it up, or turn on Autoplay.";
   setKids(e.queue, upcoming.length
-    ? h("ol", { class: "ps-list" }, upcoming.map((qi, k) => {
+    ? h("ol", { class: "ps-list" }, upcoming.flatMap((qi, k) => {
       const x = player.queue[qi];
       const pos = player.pos + 1 + k;
-      return h("li", { class: "ps-item" },
+      const row = h("li", { class: "ps-item" },
         h("button", { class: "ps-item-main", type: "button", onclick: () => playPos(pos) },
           h("span", { class: "ps-item-title", dir: "auto" }, first(x, "title") || x.name),
           h("span", { class: "ps-item-artist", dir: "auto" }, (x.tags.artist || []).join(", "))),
         h("button", { class: "icon-btn ps-remove", type: "button", "aria-label": `Remove ${first(x, "title") || x.name} from the queue`,
           onclick: () => removeFromQueue(pos) }, icon("close")));
+      return k === firstAuto ? [autoHead(), row] : [row];
     }))
-    : h("p", { class: "ps-empty" }, "Nothing after this one. Play a track in another album to queue it up."));
+    : h("p", { class: "ps-empty" }, empty));
   psProgress();
 }
 

@@ -20,6 +20,9 @@ CALLS = [
     ("PUT", "/api/lidarr/settings", {"url": "https://lidarr.example", "api_key": "k" * 32}),
     ("PUT", "/api/mediaserver/settings", {"kind": "jellyfin", "url": "https://jf.example", "token": "t" * 32}),
     ("PUT", "/api/discogs", {"token": "d" * 40}),
+    ("PUT", "/api/audiomuse", {"url": "https://audiomuse.example", "token": "a" * 32}),
+    ("POST", "/api/audiomuse/test", {}),
+    ("POST", "/api/autoplay/next", {"seeds": [TRACK], "n": 5}),
     ("POST", "/api/musicbrainz/search", {"folder": FOLDER}),
     ("POST", "/api/musicbrainz/search", {"folder": FOLDER, "source": "deezer"}),
     ("POST", "/api/musicbrainz/search", {"folder": FOLDER, "source": "itunes"}),
@@ -89,7 +92,8 @@ def test_nothing_leaves_while_connections_are_off(album_dir, tmp_path, tripwire,
 
 
 SECRETS = {"slskd": "SLSKDKEY" + "s" * 24, "lidarr": "LIDARRKEY" + "l" * 23, "jfpass": "JFPASS" + "p" * 20,
-           "jftoken": "JFTOKEN" + "t" * 25, "discogs": "DISCOGSTOKEN" + "d" * 28}
+           "jftoken": "JFTOKEN" + "t" * 25, "discogs": "DISCOGSTOKEN" + "d" * 28,
+           "audiomuse": "AUDIOMUSETOKEN" + "a" * 26}
 
 
 def test_saved_secrets_never_come_back(album_dir, tmp_path, tripwire):  # noqa: F811
@@ -104,13 +108,16 @@ def test_saved_secrets_never_come_back(album_dir, tmp_path, tripwire):  # noqa: 
         c.put("/api/mediaserver/settings", json={"kind": "subsonic", "url": "https://nd.example", "username": "me",
                                                   "password": SECRETS["jfpass"]})
         c.put("/api/mediaserver/settings", json={"kind": "jellyfin", "url": "https://jf.example", "token": SECRETS["jftoken"]})
-        c.put("/api/discogs", json={"token": SECRETS["discogs"]})  # refused by the tripwire: not kept
         seen = []
+        c.put("/api/discogs", json={"token": SECRETS["discogs"]})  # refused by the tripwire: not kept
+        seen.append(c.put("/api/audiomuse", json={"url": "https://am.example", "token": SECRETS["audiomuse"]}).text)
         for r in app.routes:
             if isinstance(r, APIRoute) and "GET" in r.methods and "{" not in r.path:
                 seen.append(c.get(r.path).text)
         seen.append(c.post("/api/slskd/test").text)
         seen.append(c.post("/api/lidarr/test").text)
         seen.append(c.post("/api/mediaserver/test").text)
+        seen.append(c.post("/api/audiomuse/test").text)
+        seen.append(c.post("/api/autoplay/next", json={"seeds": [], "n": 3}).text)
     found = [name for name, secret in SECRETS.items() if any(secret in text for text in seen)]
     assert found == []

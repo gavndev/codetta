@@ -99,6 +99,21 @@ CONNECTIONS: tuple[Connection, ...] = (
         ("your music server",), "MEDIA_SERVER",
     ),
     Connection(
+        "audiomuse", "AudioMuse-AI",
+        "Autoplay picks songs that sound like the one playing, using your own AudioMuse-AI server's "
+        "analysis of your library.",
+        "The title and artist of the song playing, sent to your own AudioMuse-AI server when Autoplay "
+        "needs more songs.",
+        ("your AudioMuse-AI server",), "AUDIOMUSE",
+    ),
+    Connection(
+        "listenbrainz", "ListenBrainz",
+        "Autoplay picks artists that people listen to together, from ListenBrainz, the open listening "
+        "database by the MusicBrainz team. No account needed.",
+        "The MusicBrainz ID of the artist playing, when Autoplay needs more songs.",
+        ("api.listenbrainz.org",), "LISTENBRAINZ",
+    ),
+    Connection(
         "updates", "Update check",
         "Tell you when a new version of Codetta is out.",
         "Nothing about you or your music: it asks GitHub for the latest release, twice a day.",
