@@ -2,7 +2,9 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.11.2 (2026-11-23)
+
+Two fixes from your reports: folders whose names start with "@", and an Inbox that could get stuck loading.
 
 - **Folders whose names start with "@" work** ([#5](https://github.com/gavndev/codetta/issues/5)): a folder like `@` or `@Live Sets` at the top of your music folder used to stop the whole library from showing ("Unknown folder: @"). Only Codetta's own areas (the inbox and Recently deleted) are special now, and NAS system folders like Synology's `@eaDir` and `#recycle` are skipped like hidden ones. Thanks to u/Business_Ad_5983 on Reddit for finding it.
 - **The Inbox always opens** ([#4](https://github.com/gavndev/codetta/issues/4)): an album filed with another edition than the one Codetta suggested was saved with only its ID, and the Inbox screen then got stuck on "Looking in your inbox…". The full edition details are kept now, an entry with missing details still shows, and one entry that can't be drawn no longer hides the rest. Thanks to BernoldM for tracking it down to the exact line.
