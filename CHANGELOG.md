@@ -2,7 +2,9 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.11.1 (2026-11-23)
+
+A tidier Find in MusicBrainz button.
 
 - **A cleaner Find in MusicBrainz button:** its gradient edge no longer clips the inside at the corners, and the ∨ part fills the whole height (it was shorter on phones). Easier to tap on phones too.
 
