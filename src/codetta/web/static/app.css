@@ -3101,11 +3101,11 @@ dialog:focus { outline: none; }
 .artist-item-name { font-weight: 650; overflow-wrap: anywhere; }
 .artist-item-sub { font-size: 12.5px; color: var(--muted); }
 
-/* Artist pictures in track rows: phones in the line under the title, desktops in the Artist column. */
-@media (max-width: 760px) {
-  .track-row .col-title .sub { display: flex; align-items: center; gap: 6px; min-width: 0; }
-  .track-row .col-title .sub .sub-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .track-row .col-title .sub .artist-stack { flex: none; }
-}
-.col-artist .artist-link { display: inline-flex; max-width: 100%; }
-.col-artist .artist-link-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The track's file name in italics under its title, for a quick look at what's on disk. */
+.track-row .fname { display: block; font-size: 12px; font-style: italic; color: var(--muted); opacity: .8; font-weight: 400;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 1px; }
+/* Folder tools: computers show the main ones with their names; the rest are in More. */
+@media (min-width: 761px) { .btn.icon-expand.tool-labelled { padding: 0 12px; } .btn.icon-expand.tool-labelled .icon-expand-label { max-width: none; opacity: 1; margin-left: 7px; } }
+.tools-head { padding: 10px 12px 4px; font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.tools-head:first-child { padding-top: 4px; }
+.tools-menu .tools-head ~ .tools-head { margin-top: 4px; border-top: 1px solid var(--rule); }

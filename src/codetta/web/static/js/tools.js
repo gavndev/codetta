@@ -19,7 +19,7 @@ import { openReplayGain, replayGainReady } from "./replaygain.js";
 import { openFromNames } from "./fromnames.js";
 import { openTracklist } from "./tracklist.js";
 import { openCoverExport } from "./coverexport.js";
-import { addArtistPictures, artistButton } from "./artists.js";
+import { artistButton } from "./artists.js";
 
 // ---- Batch tools: find & replace in tags, rename a folder, actions -----------------------------------
 
@@ -28,28 +28,29 @@ function folderTools(f) {
   const target = f.search ? { paths: f.tracks.map((t) => t.path).slice(0, 1000) } : { folder: state.path };
   const label = f.search ? plural(Math.min(f.tracks.length, 1000), "result") : "this folder";
   return [
-    (f.tracks.length || f.folders.length) && !f.search && !f.mb ? { icon: "layers", label: "Organize", run: openOrganize,
+    (f.tracks.length || f.folders.length) && !f.search && !f.mb ? { icon: "layers", label: "Organize", run: openOrganize, primary: true,
       title: "Rename and move files into folders from their tags (you see everything first)" } : null,
-    f.tracks.length ? { icon: "replace", label: "Find & replace", run: () => openReplace(target, label),
+    f.tracks.length ? { icon: "replace", label: "Find & replace", run: () => openReplace(target, label), primary: true, group: "Fix tags",
       title: "Find & replace in the tags of these tracks (you see every change first)" } : null,
     replayGainReady() && (f.tracks.length || (f.folders.length && !f.search && !f.mb)) && !f.mb
-      ? { icon: "volume", label: "ReplayGain", run: () => openReplayGain(f.search ? target : { folder: state.path }, label),
+      ? { icon: "volume", label: "ReplayGain", group: "Fix tags", run: () => openReplayGain(f.search ? target : { folder: state.path }, label),
         title: "Even out the volume: measure loudness and write ReplayGain tags (you see every value first)" } : null,
-    f.tracks.length ? { icon: "tag", label: "Tags from file names", run: () => openFromNames(target, label),
+    f.tracks.length ? { icon: "tag", label: "Tags from file names", group: "Fix tags", run: () => openFromNames(target, label),
       title: "Fill in tags from file and folder names with a pattern (you see every change first)" } : null,
-    f.tracks.length && !f.search ? { icon: "paste", label: "Paste a tracklist", run: () => openTracklist({ folder: state.path }, label),
+    f.tracks.length && !f.search ? { icon: "paste", label: "Paste a tracklist", group: "Fix tags", run: () => openTracklist({ folder: state.path }, label),
       title: "Titles and numbers from a tracklist you paste (Discogs, Bandcamp, Wikipedia…), paired with the files" } : null,
     (f.tracks.length || f.folders.length) && !f.search && !f.mb
-      ? { icon: "folder", label: "Save covers as files", run: () => openCoverExport({ folder: state.path }, label),
+      ? { icon: "folder", label: "Save covers as files", group: "Folder", run: () => openCoverExport({ folder: state.path }, label),
         title: "Save each album's embedded cover as cover.jpg in its folder, for players that look for one" } : null,
-    f.tracks.length ? { icon: "wand", label: "Actions", run: () => openActions(target, label),
+    f.tracks.length ? { icon: "wand", label: "Actions", group: "Fix tags", run: () => openActions(target, label),
       title: "Clean up titles, Title Case and trim spaces (you see every change first)" } : null,
-    state.path && !f.search && !f.mb ? { icon: "rename", label: "Rename folder", run: renameFolder, title: "Rename this folder" } : null,
-    !f.search && !f.mb ? { icon: "plus", label: "New folder", run: newFolderHere, title: "Make a new folder in here" } : null,
+    state.path && !f.search && !f.mb ? { icon: "rename", label: "Rename folder", group: "Folder", run: renameFolder, title: "Rename this folder" } : null,
+    !f.search && !f.mb ? { icon: "plus", label: "New folder", group: "Folder", run: newFolderHere, title: "Make a new folder in here" } : null,
     state.path && !f.search && !f.mb && !state.path.startsWith("@") && (f.tracks.length || f.folders.length)
-      ? { icon: "download", label: "Download as .zip", run: () => downloadZip(state.path), title: "Download this folder as a .zip file" } : null,
-  ].filter(Boolean);
+      ? { icon: "download", label: "Download as .zip", group: "Folder", run: () => downloadZip(state.path), title: "Download this folder as a .zip file" } : null,
+  ].filter(Boolean).sort((a, b) => GROUPS.indexOf(a.group) - GROUPS.indexOf(b.group));
 }
+const GROUPS = [undefined, "Fix tags", "Folder"]; // menu order: ungrouped (Organize) first
 
 const sizeText = (n) => (n >= 1e9 ? `${(n / 1e9).toFixed(1)} GB` : n >= 1e6 ? `${Math.round(n / 1e6)} MB` : `${Math.max(1, Math.round(n / 1e3))} KB`);
 
@@ -85,8 +86,11 @@ export async function downloadZip(path) {
 }
 
 export function openToolsMenu(anchor, tools) {
-  const menu = h("div", { class: "tools-menu", role: "menu" }, tools.map((t) => h("button", { class: "tools-item", type: "button", role: "menuitem",
-    onclick: () => { menu.remove(); t.run(); } }, icon(t.icon), t.label)));
+  // Tools that name a group get a small heading above the first of them ("Fix tags", "Folder").
+  const menu = h("div", { class: "tools-menu", role: "menu" }, tools.flatMap((t, i) => [
+    t.group && t.group !== tools[i - 1]?.group ? h("div", { class: "tools-head", role: "presentation" }, t.group) : null,
+    h("button", { class: "tools-item", type: "button", role: "menuitem", title: t.title || null,
+      onclick: () => { menu.remove(); t.run(); } }, icon(t.icon), t.label)]));
   popMenu(anchor, menu);
 }
 
@@ -381,8 +385,11 @@ export function renderFolderHead() {
       canMatch ? mbFindButton(coverTrack ? "in-actions phone-only" : "in-actions") : null,
       canSoulseek ? skFindButton(coverTrack ? "in-actions phone-only" : "in-actions") : null,
       f.tracks.length || f.folders.length ? iconButton("preset", "Apply preset", () => openApply("folder"),
-        { title: "Apply a Tag Preset to this folder (you see every change first)" }) : null,
-      ...folderTools(f).map((t) => iconButton(t.icon, t.label, t.run, { title: t.title, cls: "tool-desktop" })),
+        { title: "Apply a Tag Preset to this folder (you see every change first)", cls: "tool-labelled" }) : null,
+      // Computers: the most-used tools as labelled buttons, the rest in a "More" menu. Phones: one "…" menu.
+      ...folderTools(f).filter((t) => t.primary).map((t) => iconButton(t.icon, t.label, t.run, { title: t.title, cls: "tool-desktop tool-labelled" })),
+      folderTools(f).some((t) => !t.primary) ? iconButton("more", "More", (e) => openToolsMenu(e.currentTarget, folderTools(f).filter((t) => !t.primary)),
+        { title: "More tools for this folder", cls: "tool-desktop tool-labelled" }) : null,
       folderTools(f).length ? iconButton("more", "More", (e) => openToolsMenu(e.currentTarget, folderTools(f)), { cls: "tool-more" }) : null,
       // Phones: selecting is a mode, like the Photos app.
       selectButtons(f)),
@@ -576,8 +583,6 @@ function subLine(t, { artist, album, title, oneAlbum, albumArtist }) {
     : oneAlbum ? (artist && artist !== albumArtist ? artist : "")
       : [artist, album].filter(Boolean).join(" · ") || (title ? t.name : `${fmtLabel(t.format)} · No tags yet`);
   const sub = h("span", { class: "sub", translate: t.error || !(artist || album || title) ? null : "no" }, h("span", { class: "sub-text" }, text));
-  // Phones show the artist here (the Artist column is hidden): their pictures go in front of it.
-  if (!t.error && artist && text.startsWith(artist)) addArtistPictures(sub, t.tags.artist || [], 18, { lazy: true });
   return sub;
 }
 
@@ -617,8 +622,9 @@ function trackRow(t, { oneAlbum, albumArtist, disc }) {
       : h("span", { class: "art-none", title: "No album art" }, icon("note"))),
     h("div", { class: "col-title" },
       h("span", { class: "main", translate: "no" }, title || h("span", { class: "untitled" }, t.name)),
-      subLine(t, { artist, album, title, oneAlbum, albumArtist })),
-    h("div", { class: "col-artist", translate: t.error ? null : "no" }, t.error ? t.error : artist ? artistButton(artist, t.tags.artist || [], { pictures: 20, lazy: true }) : ""),
+      subLine(t, { artist, album, title, oneAlbum, albumArtist }),
+      title ? h("span", { class: "fname", translate: "no", dir: "auto" }, t.name) : null), // the file itself, at a glance
+    h("div", { class: "col-artist", translate: t.error ? null : "no" }, t.error ? t.error : artist ? artistButton(artist, t.tags.artist || []) : ""),
     h("div", { class: "col-album", translate: "no" }, album),
     h("div", { class: "col-fmt" }, t.format ? h("span", { class: "badge" }, fmtLabel(t.format)) : ""),
     h("div", { class: "col-dur" }, fmtDuration(t.duration)),
