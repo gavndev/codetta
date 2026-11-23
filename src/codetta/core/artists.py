@@ -53,7 +53,9 @@ def top_folders(music_dir: Path) -> dict[str, str]:
 
 
 def resolve(credits: Iterable[str], known: Callable[[str], int], folders: dict[str, str]) -> list[dict]:
-    """The artists the credits name: [{"name", "folder"}] in credit order.
+    """The artists the credits name: [{"name", "folder", "own"}] in credit order. ``own``: the
+    library has them under their own name (a folder or a tag of their own), not only credited
+    alongside others; every name is listed either way.
 
     ``known(name)``: in how many folders ``name`` is a whole artist or album-artist value (0: none).
     ``folder`` is the top-level folder named after the artist, or None (then the page searches).
@@ -70,16 +72,16 @@ def resolve(credits: Iterable[str], known: Callable[[str], int], folders: dict[s
             return None
         folder = folders.get(key)
         if folder is not None or known(name):
-            return {"name": folder or name, "folder": folder}
+            return {"name": folder or name, "folder": folder, "own": True}
         return None
 
     def band(credit: str, parts: list[tuple[int, int]], i: int, j: int) -> dict | None:
         name = credit[parts[i][0]:parts[j][1]].strip()
         folder = folders.get(sfold(name))
         if folder is not None:
-            return {"name": folder, "folder": folder}
+            return {"name": folder, "folder": folder, "own": True}
         if known(name) >= 2 and not any(has(credit[a:b].strip()) for a, b in parts[i:j + 1]):
-            return {"name": name, "folder": None}
+            return {"name": name, "folder": None, "own": True}
         return None
 
     for credit in credits:
@@ -95,8 +97,8 @@ def resolve(credits: Iterable[str], known: Callable[[str], int], folders: dict[s
                     break
             else:
                 name = credit[parts[i][0]:parts[i][1]].strip()
-                hit = has(name) or ({"name": name, "folder": None} if len(parts) > 1 or known(name) else None)
-                if hit:
+                hit = has(name) or {"name": name, "folder": None, "own": False}
+                if sfold(hit["name"]):
                     found.setdefault(sfold(hit["name"]), hit)
                 i += 1
     return list(found.values())

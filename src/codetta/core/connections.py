@@ -43,8 +43,9 @@ CONNECTIONS: tuple[Connection, ...] = (
     Connection(
         "deezer", "Deezer",
         "Album details and big covers from Deezer's catalogue, for albums MusicBrainz doesn't have "
-        "yet (new releases often appear here first), or when it's down. No account needed.",
-        "The album and artist names you search for, and the IDs of albums you pick.",
+        "yet (new releases often appear here first), or when it's down, and artist pictures. No account needed.",
+        "The album and artist names you search for, the IDs of albums you pick, and the names of artists "
+        "whose pictures Codetta shows (each picture is downloaded once and kept on your server).",
         ("api.deezer.com", "cdn-images.dzcdn.net"), "DEEZER",
     ),
     Connection(

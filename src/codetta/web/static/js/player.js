@@ -426,7 +426,7 @@ function renderPlayerSheet() {
   e.cover.classList.toggle("playing", !!playing);
   e.title.textContent = first(t, "title") || t.name;
   const credit = (t.tags.artist || []).join(", ");
-  setKids(e.artist, credit ? artistButton(credit, t.tags.artist || [], { before: () => closeDialog($("#player-dialog")) }) : "");
+  setKids(e.artist, credit ? artistButton(credit, t.tags.artist || [], { pictures: true, before: () => closeDialog($("#player-dialog")) }) : "");
   e.from.textContent = player.folderName ? `From ${player.folderName}` : "";
   e.from.hidden = !player.folderName;
   setKids(e.play, icon(playing ? "pause" : "play"));

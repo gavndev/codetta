@@ -23,6 +23,7 @@ CALLS = [
     ("PUT", "/api/audiomuse", {"url": "https://audiomuse.example", "token": "a" * 32}),
     ("POST", "/api/audiomuse/test", {}),
     ("POST", "/api/autoplay/next", {"seeds": [TRACK], "n": 5}),
+    ("GET", "/api/artists/picture?name=Coda+Tester", None),
     ("POST", "/api/musicbrainz/search", {"folder": FOLDER}),
     ("POST", "/api/musicbrainz/search", {"folder": FOLDER, "source": "deezer"}),
     ("POST", "/api/musicbrainz/search", {"folder": FOLDER, "source": "itunes"}),

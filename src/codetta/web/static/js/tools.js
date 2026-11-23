@@ -85,10 +85,15 @@ export async function downloadZip(path) {
 }
 
 export function openToolsMenu(anchor, tools) {
-  document.querySelector(".tools-menu")?.remove();
-  const r = anchor.getBoundingClientRect();
   const menu = h("div", { class: "tools-menu", role: "menu" }, tools.map((t) => h("button", { class: "tools-item", type: "button", role: "menuitem",
     onclick: () => { menu.remove(); t.run(); } }, icon(t.icon), t.label)));
+  popMenu(anchor, menu);
+}
+
+/** Show ``menu`` (class "tools-menu") under ``anchor``, kept on screen; a tap outside closes it. */
+export function popMenu(anchor, menu) {
+  document.querySelector(".tools-menu")?.remove();
+  const r = anchor.getBoundingClientRect();
   menu.style.top = `${r.bottom + 8}px`;
   document.body.append(menu);
   const left = Math.min(Math.max(12, r.left), window.innerWidth - menu.offsetWidth - 12);  // stays on screen
@@ -352,7 +357,7 @@ export function renderFolderHead() {
         h("h1", { dir: "auto" }, common("album") || f.name),
         h("p", { class: "album-meta" },
           [common("albumartist") || common("artist"), common("date").slice(0, 4)].filter(Boolean).flatMap((v, i) => [i ? " · " : "",
-            v === (common("albumartist") || common("artist")) && i === 0 ? h("b", {}, artistButton(v, [v])) : h("b", { dir: "auto" }, v)]),
+            v === (common("albumartist") || common("artist")) && i === 0 ? h("b", {}, artistButton(v, [v], { pictures: true })) : h("b", { dir: "auto" }, v)]),
           counts.length ? [common("albumartist") || common("artist") || common("date") ? " · " : "",
             h("span", { class: "nowrap" }, `${counts.join(" · ")}${runtime(f.tracks)}`)] : "", skippedNote),
         genres || canMatch || canSoulseek ? h("div", { class: "album-chips" },

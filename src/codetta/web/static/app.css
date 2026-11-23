@@ -3081,3 +3081,22 @@ dialog:focus { outline: none; }
 @media (hover: hover) { .artist-link:hover { text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; } }
 .artist-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (pointer: coarse) { .album-meta .artist-link, .ps-artist .artist-link { padding-block: 10px; margin-block: -10px; } }
+
+/* Artist pictures: round, or the artist's initials on a colour of their own. */
+.artist-av { display: inline-grid; place-items: center; flex: none; width: var(--av); height: var(--av); border-radius: 50%;
+  overflow: hidden; background: hsl(var(--hue) 42% 46%); color: #fff; box-shadow: 0 0 0 1px var(--rule); vertical-align: middle; }
+.artist-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.artist-av-ini { font-size: calc(var(--av) * 0.38); font-weight: 700; letter-spacing: .02em; line-height: 1; }
+.artist-link { display: inline-flex; align-items: center; gap: 8px; vertical-align: middle; }
+.artist-stack { display: inline-flex; }
+.artist-stack .artist-av + .artist-av { margin-left: -8px; }
+.artist-stack .artist-av { box-shadow: 0 0 0 2px var(--bg); }
+.col-artist .artist-link { display: inline; }
+/* The artist menu: a proper list with pictures. */
+.artist-menu { min-width: 240px; max-width: min(340px, calc(100vw - 24px)); padding: 6px; }
+.artist-item { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 8px 10px; border: 0; border-radius: 10px;
+  background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.artist-item:hover, .artist-item:focus-visible { background: var(--hover); outline: none; }
+.artist-item-text { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+.artist-item-name { font-weight: 650; overflow-wrap: anywhere; }
+.artist-item-sub { font-size: 12.5px; color: var(--muted); }
