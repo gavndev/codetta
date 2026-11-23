@@ -6,6 +6,7 @@ import { api } from "./api.js";
 import { els, first, fmtDuration, state, toast } from "./state.js";
 import { discInfo, navigate, visibleTracks } from "./browse.js";
 import { artUrlFor, openEditor } from "./editor.js";
+import { artistButton } from "./artists.js";
 
 // ---- Player: a quick listen, straight from the file -------------------------------------------
 //
@@ -424,7 +425,8 @@ function renderPlayerSheet() {
   setKids(e.cover, t.art ? h("img", { src: artUrlFor(t), alt: "" }) : icon("note"));
   e.cover.classList.toggle("playing", !!playing);
   e.title.textContent = first(t, "title") || t.name;
-  e.artist.textContent = (t.tags.artist || []).join(", ");
+  const credit = (t.tags.artist || []).join(", ");
+  setKids(e.artist, credit ? artistButton(credit, t.tags.artist || [], { before: () => closeDialog($("#player-dialog")) }) : "");
   e.from.textContent = player.folderName ? `From ${player.folderName}` : "";
   e.from.hidden = !player.folderName;
   setKids(e.play, icon(playing ? "pause" : "play"));

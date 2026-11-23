@@ -132,6 +132,7 @@ from codetta.web.routes import (
     replaygain as replaygain_routes,
     discogs as discogs_routes,
     autoplay as autoplay_routes,
+    artists as artists_routes,
     musicbrainz,
     onboarding,
     organize,
@@ -146,7 +147,7 @@ from codetta.web.security import GuardMiddleware, SelectiveGZip
 
 # The order matters a little: an area can use what earlier areas share right away,
 # and reaches later ones through shared.later(...).
-ROUTES = (status, library, musicbrainz, tags, organize, onboarding, inbox, care, soulseek, lidarr_routes, mediaserver_routes, replaygain_routes, discogs_routes, autoplay_routes, explore, health, tools,
+ROUTES = (status, library, musicbrainz, tags, organize, onboarding, inbox, care, soulseek, lidarr_routes, mediaserver_routes, replaygain_routes, discogs_routes, autoplay_routes, artists_routes, explore, health, tools,
           files, support, activity, presets)
 # Also importable from here, as before the split.
 __all__ = ["ACTIVITY_VALUE_CHARS", "VERSION", "Settings", "_is_public_address", "_to_track_out", "app", "create_app"]

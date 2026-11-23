@@ -19,6 +19,7 @@ import { openReplayGain, replayGainReady } from "./replaygain.js";
 import { openFromNames } from "./fromnames.js";
 import { openTracklist } from "./tracklist.js";
 import { openCoverExport } from "./coverexport.js";
+import { artistButton } from "./artists.js";
 
 // ---- Batch tools: find & replace in tags, rename a folder, actions -----------------------------------
 
@@ -350,7 +351,8 @@ export function renderFolderHead() {
       h("div", {},
         h("h1", { dir: "auto" }, common("album") || f.name),
         h("p", { class: "album-meta" },
-          [common("albumartist") || common("artist"), common("date").slice(0, 4)].filter(Boolean).flatMap((v, i) => [i ? " · " : "", h("b", { dir: "auto" }, v)]),
+          [common("albumartist") || common("artist"), common("date").slice(0, 4)].filter(Boolean).flatMap((v, i) => [i ? " · " : "",
+            v === (common("albumartist") || common("artist")) && i === 0 ? h("b", {}, artistButton(v, [v])) : h("b", { dir: "auto" }, v)]),
           counts.length ? [common("albumartist") || common("artist") || common("date") ? " · " : "",
             h("span", { class: "nowrap" }, `${counts.join(" · ")}${runtime(f.tracks)}`)] : "", skippedNote),
         genres || canMatch || canSoulseek ? h("div", { class: "album-chips" },
@@ -602,7 +604,7 @@ function trackRow(t, { oneAlbum, albumArtist, disc }) {
       h("span", { class: "sub", translate: t.error || !(artist || album || title) ? null : "no" }, t.error ? t.error
         : oneAlbum ? (artist && artist !== albumArtist ? artist : "")
         : [artist, album].filter(Boolean).join(" · ") || (title ? t.name : `${fmtLabel(t.format)} · No tags yet`))),
-    h("div", { class: "col-artist", translate: t.error ? null : "no" }, t.error ? t.error : artist),
+    h("div", { class: "col-artist", translate: t.error ? null : "no" }, t.error ? t.error : artist ? artistButton(artist, t.tags.artist || []) : ""),
     h("div", { class: "col-album", translate: "no" }, album),
     h("div", { class: "col-fmt" }, t.format ? h("span", { class: "badge" }, fmtLabel(t.format)) : ""),
     h("div", { class: "col-dur" }, fmtDuration(t.duration)),
