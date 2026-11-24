@@ -433,6 +433,8 @@ class PlaylistChangeIn(BaseModel):
     name: str | None = Field(default=None, max_length=200)
     add: list[Annotated[str, Field(max_length=MAX_PATH_CHARS)]] = Field(default=[], max_length=MAX_PATHS_PER_REQUEST)
     remove: list[Annotated[str, Field(max_length=MAX_PATH_CHARS)]] = Field(default=[], max_length=MAX_PATHS_PER_REQUEST)  # every copy of these songs
+    # The same songs in a new order (dragged on the page). Refused when the playlist changed meanwhile.
+    order: list[Annotated[str, Field(max_length=MAX_PATH_CHARS)]] | None = Field(default=None, max_length=10_000)
 
 
 class WipeIn(BaseModel):

@@ -20,7 +20,7 @@ import { openFromNames } from "./fromnames.js";
 import { openTracklist } from "./tracklist.js";
 import { openCoverExport } from "./coverexport.js";
 import { artistButton, artistHead } from "./artists.js";
-import { renderYoursBody, yoursHead } from "./yours.js";
+import { renderYoursBody, reorderGrip, yoursHead } from "./yours.js";
 
 /** The album's cover at its own shape: square, taller (an obi, a cassette J-card) or wider (a long sleeve). */
 function albumCover(t) {
@@ -694,10 +694,10 @@ function trackRow(t, { oneAlbum, albumArtist, disc }) {
     h("div", { class: "col-album", translate: "no" }, album),
     h("div", { class: "col-fmt" }, t.format ? h("span", { class: "badge" }, fmtLabel(t.format)) : ""),
     h("div", { class: "col-dur" }, fmtDuration(t.duration)),
-    h("div", { class: "col-play" }, !t.error && canPlay(t.format) ? h("button", {
+    h("div", { class: "col-play" }, reorderGrip(t) || (!t.error && canPlay(t.format) ? h("button", {
       class: "play-btn", type: "button", "aria-label": `Play ${title || t.name}`,
       onclick: (e) => { e.stopPropagation(); togglePlay(t); },
-    }, icon("play"), h("span", { class: "play-label" }, "Play")) : null),
+    }, icon("play"), h("span", { class: "play-label" }, "Play")) : null)),
   );
   state.rows.set(t.path, { row, checkbox, track: t });
   return row;

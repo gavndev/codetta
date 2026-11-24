@@ -7,7 +7,7 @@ import { $, ask, h, icon, setKids } from "./dom.js";
 import { api } from "./api.js";
 import { els, plural, state, toast } from "./state.js";
 import { YOURS, folderCache, hashFor, loadFolder, navigate } from "./browse.js";
-import { openToolsMenu } from "./tools.js";
+import { openToolsMenu, renderFolderHead, renderTracks } from "./tools.js";
 
 export const yoursKey = (view = "", id = "") => YOURS + (view === "playlist" ? `playlist:${id}` : view);
 const parse = (key) => { const [view, id] = key.slice(1).split(":"); return { view: view || "", id: Number(id) || 0 }; };
@@ -54,6 +54,11 @@ export function yoursHead(f) {
   const n = f.tracks.length;
   const tools = [];
   if (y.view === "playlist") {
+    if (ro.id !== y.id) ro.on = false; // another playlist: reordering starts off
+    const filtered = !!state.filter || state.tagFilters.length > 0;
+    tools.push(h("button", { class: `btn${ro.on ? " primary" : ""}`, type: "button", disabled: n < 2 || (filtered && !ro.on),
+      title: filtered ? "Clear the search box and tag filter to reorder" : "Drag songs into a new order",
+      onclick: () => { ro.on = !ro.on; ro.id = y.id; renderFolderHead(); renderTracks(); } }, icon("grip"), ro.on ? "Done" : "Reorder"));
     tools.push(h("button", { class: "btn", type: "button", onclick: () => renamePlaylist(y.id, f.name) }, icon("rename"), "Rename"),
       h("button", { class: "btn danger", type: "button", onclick: () => deletePlaylist(y.id, f.name) }, icon("trash"), "Delete"));
   }
@@ -167,4 +172,108 @@ export function setupYours() {
   const count = $("#inbox-count");
   if (count) new MutationObserver(syncTabbar).observe(count, { attributes: true, childList: true, characterData: true, subtree: true });
   syncTabbar();
+}
+
+// ---- Reordering a playlist: drag a song by its grip (mouse or finger), or use the arrow keys -----------
+
+const ro = { on: false, id: 0 };
+
+export const reordering = () => ro.on && state.folder?.yours?.view === "playlist" && state.folder.yours.id === ro.id
+  && !state.filter && !state.tagFilters.length;
+
+const songRows = () => [...els.tracks.querySelectorAll(".track-row:not(.head)")];
+
+/** The grip that takes the play button's place while reordering (null otherwise). */
+export function reorderGrip(t) {
+  if (!reordering()) return null;
+  const grip = h("button", { class: "reorder-grip", type: "button", "aria-label": `Move “${t.tags?.title?.[0] || t.name}”`,
+    title: "Drag to move it (or use the arrow keys)" }, icon("grip"));
+  grip.addEventListener("pointerdown", (e) => startDrag(e, grip));
+  grip.addEventListener("click", (e) => e.stopPropagation());
+  grip.addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+    e.preventDefault(); e.stopPropagation();
+    const from = songRows().indexOf(grip.closest(".track-row"));
+    const to = from + (e.key === "ArrowUp" ? -1 : 1);
+    if (from < 0 || to < 0 || to >= state.folder.tracks.length) return;
+    commit(from, to, true);
+  });
+  return grip;
+}
+
+function startDrag(e, grip) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  const row = grip.closest(".track-row");
+  const rows = songRows();
+  const from = rows.indexOf(row);
+  if (from < 0) return;
+  const rects = rows.map((r) => r.getBoundingClientRect()); // where everything was when the drag began
+  const mids = rects.map((r) => r.top + r.height / 2);
+  const step = rows.length > 1 ? rects[1].top - rects[0].top : rects[from].height; // rows are all one height
+  const scroller = els.browser;
+  const scroll0 = scroller.scrollTop;
+  const y0 = e.clientY;
+  let y = y0, to = from, frame = 0;
+  row.classList.add("dragging");
+  els.tracks.classList.add("drag-active");
+  grip.setPointerCapture(e.pointerId);
+  const update = () => {
+    const dy = y - y0 + (scroller.scrollTop - scroll0);
+    row.style.setProperty("transform", `translateY(${dy}px)`);
+    const mid = mids[from] + dy;
+    to = from;
+    for (let i = 0; i < rows.length; i++) {
+      if (i < from && mid < mids[i]) to = Math.min(to, i);
+      if (i > from && mid > mids[i]) to = Math.max(to, i);
+    }
+    rows.forEach((r, i) => {
+      if (i === from) return;
+      const shift = from < to && i > from && i <= to ? -step : from > to && i >= to && i < from ? step : 0;
+      r.style.setProperty("transform", shift ? `translateY(${shift}px)` : "");
+    });
+  };
+  // Near the top or bottom of the list: scroll, faster the closer the finger gets to the edge.
+  const edge = () => {
+    const box = scroller.getBoundingClientRect();
+    const zone = 80;
+    const top = Math.max(box.top, 0) + zone, bottom = Math.min(box.bottom, window.innerHeight) - zone - 60;
+    const v = y < top ? -(top - y) / 5 : y > bottom ? (y - bottom) / 5 : 0;
+    if (v) { scroller.scrollTop += v; update(); }
+    frame = requestAnimationFrame(edge);
+  };
+  frame = requestAnimationFrame(edge);
+  const move = (ev) => { y = ev.clientY; update(); };
+  const end = () => {
+    cancelAnimationFrame(frame);
+    grip.removeEventListener("pointermove", move);
+    grip.removeEventListener("pointerup", end);
+    grip.removeEventListener("pointercancel", end);
+    for (const r of rows) r.style.removeProperty("transform");
+    row.classList.remove("dragging");
+    els.tracks.classList.remove("drag-active");
+    if (to !== from) commit(from, to, false);
+  };
+  grip.addEventListener("pointermove", move);
+  grip.addEventListener("pointerup", end);
+  grip.addEventListener("pointercancel", end);
+}
+
+/** Move song ``from`` to place ``to``: on screen at once, then saved (the same order music apps see). */
+async function commit(from, to, keyboard) {
+  const f = state.folder;
+  const tracks = f.tracks;
+  const [moved] = tracks.splice(from, 1);
+  tracks.splice(to, 0, moved);
+  f.positions = null; // the numbers follow
+  renderTracks();
+  if (keyboard) songRows()[to]?.querySelector(".reorder-grip")?.focus();
+  try {
+    const d = await api("PUT", `/api/playlists/${f.yours.id}`, { order: tracks.map((t) => t.path) });
+    yours.summary = d;
+    for (const key of [...folderCache.keys()]) if (key.startsWith(YOURS) && key !== state.path) folderCache.delete(key);
+  } catch (err) {
+    toast(err.message, "error");
+    changed(); // show the playlist as it really is now
+  }
 }

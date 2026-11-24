@@ -60,3 +60,23 @@ def test_playlists(client):
     assert client.get("/api/yours").json()["playlists"][0]["name"] == "Drive"
     assert client.delete(f"/api/playlists/{pid}").json()["playlists"] == []
     assert client.get("/api/yours", params={"view": "playlist", "id": pid}).status_code == 404
+
+
+def test_reorder_a_playlist(client):
+    songs = [f"{A}/01.flac", f"{A}/02.flac", f"{A}/03.flac", f"{A}/01.flac"]  # a song can be in twice
+    pid = client.post("/api/playlists", json={"name": "Mix", "paths": songs}).json()["id"]
+    new = [f"{A}/03.flac", f"{A}/01.flac", f"{A}/01.flac", f"{A}/02.flac"]
+    assert client.put(f"/api/playlists/{pid}", json={"order": new}).status_code == 200
+    assert names(client.get("/api/yours", params={"view": "playlist", "id": pid}).json()) == ["03.flac", "01.flac", "01.flac", "02.flac"]
+    # Changed somewhere else meanwhile (a song added in a music app): the page's order is refused, nothing is lost.
+    client.put(f"/api/playlists/{pid}", json={"add": [f"{A}/02.flac"]})
+    res = client.put(f"/api/playlists/{pid}", json={"order": new})
+    assert res.status_code == 409
+    assert len(client.get("/api/yours", params={"view": "playlist", "id": pid}).json()["tracks"]) == 5
+
+
+def test_reorder_keeps_songs_whose_file_is_gone(client):
+    pid = client.post("/api/playlists", json={"name": "Mix", "paths": [f"{A}/01.flac", f"{A}/02.flac", f"{A}/03.flac"]}).json()["id"]
+    (client.music / A / "02.flac").unlink()
+    assert client.put(f"/api/playlists/{pid}", json={"order": [f"{A}/03.flac", f"{A}/01.flac"]}).status_code == 200
+    assert names(client.get("/api/yours", params={"view": "playlist", "id": pid}).json()) == ["03.flac", "01.flac"]

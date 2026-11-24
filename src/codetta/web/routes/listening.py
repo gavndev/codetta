@@ -3,6 +3,8 @@ player), ListenBrainz scrobbling, and plays reported by Codetta's player."""
 
 from __future__ import annotations
 
+from collections import Counter
+
 from fastapi import HTTPException, Query
 
 from codetta.core.library import LibraryPathError
@@ -182,6 +184,13 @@ def register(app, shared) -> None:
         pl = listening.playlist(pid)
         if pl is None:
             raise HTTPException(404, "That playlist is gone")
+        if body.order is not None:
+            shown = existing(pl.paths)  # the page never sees songs whose file is gone: they keep their place at the end
+            if Counter(body.order) != Counter(shown):
+                raise HTTPException(409, "This playlist changed somewhere else (a music app?). Here it is as it is now: try again.")
+            missing = Counter(pl.paths) - Counter(shown)
+            listening.replace_playlist(pid, body.order + list(missing.elements()), name=body.name)
+            return summary()
         gone = set(body.remove)
         drop = [i for i, p in enumerate(pl.paths) if p in gone]
         listening.update_playlist(pid, name=body.name, add=checked(body.add), remove=drop)

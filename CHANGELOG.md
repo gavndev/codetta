@@ -4,6 +4,7 @@ All notable changes to Codetta. Versions follow [Semantic Versioning](https://se
 
 ## Unreleased
 
+- **Reorder playlists:** press **Reorder** in a playlist and drag songs by their grip, with the mouse or a finger (the list scrolls when you reach the edge; the arrow keys work too). The new order is saved straight away, and music apps see it as well.
 - **Covers of every shape:** a Japanese CD with its obi, a cassette J-card, a long soundtrack sleeve. The album page now shows a cover at its own shape, and the folder grid, the player and the editor show the whole cover (over a soft blur of itself) instead of cropping it square.
 - **Choose which cover when matching:** when the Cover Art Archive has more than one front for a release, such as with and without the obi, the MusicBrainz review shows them all under **Which cover** so you can pick the one written to your files.
 - **Your music:** favourites, most played, recently played and your playlists, in the page (the heart in the top bar). They're the same ones your music apps see, so a song starred in Symfonium is a favourite here too. Select songs anywhere and use **Add to…** to add them to favourites or a playlist, or make a new one; rename, delete and take songs out of playlists right there.

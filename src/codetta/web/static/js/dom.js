@@ -153,6 +153,7 @@ const ICONS = {
   moon: '<svg viewBox="0 0 20 20"><path d="M16 12.5A6.5 6.5 0 0 1 7.5 4a6.5 6.5 0 1 0 8.5 8.5z"/></svg>',
   auto: '<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 3a7 7 0 0 1 0 14z" fill="currentColor" stroke="none"/></svg>',
   plus: '<svg viewBox="0 0 20 20"><path d="M10 4v12M4 10h12"/></svg>',
+  grip: '<svg viewBox="0 0 20 20"><path d="M4.5 7h11M4.5 10h11M4.5 13h11"/></svg>',
   heart: '<svg viewBox="0 0 20 20"><path d="M10 16.5s-6.5-3.9-6.5-8.6A3.6 3.6 0 0 1 10 6a3.6 3.6 0 0 1 6.5 1.9c0 4.7-6.5 8.6-6.5 8.6z"/></svg>',
   pencil: '<svg viewBox="0 0 20 20"><path d="m13.2 3.8 3 3-8.9 8.9-3.8.8.8-3.8z"/><path d="m11.4 5.6 3 3"/></svg>',
   compare: '<svg viewBox="0 0 20 20"><rect x="2.8" y="4" width="6" height="12" rx="1.5"/><rect x="11.2" y="4" width="6" height="12" rx="1.5"/><path d="M5 8h1.6M5 11h1.6M13.4 8h1.6M13.4 11h1.6"/></svg>',

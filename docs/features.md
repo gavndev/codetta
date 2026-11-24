@@ -222,7 +222,8 @@ has your **Favourites**, **Most played**, **Recently played** and your
 song you star in Symfonium is a favourite here too, and the other way round.
 Select songs anywhere and use **Add to…** to add them to favourites or a
 playlist, or to make a new one; inside a playlist, Add to… can also take songs
-out. Each list plays, selects and edits like any folder. None of this touches
+out, and **Reorder** lets you drag songs into a new order (or move them with the
+arrow keys). Each list plays, selects and edits like any folder. None of this touches
 your files: it's kept in `listening.sqlite3` in the config folder.
 
 On a phone, Library, Your music and the inbox sit in a pill at the bottom of
