@@ -67,6 +67,7 @@ class Settings:
     audiomuse_url: str | None = None  # CODETTA_AUDIOMUSE_URL / _TOKEN: set (and lock) the connection details
     audiomuse_token: str | None = None
     listenbrainz: bool | None = None  # the ListenBrainz connection (CODETTA_LISTENBRAINZ)
+    listenbrainz_token: str | None = None  # CODETTA_LISTENBRAINZ_TOKEN: scrobble with this token (locks the field)
     lidarr_url: str | None = None  # CODETTA_LIDARR_URL / _API_KEY: set (and lock) the connection details
     lidarr_api_key: str | None = None
     media_server: bool | None = None  # rescans on the user's Navidrome / Jellyfin / Emby / Plex
@@ -109,6 +110,7 @@ class Settings:
             audiomuse_url=(env("AUDIOMUSE_URL") or "").strip() or None,
             audiomuse_token=(env("AUDIOMUSE_TOKEN") or "").strip() or None,
             listenbrainz=parse_switch(env("LISTENBRAINZ")),
+            listenbrainz_token=(env("LISTENBRAINZ_TOKEN") or "").strip() or None,
             lidarr_url=(env("LIDARR_URL") or "").strip() or None,
             lidarr_api_key=(env("LIDARR_API_KEY") or "").strip() or None,
             media_server=parse_switch(env("MEDIA_SERVER")),
@@ -309,6 +311,16 @@ class LidarrSettingsIn(BaseModel):
 
 class SubsonicSettingsIn(BaseModel):
     enabled: bool
+    transcode: bool | None = None  # convert songs when an app asks (None: keep as it is)
+    format: Literal["mp3", "opus", "aac"] | None = None
+
+
+class ListenBrainzIn(BaseModel):
+    token: str = Field("", max_length=200)  # "" removes it
+
+
+class PlayedIn(BaseModel):
+    path: str = Field(..., min_length=1, max_length=MAX_PATH_CHARS)
 
 
 class AudioMuseSettingsIn(BaseModel):

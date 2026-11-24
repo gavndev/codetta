@@ -28,11 +28,11 @@ def turn_on(c):
     return c.put("/api/subsonic", json={"enabled": True}).json()["password"]
 
 
-def call(c, method, pw, **extra):
+def call(cl, method, pw, **extra):
     salt = "abc123"
     params = {"u": "owner", "t": hashlib.md5((pw + salt).encode()).hexdigest(), "s": salt, "v": "1.16.1",
               "c": "test", "f": "json", **extra}
-    r = c.get(f"/rest/{method}", params=params)
+    r = cl.get(f"/rest/{method}", params=params)
     return r, (r.json()["subsonic-response"] if r.headers["content-type"].startswith("application/json") else None)
 
 
@@ -163,3 +163,185 @@ def test_login_rules_and_xml_escaping():
         check_login({"u": "a", "p": "x"}, "a", "")  # no app password yet: nothing gets in
     xml = to_xml({"status": "ok", "song": [{"title": 'A & "B" <C>'}]})
     assert ET.fromstring(xml).find("{http://subsonic.org/restapi}song").get("title") == 'A & "B" <C>'
+
+
+# --- 0.13: the full integration ------------------------------------------------------------------
+
+def j(cl, method, pw, **extra):
+    return call(cl, method, pw, **extra)[1]
+
+
+def first_song_ids(c, pw):
+    artist = j(c, "getArtists", pw)["artists"]["index"][0]["artist"][0]
+    album = j(c, "getArtist", pw, id=artist["id"])["artist"]["album"][0]
+    songs = j(c, "getAlbum", pw, id=album["id"])["album"]["song"]
+    return artist["id"], album["id"], [s["id"] for s in songs]
+
+
+def test_form_posts_work(client):
+    pw = turn_on(client)
+    r = client.post("/rest/ping.view", data={"u": "owner", "p": pw, "f": "json"})
+    assert r.status_code == 200 and r.json()["subsonic-response"]["status"] == "ok"
+
+
+def test_going_up_from_a_top_level_folder(client):
+    pw = turn_on(client)
+    top = j(client, "getIndexes", pw)["indexes"]["index"][0]["artist"][0]
+    d = j(client, "getMusicDirectory", pw, id=top["id"])["directory"]
+    root = j(client, "getMusicDirectory", pw, id=d["parent"])
+    assert root["status"] == "ok" and "parent" not in root["directory"]
+    assert any(x["id"] == top["id"] for x in root["directory"]["child"])
+
+
+def test_stars_ratings_and_plays_are_kept(client):
+    pw = turn_on(client)
+    artist, album, songs = first_song_ids(client, pw)
+    params = [("u", "owner"), ("p", pw), ("f", "json"), ("id", songs[0]), ("id", songs[1]), ("albumId", album), ("artistId", artist)]
+    assert client.get("/rest/star", params=params).json()["subsonic-response"]["status"] == "ok"
+    starred = j(client, "getStarred2", pw)["starred2"]
+    assert {s["id"] for s in starred["song"]} == {songs[0], songs[1]}
+    assert starred["album"][0]["id"] == album and starred["artist"][0]["id"] == artist
+    j(client, "unstar", pw, id=songs[1])
+    assert [s["id"] for s in j(client, "getStarred2", pw)["starred2"]["song"]] == [songs[0]]
+    j(client, "setRating", pw, id=songs[0], rating=5)
+    for _ in range(2):
+        j(client, "scrobble", pw, id=songs[0], submission="true")
+    song = j(client, "getSong", pw, id=songs[0])["song"]
+    assert song["starred"] and song["userRating"] == 5 and song["playCount"] == 2 and song["played"]
+    assert j(client, "getAlbumList2", pw, type="frequent")["albumList2"]["album"][0]["id"] == album
+    assert j(client, "getAlbumList2", pw, type="recent")["albumList2"]["album"][0]["id"] == album
+    j(client, "scrobble", pw, id=songs[2], submission="false", c="Symfonium")
+    now = j(client, "getNowPlaying", pw)["nowPlaying"]["entry"]
+    assert now[0]["id"] == songs[2] and now[0]["playerName"] == "Symfonium"
+    top = j(client, "getTopSongs", pw, artist=song["artist"])["topSongs"]["song"]
+    assert top[0]["id"] == songs[0]
+
+
+def test_playlists(client):
+    pw = turn_on(client)
+    _, _, songs = first_song_ids(client, pw)
+    params = [("u", "owner"), ("p", pw), ("f", "json"), ("name", "Road trip"), ("songId", songs[2]), ("songId", songs[0])]
+    pl = client.get("/rest/createPlaylist", params=params).json()["subsonic-response"]["playlist"]
+    assert pl["name"] == "Road trip" and [e["id"] for e in pl["entry"]] == [songs[2], songs[0]] and pl["songCount"] == 2
+    upd = [("u", "owner"), ("p", pw), ("f", "json"), ("playlistId", pl["id"]), ("name", "Trip"), ("songIdToAdd", songs[1]),
+           ("songIndexToRemove", "0")]
+    client.get("/rest/updatePlaylist", params=upd)
+    got = j(client, "getPlaylist", pw, id=pl["id"])["playlist"]
+    assert got["name"] == "Trip" and [e["id"] for e in got["entry"]] == [songs[0], songs[1]]
+    assert [p["name"] for p in j(client, "getPlaylists", pw)["playlists"]["playlist"]] == ["Trip"]
+    j(client, "deletePlaylist", pw, id=pl["id"])
+    assert j(client, "getPlaylist", pw, id=pl["id"])["error"]["code"] == 70
+
+
+def test_play_queue_and_bookmarks(client):
+    pw = turn_on(client)
+    _, _, songs = first_song_ids(client, pw)
+    q = [("u", "owner"), ("p", pw), ("f", "json"), ("id", songs[0]), ("id", songs[1]), ("current", songs[1]), ("position", "4200"),
+         ("c", "Narjo")]
+    client.get("/rest/savePlayQueue", params=q)
+    queue = j(client, "getPlayQueue", pw)["playQueue"]
+    assert [e["id"] for e in queue["entry"]] == [songs[0], songs[1]] and queue["current"] == songs[1]
+    assert queue["position"] == 4200 and queue["changedBy"] == "Narjo"
+    assert j(client, "getPlayQueueByIndex", pw)["playQueueByIndex"]["currentIndex"] == 1
+    qi = [("u", "owner"), ("p", pw), ("f", "json"), ("id", songs[2]), ("currentIndex", "0")]
+    client.get("/rest/savePlayQueueByIndex", params=qi)
+    assert j(client, "getPlayQueue", pw)["playQueue"]["current"] == songs[2]
+    j(client, "createBookmark", pw, id=songs[0], position=90000, comment="chapter 2")
+    bm = j(client, "getBookmarks", pw)["bookmarks"]["bookmark"]
+    assert bm[0]["position"] == 90000 and bm[0]["entry"]["id"] == songs[0]
+    j(client, "deleteBookmark", pw, id=songs[0])
+    assert j(client, "getBookmarks", pw)["bookmarks"]["bookmark"] == []
+
+
+def test_stars_follow_a_renamed_file(client):
+    pw = turn_on(client)
+    _, _, songs = first_song_ids(client, pw)
+    path = j(client, "getSong", pw, id=songs[0])["song"]["path"]
+    j(client, "star", pw, id=songs[0])
+    r = client.post("/api/files/rename", json={"path": path, "name": "Renamed"})
+    assert r.status_code == 200, r.text
+    for _ in range(200):
+        starred = j(client, "getStarred2", pw)["starred2"].get("song", [])
+        if starred and starred[0]["path"] != path:
+            break
+        time.sleep(0.05)
+    assert starred and starred[0]["path"].endswith("Renamed.flac")
+
+
+def test_rich_details_and_extensions(client, album_dir):  # noqa: F811
+    from mutagen.flac import FLAC
+    f = FLAC(album_dir / "Coda Tester" / "Fixture Album" / "01.flac")
+    f["replaygain_track_gain"] = "-7.50 dB"
+    f["replaygain_track_peak"] = "0.988"
+    f["musicbrainz_trackid"] = "11111111-2222-4333-8444-555555555555"
+    f["genre"] = ["Neo Soul", "R&B"]
+    f.save()
+    pw = turn_on(client)
+    j(client, "startScan", pw)  # the file changed behind Codetta's back, as apps would ask
+    for _ in range(200):
+        _, _, songs = first_song_ids(client, pw)
+        song = j(client, "getSong", pw, id=songs[0])["song"]
+        if song.get("replayGain"):
+            break
+        time.sleep(0.05)
+    assert song["replayGain"] == {"trackGain": -7.5, "trackPeak": 0.988}
+    assert song["musicBrainzId"] == "11111111-2222-4333-8444-555555555555"
+    assert [g["name"] for g in song["genres"]] == ["Neo Soul", "R&B"] and song["artists"][0]["name"]
+    names = {e["name"] for e in j(client, "getOpenSubsonicExtensions", pw)["openSubsonicExtensions"]}
+    assert {"transcodeOffset", "indexBasedQueue", "formPost", "apiKeyAuthentication", "songLyrics"} <= names
+
+
+def test_cover_sizes(client, album_dir):  # noqa: F811
+    import io
+
+    from mutagen.flac import FLAC, Picture
+    from PIL import Image
+    out = io.BytesIO()
+    Image.new("RGB", (1000, 1000), (10, 120, 200)).save(out, "JPEG")
+    for name in ("01.flac",):
+        f = FLAC(album_dir / "Coda Tester" / "Fixture Album" / name)
+        pic = Picture()
+        pic.type, pic.mime, pic.data = 3, "image/jpeg", out.getvalue()
+        f.clear_pictures()
+        f.add_picture(pic)
+        f.save()
+    pw = turn_on(client)
+    j(client, "startScan", pw)
+    for _ in range(200):
+        _, album, _ = first_song_ids(client, pw)
+        r, _ = call(client, "getCoverArt", pw, id=album, size=150)
+        if r.headers["content-type"].startswith("image/"):
+            break
+        time.sleep(0.05)
+    assert Image.open(io.BytesIO(r.content)).size == (150, 150)
+    r, _ = call(client, "getCoverArt", pw, id=album)
+    assert Image.open(io.BytesIO(r.content)).size == (1000, 1000)
+
+
+def test_streaming_raw_and_converted(client):
+    import shutil as sh
+
+    from codetta.core.transcode import Transcoder
+    pw = turn_on(client)
+    _, _, songs = first_song_ids(client, pw)
+    r, _ = call(client, "stream", pw, id=songs[0], format="raw", maxBitRate=64)
+    assert r.headers["content-type"] == "audio/flac" and r.content[:4] == b"fLaC"
+    ffmpeg = sh.which("ffmpeg")
+    if not ffmpeg or "mp3" not in Transcoder(ffmpeg).formats():
+        pytest.skip("no ffmpeg with an MP3 encoder here")
+    r, _ = call(client, "stream", pw, id=songs[0], format="mp3", maxBitRate=128)
+    assert r.status_code == 200 and r.headers["content-type"] == "audio/mpeg" and len(r.content) > 100
+    client.put("/api/subsonic", json={"enabled": True, "transcode": False})
+    r, _ = call(client, "stream", pw, id=songs[0], format="mp3", maxBitRate=128)
+    assert r.headers["content-type"] == "audio/flac"  # conversion switched off: the original
+
+
+def test_artist_info_and_settings_card(client):
+    pw = turn_on(client)
+    artist, _, _ = first_song_ids(client, pw)
+    info = j(client, "getArtistInfo2", pw, id=artist)["artistInfo2"]
+    assert info["largeImageUrl"].startswith("http") and "getCoverArt" in info["largeImageUrl"] and "t=" in info["largeImageUrl"]  # it carries the request's own sign-in
+    j(client, "ping", pw, c="Symfonium")
+    card = client.get("/api/subsonic").json()
+    assert card["transcode"] is True and card["format"] == "mp3"
+    assert {x["name"] for x in card["clients"]} == {"Symfonium", "test"}  # the tests' own client says "test"

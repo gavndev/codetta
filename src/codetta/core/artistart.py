@@ -20,17 +20,16 @@ import os
 import tempfile
 import threading
 import time
-import urllib.parse
 from collections.abc import Callable
 from pathlib import Path
 
+from codetta.core.catalogs import DeezerBusy, deezer_artist
 from codetta.core.index import sfold
 
 LOCAL_NAMES = ("artist", "folder", "poster")
 LOCAL_EXTS = (".jpg", ".jpeg", ".png", ".webp")
 MISS_SECONDS = 7 * 24 * 3600  # how long "Deezer has no picture" is believed
 MAX_CACHE_FILES = 5000
-DEEZER_API = "https://api.deezer.com"
 
 
 def _sniff(data: bytes) -> str | None:
@@ -86,13 +85,9 @@ class ArtistArt:
             return found
         key = self._key(name)
         hit, miss = self.cache_dir / f"{key}.img", self.cache_dir / f"{key}.none"
-        try:
-            data = hit.read_bytes()
-            kind = _sniff(data)
-            if kind:
-                return data, kind
-        except OSError:
-            pass
+        cached = self._cached(hit)
+        if cached:
+            return cached
         try:
             if time.time() - miss.stat().st_mtime < MISS_SECONDS:
                 return None
@@ -103,20 +98,32 @@ class ArtistArt:
         with self._guard:
             lock = self._locks.setdefault(key, threading.Lock())
         with lock:  # two rows asking for the same artist download it once
-            if hit.exists():
-                return self.picture(name, folder)
-            data = self._deezer(name)
+            cached = self._cached(hit)  # another request may have fetched it meanwhile
+            if cached:
+                return cached
+            try:
+                data = self._deezer(name)
+            except DeezerBusy:
+                return None  # Deezer is busy or over quota: no answer is not "no picture"
             self._store(hit if data else miss, data or b"")
             kind = _sniff(data) if data else None
             return (data, kind) if data and kind else None
 
+    def _cached(self, hit: Path) -> tuple[bytes, str] | None:
+        try:
+            data = hit.read_bytes()
+        except OSError:
+            return None
+        kind = _sniff(data)
+        if kind:
+            return data, kind
+        hit.unlink(missing_ok=True)  # broken (cut short, edited): fetch it again
+        return None
+
     def _deezer(self, name: str) -> bytes | None:
-        found = self.fetch_json(f"{DEEZER_API}/search/artist?q={urllib.parse.quote(name)}&limit=10")
-        items = [a for a in (found.get("data") or []) if isinstance(a, dict)] if isinstance(found, dict) else []
-        same = [a for a in items if str(a.get("name") or "").casefold() == name.casefold()]
-        if not same:
+        best = deezer_artist(self.fetch_json, name)
+        if best is None:
             return None  # a different artist's face is worse than initials
-        best = max(same, key=lambda a: a.get("nb_fan") or 0)
         url = str(best.get("picture_medium") or best.get("picture_big") or "")
         # Deezer's stand-in for "no picture" has an empty image id: ".../images/artist//250x250..."
         if not url.startswith("https://") or "/artist//" in url:

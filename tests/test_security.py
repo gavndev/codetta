@@ -707,3 +707,25 @@ def test_music_app_api_is_the_only_new_public_path(tmp_path):
         assert anon.get("/rest/../api/browse", params={"path": ""}).status_code in (401, 404)
         assert anon.get("/api/subsonic").status_code == 401
         assert anon.put("/api/subsonic", json={"enabled": True}).status_code == 401
+
+
+def test_web_players_on_other_sites_can_use_the_music_app_api_but_nothing_else(tmp_path):
+    """/rest/ carries its own sign-in on every request (never the cookie), so the cross-site check
+    doesn't apply there; it still applies to Codetta's own API, and size limits apply everywhere."""
+    from fastapi.testclient import TestClient
+
+    from codetta.web.app import Settings, create_app
+    (tmp_path / "music").mkdir()
+    app = create_app(Settings(music_dir=tmp_path / "music", config_dir=tmp_path / "config"))
+    with TestClient(app) as c:
+        c.post("/api/auth/setup", json={"username": "owner", "password": "a-long-enough-password-1"})
+        pw = c.put("/api/subsonic", json={"enabled": True}).json()["password"]
+        cross = {"Sec-Fetch-Site": "cross-site", "Origin": "https://player.example"}
+        r = c.post("/rest/ping", data={"u": "owner", "p": pw, "f": "json"}, headers=cross)
+        assert r.status_code == 200 and r.json()["subsonic-response"]["status"] == "ok"
+        assert r.headers["access-control-allow-origin"] == "*"
+        pre = c.options("/rest/ping", headers={**cross, "Access-Control-Request-Method": "POST"})
+        assert pre.status_code == 204 and "POST" in pre.headers["access-control-allow-methods"]
+        assert c.put("/api/subsonic", json={"enabled": False}, headers=cross).status_code == 403
+        big = c.post("/rest/ping", content=b"x" * (20 * 1024 * 1024), headers={**cross, "Content-Type": "application/x-www-form-urlencoded"})
+        assert big.status_code == 413

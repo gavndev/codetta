@@ -25,6 +25,39 @@ function copyField(label, value, secret = false) {
   return h("label", { class: "field" }, h("span", { class: "field-label" }, label), row);
 }
 
+const ago = (t) => {
+  const s = Math.max(0, Date.now() / 1000 - t);
+  return s < 3600 ? "just now" : s < 86400 ? `${Math.round(s / 3600)} h ago` : `${Math.round(s / 86400)} d ago`;
+};
+
+/** Converting songs for mobile data, when apps ask (only offered when the encoders are there). */
+function conversion(d) {
+  if (!d.formats?.length) {
+    return h("p", { class: "hint" }, "Converting songs for mobile data needs ffmpeg with MP3, Opus or AAC encoding (the Docker image and the snap have it). Apps get the original files.");
+  }
+  const toggle = h("input", { type: "checkbox", role: "switch", checked: d.transcode });
+  const pick = h("select", { "aria-label": "Format when an app only asks for a lower bitrate" },
+    d.formats.map((f) => h("option", { value: f, selected: f === d.format }, { mp3: "MP3", opus: "Opus", aac: "AAC" }[f] || f)));
+  const save = async () => {
+    try { render(await api("PUT", "/api/subsonic", { enabled: true, transcode: toggle.checked, format: pick.value })); }
+    catch (err) { toast(err.message, "error"); }
+  };
+  toggle.addEventListener("change", save);
+  pick.addEventListener("change", save);
+  return h("div", { class: "sk-fields" },
+    h("label", { class: "switch-row" },
+      h("span", { class: "switch-text" }, h("span", { class: "switch-title" }, "Smaller files on mobile data"),
+        h("span", { class: "switch-sub" }, "When an app asks for a lower quality (set in the app, often for mobile data), Codetta converts the song as it plays. Off: apps always get the original.")),
+      toggle),
+    d.transcode ? h("label", { class: "field" }, h("span", { class: "field-label" }, "Convert to"), pick) : null);
+}
+
+function connected(d) {
+  if (!d.clients?.length) return h("p", { class: "hint" }, "No app has connected yet.");
+  return h("p", { class: "hint" }, "Connected recently: ", d.clients.slice(0, 6).map((c, i) =>
+    [i ? ", " : "", h("b", { translate: "no" }, c.name), ` (${ago(c.last_seen)})`]));
+}
+
 function details(d) {
   return h("div", { class: "sk-fields" },
     h("p", { class: "hint" }, `In your app, add a Subsonic (or Navidrome) server with these details:`),
@@ -35,7 +68,10 @@ function details(d) {
     h("button", { class: "link-btn", type: "button", onclick: async () => {
       try { render(await api("POST", "/api/subsonic/password")); toast("New app password: sign in again in your apps", "success"); }
       catch (err) { toast(err.message, "error"); }
-    } }, "Make a new password (signs every app out)"));
+    } }, "Make a new password (signs every app out)"),
+    connected(d),
+    conversion(d),
+    h("p", { class: "hint" }, "Stars, ratings, play counts, playlists and your play queue from the apps are kept in Codetta and shared by all of them."));
 }
 
 function render(d) {

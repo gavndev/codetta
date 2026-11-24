@@ -17,7 +17,7 @@ from tests.conftest import FIXTURES_DIR
 # Routes anyone may call without signing in.
 # /rest/ (music apps) skips the session but signs in with the app password on every request
 # (tests/test_subsonic.py, tests/test_security.py::test_music_app_api_is_the_only_new_public_path).
-PUBLIC = {("GET", "/rest/{method}"), ("POST", "/rest/{method}"),
+PUBLIC = {("GET", "/rest/{method}"), ("POST", "/rest/{method}"), ("OPTIONS", "/rest/{method}"),  # CORS preflight: headers only
           ("GET", "/"), ("GET", "/api/health"), ("GET", "/api/changelog"), ("GET", "/api/auth/status"),
           ("POST", "/api/auth/setup"), ("POST", "/api/auth/login"), ("POST", "/api/auth/logout"),
           ("POST", "/api/auth/password"),  # checks the session itself (tested below)

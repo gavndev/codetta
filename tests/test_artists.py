@@ -111,9 +111,9 @@ def test_picture_from_deezer_once_then_from_memory_and_never_a_namesake(tmp_path
 
     def fetch_json(url):
         asked.append(url)
-        return {"data": [{"name": "Drake", "nb_fan": 40, "picture_medium": "https://cdn-images.dzcdn.net/images/artist/small/x.jpg"},
-                         {"name": "Drake", "nb_fan": 9_000_000, "picture_medium": "https://cdn-images.dzcdn.net/images/artist/big/x.jpg"},
-                         {"name": "Nobody", "nb_fan": 1, "picture_medium": "https://cdn-images.dzcdn.net/images/artist//250x250.jpg"}]}
+        return {"data": [{"id": 1, "name": "Drake", "nb_fan": 40, "picture_medium": "https://cdn-images.dzcdn.net/images/artist/small/x.jpg"},
+                         {"id": 2, "name": "Drake", "nb_fan": 9_000_000, "picture_medium": "https://cdn-images.dzcdn.net/images/artist/big/x.jpg"},
+                         {"id": 3, "name": "Nobody", "nb_fan": 1, "picture_medium": "https://cdn-images.dzcdn.net/images/artist//250x250.jpg"}]}
 
     got = []
     art = ArtistArt(tmp_path / "music", tmp_path / "cache", lambda: True, fetch_json, lambda u: got.append(u) or JPEG)
@@ -130,3 +130,38 @@ def test_no_picture_from_deezer_while_its_connection_is_off(tmp_path):
     art = ArtistArt(tmp_path / "music", tmp_path / "cache", lambda: False,
                     lambda u: (_ for _ in ()).throw(AssertionError("no network")), lambda u: None)
     assert art.picture("Drake") is None
+
+
+def test_a_busy_deezer_is_not_taken_for_a_missing_picture(tmp_path):
+    # Over quota, Deezer answers 200 with {"error": ...}: no week-long "no picture" marker for that.
+    from codetta.core.artistart import ArtistArt
+    answers = [{"error": {"type": "Exception", "message": "Quota limit exceeded", "code": 4}},
+               {"data": [{"id": 2, "name": "Drake", "picture_medium": "https://cdn-images.dzcdn.net/images/artist/big/x.jpg"}]}]
+    art = ArtistArt(tmp_path / "music", tmp_path / "cache", lambda: True, lambda u: answers.pop(0), lambda u: JPEG)
+    assert art.picture("Drake") is None
+    assert not list((tmp_path / "cache").glob("*.none"))
+    assert art.picture("Drake") == (JPEG, "image/jpeg")  # asked again next time, and found
+
+
+def test_a_broken_cached_picture_is_fetched_again_without_hanging(tmp_path):
+    import threading
+
+    from codetta.core.artistart import ArtistArt
+    art = ArtistArt(tmp_path / "music", tmp_path / "cache", lambda: True,
+                    lambda u: {"data": [{"id": 2, "name": "Drake", "picture_medium": "https://cdn-images.dzcdn.net/images/artist/big/x.jpg"}]},
+                    lambda u: JPEG)
+    (tmp_path / "cache").mkdir()
+    (tmp_path / "cache" / (art._key("Drake") + ".img")).write_bytes(b"cut sh")
+    result = {}
+    t = threading.Thread(target=lambda: result.update(pic=art.picture("Drake")))
+    t.start()
+    t.join(timeout=5)
+    assert not t.is_alive(), "picture() hung on a broken cached file"
+    assert result["pic"] == (JPEG, "image/jpeg")
+
+
+def test_at_folders_are_artist_folders_too(tmp_path):
+    from codetta.core.artists import top_folders
+    for name in ("@Foo", "Bar", "@eaDir", ".hidden"):
+        (tmp_path / name).mkdir()
+    assert set(top_folders(tmp_path).values()) == {"@Foo", "Bar"}

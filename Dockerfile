@@ -54,7 +54,7 @@ RUN case "${TARGETARCH:-$(uname -m)}" in \
 FROM python:3.15-alpine AS ffmpeg
 ARG FFMPEG_VERSION=9.1
 ARG FFMPEG_SHA256=1a4d394ae63d190a526cd052eb4415c156b5c5e2df37efab41a7de0b8fde2433
-RUN apk add --no-cache build-base xz
+RUN apk add --no-cache build-base xz lame-dev opus-dev
 COPY docker/ffmpeg-configure.sh /tmp/ffmpeg-configure.sh
 RUN python -c "import sys, urllib.request; urllib.request.urlretrieve(sys.argv[1], '/tmp/ffmpeg.tar.xz')" \
          "https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz" \
@@ -88,10 +88,12 @@ ENV PATH=/opt/venv/bin:$PATH \
 
 # setpriv drops root to PUID:PGID. Then remove what a running app never uses:
 # pip and the interpreter's developer tools.
-RUN apk add --no-cache setpriv \
-    && rm -rf /usr/local/lib/python3.14/site-packages/pip* /usr/local/lib/python3.14/ensurepip \
-              /usr/local/lib/python3.14/idlelib /usr/local/lib/python3.14/turtledemo \
-              /usr/local/lib/python3.14/tkinter /usr/local/lib/python3.14/pydoc_data \
+# lame-libs and opus: the encoders ffmpeg uses to convert songs for music apps.
+# (python3.* rather than a fixed version: the clean-up silently did nothing after the move to 3.15.)
+RUN apk add --no-cache setpriv lame-libs opus \
+    && rm -rf /usr/local/lib/python3.*/site-packages/pip* /usr/local/lib/python3.*/ensurepip \
+              /usr/local/lib/python3.*/idlelib /usr/local/lib/python3.*/turtledemo \
+              /usr/local/lib/python3.*/tkinter /usr/local/lib/python3.*/pydoc_data \
               /usr/local/bin/pip* /usr/local/bin/idle* /usr/local/bin/pydoc*
 
 COPY --from=build /opt/venv /opt/venv

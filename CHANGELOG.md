@@ -2,6 +2,14 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+- **Music apps, the full set:** stars, ratings and play counts are now kept (and shared by every app you connect), with "most played", "recently played", "starred" and "top rated" lists; **playlists** made in any app are kept in Codetta; your **play queue** follows you from one app to another; **bookmarks** for audiobooks and long mixes; artist pictures and similar artists; and richer details apps can show (ReplayGain, MusicBrainz IDs, multiple artists, release types, labels, original dates, disc titles, credits).
+- **Smaller files on mobile data:** when an app asks for a lower quality, Codetta converts songs to MP3, Opus or AAC as they play. The Docker image and the snap now include the encoders for it. Covers are sized to what the app asks for, so lists load quickly.
+- **Scrobbling to ListenBrainz:** add your ListenBrainz token (Account → Connections → ListenBrainz) and what you play in your music apps and Codetta's own player is added to your listening history.
+- **Fixes for music apps:** apps that send form posts work, folder browsing can go back up from a top-level folder, web players hosted on other sites can connect, an app's "scan library" button really rescans, and albums with a MusicBrainz ID no longer merge with another album of the same name.
+- **Other fixes:** turning Autoplay off while it's finding songs no longer queues them anyway; a busy Deezer no longer leaves artists without their picture for a week; a damaged cached artist picture can no longer hang the page; artist folders whose names start with "@" get their pictures and links; and the Docker image's clean-up of tools it doesn't need works again.
+
 ## 0.12.0 (2026-11-24)
 
 Listen in your music apps: Symfonium, Narjo, Arpeggi, Feishin, Eclipse and other Subsonic apps can now play your library straight from Codetta.

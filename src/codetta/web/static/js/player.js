@@ -34,6 +34,8 @@ const player = {
   autoplay: (() => { try { return localStorage.getItem("codetta-autoplay") !== "0"; } catch { return true; } })(),
   played: [], // paths played this visit, oldest first: Autoplay's seeds, and what it won't repeat
   extending: null, // the Autoplay request on its way
+  autoplayGen: 0, // bumped when Autoplay is switched off: an answer for an older generation is dropped
+  reported: null, // the path whose play was already counted (once per start)
   because: "", source: "", // what the latest Autoplay songs are like, and who picked them
 };
 const shuffled = (list) => { const a = [...list]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
@@ -69,7 +71,9 @@ function extendQueue() {
   if (player.extending) return player.extending;
   const queued = new Set(player.queue.map((x) => x.path));
   const body = { seeds: player.played.slice(-3), avoid: [...new Set([...player.played, ...queued])].slice(-2000), n: 10 };
+  const gen = player.autoplayGen;
   player.extending = api("POST", "/api/autoplay/next", body).then((d) => {
+    if (gen !== player.autoplayGen || !player.autoplay) return false; // switched off while it was on its way
     const fresh = (d.tracks || []).filter((x) => !x.error && canPlay(x.format) && !queued.has(x.path));
     for (const x of fresh) {
       x.auto = true;
@@ -89,7 +93,8 @@ function extendQueue() {
 function setAutoplay(on) {
   player.autoplay = on;
   try { localStorage.setItem("codetta-autoplay", on ? "1" : "0"); } catch { /* private mode */ }
-  if (!on) { // drop the Autoplay songs that haven't played yet
+  if (!on) { // drop the Autoplay songs that haven't played yet (and any still on their way)
+    player.autoplayGen += 1;
     const keep = player.order.filter((qi, k) => k <= player.pos || !player.queue[qi].auto);
     player.order = keep;
   } else if (player.track && player.pos + 1 >= player.order.length) {
@@ -133,6 +138,7 @@ function playerAudio() {
   a.preload = "none";
   for (const ev of ["play", "pause", "ended", "emptied"]) a.addEventListener(ev, syncPlayer);
   a.addEventListener("timeupdate", npProgress);
+  a.addEventListener("timeupdate", reportPlay);
   a.addEventListener("loadedmetadata", npProgress);
   a.addEventListener("ended", playNext);
   a.addEventListener("error", () => {
@@ -142,6 +148,16 @@ function playerAudio() {
   });
   player.audio = a;
   return a;
+}
+
+/** Count a play once it's really been listened to (half the song, or 4 minutes), as scrobblers do. */
+function reportPlay() {
+  const a = player.audio;
+  if (!a || !player.path || player.reported === player.path || !a.duration) return;
+  if (a.currentTime >= Math.min(a.duration / 2, 240)) {
+    player.reported = player.path;
+    api("POST", "/api/played", { path: player.path }).catch(() => { /* a missed count isn't worth a message */ });
+  }
 }
 
 export async function togglePlay(t) {
@@ -158,6 +174,7 @@ async function startTrack(t) {
   const a = playerAudio();
   player.path = t.path;
   player.track = t;
+  player.reported = null;
   if (player.played.at(-1) !== t.path) player.played.push(t.path);
   if (player.played.length > 2000) player.played.splice(0, player.played.length - 2000);
   lyr.path = null; // fetched again for the new track when shown

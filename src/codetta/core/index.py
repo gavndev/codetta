@@ -49,7 +49,7 @@ from codetta.core.tagmap import FIELDS
 
 log = logging.getLogger("codetta.index")
 
-SCHEMA_VERSION = 6  # 4: a stored natural sort key per file; 5: keeps musicbrainz_albumid (Library health); 6: FLAC audio checksum, artist/recording MBIDs (Autoplay)
+SCHEMA_VERSION = 7  # 4: a stored natural sort key per file; 5: keeps musicbrainz_albumid (Library health); 6: FLAC audio checksum, artist/recording MBIDs (Autoplay); 7: ReplayGain values (music apps)
 RESCAN_SECONDS = 15 * 60  # a search re-checks the library if the last scan is older than this
 BATCH = 200  # files per database transaction while scanning
 PAR_CHUNK = 128  # files per job when worker processes help with a big scan
@@ -62,15 +62,18 @@ FREE_TEXT_KEYS = ("title", "artist", "album", "albumartist")
 # Not worth searching, and often large: fingerprints, IDs, loudness data. Some MusicBrainz
 # IDs stay: Library health tells matched albums from unmatched ones by the album ID, and
 # Autoplay finds ListenBrainz's suggestions in the library by artist and recording IDs.
-_SKIP_KEY = re.compile(r"^(lyrics$|unsyncedlyrics$|acoustid_|musicbrainz_(?!(albumid|artistid|albumartistid|trackid)$)|replaygain_|itunnorm|itunsmpb|isrc$|barcode$|tidal_|spotify_|discogs_|deezer_|qobuz_|.*_id$|.*fingerprint)")
+_SKIP_KEY = re.compile(r"^(lyrics$|unsyncedlyrics$|acoustid_|musicbrainz_(?!(albumid|artistid|albumartistid|trackid)$)|itunnorm|itunsmpb|isrc$|barcode$|tidal_|spotify_|discogs_|deezer_|qobuz_|.*_id$|.*fingerprint)")
 # Searchable, but not worth an index entry: sort names and credits repeat the real names.
 _DUPLICATE_KEY = re.compile(r"^(.*sort|.*_credit|.*sortorder)$")
+# Kept with the track (music apps read them) but never searched: loudness numbers.
+_STORE_ONLY_KEY = re.compile(r"^(replaygain_|r128_)")
 MAX_INDEXED_VALUE = 300  # longer values (lyrics, essays in comments) aren't searchable
 MAX_STORED_VALUE = 1000  # longer values are left out of the stored track details
 
 
 def _searchable(key: str, value: str) -> bool:
-    return len(value) <= MAX_INDEXED_VALUE and not _SKIP_KEY.match(key) and not _DUPLICATE_KEY.match(key)
+    return (len(value) <= MAX_INDEXED_VALUE and not _SKIP_KEY.match(key) and not _DUPLICATE_KEY.match(key)
+            and not _STORE_ONLY_KEY.match(key))
 
 
 def _slim(track: dict) -> dict:
@@ -577,9 +580,10 @@ class LibraryIndex:
             self._thread.join(timeout=5)
             self._thread = None
 
-    def request_rescan(self) -> None:
-        """Called on each search: re-check the library if the last scan is old."""
-        if not self._scanning and time.monotonic() - self._last_scan > self.rescan_seconds:
+    def request_rescan(self, force: bool = False) -> None:
+        """Called on each search: re-check the library if the last scan is old. ``force``: now
+        (a music app's "scan library" button)."""
+        if not self._scanning and (force or time.monotonic() - self._last_scan > self.rescan_seconds):
             self._scan_requested = True
             self._wake.set()
 

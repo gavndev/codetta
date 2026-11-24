@@ -9,6 +9,7 @@ import { renderSlskdSettings, renderSlskdStep } from "./search.js";
 import { loadLidarr, renderLidarrSettings, renderLidarrStep } from "./lidarr.js";
 import { loadAudioMuse, renderAudioMuseSettings, renderAutoplayStep } from "./autoplay.js";
 import { renderSubsonicSettings, renderSubsonicStep } from "./subsonic.js";
+import { loadListenBrainz, renderListenBrainzSettings } from "./listenbrainz.js";
 import { loadDiscogs, renderDiscogsSettings } from "./discogs.js";
 import { loadServer, renderServerSettings, renderServerStep } from "./mediaserver.js";
 import { renderFolderHead } from "./tools.js";
@@ -128,6 +129,7 @@ export function renderConnections() {
   loadLidarr().then(renderLidarrSettings);
   loadAudioMuse().then(renderAudioMuseSettings);
   renderSubsonicSettings();
+  loadListenBrainz().then(renderListenBrainzSettings);
   loadDiscogs().then(renderDiscogsSettings);
   loadServer().then(renderServerSettings);
   setKids($("#conn-list"), conn.connections.map((c) => connectionRow(c, c.enabled, async (item, input) => {
@@ -140,6 +142,7 @@ export function renderConnections() {
       if (item.id === "slskd") { await loadSlskd(); renderSlskdSettings(); }
       if (item.id === "lidarr") { await loadLidarr(); renderLidarrSettings(); }
       if (item.id === "audiomuse") { await loadAudioMuse(); renderAudioMuseSettings(); }
+      if (item.id === "listenbrainz") { await loadListenBrainz(); renderListenBrainzSettings(); }
       if (item.id === "discogs") { await loadDiscogs(); renderDiscogsSettings(); }
       if (item.id === "mediaserver") { await loadServer(); renderServerSettings(); }
       if (item.id === "updates") refreshUpdate();

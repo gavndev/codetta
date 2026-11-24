@@ -14,6 +14,7 @@ def register(app, shared) -> None:
     connections = shared.connections
     art = ArtistArt(settings.music_dir, settings.config_dir / "artist-art", lambda: connections.enabled("deezer"),
                     shared.fetch_catalog or shared.catalog_fetch, shared.download_art)
+    shared.share(artist_art=art)
 
     def known(name: str) -> int:
         """In how many folders ``name`` is a whole artist or album-artist value."""

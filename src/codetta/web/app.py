@@ -133,6 +133,7 @@ from codetta.web.routes import (
     discogs as discogs_routes,
     autoplay as autoplay_routes,
     artists as artists_routes,
+    listening as listening_routes,
     subsonic as subsonic_routes,
     musicbrainz,
     onboarding,
@@ -148,7 +149,7 @@ from codetta.web.security import GuardMiddleware, SelectiveGZip
 
 # The order matters a little: an area can use what earlier areas share right away,
 # and reaches later ones through shared.later(...).
-ROUTES = (status, library, musicbrainz, tags, organize, onboarding, inbox, care, soulseek, lidarr_routes, mediaserver_routes, replaygain_routes, discogs_routes, autoplay_routes, artists_routes, subsonic_routes, explore, health, tools,
+ROUTES = (status, library, musicbrainz, tags, organize, onboarding, inbox, care, soulseek, lidarr_routes, mediaserver_routes, replaygain_routes, discogs_routes, autoplay_routes, artists_routes, listening_routes, subsonic_routes, explore, health, tools,
           files, support, activity, presets)
 # Also importable from here, as before the split.
 __all__ = ["ACTIVITY_VALUE_CHARS", "VERSION", "Settings", "_is_public_address", "_to_track_out", "app", "create_app"]
@@ -157,7 +158,7 @@ __all__ = ["ACTIVITY_VALUE_CHARS", "VERSION", "Settings", "_is_public_address", 
 def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_latest_release,
                fetch_json=None, fetch_mb=None, fetch_art=None, post_acoustid=None, run_fpcalc=None,
                slskd_request=None, fetch_catalog=None, lidarr_request=None, fetch_discogs=None,
-               server_request=None, run_ffmpeg=None, audiomuse_request=None) -> FastAPI:
+               server_request=None, run_ffmpeg=None, audiomuse_request=None, listenbrainz_post=None) -> FastAPI:
     """``fetch_*`` replace the network in tests: LRCLIB and MusicBrainz take
     (url) -> parsed JSON or None, the Cover Art Archive (url) -> bytes or None,
     AcoustID (form) -> parsed JSON; ``run_fpcalc`` replaces running fpcalc;
@@ -605,7 +606,8 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
 
     # --- The API, one area per module in codetta/web/routes ----------------------------------
     shared = Shared(
-        accounts=accounts, acoustid=acoustid, activity=activity, audiomuse_request=audiomuse_request, art_cache=art_cache, art_info=art_info, art_store=art_store,
+        accounts=accounts, acoustid=acoustid, activity=activity, audiomuse_request=audiomuse_request,
+        listenbrainz_post=listenbrainz_post, art_cache=art_cache, art_info=art_info, art_store=art_store,
         catalog_fetch=catalog_fetch, connections=connections, discogs_fetch=fetch_discogs or discogs_fetch,
         discogs_token=discogs_token, download_art=download_art, editions=editions,
         engine=engine, fetch_catalog=fetch_catalog, fingerprinter=fingerprinter, folder_out=folder_out, meter=meter,

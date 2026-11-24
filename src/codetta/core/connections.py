@@ -44,8 +44,9 @@ CONNECTIONS: tuple[Connection, ...] = (
         "deezer", "Deezer",
         "Album details and big covers from Deezer's catalogue, for albums MusicBrainz doesn't have "
         "yet (new releases often appear here first), or when it's down, and artist pictures. No account needed.",
-        "The album and artist names you search for, the IDs of albums you pick, and the names of artists "
-        "whose pictures Codetta shows (each picture is downloaded once and kept on your server).",
+        "The album and artist names you search for, the IDs of albums you pick, the names of artists "
+        "whose pictures Codetta shows (each picture is downloaded once and kept on your server), and the "
+        "name of the artist playing when Autoplay needs more songs.",
         ("api.deezer.com", "cdn-images.dzcdn.net"), "DEEZER",
     ),
     Connection(
@@ -110,8 +111,10 @@ CONNECTIONS: tuple[Connection, ...] = (
     Connection(
         "listenbrainz", "ListenBrainz",
         "Autoplay picks artists that people listen to together, from ListenBrainz, the open listening "
-        "database by the MusicBrainz team. No account needed.",
-        "The MusicBrainz ID of the artist playing, when Autoplay needs more songs.",
+        "database by the MusicBrainz team. No account needed. Add your ListenBrainz token to also keep "
+        "your listening history there (scrobbling).",
+        "The MusicBrainz ID of the artist playing, when Autoplay needs more songs. With your token: what "
+        "you play (in Codetta and your music apps), sent to your ListenBrainz account.",
         ("api.listenbrainz.org",), "LISTENBRAINZ",
     ),
     Connection(

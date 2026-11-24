@@ -8,6 +8,7 @@ restarts and you can always check what Codetta did to your library.
 from __future__ import annotations
 
 import json
+import logging
 import threading
 from collections import deque
 from datetime import UTC, datetime
@@ -17,10 +18,14 @@ from typing import Any
 MAX_FILES_PER_ENTRY = 50  # keep entries readable for huge batch edits
 
 
+log = logging.getLogger("codetta")
+
+
 class ActivityLog:
     def __init__(self, file: Path | None = None, keep: int = 1000) -> None:
         self.file = file
         self.keep = keep
+        self.listeners: list = []  # called with each new entry (e.g. play counts following moved files)
         self._entries: deque[dict[str, Any]] = deque(maxlen=keep)
         self._lock = threading.Lock()
         self._next_id = 1
@@ -67,6 +72,11 @@ class ActivityLog:
             self._next_id += 1
             self._entries.append(entry)
             self._append_to_file(entry)
+        for listener in list(self.listeners):
+            try:
+                listener(entry)
+            except Exception:  # noqa: BLE001 - a listener must never break the action being logged
+                log.exception("Activity listener failed")
         return self._public(entry, self._undone_ids())
 
     def recent(self, limit: int = 50, after_id: int = 0) -> list[dict[str, Any]]:

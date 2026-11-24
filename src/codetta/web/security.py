@@ -92,7 +92,10 @@ class GuardMiddleware:
         if self.allowed_hosts and not any(_host_only(h) in self.allowed_hosts for h in hosts):
             return await _reject(send, 421, "This server doesn't answer to that host name.")
 
-        if method not in SAFE_METHODS:
+        # /rest/ (music apps) never uses the session cookie (every request carries the app's own
+        # sign-in), so a web player on another site can't ride on anyone's session: the
+        # cross-site check, which protects the cookie, doesn't apply there.
+        if method not in SAFE_METHODS and not path.startswith("/rest/"):
             site = headers.get("sec-fetch-site")
             if site is not None:
                 if site not in ("same-origin", "none"):
@@ -105,6 +108,7 @@ class GuardMiddleware:
                     if netloc not in {h.lower() for h in hosts}:
                         return await _reject(send, 403, "Cross-site request blocked.")
 
+        if method not in SAFE_METHODS:  # size limits apply everywhere, /rest/ included
             limit = BODY_LIMITS.get(path, DEFAULT_LIMIT)
             length = headers.get("content-length")
             if length is None:

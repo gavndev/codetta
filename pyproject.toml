@@ -28,6 +28,8 @@ dependencies = [
     "mutagen>=1.48",
     "fastapi>=0.163",
     "uvicorn>=0.54",
+    "pillow>=12.0",  # resizing covers for music apps
+    "python-multipart>=0.0.20",  # music apps that send their requests as forms (OpenSubsonic formPost)
 ]
 
 [project.urls]

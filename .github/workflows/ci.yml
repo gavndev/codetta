@@ -48,6 +48,18 @@ jobs:
               -nostdin -hide_banner -nostats -i "/f/$f" -map 0:a:0 -af ebur128=peak=sample -f null - 2>&1 | grep -E "I:|Peak:" | tail -2 \
               | grep -q "Peak:" || { echo "ffmpeg couldn't measure $f"; exit 1; }
           done
+      - name: ffmpeg converts for music apps (MP3, Opus, AAC)
+        run: |
+          docker run --rm --entrypoint ffmpeg codetta:ci -hide_banner -encoders | grep -E " (libmp3lame|libopus|aac) "
+          for spec in "libmp3lame mp3" "libopus ogg" "aac adts"; do
+            set -- $spec
+            echo "== $1"
+            docker run --rm -v "$PWD/tests/fixtures:/f:ro" --entrypoint ffmpeg codetta:ci \
+              -nostdin -hide_banner -loglevel error -i /f/sample.flac -map 0:a:0 -c:a "$1" -b:a 128k -f "$2" pipe:1 | wc -c \
+              | awk -v enc="$1" '$1 < 100 { print "ffmpeg produced nothing with " enc; exit 1 }'
+          done
+      - name: Pillow resizes covers in the image
+        run: docker run --rm --entrypoint python codetta:ci -c "from PIL import Image; import io; b=io.BytesIO(); Image.new('RGB',(800,800)).save(b,'JPEG'); from codetta.core.covers import resize; print(len(resize(b.getvalue(), 150)))"
       - name: Start it and wait until healthy
         run: |
           mkdir -p music config && sudo chown 1000:1000 music config

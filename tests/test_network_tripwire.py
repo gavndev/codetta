@@ -24,6 +24,9 @@ CALLS = [
     ("POST", "/api/audiomuse/test", {}),
     ("POST", "/api/autoplay/next", {"seeds": [TRACK], "n": 5}),
     ("GET", "/api/artists/picture?name=Coda+Tester", None),
+    ("PUT", "/api/listenbrainz", {"token": "l" * 36}),
+    ("POST", "/api/listenbrainz/test", {}),
+    ("POST", "/api/played", {"path": TRACK}),
     ("POST", "/api/musicbrainz/search", {"folder": FOLDER}),
     ("POST", "/api/musicbrainz/search", {"folder": FOLDER, "source": "deezer"}),
     ("POST", "/api/musicbrainz/search", {"folder": FOLDER, "source": "itunes"}),
@@ -94,7 +97,7 @@ def test_nothing_leaves_while_connections_are_off(album_dir, tmp_path, tripwire,
 
 SECRETS = {"slskd": "SLSKDKEY" + "s" * 24, "lidarr": "LIDARRKEY" + "l" * 23, "jfpass": "JFPASS" + "p" * 20,
            "jftoken": "JFTOKEN" + "t" * 25, "discogs": "DISCOGSTOKEN" + "d" * 28,
-           "audiomuse": "AUDIOMUSETOKEN" + "a" * 26}
+           "audiomuse": "AUDIOMUSETOKEN" + "a" * 26, "listenbrainz": "LISTENBRAINZTOKEN" + "b" * 23}
 
 
 def test_saved_secrets_never_come_back(album_dir, tmp_path, tripwire):  # noqa: F811
@@ -112,6 +115,7 @@ def test_saved_secrets_never_come_back(album_dir, tmp_path, tripwire):  # noqa: 
         seen = []
         c.put("/api/discogs", json={"token": SECRETS["discogs"]})  # refused by the tripwire: not kept
         seen.append(c.put("/api/audiomuse", json={"url": "https://am.example", "token": SECRETS["audiomuse"]}).text)
+        seen.append(c.put("/api/listenbrainz", json={"token": SECRETS["listenbrainz"]}).text)
         for r in app.routes:
             if isinstance(r, APIRoute) and "GET" in r.methods and "{" not in r.path:
                 seen.append(c.get(r.path).text)

@@ -58,6 +58,7 @@ switch in the app, which is handy if you manage everything from your compose fil
 | `CODETTA_AUDIOMUSE_URL` | set in the app | AudioMuse-AI's address as Codetta sees it, e.g. `http://audiomuse-ai-flask-app:8000`. Locks the field in the app. |
 | `CODETTA_AUDIOMUSE_TOKEN` | set in the app | The `API_TOKEN` set on AudioMuse-AI (only needed when its sign-in is on). Saved tokens live in `audiomuse.json` in the config folder, readable by Codetta only, and are never sent back to the browser. |
 | `CODETTA_LISTENBRAINZ` | chosen in the app | `on`/`off`: **ListenBrainz** for Autoplay: artists people listen to together. Sends the playing artist's MusicBrainz ID to api.listenbrainz.org. No account needed. |
+| `CODETTA_LISTENBRAINZ_TOKEN` | set in the app | Your ListenBrainz user token, for scrobbling what you play (in Codetta and your music apps). Needs the ListenBrainz connection on. Saved tokens live in `listenbrainz.json` in the config folder, readable by Codetta only, and are never sent back to the browser. |
 | `CODETTA_LYRICS_LOOKUP` | chosen in the app | `on`/`off`: **Find lyrics** in the editor. Pressing it asks [lrclib.net](https://lrclib.net) for that one track (artist, title, album and length only). |
 | `CODETTA_UPDATE_CHECK` | chosen in the app | `on`/`off`: twice a day, ask GitHub whether a newer release exists. Nothing about you or your library is sent. |
 

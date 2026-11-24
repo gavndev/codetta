@@ -20,9 +20,10 @@ import logging
 import random
 import re
 import threading
-import urllib.parse
 from collections import OrderedDict
 from collections.abc import Callable, Iterable
+
+from codetta.core.catalogs import deezer_artist
 
 log = logging.getLogger("codetta")
 
@@ -202,14 +203,10 @@ class Autoplay:
             name = _first(t, "albumartist") or _first(t, "artist")
             if not name:
                 continue
-            found = self._remember("dz-artist:" + name.lower(), lambda n=name: self.fetch(
-                f"{DEEZER_API}/search/artist?q={urllib.parse.quote(n)}&limit=10"))
-            items = [a for a in (found.get("data") or []) if isinstance(a, dict) and a.get("id")] if isinstance(found, dict) else []
-            # Search can put a tiny namesake first ("Drake" with 40 fans): the same name with the most fans wins.
-            same = [a for a in items if str(a.get("name") or "").casefold() == name.casefold()] or items[:1]
-            if not same:
+            best = self._remember("dz-artist:" + name.lower(), lambda n=name: deezer_artist(self.fetch, n))
+            if not best:
                 continue
-            aid = int(max(same, key=lambda a: a.get("nb_fan") or 0)["id"])
+            aid = int(best["id"])
             related = self._remember(f"dz-related:{aid}", lambda a=aid: self.fetch(f"{DEEZER_API}/artist/{a}/related?limit=25"))
             for a in (related.get("data") or []) if isinstance(related, dict) else []:
                 if isinstance(a, dict) and a.get("name"):

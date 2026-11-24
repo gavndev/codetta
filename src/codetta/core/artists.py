@@ -22,6 +22,7 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 
 from codetta.core.index import sfold
+from codetta.core.library import is_skipped, is_special
 
 # Separators between artists in one credit. Words need spaces around them ("x" in
 # "Metro Boomin x Future", never the x in "Xzibit").
@@ -47,7 +48,7 @@ def top_folders(music_dir: Path) -> dict[str, str]:
     try:
         with os.scandir(music_dir) as it:
             return {sfold(e.name): e.name for e in it
-                    if not e.name.startswith((".", "@")) and e.is_dir(follow_symlinks=False)}
+                    if not is_skipped(e.name) and not is_special(e.name) and e.is_dir(follow_symlinks=False)}
     except OSError:
         return {}
 

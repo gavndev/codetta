@@ -22,6 +22,21 @@ from codetta.core import discogs as discogs_mod
 from codetta.core.providers import ProviderError
 
 DEEZER_API = "https://api.deezer.com"
+
+
+class DeezerBusy(Exception):
+    """Deezer answered with an error (often "over quota"): try again later, don't conclude anything."""
+
+
+def deezer_artist(fetch: Callable[[str], object], name: str) -> dict | None:
+    """Deezer's artist for ``name``: the same name with the most fans (search can put a tiny namesake
+    first). None when Deezer has no artist by that name; DeezerBusy when it didn't really answer."""
+    found = fetch(f"{DEEZER_API}/search/artist?q={urllib.parse.quote(name)}&limit=10")
+    if not isinstance(found, dict) or "error" in found or not isinstance(found.get("data"), list):
+        raise DeezerBusy(str((found or {}).get("error") if isinstance(found, dict) else "no answer"))
+    same = [a for a in found["data"] if isinstance(a, dict) and a.get("id")
+            and str(a.get("name") or "").casefold() == name.casefold()]
+    return max(same, key=lambda a: a.get("nb_fan") or 0) if same else None
 ITUNES_API = "https://itunes.apple.com"
 SOURCES = ("deezer", "itunes", "discogs")
 Fetcher = Callable[[str], object]  # url -> parsed JSON (or None)
