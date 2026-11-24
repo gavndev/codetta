@@ -19,18 +19,19 @@ import tempfile
 import threading
 from pathlib import Path
 
-from PIL import Image
-
 MAX_SIZE = 1500  # px: bigger requests get the original
 MAX_PIXELS = 40_000_000  # refuse to decode bigger images (a 6000x6000 cover is already absurd)
 CACHE_BYTES = 200 * 1024 * 1024
 QUALITY = 85
 
-Image.MAX_IMAGE_PIXELS = MAX_PIXELS
-
 
 def resize(data: bytes, size: int) -> bytes | None:
     """``data`` scaled to fit ``size`` x ``size`` as a JPEG, or None (keep the original)."""
+    # Pillow is loaded the first time a cover is resized, not at startup: an install that
+    # never connects a music app never spends the memory on it.
+    from PIL import Image
+
+    Image.MAX_IMAGE_PIXELS = MAX_PIXELS
     try:
         with Image.open(io.BytesIO(data)) as im:
             if im.width * im.height > MAX_PIXELS or max(im.width, im.height) <= size:
