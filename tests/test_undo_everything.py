@@ -34,6 +34,11 @@ def _put_art(c):
     return c.put(f"/api/art?{_art_query(c)}", content=png(), headers={"Content-Type": "image/png"})
 
 
+def _stray(c):
+    """One track that won't group: another album artist, date and an extra album tag."""
+    c.engine.update_tags(c.music / _files(c)[0], {"albumartist": "Someone Else", "date": "1999", "label": "Odd Label"})
+
+
 # (name, how to set the stage first or None, the request: method, url or a function of the client, body)
 STEPS = [
     ("edit tags", None, ("PATCH", "/api/tracks", lambda c: {"paths": _files(c), "changes": {
@@ -41,6 +46,7 @@ STEPS = [
     ("add a cover", None, ("ART", None, None)),
     ("remove the cover", _put_art, ("DELETE", lambda c: f"/api/art?{_art_query(c)}", None)),
     ("find & replace", None, ("POST", "/api/tracks/replace", {"folder": F, "find": "song", "replace": "tune", "dry_run": False})),
+    ("match album tags", _stray, ("POST", "/api/tags/match", lambda c: {"paths": _files(c)[:1], "dry_run": False})),
     ("wipe all tags", None, ("POST", "/api/tags/wipe", {"folder": F, "dry_run": False})),
     ("change case", None, ("POST", "/api/actions/tagtools.case/run",
                            {"folder": F, "options": {"field": "all", "style": "upper"}, "dry_run": False})),

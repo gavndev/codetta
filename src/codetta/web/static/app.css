@@ -2711,7 +2711,7 @@ dialog.player-sheet { width: min(480px, calc(100vw - 32px)); }
   .play-btn { height: 44px; min-width: 44px; border-radius: 22px; }
   .btn { min-height: 44px; }
   /* The selection bar: count, Clear, "…" (Preset, Replace, Actions) and Edit fit on one row. */
-  #sel-preset, #sel-replace, #sel-actions, #sel-download { display: none; }
+  #sel-preset, #sel-replace, #sel-actions, #sel-download, #sel-copy, #sel-paste, #sel-match, #sel-compare { display: none; }
   .selection-bar { gap: 10px; padding-left: 14px; }
   #selection-count { white-space: nowrap; }
 }
@@ -3274,3 +3274,57 @@ dialog.confirm.wipe-final-step .sheet-head h2 { width: 100%; }
 .conn-item > [id$="-box"] > .sk-settings { margin-top: 0; padding: 0 0 14px 0; border-top: 0; }
 .conn-item .sk-head { display: none; }
 .conn-group:not(:has(.conn-row)), .set-group:has(+ .conn-group:not(:has(.conn-row))) { display: none; }
+
+/* ---- The selection bar's buttons carry a small picture beside their names ---- */
+.selection-actions .btn { display: inline-flex; align-items: center; gap: 6px; }
+.selection-actions .btn > svg { width: 15px; height: 15px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.selection-actions .btn[hidden] { display: none; }
+#selection-count { white-space: nowrap; }
+/* Not much room: the quieter tools show only their picture (the name is in the tooltip). */
+@media (min-width: 761px) and (max-width: 1360px) {
+  #sel-preset .lbl, #sel-replace .lbl, #sel-actions .lbl, #sel-download .lbl, #sel-compare .lbl { display: none; }
+}
+
+/* ---- Copy tags: pick which ---- */
+.copy-picks { display: flex; gap: 6px; margin: 10px 0; }
+.copy-list { display: grid; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.copy-row { display: grid; grid-template-columns: auto minmax(110px, 170px) minmax(0, 1fr); align-items: center; gap: 10px;
+  min-height: 40px; padding: 6px 12px; cursor: pointer; }
+.copy-row + .copy-row { border-top: 1px solid var(--rule); }
+.copy-row.differs { cursor: default; color: var(--faint); }
+.copy-key { font-weight: 600; font-size: 13px; }
+.copy-val { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.copy-row.differs .copy-val { font-style: italic; }
+
+/* ---- Compare tags: side by side ---- */
+@media (min-width: 761px) { dialog.sheet.compare { width: min(1100px, calc(100vw - 32px)); max-width: none; } }
+.cmp-summary { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; font-size: 14px; }
+.cmp-summary svg { width: 18px; height: 18px; flex: none; margin-top: 1px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.cmp-summary.bad { background: var(--warning-soft); }
+.cmp-summary.good { background: var(--accent-soft); }
+.cmp-only { margin: 6px 0; }
+.cmp-table { display: grid; border: 1px solid var(--border); border-radius: 12px; overflow: auto; max-height: 60vh; }
+.cmp-row { display: grid; grid-template-columns: minmax(120px, 170px) repeat(var(--cols), minmax(140px, 1fr)); }
+.cmp-row + .cmp-row { border-top: 1px solid var(--rule); }
+.cmp-key, .cmp-cell { padding: 8px 12px; font-size: 13px; overflow-wrap: anywhere; }
+.cmp-key { font-weight: 600; display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+.cmp-cell + .cmp-cell { border-left: 1px solid var(--rule); }
+.cmp-cell.empty { color: var(--faint); }
+.cmp-headrow { position: sticky; top: 0; background: var(--surface-raised); z-index: 1; }
+.cmp-head { font-weight: 650; }
+.cmp-row.diff { background: color-mix(in oklab, var(--warning-soft) 100%, transparent); }
+.cmp-row.diff .cmp-key { color: var(--text); }
+.cmp-row.diff-song { background: var(--hover); }
+.cmp-song { font-size: 10.5px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: var(--faint); }
+
+/* ---- Match album tags ---- */
+.match-from { margin: 12px 0 4px; }
+.match-track { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.match-track select { flex: 1; min-width: 180px; }
+@media (max-width: 760px) {
+  #sel-clear .lbl, #sel-more .icon-expand-label { display: none; }
+  #sel-clear { min-width: 44px; justify-content: center; }
+  .cmp-row { grid-template-columns: 110px repeat(var(--cols), minmax(130px, 1fr)); }
+  .copy-row { grid-template-columns: auto minmax(0, 1fr); }
+  .copy-row .copy-val { grid-column: 2; }
+}

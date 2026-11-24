@@ -303,17 +303,30 @@ export function loadClipboard() {
   try { return JSON.parse(localStorage.getItem("codetta-clipboard")) || null; } catch { return null; }
 }
 
-function saveClipboard(clip) {
+export function saveClipboard(clip) {
   state.clipboard = clip;
   try {
     if (clip) localStorage.setItem("codetta-clipboard", JSON.stringify(clip));
     else localStorage.removeItem("codetta-clipboard");
   } catch { /* private mode: clipboard just won't survive a reload */ }
+  document.dispatchEvent(new Event("codetta-clipboard")); // the selection bar's Paste follows
 }
+
+// Readable names for tags the editor doesn't list (IDs written by MusicBrainz Picard and others).
+const OTHER_LABELS = {
+  musicbrainz_albumid: "MusicBrainz release ID", musicbrainz_releasegroupid: "MusicBrainz release group ID",
+  musicbrainz_albumartistid: "MusicBrainz album artist ID", musicbrainz_artistid: "MusicBrainz artist ID",
+  musicbrainz_trackid: "MusicBrainz recording ID", musicbrainz_releasetrackid: "MusicBrainz track ID",
+  musicbrainz_workid: "MusicBrainz work ID", musicbrainz_albumstatus: "MusicBrainz release status",
+  musicbrainz_albumtype: "MusicBrainz release type", acoustid_id: "AcoustID", acoustid_fingerprint: "AcoustID fingerprint",
+  replaygain_album_gain: "ReplayGain album gain", replaygain_album_peak: "ReplayGain album peak",
+  replaygain_track_gain: "ReplayGain track gain", replaygain_track_peak: "ReplayGain track peak",
+  encoder: "Encoder", encodedby: "Encoded by",
+};
 
 export function fieldLabel(key) {
   if (key === "__art") return "Album art";
-  return state.fieldMap.get(key)?.label || key;
+  return state.fieldMap.get(key)?.label || OTHER_LABELS[key] || key;
 }
 
 /** The value a field currently shows (pending edit, or what's saved), as a list. */

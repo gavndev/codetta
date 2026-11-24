@@ -10,6 +10,7 @@ import { openToolsMenu, renderFolderHead, renderFolders, renderTracks } from "./
 import { closeEditor, confirmDiscard, fieldLabel, listParts, renderEditor } from "./editor.js";
 import { connectionOn } from "./setup.js";
 import { openMusicBrainz } from "./musicbrainz.js";
+import { syncSelectionTools } from "./selection.js";
 
 // ---- Routing ------------------------------------------------------------------------------------
 
@@ -506,5 +507,6 @@ export function renderSelectionBar() {
     els.selBar.hidden = false;
   }
   els.selCount.textContent = `${n} selected`;
+  syncSelectionTools();
   if (state.selectMode) renderFolderHead();
 }

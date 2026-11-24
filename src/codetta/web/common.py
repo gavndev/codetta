@@ -411,6 +411,14 @@ class ReplaceIn(BaseModel):
     dry_run: bool = True
 
 
+class MatchTagsIn(BaseModel):
+    paths: list[str] = Field(min_length=1, max_length=MAX_PATHS_PER_REQUEST)  # the tracks to change
+    folder: str | None = Field(default=None, max_length=MAX_PATH_CHARS)  # match what this folder's other tracks share...
+    track: str | None = Field(default=None, max_length=MAX_PATH_CHARS)  # ...or this one track (None + None: the first track's folder)
+    remove_extra: bool = True  # also remove album-wide tags the reference doesn't have
+    dry_run: bool = True
+
+
 class WipeIn(BaseModel):
     paths: list[str] = Field(default=[], max_length=MAX_PATHS_PER_REQUEST)  # these files...
     folder: str | None = Field(default=None, max_length=MAX_PATH_CHARS)  # ...or the audio files in this folder

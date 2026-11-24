@@ -13,6 +13,7 @@ from codetta.core.engine import MetadataError
 from codetta.core.fromnames import PatternError, compile_pattern, suggest
 from codetta.core.tracklist import pair, parse
 from codetta.core.library import LibraryPathError, audio_files
+from codetta.core.matchtags import TRACK_KEYS, album_tags, changes_for, shared_album_tags
 from codetta.core.organize import Move, apply_moves, safe_name
 from codetta.core.plugins import ActionError, PluginManager
 from codetta.web.common import (
@@ -23,6 +24,7 @@ from codetta.web.common import (
     CoverExportIn,
     FromNamesIn,
     TracklistIn,
+    MatchTagsIn,
     WipeIn,
     FolderRenameIn,
     PluginToggleIn,
@@ -348,6 +350,64 @@ def register(app, shared) -> None:
             return out
         what = f"“{body.find}” → “{body.replace}”" if body.replace else f"removed “{body.find}”"
         done, failed = apply_per_file(plan, f"Find & replace: {what} in {len(plan)} track{'s' if len(plan) != 1 else ''}")
+        return {**out, "changed": len(done), "failed": len(failed), "errors": failed[:20]}
+
+    @app.post("/api/tags/match")
+    def match_album_tags(body: MatchTagsIn) -> dict:
+        """Match album tags: copy every album-wide tag (not title, track artist, numbers, lyrics,
+        song IDs...) from one track, or from what a folder's other tracks share, onto these
+        tracks, so music players group them as one album. ``dry_run`` (the default) only shows
+        what would change; otherwise it writes, as one undoable activity entry."""
+        require_library()
+        targets = _unique(body.paths)
+        chosen = set(targets)
+
+        def read(rel: str) -> dict[str, list[str]]:
+            return engine.load_metadata(library.resolve(rel)).tags
+
+        try:
+            if body.track:
+                if body.track in chosen:
+                    raise HTTPException(422, "Pick a track that isn't one of the ones being changed.")
+                reference = album_tags(read(body.track))
+                source = body.track.rsplit("/", 1)[-1]
+            else:
+                folder = (body.folder if body.folder is not None else targets[0].rpartition("/")[0]).strip("/")
+                others = [rel for rel in audio_files(library, folder, False, MAX_PATHS_PER_REQUEST) if rel not in chosen]
+                if not others:
+                    raise HTTPException(422, "There are no other tracks in that folder to match.")
+                tags = []
+                for rel in others:
+                    try:
+                        tags.append(read(rel))
+                    except (MetadataError, LibraryPathError, OSError):
+                        continue
+                reference = shared_album_tags(tags)
+                source = folder.rsplit("/", 1)[-1] or "Library"
+        except (MetadataError, LibraryPathError, OSError) as exc:
+            raise HTTPException(422, library.message(exc)) from exc
+        if not reference:
+            raise HTTPException(422, "The tracks to match have no album tags to copy.")
+        plan: dict[str, dict] = {}
+        preview, unreadable = [], 0
+        for rel in targets:
+            try:
+                tags = read(rel)
+            except (MetadataError, LibraryPathError, OSError):
+                unreadable += 1
+                continue
+            changes = changes_for(tags, reference, body.remove_extra)
+            if changes:
+                plan[rel] = changes
+                if len(preview) < 200:
+                    preview.append({"path": rel, "changes": [
+                        {"key": k, "old": "; ".join(tags.get(k) or []), "new": "; ".join(v or [])} for k, v in sorted(changes.items())]})
+        out = {"tracks": len(targets), "changing": len(plan), "unreadable": unreadable, "preview": preview,
+               "reference": reference, "source": source, "kept": sorted(TRACK_KEYS)}
+        if body.dry_run or not plan:
+            return out
+        n = len(plan)
+        done, failed = apply_per_file(plan, f"Matched album tags to “{source}”: {n} track{'s' if n != 1 else ''}")
         return {**out, "changed": len(done), "failed": len(failed), "errors": failed[:20]}
 
     @app.post("/api/tags/wipe")

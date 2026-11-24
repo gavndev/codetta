@@ -425,6 +425,7 @@ async function startApp() {
     state.fields = fields.fields;
     state.fieldMap = new Map(fields.fields.map((f) => [f.key, f]));
     state.placeholders = fields.placeholders;
+    state.trackKeys = fields.track_keys || [];
     $("#tag-keys").replaceChildren(...fields.fields.map((f) => h("option", { value: f.key }, f.label)));
     showStatus(status);
     loadSlskd().then(() => renderFolderHead());

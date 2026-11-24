@@ -23,6 +23,7 @@ import { openTracklist } from "./tracklist.js";
 import { doApply, openApply, openManage, runPreview, syncApplyUi } from "./presets.js";
 import { setHealthEnabled } from "./library.js";
 import { setupSettings } from "./settings.js";
+import { compareSelected, copySelected, matchSelected, pasteSelected, setupSelectionTools, syncSelectionTools } from "./selection.js";
 import { placeAccount, setPasswordOpen, syncAccountTiles } from "./account.js";
 import { openReport, openTrash, setupContextMenu, setupDropImport } from "./files.js";
 
@@ -107,7 +108,7 @@ export function bindEvents() {
   els.editorForm.addEventListener("submit", (e) => { e.preventDefault(); saveEditor(); });
   // Keep "Copy tags" / "Paste" in sync when tags are copied in another tab.
   window.addEventListener("storage", (e) => {
-    if (e.key === "codetta-clipboard") { state.clipboard = loadClipboard(); if (state.editor) renderToolbar(); }
+    if (e.key === "codetta-clipboard") { state.clipboard = loadClipboard(); if (state.editor) renderToolbar(); syncSelectionTools(); }
   });
 
   setupContextMenu();
@@ -126,14 +127,19 @@ export function bindEvents() {
   $("#sel-download").addEventListener("click", () => downloadSelection([...state.selected]));
   $("#sel-replace").addEventListener("click", () => openReplace({ paths: [...state.selected] }, `${plural(state.selected.size, "selected track")}`));
   // Phones: the bar can't fit five buttons, so Preset, Replace and Actions share a "…" menu.
+  setupSelectionTools();
   const selMore = iconButton("more", "More", () => openToolsMenu(selMore, [
+    { icon: "copy", label: "Copy tags", run: copySelected },
+    state.clipboard ? { icon: "paste", label: `Paste ${plural(Object.keys(state.clipboard.tags).length, "tag")}`, run: pasteSelected } : null,
+    { icon: "disc", label: "Match album tags", run: matchSelected },
+    state.selected.size >= 2 && state.selected.size <= 4 ? { icon: "compare", label: "Compare tags", run: compareSelected } : null,
     { icon: "preset", label: "Apply preset", run: () => $("#sel-preset").click() },
     { icon: "replace", label: "Find & replace", run: () => $("#sel-replace").click() },
     { icon: "wand", label: "Actions", run: () => $("#sel-actions").click() },
     { icon: "tag", label: "Tags from file names", run: () => openFromNames({ paths: [...state.selected] }, plural(state.selected.size, "selected track")) },
     { icon: "paste", label: "Paste a tracklist", run: () => openTracklist({ paths: [...state.selected] }, plural(state.selected.size, "selected track")) },
     { icon: "download", label: state.selected.size > 1 ? `Download ${state.selected.size} as .zip` : "Download", run: () => $("#sel-download").click() },
-  ]), { cls: "sel-more phone-only" });
+  ].filter(Boolean)), { cls: "sel-more phone-only" });
   selMore.id = "sel-more";
   $("#sel-edit").before(selMore);
   $("#manage-btn").addEventListener("click", openManage);
@@ -169,8 +175,9 @@ export function bindEvents() {
   d.addEventListener("change", () => { syncApplyUi(); runPreview(); });
   $("#apply-go").addEventListener("click", doApply);
 
-  // All dialogs: close buttons and backdrop clicks.
-  for (const dialog of [els.applyDialog, els.manageDialog, els.filterDialog, $("#mb-dialog"), $("#organize-dialog"), $("#inbox-dialog"), $("#soulseek-dialog"), $("#health-dialog"), $("#player-dialog"), $("#replace-dialog"), $("#actions-dialog"), $("#news-dialog")]) {
+  // Every window: its close buttons (X, Cancel: [data-close]) and a click on the backdrop. All of
+  // them, so a new window can't be left without a way out. The confirmation has its own handling.
+  for (const dialog of document.querySelectorAll("dialog.sheet:not(#confirm-dialog)")) {
     dialog.addEventListener("click", (e) => {
       if (e.target.closest("[data-close]") || e.target === dialog) closeDialog(dialog);
     });

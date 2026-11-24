@@ -75,3 +75,17 @@ def test_settings_page_has_every_section_and_unique_ids():
     js = (STATIC / "js" / "settings.js").read_text("utf-8")
     for section in ("general", "library", "inbox", "listening", "apps", "connections", "about"):
         assert f'id: "{section}"' in js
+
+
+def test_every_window_can_be_closed():
+    """Every window with a Close/Cancel button ([data-close]) is one the page wires up: the sheets
+    all at once in wiring.js, Settings and the account menu in their own modules. (Save covers,
+    Paste a tracklist, Tags from file names and ReplayGain once had no way out but Escape.)"""
+    html = (STATIC / "index.html").read_text("utf-8")
+    wiring = (STATIC / "js" / "wiring.js").read_text("utf-8")
+    assert 'querySelectorAll("dialog.sheet:not(#confirm-dialog)")' in wiring
+    for cls, did, body in re.findall(r'<dialog class="([^"]*)" id="([^"]*)"(.*?)</dialog>', html, re.DOTALL):
+        if did == "confirm-dialog":
+            continue
+        classes = cls.split()
+        assert "sheet" in classes or did in ("settings-dialog", "account-dialog"), f"#{did} isn't wired to close"

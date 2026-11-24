@@ -176,6 +176,10 @@
       <span id="selection-count"></span>
       <div class="selection-actions">
         <button class="btn" id="sel-clear" type="button">Clear</button>
+        <button class="btn" id="sel-copy" type="button" title="Copy tags from these tracks">Copy</button>
+        <button class="btn" id="sel-paste" type="button" hidden>Paste</button>
+        <button class="btn" id="sel-match" type="button" title="Give these tracks the album's tags so music players group them as one album">Match album…</button>
+        <button class="btn" id="sel-compare" type="button" title="See these tracks' tags side by side" hidden>Compare</button>
         <button class="btn" id="sel-preset" type="button">Preset…</button>
         <button class="btn" id="sel-replace" type="button" title="Find & replace in these tracks' tags">Replace…</button>
         <button class="btn" id="sel-actions" type="button" title="Actions: clean up titles, Title Case, trim spaces…">Actions…</button>
@@ -522,6 +526,18 @@
     <div class="sheet-foot" id="replace-foot"></div>
   </dialog>
 
+  <!-- Selection tools: copy tags, compare, match album tags (drawn by selection.js) -->
+  <dialog class="sheet wide" id="seltool-dialog" aria-labelledby="seltool-title">
+    <div class="sheet-head">
+      <h2 id="seltool-title"></h2>
+      <button class="icon-btn" type="button" data-close aria-label="Close">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body" id="seltool-body"></div>
+    <div class="sheet-foot" id="seltool-foot"></div>
+  </dialog>
+
   <!-- Actions: built-in tidy-ups (drawn by tools.js) -->
   <dialog class="sheet wide" id="actions-dialog" aria-labelledby="actions-title">
     <div class="sheet-head">
@@ -691,6 +707,7 @@
   <link rel="modulepreload" href="/static/js/presets.js">
   <link rel="modulepreload" href="/static/js/search.js">
   <link rel="modulepreload" href="/static/js/settings.js">
+  <link rel="modulepreload" href="/static/js/selection.js">
   <link rel="modulepreload" href="/static/js/setup.js">
   <link rel="modulepreload" href="/static/js/state.js">
   <link rel="modulepreload" href="/static/js/subsonic.js">

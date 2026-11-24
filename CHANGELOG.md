@@ -4,8 +4,12 @@ All notable changes to Codetta. Versions follow [Semantic Versioning](https://se
 
 ## Unreleased
 
+- **Fix: some windows couldn't be closed.** Save covers as files, Paste a tracklist, Tags from file names and ReplayGain ignored their X and Cancel buttons (only Escape worked). Every window now closes from its buttons or a click outside it.
 - **Settings sits in the middle of big screens:** on a wide or ultrawide monitor, Settings opens as a centred window instead of stretching from edge to edge.
 - **Tidier Settings:** each online service's switch now sits right above its own settings, and they're grouped by what they're for. ListenBrainz and AudioMuse-AI are under Listening, your music server (Navidrome, Jellyfin, Emby, Plex) is next to the music apps in **Music apps & server**, and Connections is split into tags, covers and lyrics; getting music; and Codetta itself.
+- **Match album tags:** select the tracks that won't group with their album (a bonus track, a physical-only song) and press **Match album…**. They get the same album tags as the rest of the album, from what the folder's other tracks share or from one track you pick, while their own title, artist, numbers, lyrics and IDs stay. You see every change first, and Activity can undo it.
+- **Compare tags:** select 2 to 4 tracks and press **Compare** to see their tags side by side. Codetta points out the album tags that differ, the ones that make players split an album.
+- **Copy and paste in the selection bar:** Copy lets you pick which tags to copy (album tags are ticked for you), and Paste puts them on the tracks you select next. Every button in the bar now has a small icon, and on smaller screens the quieter ones show just the icon.
 - **Wipe all tags:** a folder's **More** menu has a red **Wipe all tags**, which removes every tag from its tracks and keeps the audio and the cover. It asks twice, in the middle of the screen, and Activity can undo it.
 
 ## 0.14.0 (2026-11-24)

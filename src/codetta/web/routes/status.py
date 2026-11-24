@@ -5,6 +5,7 @@ import os
 
 from fastapi import HTTPException, Query
 
+from codetta.core.matchtags import TRACK_KEYS
 from codetta.core.connections import BY_ID as CONNECTION_BY_ID
 from codetta.core.presets import PLACEHOLDERS
 from codetta.core.tagmap import FIELDS
@@ -117,6 +118,7 @@ def register(app, shared) -> None:
                 for f in FIELDS
             ],
             "placeholders": sorted(PLACEHOLDERS),
+            "track_keys": sorted(TRACK_KEYS),  # per-song tags (Copy and Match album tags leave them)
         }
 
     shared.share(fields=fields, require_connection=require_connection, status=status)

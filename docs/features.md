@@ -123,7 +123,8 @@ tracks (the audio and the cover stay). It asks twice, and Activity can undo it.
   unless you touch them.
 - **Smart suggestions.** Album-level fields suggest values the other tracks in
   the folder already use, and Track suggests the file's position (`2/6`).
-- **Copy & paste tags** between tracks and folders.
+- **Copy & paste tags** between tracks and folders, from the editor or the
+  selection bar (Copy ticks the album tags for you).
 - **Album art everywhere.** A thumbnail on every track, and covers you can
   add, replace or remove as part of a normal save.
 - **Filter a folder by tag**, e.g. *Label: Independent*.
@@ -212,6 +213,23 @@ recording, whatever its name or track number says.
 
 Running your own MusicBrainz mirror? Point `CODETTA_MUSICBRAINZ_URL` at it and
 lookups stay on your network with no rate limit.
+
+## Tracks that won't group with their album
+
+A track that shows up as a separate album in your music player almost always
+has one album-wide tag that's a little off: another album artist, a slightly
+different date, a missing release ID. Two tools in the selection bar fix it:
+
+- **Compare** (select 2 to 4 tracks) shows their tags side by side and names
+  the album tags that differ, the ones that split an album.
+- **Match album…** gives the selected tracks the same album tags as the rest of
+  the album: what most tracks in the folder share, or one track you pick. Tags
+  about the song itself stay as they are (title, track artist, track and disc
+  number, credits, lyrics, ISRC, song IDs). It can also remove album tags the
+  others don't have. You see every change first, and Activity can undo it.
+
+Handy for bonus or physical-only tracks that MusicBrainz doesn't list, but you
+still want inside the album.
 
 ## Organize your files
 

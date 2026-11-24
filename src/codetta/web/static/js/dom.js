@@ -132,6 +132,8 @@ const ICONS = {
   moon: '<svg viewBox="0 0 20 20"><path d="M16 12.5A6.5 6.5 0 0 1 7.5 4a6.5 6.5 0 1 0 8.5 8.5z"/></svg>',
   auto: '<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 3a7 7 0 0 1 0 14z" fill="currentColor" stroke="none"/></svg>',
   plus: '<svg viewBox="0 0 20 20"><path d="M10 4v12M4 10h12"/></svg>',
+  pencil: '<svg viewBox="0 0 20 20"><path d="m13.2 3.8 3 3-8.9 8.9-3.8.8.8-3.8z"/><path d="m11.4 5.6 3 3"/></svg>',
+  compare: '<svg viewBox="0 0 20 20"><rect x="2.8" y="4" width="6" height="12" rx="1.5"/><rect x="11.2" y="4" width="6" height="12" rx="1.5"/><path d="M5 8h1.6M5 11h1.6M13.4 8h1.6M13.4 11h1.6"/></svg>',
   copy: '<svg viewBox="0 0 20 20"><rect x="7" y="7" width="9.5" height="9.5" rx="2"/><path d="M13 7V5a1.5 1.5 0 0 0-1.5-1.5h-6A1.5 1.5 0 0 0 4 5v6A1.5 1.5 0 0 0 5.5 12.5H7"/></svg>',
   chevron: '<svg viewBox="0 0 20 20"><path d="m8 5 5 5-5 5"/></svg>',
   rows: '<svg viewBox="0 0 20 20"><path d="M4 5.5h12M4 10h12M4 14.5h12"/></svg>',
