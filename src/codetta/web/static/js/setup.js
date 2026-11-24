@@ -286,6 +286,33 @@ async function renderSetupStep(step) {
   }
 }
 
+const CONFIDENCE = [
+  { id: "strict", title: "Strict: 85% match or better", sub: "The fewest surprises." },
+  { id: "balanced", title: "Balanced: 75% match or better", sub: "Less to review, still careful." },
+  { id: "relaxed", title: "Relaxed: 65% match or better", sub: "The least to review: look through Activity now and then." },
+];
+
+/** How sure Codetta must be before it files (Inbox) or tags (Tidy up) an album on its own: one
+ * setting for both, saved as soon as it changes. */
+export function confidenceChooser(where) {
+  const other = where === "inbox" ? "Tidy up" : "the inbox";
+  const select = h("select", { "aria-label": "How sure Codetta must be" }, CONFIDENCE.map((c) => h("option", { value: c.id }, c.title)));
+  const hint = h("span", { class: "hint" });
+  const explain = () => {
+    const c = CONFIDENCE.find((x) => x.id === select.value) || CONFIDENCE[0];
+    hint.textContent = `${c.sub} Every track still has to line up with the album, and anything Codetta does can be undone in Activity. Also used by ${other}.`;
+  };
+  select.disabled = true;
+  explain();
+  api("GET", "/api/matching").then((d) => { select.value = d.confidence; explain(); }).catch(() => {}).finally(() => { select.disabled = false; });
+  select.addEventListener("change", async () => {
+    explain();
+    try { await api("PUT", "/api/matching", { confidence: select.value }); toast("Saved", "success"); }
+    catch (err) { toast(err.message, "error"); }
+  });
+  return h("label", { class: "field" }, h("span", { class: "field-label" }, "How sure Codetta must be"), select, hint);
+}
+
 export const inboxLabel = (folder) => (folder === "@inbox" ? "your downloads folder" : folder.replace(/^@inbox\//, "Downloads/"));
 
 /** The inbox's settings fields (used in setup and in the Inbox screen). */
@@ -330,6 +357,7 @@ export function inboxSettingsFields(s, folders, external = { available: false })
         h("span", { class: "switch-title" }, "File confident matches automatically"),
         h("span", { class: "switch-sub" }, "When every track lines up with a MusicBrainz release, tag and file it without asking. Everything else waits for you.")),
       h("input", { type: "checkbox", role: "switch", name: "inbox-auto", checked: s.auto })),
+    confidenceChooser("inbox"),
     h("label", { class: "switch-row" },
       h("span", { class: "switch-text" },
         h("span", { class: "switch-title" }, "Check for new music every 15 minutes"),

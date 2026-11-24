@@ -434,3 +434,30 @@ def test_filing_another_edition_keeps_its_details(make_client, music):
     filed = next(x for x in res["inbox"]["groups"] if x["key"] == g["key"])
     assert filed["release"]["id"] == OTHER
     assert "labels" in filed["release"] and filed["release"].get("title")
+
+
+# --- How sure Codetta must be (Strict / Balanced / Relaxed) --------------------------------------
+
+def test_confidence_levels():
+    from codetta.core.matching import confident
+    files = [{"track": 1, "confidence": "high"}, {"track": 2, "confidence": "high"}]
+    album = lambda score: {"score": score, "track_count": 2}  # noqa: E731
+    assert not confident(album(78), files, "strict") and confident(album(78), files, "balanced")
+    assert not confident(album(70), files, "balanced") and confident(album(70), files, "relaxed")
+    assert confident(album(90), files, "strict")
+    # Every level still needs every track paired for certain, and the same number of tracks.
+    shaky = files[:1] + [{"track": 2, "confidence": "low"}]
+    assert not any(confident(album(99), shaky, lvl) for lvl in ("strict", "balanced", "relaxed"))
+    assert not confident({"score": 99, "track_count": 3}, files, "relaxed")
+    single = {"score": 82, "single": True}
+    assert not confident(single, files[:1], "balanced") and confident(single, files[:1], "relaxed")
+    assert confident(album(86), files, "nonsense")  # an unknown level behaves as Strict
+
+
+def test_confidence_setting_is_shared_and_kept(make_client, tmp_path):
+    c = make_client()
+    assert c.get("/api/matching").json()["confidence"] == "strict"
+    assert c.put("/api/matching", json={"confidence": "balanced"}).json()["confidence"] == "balanced"
+    assert c.put("/api/matching", json={"confidence": "reckless"}).status_code == 422
+    from codetta.core.matching import MatchingStore
+    assert MatchingStore(tmp_path / "config" / "matching.json").level == "balanced"

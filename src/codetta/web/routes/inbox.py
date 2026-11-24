@@ -28,20 +28,22 @@ from codetta.core.inbox import (
 )
 from codetta.core.library import INBOX as INBOX_ALIAS
 from codetta.core.library import LibraryPathError
+from codetta.core.matching import LEVELS, MatchingStore, confident
 from codetta.core.musicbrainz import parse_release_id
 from codetta.core.organize import Move, apply_moves, prune_replaced
 from codetta.core.slskd import IMPORTED as SK_IMPORTED
 from codetta.core.slskd import SlskdError, folder_progress
 from codetta.web.common import (
-    MAX_IDENTIFY,
+    _name,
     InboxActionIn,
     InboxSettingsIn,
+    log,
+    MatchingIn,
+    MAX_IDENTIFY,
     MBProposalIn,
     MBSearchIn,
     MBTarget,
     OrganizeIn,
-    _name,
-    log,
 )
 
 
@@ -84,14 +86,29 @@ def register(app, shared) -> None:
         return (most_common(f.album for f in infos),
                 most_common(f.albumartist or f.artist for f in infos))
 
+    matching = MatchingStore(settings.config_dir / "matching.json")
+
     def confident_match(best: dict, files: list[dict]) -> bool:
-        """Sure enough to write without asking: every track paired for certain, and the release fits
-        (a whole album: same number of tracks; one loose song: the song itself fits closely)."""
-        if not files or not all(f["track"] and f["confidence"] == "high" for f in files):
-            return False
-        if best.get("single"):
-            return best["score"] >= 90
-        return best.get("track_count") == len(files) and best["score"] >= 85
+        """Sure enough to write without asking, at the level chosen (Strict / Balanced / Relaxed):
+        the Inbox's automatic filing and Tidy up both use this."""
+        return confident(best, files, matching.level)
+
+    def matching_out() -> dict:
+        return {"confidence": matching.level,
+                "levels": [{"id": k, "album": a, "single": s} for k, (a, s) in LEVELS.items()]}
+
+    @app.get("/api/matching")
+    def get_matching() -> dict:
+        """How sure Codetta must be before it files (Inbox) or tags (Tidy up) an album on its own."""
+        return matching_out()
+
+    @app.put("/api/matching")
+    def put_matching(body: MatchingIn) -> dict:
+        try:
+            matching.set(body.confidence)
+        except OSError as exc:
+            raise HTTPException(500, f"Could not save to the config folder: {exc}") from exc
+        return matching_out()
 
     def inbox_match(key: str) -> None:
         g = inbox.update(key, status=MATCHING, note="")

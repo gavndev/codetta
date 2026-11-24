@@ -276,6 +276,10 @@ class OrganizeIn(BaseModel):
     pattern: str | None = Field(default=None, max_length=400)  # None: the saved pattern
 
 
+class MatchingIn(BaseModel):
+    confidence: Literal["strict", "balanced", "relaxed"]
+
+
 class InboxSettingsIn(BaseModel):
     folder: str = Field(max_length=1000)
     auto: bool = False

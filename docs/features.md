@@ -350,6 +350,16 @@ review. Each item says what was found ("Ready", "Not sure", "Not found") and
 whether you already have that album. Albums already in your library are never
 overwritten, and **Remove** clears something you don't want.
 
+**How sure Codetta must be** (in the inbox's settings, and in Tidy up) decides which matches
+count as confident: **Strict** (85% match, the default), **Balanced** (75%) or **Relaxed** (65%).
+Whatever the level, every track still has to pair with the album for certain, and a whole album
+has to have the same number of tracks, before anything is written. Covers come with every match
+(the Cover Art Archive first, then the album's other editions, Deezer or iTunes, and finally the
+cover already in the files), so there's nothing extra to approve for them.
+
+Working through a big existing library? Point Codetta's music folder at it and use **Tidy up**
+instead: it fixes albums where they are, without copying anything through the inbox.
+
 **Import** music straight from your computer or phone with the Import button,
 or drag files onto the page. They land in the inbox and take the same route.
 

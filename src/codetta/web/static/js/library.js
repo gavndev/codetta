@@ -9,7 +9,7 @@ import { setBang } from "./search.js";
 import { folderCovers } from "./tools.js";
 import { confirmDiscard } from "./editor.js";
 import { refreshActivity } from "./activity.js";
-import { connectionOn } from "./setup.js";
+import { confidenceChooser, connectionOn } from "./setup.js";
 import { openMusicBrainzFor } from "./musicbrainz.js";
 import { skReady } from "./inbox.js";
 
@@ -122,7 +122,7 @@ export async function previewFullCare() {
 export async function chooseCare() {
   await loadCare();
   const pick = careChoices(care?.mode || "off");
-  const ok = await ask({ title: "Tidy up", details: pick.box, confirmLabel: "Save",
+  const ok = await ask({ title: "Tidy up", details: h("div", { class: "sk-fields" }, pick.box, confidenceChooser("care")), confirmLabel: "Save",
     message: "Codetta goes through your music one album at a time. It only changes an album when it's sure it found the right one, and you can undo anything in Activity." });
   if (!ok) return;
   if (pick.value() === "full" && care?.mode !== "full" && !(await previewFullCare())) return;
