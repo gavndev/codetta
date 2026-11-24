@@ -118,6 +118,13 @@ CONNECTIONS: tuple[Connection, ...] = (
         ("api.listenbrainz.org",), "LISTENBRAINZ",
     ),
     Connection(
+        "wikipedia", "Wikipedia artist bios",
+        "A short bio at the top of an artist's folder, from Wikipedia, in your language when there is one. "
+        "Works together with MusicBrainz, which points to the right Wikipedia page.",
+        "The Wikidata ID of the artist (from MusicBrainz), when you open their folder.",
+        ("www.wikidata.org", "wikipedia.org"), "WIKIPEDIA",
+    ),
+    Connection(
         "updates", "Update check",
         "Tell you when a new version of Codetta is out.",
         "Nothing about you or your music: it asks GitHub for the latest release, twice a day.",

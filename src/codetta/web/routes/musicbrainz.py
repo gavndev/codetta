@@ -1,7 +1,9 @@
 """Matching on MusicBrainz (and Deezer/iTunes): search, editions, identify by sound, apply."""
 from __future__ import annotations
 
+import re
 import threading
+import urllib.parse
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
@@ -260,6 +262,48 @@ def register(app, shared) -> None:
             candidates.sort(key=lambda c: (not c["current"], -(c["score"] + edition_fit(c, editions.prefs, len(rels)))))
         return {"query": {"album": album, "artist": artist, "files": len(rels)}, "current": current or None,
                 "candidates": candidates, "recordings": {}, "note": f"MusicBrainz didn't answer ({mb_error}), so these come from other sources." if mb_error else None}
+
+    HARMONY = "https://harmony.pulsewidth.org.uk/release"
+
+    @app.post("/api/harmony")
+    def harmony_link(body: MBTarget) -> dict:
+        """A link that opens Harmony (a MusicBrainz importer) with this album already looked up, for
+        albums MusicBrainz doesn't have yet. Harmony looks albums up by barcode or by a store link,
+        not by name: so the album's barcode if the files have one, else its Deezer or iTunes page
+        (found by album and artist, only when that connection is on)."""
+        require_library()
+        rels = mb_targets(body)
+        infos, metas, _ = mb_read(rels)
+        album = most_common(f.album for f in infos)
+        artist = most_common(f.albumartist or f.artist for f in infos)
+        codes = [re.sub(r"\D", "", (m.tags.get("barcode") or [""])[0]) for m in metas.values()]
+        barcode = most_common(c for c in codes if 8 <= len(c) <= 14)
+        if barcode:
+            return {"url": f"{HARMONY}?{urllib.parse.urlencode({'gtin': barcode, 'category': 'default'})}",
+                    "how": "barcode", "found": barcode}
+        if not (album or artist):
+            raise HTTPException(422, "These files have no album, artist or barcode for Harmony to look up.")
+        sources = [s for s in ("deezer", "itunes") if connections.enabled(s)]
+        if not sources:
+            raise HTTPException(409, "Harmony looks albums up by barcode or by a store link. These files have no barcode: "
+                                     "turn on Deezer or iTunes in Settings → Connections so Codetta can find the album's link.")
+        best = None
+        for source in sources:
+            try:
+                for r in catalogs.search(album, artist, limit=5, only=source):
+                    c = summarize(r)
+                    score = score_candidate(c, infos, album, artist)
+                    if r.get("_url") and score >= 60 and (best is None or score > best[0]):
+                        best = (score, r["_url"], source, f"{r.get('_artist') or ''} – {r.get('title') or ''}".strip(" –"))
+            except ProviderError:
+                continue
+            if best and best[0] >= 85:
+                break  # good enough: no need to ask the next store
+        if not best:
+            raise HTTPException(404, f"Couldn't find “{album or artist}” on {' or '.join(s.title() if s == 'deezer' else 'iTunes' for s in sources)} "
+                                     "to give Harmony a link. If you have a store link for it, paste it into Harmony yourself.")
+        return {"url": f"{HARMONY}?{urllib.parse.urlencode({'url': best[1], 'category': 'default'})}",
+                "how": best[2], "found": best[3]}
 
     def catalog_only_search(source: str, infos: list, album: str, artist: str, files: int) -> dict:
         """Find in Deezer / Find in iTunes: that source only, the same review afterwards."""

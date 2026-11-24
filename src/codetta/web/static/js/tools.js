@@ -19,7 +19,11 @@ import { openReplayGain, replayGainReady } from "./replaygain.js";
 import { openFromNames } from "./fromnames.js";
 import { openTracklist } from "./tracklist.js";
 import { openCoverExport } from "./coverexport.js";
-import { artistButton } from "./artists.js";
+import { artistButton, artistHead } from "./artists.js";
+
+/** A folder at the top of the library that holds albums: an artist's folder. */
+const isArtistFolder = (f) => !f.search && !f.mb && f.path && !f.path.includes("/") && !isSpecialPath(f.path)
+  && f.folders.length > 0 && f.tracks.length <= 2;
 
 // ---- Batch tools: find & replace in tags, rename a folder, actions -----------------------------------
 
@@ -396,6 +400,7 @@ export function renderFolderHead() {
           genres ? h("span", { class: "spot-chip", dir: "auto" }, genres) : null,
           canMatch ? mbFindButton("beside-genre") : null,
           canSoulseek ? skFindButton("beside-genre") : null) : null))
+    : isArtistFolder(f) ? artistHead(f, counts)
     : h("div", {},
       h("h1", { translate: f.path ? "no" : null }, f.path ? f.name : "Library"),
       h("p", {}, counts.join(" · ") || (f.skipped ? "" : "Empty folder"), skippedNote));

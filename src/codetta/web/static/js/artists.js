@@ -2,9 +2,11 @@
 // their pictures next to their names, and the artist menu. See core/artists.py and core/artistart.py.
 // Part of Codetta's page; app.js is the entry point (see the note at its top).
 
-import { h } from "./dom.js";
+import { h, icon, setKids } from "./dom.js";
 import { api } from "./api.js";
-import { toast } from "./state.js";
+import { plural, toast } from "./state.js";
+import { currentLanguage } from "./i18n.js";
+import { openSettings } from "./settings.js";
 import { SEARCH, navigate } from "./browse.js";
 import { popMenu } from "./tools.js";
 
@@ -89,4 +91,55 @@ export function artistButton(text, credits, { cls = "", before, pictures = 0 } =
   }, h("span", { class: "artist-link-text" }, text));
   if (pictures) addArtistPictures(btn, credits, pictures === true ? 22 : pictures);
   return btn;
+}
+
+// ---- An artist's folder: their picture, a bio and similar artists (a little like Last.fm) -------------
+
+const infoCache = new Map(); // folder + language -> the /api/artists/info answer (or a Promise of it)
+
+function artistInfo(folder) {
+  const key = `${folder}\u001f${currentLanguage()}`;
+  if (!infoCache.has(key)) {
+    const p = api("GET", `/api/artists/info?folder=${encodeURIComponent(folder)}&lang=${encodeURIComponent(currentLanguage())}`)
+      .then((d) => { infoCache.set(key, d); return d; })
+      .catch(() => { infoCache.delete(key); return null; });
+    infoCache.set(key, p);
+    if (infoCache.size > 200) infoCache.delete(infoCache.keys().next().value);
+  }
+  return infoCache.get(key);
+}
+
+/** The head of an artist's folder (a folder at the top of the library that holds albums). */
+export function artistHead(f, counts) {
+  const folder = f.path;
+  const slot = h("div", { class: "artist-extra" });
+  const fill = (d) => {
+    if (!d) { setKids(slot); return; }
+    const bio = d.bio ? h("div", { class: "artist-bio" },
+      h("p", { class: "artist-bio-text", dir: "auto", lang: d.bio.lang }, d.bio.text),
+      h("p", { class: "artist-bio-foot" },
+        h("button", { class: "link-btn artist-bio-more", type: "button", onclick: (e) => {
+          const open = slot.classList.toggle("bio-open");
+          e.currentTarget.textContent = open ? "Less" : "More";
+        } }, "More"),
+        " · ", h("a", { href: d.bio.url, target: "_blank", rel: "noopener noreferrer" }, "From Wikipedia"))) : null;
+    const similar = d.similar?.length ? h("div", { class: "artist-similar" },
+      h("span", { class: "artist-similar-label" }, "Similar artists"),
+      h("div", { class: "artist-similar-list" }, d.similar.slice(0, 10).map((a) => h("button", {
+        class: `artist-chip${a.folder ? " here" : ""}`, type: "button", onclick: () => goTo(a),
+        title: a.folder ? "In your library" : "Songs they're on in your library",
+      }, artistAvatar(a, 24), h("span", { dir: "auto" }, a.name))))) : null;
+    const hint = !d.can?.bio && !d.can?.similar ? h("button", { class: "link-btn artist-hint", type: "button",
+      onclick: () => openSettings("connections") }, icon("spark"), "Add a bio and similar artists (Settings → Connections)") : null;
+    setKids(slot, bio, similar, hint);
+  };
+  const known = infoCache.get(`${folder}\u001f${currentLanguage()}`);
+  if (known && !(known instanceof Promise)) fill(known);
+  else artistInfo(folder).then((d) => { if (slot.isConnected || !known) fill(d); });
+  return h("div", { class: "album-head artist-head" },
+    artistAvatar({ name: f.name, folder }, 168),
+    h("div", { class: "artist-title" },
+      h("h1", { dir: "auto", translate: "no" }, f.name),
+      h("p", { class: "album-meta" }, counts.join(" · ") || plural(f.folders.length, "folder"))),
+    slot);
 }

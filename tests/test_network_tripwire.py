@@ -24,6 +24,8 @@ CALLS = [
     ("POST", "/api/audiomuse/test", {}),
     ("POST", "/api/autoplay/next", {"seeds": [TRACK], "n": 5}),
     ("GET", "/api/artists/picture?name=Coda+Tester", None),
+    ("GET", "/api/artists/info?folder=Coda+Tester", None),
+    ("POST", "/api/harmony", {"folder": FOLDER}),
     ("PUT", "/api/listenbrainz", {"token": "l" * 36}),
     ("POST", "/api/listenbrainz/test", {}),
     ("POST", "/api/played", {"path": TRACK}),

@@ -214,6 +214,25 @@ recording, whatever its name or track number says.
 Running your own MusicBrainz mirror? Point `CODETTA_MUSICBRAINZ_URL` at it and
 lookups stay on your network with no rate limit.
 
+## Artist pages
+
+Open an artist's folder (a folder at the top of your library that holds their
+albums) and it starts with their picture, a short bio and similar artists, a
+little like Last.fm. Similar artists you have in your library come first and
+open their folder. The bio comes from Wikipedia, in your language when there's a
+page in it, with the **Wikipedia artist bios** connection on (with MusicBrainz,
+which points to the right page, so "Future" is the rapper and not the idea).
+Similar artists come from Deezer. Each part shows only when its connection is on.
+
+## Not on MusicBrainz yet? Open it in Harmony
+
+In the **Find in MusicBrainz** drop-down, **Open in Harmony** opens
+[Harmony](https://harmony.pulsewidth.org.uk/) in a new tab with the album
+already looked up, ready to add to MusicBrainz. Harmony works from a barcode or
+a store link, so Codetta sends the album's barcode when the files have one, and
+otherwise finds the album on Deezer or iTunes (when those are on) and sends that
+link.
+
 ## Tracks that won't group with their album
 
 A track that shows up as a separate album in your music player almost always

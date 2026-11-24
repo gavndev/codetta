@@ -265,3 +265,24 @@ def test_a_bare_itunes_id_can_be_pasted(album_dir, tmp_path):  # noqa: F811
         r = c.post("/api/musicbrainz/search", json={"folder": FOLDER, "release": pasted})
         assert r.status_code == 200 and r.json()["candidates"][0]["id"] == "itunes:1440857781", pasted
     c.__exit__(None, None, None)
+
+
+def test_open_in_harmony_uses_the_barcode_first(album_dir, tmp_path):  # noqa: F811
+    c, fake, _ = make(album_dir, tmp_path, {})
+    c.patch("/api/tracks", json={"paths": [f"{FOLDER}/01.flac"], "changes": {"barcode": "0602 5574 4637 6"}})
+    res = c.post("/api/harmony", json={"folder": FOLDER}).json()
+    q = urllib.parse.parse_qs(urllib.parse.urlparse(res["url"]).query)
+    assert res["url"].startswith("https://harmony.pulsewidth.org.uk/release?") and res["how"] == "barcode"
+    assert q == {"gtin": ["0602557446376"], "category": ["default"]}
+    assert not fake.urls  # a barcode needs no lookup: nothing sent anywhere
+
+
+def test_open_in_harmony_finds_a_store_link_or_explains(album_dir, tmp_path):  # noqa: F811
+    c, fake, _ = make(album_dir, tmp_path, {})
+    res = c.post("/api/harmony", json={"folder": FOLDER})
+    assert res.status_code == 409 and "Deezer or iTunes" in res.json()["detail"]  # off: nothing is asked
+    assert not fake.urls
+    c.put("/api/connections", json={"enabled": {"deezer": True}})
+    res = c.post("/api/harmony", json={"folder": FOLDER}).json()
+    q = urllib.parse.parse_qs(urllib.parse.urlparse(res["url"]).query)
+    assert res["how"] == "deezer" and q["url"] == ["https://www.deezer.com/album/302127"]

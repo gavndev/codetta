@@ -158,7 +158,7 @@ __all__ = ["ACTIVITY_VALUE_CHARS", "VERSION", "Settings", "_is_public_address", 
 def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_latest_release,
                fetch_json=None, fetch_mb=None, fetch_art=None, post_acoustid=None, run_fpcalc=None,
                slskd_request=None, fetch_catalog=None, lidarr_request=None, fetch_discogs=None,
-               server_request=None, run_ffmpeg=None, audiomuse_request=None, listenbrainz_post=None) -> FastAPI:
+               server_request=None, run_ffmpeg=None, audiomuse_request=None, listenbrainz_post=None, fetch_wiki=None) -> FastAPI:
     """``fetch_*`` replace the network in tests: LRCLIB and MusicBrainz take
     (url) -> parsed JSON or None, the Cover Art Archive (url) -> bytes or None,
     AcoustID (form) -> parsed JSON; ``run_fpcalc`` replaces running fpcalc;
@@ -614,6 +614,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
         lib_index=lib_index, library=library, lidarr=lidarr, lrclib=lrclib, media_server=media_server, mb=mb, mb_mirror=mb_mirror, notices=notices,
         require_library=require_library, result_out=result_out, settings=settings, soulseek=soulseek,
         soulseek_store=soulseek_store, store=store, to_out=to_out, tracks_out=tracks_out, updates=updates,
+        wiki_fetch=fetch_wiki or (lambda url: http_get_json(url, user_agent, max_bytes=MAX_MB_BYTES, service="Wikipedia")),
     )
     for area in ROUTES:
         area.register(app, shared)

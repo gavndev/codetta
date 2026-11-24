@@ -3,6 +3,7 @@
 
 import { $, closeDialog, h, icon, openDialog, playOut, replay, setKids } from "./dom.js";
 import { api } from "./api.js";
+import { t as tr } from "./i18n.js";
 import { els, first, plural, state, toast } from "./state.js";
 import { updateSpot } from "./theme.js";
 import { bang, filterPlaceholder, roll, selectButtons, showMbLoading, syncRoll } from "./search.js";
@@ -366,6 +367,26 @@ export function renderSearchHead(f) {
 
 /** "Find in MusicBrainz" ("Find" on phones), shown when the MusicBrainz connection is on. */
 /** Find in MusicBrainz, with a chevron for Deezer and iTunes when they're on (a split button). */
+/** Harmony (a MusicBrainz importer), with this album already looked up: by its barcode, or its
+ *  Deezer / iTunes page. The tab opens on the tap itself (browsers block tabs opened later). */
+async function openInHarmony() {
+  const tab = window.open("", "_blank");
+  if (tab) {
+    tab.opener = null;
+    tab.document.title = "Harmony";
+    tab.document.body.textContent = tr("Finding the album for Harmony…");
+  }
+  try {
+    const target = isSearch() ? { paths: state.folder.tracks.map((t) => t.path) } : { folder: state.path };
+    const d = await api("POST", "/api/harmony", target);
+    if (tab) tab.location.replace(d.url); else window.open(d.url, "_blank", "noopener");
+    toast(d.how === "barcode" ? `Opened Harmony with the barcode ${d.found}` : `Opened Harmony with “${d.found}” from ${d.how === "deezer" ? "Deezer" : "iTunes"}`, "success");
+  } catch (err) {
+    tab?.close();
+    toast(err.message, "error");
+  }
+}
+
 export function mbFindButton(where) {
   const mbOn = connectionOn("musicbrainz");
   const others = [["deezer", "Find in Deezer"], ["itunes", "Find in iTunes"], ["discogs", "Find in Discogs"]].filter(([s]) => connectionOn(s));
@@ -375,13 +396,16 @@ export function mbFindButton(where) {
     title: mbOn ? "Find this album on MusicBrainz and review its tags before writing them" : "Find this album's details and review them before writing",
   }, icon("musicbrainz"),
   h("span", { class: "mb-find-long" }, mbOn ? "Find in MusicBrainz" : "Find album details"), h("span", { class: "mb-find-short" }, "Find"));
-  const more = others.length ? h("button", {
-    class: "mb-find-more", type: "button", "aria-label": "Find somewhere else", "aria-haspopup": "menu", title: "Find in another catalogue instead (Deezer, iTunes, Discogs)",
+  const more = h("button", {
+    class: "mb-find-more", type: "button", "aria-label": "Find somewhere else", "aria-haspopup": "menu",
+    title: "Find in another catalogue instead, or add the album to MusicBrainz with Harmony",
     onclick: (e) => openToolsMenu(e.currentTarget, [
       mbOn ? { icon: "musicbrainz", label: "Find in MusicBrainz", run: () => openMusicBrainz() } : null,
       ...others.map(([s, label]) => ({ icon: s, label, run: () => openMusicBrainz({ source: s }) })),
+      { icon: "upload", label: "Open in Harmony", group: "Not on MusicBrainz?", run: openInHarmony,
+        title: "Harmony gathers the album from Deezer, Apple Music, Spotify and others so you can add it to MusicBrainz" },
     ].filter(Boolean)),
-  }, icon("chevron")) : null;
+  }, icon("chevron"));
   return h("span", { class: `mb-find ${where}${more ? " split" : ""}` }, main, more);
 }
 
