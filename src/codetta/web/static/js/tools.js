@@ -1,7 +1,7 @@
 // Batch tools: find & replace in tags, rename a folder, actions.
 // Part of Codetta's page; app.js is the entry point (see the note at its top).
 
-import { $, ask, closeDialog, drawInBatches, h, icon, openDialog, replay, setKids } from "./dom.js";
+import { $, ask, closeDialog, coverRatio, drawInBatches, fitCover, h, icon, openDialog, replay, setKids } from "./dom.js";
 import { api } from "./api.js";
 import { changeLine, els, first, fmtDuration, fmtLabel, isSpecialPath, plural, runtime, state, toast, trackNo } from "./state.js";
 import {
@@ -21,6 +21,16 @@ import { openTracklist } from "./tracklist.js";
 import { openCoverExport } from "./coverexport.js";
 import { artistButton, artistHead } from "./artists.js";
 import { renderYoursBody, yoursHead } from "./yours.js";
+
+/** The album's cover at its own shape: square, taller (an obi, a cassette J-card) or wider (a long sleeve). */
+function albumCover(t) {
+  const img = h("img", { class: "album-cover", src: artUrlFor(t), alt: "", decoding: "async" });
+  img.style.setProperty("--ar", String(coverRatio(t.art)));
+  if (!t.art?.width) {
+    img.addEventListener("load", () => img.style.setProperty("--ar", String(coverRatio({ width: img.naturalWidth, height: img.naturalHeight }))), { once: true });
+  }
+  return img;
+}
 
 /** A folder at the top of the library that holds albums: an artist's folder. */
 const isArtistFolder = (f) => !f.search && !f.mb && !f.yours && f.path && !f.path.includes("/") && !isSpecialPath(f.path)
@@ -399,7 +409,7 @@ export function renderFolderHead() {
   const heading = coverTrack
     // A folder of tracks with a cover reads as the album's booklet spread.
     ? h("div", { class: "album-head" },
-      h("img", { class: "album-cover", src: artUrlFor(coverTrack), alt: "", decoding: "async", width: "168", height: "168" }),
+      albumCover(coverTrack),
       h("div", {},
         h("h1", { dir: "auto" }, common("album") || f.name),
         h("p", { class: "album-meta" },
@@ -508,8 +518,8 @@ export const folderCovers = new Map(); // folder path -> {path, hash} | null (no
 
 function folderCoverImg(folder) {
   const c = folderCovers.get(folder);
-  return c ? h("img", { src: `/api/art?path=${encodeURIComponent(c.path)}&v=${c.hash}`, alt: "", loading: "lazy", decoding: "async",
-    onerror: (e) => e.currentTarget.replaceWith(icon("folder")) }) : null;
+  return c ? fitCover(h("img", { src: `/api/art?path=${encodeURIComponent(c.path)}&v=${c.hash}`, alt: "", loading: "lazy", decoding: "async",
+    onerror: (e) => e.currentTarget.replaceWith(icon("folder")) })) : null;
 }
 
 async function loadFolderCovers(paths) {

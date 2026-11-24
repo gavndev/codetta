@@ -556,6 +556,7 @@ class MBProposalIn(MBTarget):
     recordings: dict[str, list[str]] = Field(default={}, max_length=MAX_PATHS_PER_REQUEST)
     mode: Literal["overwrite", "fill"] = "overwrite"  # fill: only tags that are empty now
     cover: Literal["missing", "all", "none"] = "missing"
+    cover_image: str = Field("", pattern=r"^\d{0,20}$")  # a Cover Art Archive image instead of the release's front
 
 
 # --- App ----------------------------------------------------------------------------

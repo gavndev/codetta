@@ -360,12 +360,38 @@ def _unofficial(group: dict) -> bool:
     return bool(statuses) and statuses <= _UNOFFICIAL
 
 
-def cover_url(mbid: str, size: int | None = 1200, base: str = CAA_BASE, kind: str = "release") -> str:
+IMAGE_ID_RE = re.compile(r"^\d{1,20}$")
+
+
+def cover_url(mbid: str, size: int | None = 1200, base: str = CAA_BASE, kind: str = "release", image: str = "") -> str:
+    """The Cover Art Archive address of a release's front cover, or of one of its images (``image``:
+    an image ID, e.g. the front with its obi, or a cassette's J-card)."""
     if not MBID_RE.match(mbid or ""):
         raise ProviderError("That isn't a MusicBrainz release ID.")
     if kind not in ("release", "release-group"):
         raise ProviderError("Unknown cover kind.")
+    if image:
+        if kind != "release" or not IMAGE_ID_RE.match(image):
+            raise ProviderError("That isn't a Cover Art Archive image.")
+        return f"{base}/release/{mbid}/{image}" + (f"-{size}" if size else ".jpg")
     return f"{base}/{kind}/{mbid}/front" + (f"-{size}" if size else "")
+
+
+def cover_images(fetch, mbid: str, base: str = CAA_BASE) -> list[dict]:
+    """Every image the Cover Art Archive has for a release: [{id, types, comment, front}], fronts
+    first. A Japanese CD often has a front with its obi besides the plain one; a cassette its J-card."""
+    if not MBID_RE.match(mbid or ""):
+        raise ProviderError("That isn't a MusicBrainz release ID.")
+    data = fetch(f"{base}/release/{mbid}")
+    out = []
+    for i in (data or {}).get("images") or [] if isinstance(data, dict) else []:
+        if not isinstance(i, dict) or not IMAGE_ID_RE.match(str(i.get("id", ""))):
+            continue
+        types = [str(t) for t in i.get("types") or [] if isinstance(t, str)][:6]
+        out.append({"id": str(i["id"]), "types": types, "comment": str(i.get("comment") or "")[:200],
+                    "front": bool(i.get("front"))})
+    out.sort(key=lambda i: (not i["front"], "Front" not in i["types"]))
+    return out
 
 
 # --- Exploring: plain summaries for the page ------------------------------------------------

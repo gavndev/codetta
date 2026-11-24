@@ -40,6 +40,7 @@ CALLS = [
     ("GET", "/api/musicbrainz/cover/discogs:1?size=250", None),
     ("GET", "/api/musicbrainz/cover/deezer:302127?size=250", None),
     ("GET", "/api/musicbrainz/editions", None),
+    ("GET", "/api/musicbrainz/covers/11111111-1111-4111-8111-111111111111", None),
     ("GET", "/api/mb/search?q=bjork", None),
     ("GET", "/api/catalog/search?source=deezer&q=in+rainbows", None),
     ("GET", "/api/catalog/search?source=itunes&q=rumours", None),

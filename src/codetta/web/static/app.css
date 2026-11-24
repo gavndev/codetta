@@ -3421,3 +3421,28 @@ dialog.confirm.wipe-final-step .sheet-head h2 { width: 100%; }
   .yours-tiles { grid-template-columns: 1fr; gap: 8px; }
   .yours-playlists { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 14px; }
 }
+
+/* ---- Covers of every shape ----
+   The album header shows a cover at its own shape (--ar = width / height). Square spots (the folder
+   grid, the player, the editor) show a cover that isn't square whole, over a blurred copy of itself. */
+.album-head { grid-template-columns: auto minmax(0, 1fr); }
+.album-cover { width: min(360px, calc(200px * var(--ar, 1))); height: auto; aspect-ratio: var(--ar, 1); object-fit: contain; }
+.cover-odd { position: relative; isolation: isolate; }
+.cover-odd > .cover-blur { position: absolute; inset: -12%; width: 124%; height: 124%; max-width: none; object-fit: cover;
+  filter: blur(18px) saturate(1.15); opacity: 0.6; z-index: -1; pointer-events: none; }
+.cover-odd > img.cover-whole { position: relative; width: 100%; height: 100%; object-fit: contain; }
+.track-row .col-art img, .mb-thumb, .pop-art img { object-fit: contain; }
+@media (max-width: 760px) {
+  .album-head { grid-template-columns: auto minmax(0, 1fr); }
+  .album-cover { width: min(170px, calc(96px * var(--ar, 1))); height: auto; }
+}
+
+/* ---- MusicBrainz review: which cover ---- */
+.mb-covers { display: grid; gap: 8px; margin-top: 12px; }
+.mb-covers:empty { display: none; }
+.mb-cover-list { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+.mb-cover-pick { display: grid; gap: 6px; justify-items: center; flex: none; width: 108px; padding: 6px; border-radius: 10px;
+  border: 1.5px solid var(--border); background: var(--surface); color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; }
+.mb-cover-pick.on { border-color: var(--accent); color: var(--text); font-weight: 600; background: var(--accent-soft); }
+.mb-cover-img { display: block; width: 94px; height: 94px; border-radius: 3px; overflow: hidden; background: var(--hover); }
+.mb-cover-img > img:not(.cover-blur) { width: 100%; height: 100%; object-fit: contain; display: block; }

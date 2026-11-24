@@ -1,7 +1,7 @@
 // Matching on MusicBrainz and switching editions.
 // Part of Codetta's page; app.js is the entry point (see the note at its top).
 
-import { $, closeDialog, h, icon, openDialog, sentences, setKids } from "./dom.js";
+import { $, closeDialog, fitCover, h, icon, openDialog, sentences, setKids } from "./dom.js";
 import { api } from "./api.js";
 import { fmtDuration, plural, relativeToFolder, state, toast } from "./state.js";
 import { folderCache, isSearch, loadFolder } from "./browse.js";
@@ -103,6 +103,37 @@ async function mbIdentify() {
   }
   mb.busy = false;
   renderMbSearch();
+}
+
+// ---- Which cover: a release on the Cover Art Archive can have several images (a Japanese CD's front
+// with and without its obi, a cassette's J-card, the back). Shown when there's more than one front.
+
+const coverLists = new Map(); // release -> [{id, types, comment, front}] | Promise
+
+function coverChooser(release) {
+  const box = h("div", { class: "mb-covers" });
+  const draw = (images) => {
+    // Fronts (with or without an obi), and any obi on its own; not backs, discs or booklet pages.
+    const choices = images.filter((i) => i.front || i.types.includes("Front") || i.types.includes("Obi"));
+    if (choices.length < 2) { setKids(box); return; }
+    const chosen = mb.coverPick?.release === release ? mb.coverPick.image : "";
+    setKids(box, h("span", { class: "field-label" }, "Which cover"),
+      h("div", { class: "mb-cover-list", role: "radiogroup", "aria-label": "Which cover" }, choices.map((i) => {
+        const on = chosen ? chosen === i.id : i.front;
+        return h("button", { type: "button", role: "radio", "aria-checked": String(on), class: `mb-cover-pick${on ? " on" : ""}`,
+          title: i.comment || i.types.join(" + "),
+          onclick: () => { mb.coverPick = { release, image: i.front ? "" : i.id }; draw(images); mbPreview(0); } },
+        h("span", { class: "mb-cover-img" }, fitCover(h("img", { src: `/api/musicbrainz/cover/${release}?size=250&image=${i.id}`, alt: "", loading: "lazy", decoding: "async" }))),
+        h("span", {}, i.types.join(" + ") || "Image"));
+      })));
+  };
+  const known = coverLists.get(release);
+  if (Array.isArray(known)) draw(known);
+  else {
+    if (!known) coverLists.set(release, api("GET", `/api/musicbrainz/covers/${release}`).then((d) => d.images).catch(() => []));
+    coverLists.get(release).then((images) => { coverLists.set(release, images); draw(images); });
+  }
+  return box;
 }
 
 /** A release's cover. ``fallback``: another picture to try when there's none (the files' own cover). */
@@ -285,6 +316,7 @@ function mbPick(id) {
 function mbBody(extra = {}) {
   return {
     ...mb.target.body, release: mb.release, mode: mb.mode, cover: mb.cover,
+    cover_image: mb.coverPick?.release === mb.release ? mb.coverPick.image : "",
     pairs: Object.fromEntries(Object.entries(mb.pairs).map(([p, t]) => [p, t || null])),
     recordings: mb.recordings,
     fields: mb.fields ? [...mb.fields] : null,
@@ -394,7 +426,9 @@ function renderMbReview() {
             f.changes[k].old.length ? [h("span", { class: "mb-old" }, mbValue(f.changes[k].old)), " → "] : null,
             h("span", { class: "mb-new" }, mbValue(f.changes[k].new))))),
         f.cover ? h("div", { class: "mb-diff-row" }, h("span", { class: "mb-diff-key" }, "Cover art"),
-          h("span", { class: "mb-diff-val" }, f.has_art ? "Replace with the release's front cover" : "Add the release's front cover")) : null)) : null;
+          h("span", { class: "mb-diff-val" }, mb.coverPick?.release === mb.release && mb.coverPick.image
+            ? (f.has_art ? "Replace with the cover you chose" : "Add the cover you chose")
+            : f.has_art ? "Replace with the release's front cover" : "Add the release's front cover")) : null)) : null;
     if (diff) diff.addEventListener("toggle", () => { diff.open ? mb.openFiles.add(f.path) : mb.openFiles.delete(f.path); });
     return h("div", { class: `mb-file ${state_}` },
       h("div", { class: "mb-file-head" },
@@ -436,7 +470,8 @@ function renderMbReview() {
       h("fieldset", { class: "field" }, h("legend", { class: "field-label" }, "Cover art"),
         segmented("mb-cover", r.has_cover === false ? "none" : mb.cover,
           [["missing", "Where missing"], ["all", "Replace all"], ["none", "Leave"]], (v) => { mb.cover = v; }, r.has_cover === false),
-        r.has_cover === false ? h("p", { class: "hint" }, "This release has no cover art on the Cover Art Archive.") : null)),
+        r.has_cover === false ? h("p", { class: "hint" }, "This release has no cover art on the Cover Art Archive.") : null,
+        r.source === "musicbrainz" && r.has_cover !== false && mb.cover !== "none" ? coverChooser(r.id) : null)),
     h("p", { class: "preview-summary", "aria-live": "polite" }, sentences(summary)),
     h("div", { class: "mb-files" }, files));
   body.scrollTop = scroll;

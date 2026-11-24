@@ -692,3 +692,39 @@ def test_a_loose_songs_edition_follows_preferences_not_a_length_nudge():
     hits = song_releases(recordings, "Song", "Coda Tester", 300, prefer=lambda c: edition_fit(c, prefs, 1))
     assert hits[0]["release"]["id"] == cd["id"]
     assert edition_fit({"formats": "DualDisc (DVD-Video side)"}, prefs) < edition_fit({"formats": "CD"}, prefs)
+
+
+class FakeMBWithImages(FakeMB):
+    """A Japanese CD on the Cover Art Archive: the plain front, the front with its obi, and the back."""
+
+    def __call__(self, url):
+        if url == f"https://coverartarchive.org/release/{REL}":
+            self.urls.append(url)
+            return {"images": [
+                {"id": 3003, "types": ["Back"], "front": False, "comment": ""},
+                {"id": 1001, "types": ["Front"], "front": True, "comment": ""},
+                {"id": 2002, "types": ["Front", "Obi"], "front": False, "comment": "with obi"},
+                {"id": "x/../y", "types": ["Front"]},  # never trusted
+            ]}
+        return super().__call__(url)
+
+
+def test_choose_which_image_becomes_the_cover(make_client):
+    import io
+
+    from PIL import Image
+    buf = io.BytesIO()
+    Image.new("RGB", (1140, 1000), (200, 20, 30)).save(buf, "PNG")
+    wide = buf.getvalue()  # a CD scanned with its obi: not square, kept as it is
+    c = make_client(FakeMBWithImages(), art=lambda url: wide if url.endswith("/2002-1200") else png())
+    images = c.get(f"/api/musicbrainz/covers/{REL}").json()["images"]
+    assert [i["id"] for i in images] == ["1001", "2002", "3003"]  # the front first, then other fronts, then the rest
+    assert images[1]["types"] == ["Front", "Obi"] and images[1]["comment"] == "with obi"
+    thumb = c.get(f"/api/musicbrainz/cover/{REL}", params={"size": "250", "image": "2002"})
+    assert thumb.status_code == 200 and c.art_calls[-1] == f"https://coverartarchive.org/release/{REL}/2002-250"
+    assert c.get(f"/api/musicbrainz/cover/{REL}", params={"image": "../x"}).status_code == 422
+    res = c.post("/api/musicbrainz/apply", json={"folder": FOLDER, "release": REL, "cover_image": "2002"}).json()
+    assert res["cover_error"] is None and c.art_calls[-1] == f"https://coverartarchive.org/release/{REL}/2002-1200"
+    track = c.get("/api/track", params={"path": f"{FOLDER}/01.flac"}).json()
+    assert (track["art"]["width"], track["art"]["height"]) == (1140, 1000)
+    assert c.post("/api/musicbrainz/apply", json={"folder": FOLDER, "release": REL, "cover_image": "1; rm"}).status_code == 422

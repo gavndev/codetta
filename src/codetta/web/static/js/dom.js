@@ -93,6 +93,27 @@ export function ask({ title, message = "", details = null, confirmLabel = "OK", 
   });
 }
 
+/** Covers come in every shape: CD and vinyl squares, a Japanese CD with its obi (taller), a cassette
+ *  J-card, a long soundtrack sleeve. In a square spot, a cover that isn't square is shown whole, over a
+ *  soft, blurred copy of itself, instead of being cut to fit. Returns the image (for chaining). */
+export function fitCover(img) {
+  const check = () => {
+    const r = img.naturalWidth && img.naturalHeight ? img.naturalWidth / img.naturalHeight : 1;
+    const box = img.parentElement;
+    if (!box) return;
+    if (Math.abs(r - 1) < 0.04) { box.classList.remove("cover-odd"); return; }
+    if (box.querySelector(":scope > .cover-blur")) return;
+    img.classList.add("cover-whole");
+    box.classList.add("cover-odd");
+    box.prepend(h("img", { class: "cover-blur", src: img.currentSrc || img.src, alt: "", "aria-hidden": "true", decoding: "async" }));
+  };
+  if (img.complete && img.naturalWidth) setTimeout(check, 0); else img.addEventListener("load", check, { once: true });
+  return img;
+}
+
+/** The shape of a cover (width / height) from what the server knows, kept within shapes worth drawing. */
+export const coverRatio = (art) => (art?.width && art?.height ? Math.min(3.2, Math.max(0.45, art.width / art.height)) : 1);
+
 export function closeDialog(dialog) {
   if (!dialog.open || dialog.classList.contains("closing")) return;
   dialog.cancelClose = false;

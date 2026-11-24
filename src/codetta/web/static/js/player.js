@@ -1,7 +1,7 @@
 // The player: a quick listen, the now-playing pill and the full player.
 // Part of Codetta's page; app.js is the entry point (see the note at its top).
 
-import { $, closeDialog, h, icon, openDialog, playOut, reducedMotion, replay, setKids } from "./dom.js";
+import { $, closeDialog, fitCover, h, icon, openDialog, playOut, reducedMotion, replay, setKids } from "./dom.js";
 import { api } from "./api.js";
 import { els, first, fmtDuration, state, toast } from "./state.js";
 import { discInfo, navigate, visibleTracks } from "./browse.js";
@@ -442,7 +442,8 @@ function renderPlayerSheet() {
   const e = ps.els;
   const t = player.track;
   const playing = player.audio && !player.audio.paused;
-  setKids(e.cover, t.art ? h("img", { src: artUrlFor(t), alt: "" }) : icon("note"));
+  e.cover.classList.remove("cover-odd");
+  setKids(e.cover, t.art ? fitCover(h("img", { src: artUrlFor(t), alt: "" })) : icon("note"));
   e.cover.classList.toggle("playing", !!playing);
   e.title.textContent = first(t, "title") || t.name;
   const credit = (t.tags.artist || []).join(", ");

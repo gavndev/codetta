@@ -2,7 +2,7 @@
 // Part of Codetta's page; app.js is the entry point (see the note at its top).
 
 import { t as tr } from "./i18n.js";
-import { $, ask, h, icon, playOut, setKids } from "./dom.js";
+import { $, ask, fitCover, h, icon, playOut, setKids } from "./dom.js";
 import { api } from "./api.js";
 import {
   baseName, els, first, fmtDuration, fmtLabel, plural, relativeToFolder, state, toast,
@@ -935,7 +935,8 @@ function artEl(tracks) {
     const img = h("img", { alt: "Album art", decoding: "async", draggable: "false" });
     img.addEventListener("load", () => { img.classList.add("loaded"); square.classList.add("has-art"); onLoaded?.(img); });
     img.src = src;
-    square.replaceChildren(img);
+    square.classList.remove("cover-odd");
+    square.replaceChildren(fitCover(img));
   };
   const placeholder = (label) => {
     square.classList.remove("has-art");

@@ -229,6 +229,19 @@ On a phone, Library, Your music and the inbox sit in a pill at the bottom of
 the screen, like an iPhone app, which leaves the top bar for search, the tag
 filter, notifications and your account.
 
+## Covers of every shape
+
+Not every cover is square, and Codetta doesn't pretend they are: a Japanese CD
+scanned with its obi, a cassette's J-card, a long soundtrack sleeve. The album
+page shows a cover at its own shape, and the places that need a square (the
+folder grid, the player, the editor) show it whole over a soft, blurred copy of
+itself instead of cutting it to fit. Music apps get covers at their own shape
+too.
+
+When you match an album on MusicBrainz and the Cover Art Archive has more than
+one front for that release (say, with and without the obi), **Which cover** lets
+you pick the one that goes into your files.
+
 ## Artist pages
 
 Open an artist's folder (a folder at the top of your library that holds their

@@ -37,6 +37,7 @@ from codetta.core.musicbrainz import (
     album_tags,
     clean_artist,
     clean_title,
+    cover_images,
     cover_url,
     number,
     pair_files,
@@ -511,11 +512,11 @@ def register(app, shared) -> None:
         """Pair the files with a release's tracks and show what would change. Writes nothing."""
         return mb_proposal(body)[0]
 
-    cover_cache: OrderedDict[tuple[str, int | None], bytes | None] = OrderedDict()
+    cover_cache: OrderedDict[tuple[str, int | None, str], bytes | None] = OrderedDict()
     cover_lock = threading.Lock()
 
-    def fetch_cover(mbid: str, size: int | None) -> bytes | None:
-        key = (mbid, size)
+    def fetch_cover(mbid: str, size: int | None, image: str = "") -> bytes | None:
+        key = (mbid, size, image)
         with cover_lock:
             if key in cover_cache:
                 cover_cache.move_to_end(key)
@@ -527,7 +528,7 @@ def register(app, shared) -> None:
             url = catalogs.cover(mbid)
             data = download_art(url) if url else None
         else:
-            data = download_art(cover_url(mbid, size, kind=kind))
+            data = download_art(cover_url(mbid, size, kind=kind, image=image))
         if data is not None and sniff_image_type(data) not in ("image/jpeg", "image/png"):
             data = None  # only real JPEG/PNG covers are used (and served to the page)
         if size and size <= 500:  # only small thumbnails are kept (the candidate list)
@@ -569,7 +570,8 @@ def register(app, shared) -> None:
 
     @app.get("/api/musicbrainz/cover/{mbid}", responses={200: {"content": {"image/jpeg": {}, "image/png": {}}}})
     def mb_cover(mbid: str, size: int = Query(250, description="250 or 500 pixels"),
-                 kind: Literal["release", "release-group"] = "release"):
+                 kind: Literal["release", "release-group"] = "release",
+                 image: str = Query("", pattern=r"^\d{0,20}$", description="One of the release's images instead of its front")):
         """A release's (or release group's) front cover from the Cover Art Archive, fetched
         by the server (so the page never loads anything from another site)."""
         catalog = is_catalog_id(mbid) and catalog_raw_ok(mbid)
@@ -580,14 +582,38 @@ def register(app, shared) -> None:
         if not (MBID_RE.match(mbid) or catalog) or size not in (250, 500):
             raise HTTPException(422, "Not a release ID or thumbnail size")
         try:
-            data = fetch_cover(("rg:" if kind == "release-group" else "") + mbid, size)
-            if data is None and kind == "release" and not catalog:
+            if image and (catalog or kind != "release"):
+                raise HTTPException(422, "Only a MusicBrainz release has other images")
+            data = fetch_cover(("rg:" if kind == "release-group" else "") + mbid, size, image)
+            if data is None and kind == "release" and not catalog and not image:
                 data = release_cover_fallback(mbid, size)
         except ProviderError as exc:
             raise HTTPException(502, str(exc)) from exc
         if data is None:
             raise HTTPException(404, "No cover art for this release")
         return Response(data, media_type=sniff_image_type(data), headers={"Cache-Control": "private, max-age=86400"})
+
+    cover_lists: OrderedDict[str, list] = OrderedDict()
+
+    @app.get("/api/musicbrainz/covers/{mbid}")
+    def mb_cover_images(mbid: str) -> dict:
+        """Every image the Cover Art Archive has for a release (a front with its obi, a cassette's
+        J-card, the back...), to choose which becomes the cover."""
+        require_connection("musicbrainz")
+        if not MBID_RE.match(mbid):
+            raise HTTPException(422, "Not a release ID")
+        with cover_lock:
+            if mbid in cover_lists:
+                return {"images": cover_lists[mbid]}
+        try:
+            images = cover_images(mb.fetch, mbid)
+        except ProviderError as exc:
+            raise HTTPException(502, str(exc)) from exc
+        with cover_lock:
+            cover_lists[mbid] = images
+            while len(cover_lists) > 64:
+                cover_lists.popitem(last=False)
+        return {"images": images}
 
     @app.post("/api/musicbrainz/apply")
     def mb_apply(body: MBProposalIn) -> dict:
@@ -598,7 +624,9 @@ def register(app, shared) -> None:
         art, art_error = None, None
         if any(f.get("cover") for f in proposal["files"]):
             try:
-                art = fetch_cover(summary["id"], 1200) or (None if is_catalog_id(summary["id"]) else fetch_cover(summary["id"], None))
+                image = body.cover_image if not is_catalog_id(summary["id"]) else ""
+                art = fetch_cover(summary["id"], 1200, image) or (None if is_catalog_id(summary["id"])
+                                                                   else fetch_cover(summary["id"], 500 if image else None, image))
             except ProviderError as exc:
                 art_error = str(exc)
             if art is None and not is_catalog_id(summary["id"]) and catalogs.available():
