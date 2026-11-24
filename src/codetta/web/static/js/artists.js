@@ -113,8 +113,18 @@ function artistInfo(folder) {
 export function artistHead(f, counts) {
   const folder = f.path;
   const slot = h("div", { class: "artist-extra" });
+  const pic = artistAvatar({ name: f.name, folder }, 168);
   const fill = (d) => {
     if (!d) { setKids(slot); return; }
+    if (d.artists?.length > 1) { // a folder for several artists: each one's picture, overlapping; no bio of one
+      const shown = d.artists.slice(0, 4);
+      const stack = h("div", { class: `artist-group n${shown.length}` }, shown.map((a) => h("button", {
+        class: "artist-group-item", type: "button", title: a.name, "aria-label": a.name, onclick: () => goTo(a),
+      }, artistAvatar(a, 120))));
+      pic.replaceWith(stack);
+      setKids(slot);
+      return;
+    }
     const bio = d.bio ? h("div", { class: "artist-bio" },
       h("p", { class: "artist-bio-text", dir: "auto", lang: d.bio.lang }, d.bio.text),
       h("p", { class: "artist-bio-foot" },
@@ -137,7 +147,7 @@ export function artistHead(f, counts) {
   if (known && !(known instanceof Promise)) fill(known);
   else artistInfo(folder).then((d) => { if (slot.isConnected || !known) fill(d); });
   return h("div", { class: "album-head artist-head" },
-    artistAvatar({ name: f.name, folder }, 168),
+    pic,
     h("div", { class: "artist-title" },
       h("h1", { dir: "auto", translate: "no" }, f.name),
       h("p", { class: "album-meta" }, counts.join(" · ") || plural(f.folders.length, "folder"))),

@@ -92,3 +92,39 @@ def test_the_bio_comes_from_the_right_artist_and_similar_ones_you_have_come_firs
 def test_only_artist_folders(client):
     assert client.get("/api/artists/info", params={"folder": "Future/HNDRXX"}).status_code == 404
     assert client.get("/api/artists/info", params={"folder": "../etc"}).status_code == 404
+
+
+def _make(tmp_music, folder, album, tags):
+    d = tmp_music / folder / album
+    d.mkdir(parents=True)
+    shutil.copy2(FIXTURES_DIR / "sample.flac", d / "01.flac")
+    MetadataEngine().update_tags(d / "01.flac", {"album": album, "title": "x", **tags})
+
+
+@pytest.fixture
+def several(tmp_path):
+    music = tmp_path / "music"
+    _make(music, "Ali Sethi & Nicolas Jaar", "Intiha", {"albumartist": "Ali Sethi & Nicolas Jaar"})
+    _make(music, "Simon & Garfunkel", "Bookends", {"albumartist": "Simon & Garfunkel",
+                                                   "musicbrainz_albumartistid": "5d02f264-e225-41ff-83f7-d9b1f0b1874a"})
+    _make(music, "Metro Boomin & Future", "WDTY", {"albumartist": "Metro Boomin & Future", "albumartists": ["Metro Boomin", "Future"]})
+    _make(music, "Future", "HNDRXX", {"albumartist": "Future"})
+    _make(music, "Earth, Wind & Fire", "That's the Way", {"albumartist": "Earth, Wind & Fire", "albumartists": ["Earth, Wind & Fire"]})
+    app = create_app(Settings(music_dir=music, config_dir=tmp_path / "config"))
+    with TestClient(app) as c:
+        c.post("/api/auth/setup", json={"username": "owner", "password": PASSWORD})
+        yield c
+
+
+def test_a_folder_for_several_artists_lists_each_of_them_and_no_bio(several):
+    d = several.get("/api/artists/info", params={"folder": "Ali Sethi & Nicolas Jaar"}).json()
+    assert [a["name"] for a in d["artists"]] == ["Ali Sethi", "Nicolas Jaar"]
+    assert d["bio"] is None and d["similar"] == []
+    d = several.get("/api/artists/info", params={"folder": "Metro Boomin & Future"}).json()
+    assert [a["name"] for a in d["artists"]] == ["Metro Boomin", "Future"]
+    assert d["artists"][1]["folder"] == "Future"  # a picture (and a tap) leads to their own folder
+
+
+def test_a_duo_or_band_with_one_credit_stays_one_artist(several):
+    for folder in ("Simon & Garfunkel", "Earth, Wind & Fire", "Future"):
+        assert "artists" not in several.get("/api/artists/info", params={"folder": folder}).json(), folder

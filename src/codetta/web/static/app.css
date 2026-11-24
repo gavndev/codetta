@@ -3347,6 +3347,27 @@ dialog.confirm.wipe-final-step .sheet-head h2 { width: 100%; }
 .artist-head > .artist-av { --av: 168px; width: 200px; height: 200px; justify-self: center; box-shadow: var(--shadow-lg); }
 .artist-head > .artist-av img { width: 100%; height: 100%; }
 .artist-head > .artist-av .artist-av-ini { font-size: 56px; }
+/* A folder for several artists ("Ali Sethi & Nicolas Jaar"): their pictures overlapping, in the picture's place */
+.artist-head > .artist-group { grid-row: 1 / span 2; align-self: center; justify-self: center; display: flex; align-items: center; }
+.artist-group-item { padding: 0; border: 0; background: none; border-radius: 50%; cursor: pointer; position: relative;
+  transition: transform var(--dur) ease; }
+.artist-group-item + .artist-group-item { margin-left: -28px; }
+.artist-group-item:hover { transform: translateY(-3px); z-index: 1; }
+.artist-group-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; z-index: 1; }
+.artist-group .artist-av { box-shadow: 0 0 0 4px var(--bg), var(--shadow-lg); }
+.artist-group .artist-av-ini { font-size: 40px; }
+.artist-group.n3 .artist-av, .artist-group.n4 .artist-av { width: 96px; height: 96px; }
+.artist-group.n3 .artist-group-item + .artist-group-item, .artist-group.n4 .artist-group-item + .artist-group-item { margin-left: -22px; }
+.artist-group.n3 .artist-av-ini, .artist-group.n4 .artist-av-ini { font-size: 32px; }
+@media (max-width: 760px) {
+  .artist-head > .artist-group { grid-row: 1; }
+  .artist-group .artist-av { width: 72px; height: 72px; }
+  .artist-group .artist-av-ini { font-size: 24px; }
+  .artist-group-item + .artist-group-item { margin-left: -16px; }
+  .artist-group.n3 .artist-av, .artist-group.n4 .artist-av { width: 56px; height: 56px; }
+  .artist-group.n3 .artist-group-item + .artist-group-item, .artist-group.n4 .artist-group-item + .artist-group-item { margin-left: -13px; }
+}
+@media (prefers-reduced-motion: reduce) { .artist-group-item:hover { transform: none; } }
 .artist-extra { display: grid; gap: 12px; margin-top: 12px; max-width: 760px; }
 .artist-extra:empty { display: none; }
 .artist-bio-text { margin: 0; color: var(--muted); font-size: 14.5px; line-height: 1.55;
