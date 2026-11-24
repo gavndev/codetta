@@ -2,7 +2,9 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.13.0 (2026-11-24)
+
+Music apps in full: stars, ratings, play counts, playlists and your play queue are kept and shared by every app, songs convert for mobile data, covers come at the right size, and plays can be scrobbled to ListenBrainz. Plus a setting for how sure Codetta must be before filing on its own, and fixes from two careful reviews.
 
 - **Music apps, the full set:** stars, ratings and play counts are now kept (and shared by every app you connect), with "most played", "recently played", "starred" and "top rated" lists; **playlists** made in any app are kept in Codetta; your **play queue** follows you from one app to another; **bookmarks** for audiobooks and long mixes; artist pictures and similar artists; and richer details apps can show (ReplayGain, MusicBrainz IDs, multiple artists, release types, labels, original dates, disc titles, credits).
 - **Smaller files on mobile data:** when an app asks for a lower quality, Codetta converts songs to MP3, Opus or AAC as they play. The Docker image and the snap now include the encoders for it. Covers are sized to what the app asks for, so lists load quickly.
