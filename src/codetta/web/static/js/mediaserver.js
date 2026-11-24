@@ -6,6 +6,7 @@ import { $, h, icon, setKids } from "./dom.js";
 import { api } from "./api.js";
 import { state, toast } from "./state.js";
 import { applyConnections, connectionOn, finishStep, setupLogo, stepCount } from "./setup.js";
+import { APPS, details } from "./subsonic.js";
 
 export const server = { data: null };
 
@@ -151,22 +152,42 @@ export function renderServerSettings() {
   box.replaceChildren(form);
 }
 
-export async function renderServerStep(form, step) {
+/** First-run "How do you listen?": music apps through Codetta, your own music server, or neither yet.
+ *  (Once two steps, music apps and music server, which read like the same question twice.) */
+export async function renderListenStep(form, step) {
+  const choice = (value, title, sub, checked = false) => h("label", { class: "choice" },
+    h("input", { type: "radio", name: "listen-how", value, checked }),
+    h("span", { class: "choice-body" }, h("span", { class: "choice-title" }, title), h("span", { class: "choice-sub" }, sub)));
+  const serverBox = h("div", { class: "listen-server", hidden: true }, fields(null));
+  const go = h("button", { class: "btn primary auth-submit", type: "submit" }, "Continue");
   setKids(form, setupLogo(), stepCount(),
-    h("h1", {}, "Which music server do you use?"),
-    h("p", { class: "auth-sub" }, "Codetta can tell your server about its changes, so the tags you fix show up in your "
-      + "player straight away, even on network shares where servers don't notice changes by themselves."),
-    fields(null),
-    h("button", { class: "btn primary auth-submit", type: "submit" }, "Connect"),
-    h("button", { class: "link-btn setup-skip", type: "button", onclick: () => finishStep(step) }, "I don't use one"),
-    h("p", { class: "auth-foot" }, "You can connect it later in Settings → Music apps & server."));
+    h("h1", {}, "How do you listen to your music?"),
+    h("p", { class: "auth-sub" }, "Codetta can be the server for your music apps, or keep the music server you already have up to date."),
+    h("fieldset", { class: "choices" },
+      choice("apps", "In music apps, with Codetta as the server",
+        `${APPS} play your library straight from Codetta. Apps sign in with their own password and can't change your files.`),
+      choice("server", "With my own music server",
+        "Navidrome, Jellyfin, Emby or Plex. Codetta tells it when files change, so the tags you fix show up straight away."),
+      choice("here", "Just here in Codetta for now", "You can set up either one later.", true)),
+    serverBox, go,
+    h("p", { class: "auth-foot" }, "You can change this later in Settings → Music apps & server."));
+  const how = () => $('input[name="listen-how"]:checked', form)?.value || "here";
+  form.querySelector("fieldset").addEventListener("change", () => {
+    serverBox.hidden = how() !== "server";
+    go.textContent = how() === "apps" ? "Turn it on" : how() === "server" ? "Connect" : "Continue";
+  });
   let shown = false;
   form.onsubmit = async (e) => {
     e.preventDefault();
-    const go = $("[type=submit]", form);
-    if (shown) { finishStep(step); return; }
+    if (shown || how() === "here") { finishStep(step); return; }
     go.disabled = true;
     try {
+      if (how() === "apps") {
+        const d = await api("PUT", "/api/subsonic", { enabled: true });
+        setKids(form, setupLogo(), stepCount(), h("h1", {}, "Your music apps can connect"), details(d),
+          h("button", { class: "btn primary auth-submit", type: "button", onclick: () => finishStep(step) }, "Done"));
+        return;
+      }
       state.connections = await api("PUT", "/api/connections", { enabled: { mediaserver: true } });
       applyConnections();
       const d = await save(form);

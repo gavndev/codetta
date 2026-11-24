@@ -6,7 +6,7 @@ import { api } from "./api.js";
 import { toast } from "./state.js";
 import { finishStep, setupLogo, stepCount } from "./setup.js";
 
-const APPS = "Symfonium, Narjo, Arpeggi, Feishin, DSub, Substreamer, Eclipse and other Subsonic apps";
+export const APPS = "Symfonium, Narjo, Arpeggi, Feishin, DSub, Substreamer, Eclipse and other Subsonic apps";
 
 function copyField(label, value, secret = false) {
   const input = h("input", { type: secret ? "password" : "text", value, readonly: true, spellcheck: "false", autocapitalize: "off",
@@ -58,7 +58,7 @@ function connected(d) {
     [i ? ", " : "", h("b", { translate: "no" }, c.name), ` (${ago(c.last_seen)})`]));
 }
 
-function details(d) {
+export function details(d) {
   return h("div", { class: "sk-fields" },
     h("p", { class: "hint" }, `In your app, add a Subsonic (or Navidrome) server with these details:`),
     copyField("Server address", location.origin),
@@ -98,20 +98,3 @@ export async function renderSubsonicSettings() {
 }
 
 /** Setup: switch it on (and show how to connect), or skip. */
-export async function renderSubsonicStep(form, step) {
-  setKids(form, setupLogo(), stepCount(),
-    h("h1", {}, "Listen in your music apps?"),
-    h("p", { class: "auth-sub" }, `Codetta can serve your library to ${APPS}: browse, search and play from your phone or desktop. `
-      + "It's off unless you turn it on, apps sign in with their own password, and they can't change your files. Already run Navidrome? You can skip this."),
-    h("button", { class: "btn primary auth-submit", type: "submit" }, "Turn it on"),
-    h("button", { class: "link-btn setup-skip", type: "button", onclick: () => finishStep(step) }, "Not now"),
-    h("p", { class: "auth-foot" }, "You can change this later in Settings → Music apps & server."));
-  form.onsubmit = async (e) => {
-    e.preventDefault();
-    try {
-      const d = await api("PUT", "/api/subsonic", { enabled: true });
-      setKids(form, setupLogo(), stepCount(), h("h1", {}, "Your music apps can connect"), details(d),
-        h("button", { class: "btn primary auth-submit", type: "button", onclick: () => finishStep(step) }, "Done"));
-    } catch (err) { toast(err.message, "error"); }
-  };
-}

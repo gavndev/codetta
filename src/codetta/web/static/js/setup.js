@@ -7,10 +7,10 @@ import { state, toast } from "./state.js";
 import { renderSlskdSettings, renderSlskdStep } from "./search.js";
 import { loadLidarr, renderLidarrSettings, renderLidarrStep } from "./lidarr.js";
 import { loadAudioMuse, renderAudioMuseSettings, renderAutoplayStep } from "./autoplay.js";
-import { renderSubsonicSettings, renderSubsonicStep } from "./subsonic.js";
+import { renderSubsonicSettings } from "./subsonic.js";
 import { loadListenBrainz, renderListenBrainzSettings } from "./listenbrainz.js";
 import { loadDiscogs, renderDiscogsSettings } from "./discogs.js";
-import { loadServer, renderServerSettings, renderServerStep } from "./mediaserver.js";
+import { loadServer, renderListenStep, renderServerSettings } from "./mediaserver.js";
 import { renderFolderHead } from "./tools.js";
 import { renderEditor } from "./editor.js";
 import { loadSlskd, refreshInboxBadge, sk } from "./inbox.js";
@@ -22,6 +22,8 @@ import { refreshUpdate } from "./account.js";
 //
 // Codetta is offline until the user turns a connection on (first-run card or
 // Settings → Connections). An env var on the server can lock a switch.
+
+const NEEDS_SETUP = new Set(["slskd", "lidarr", "mediaserver", "audiomuse", "discogs"]);
 
 export async function loadConnections() {
   try { state.connections = await api("GET", "/api/connections"); } catch { state.connections = null; }
@@ -59,7 +61,10 @@ function showWelcome() {
   const conn = state.connections;
   const list = $("#welcome-list");
   // Pre-ticked when "online" is chosen; the user can untick any of them.
-  setKids(list, conn.connections.map((c) => connectionRow(c, c.locked_by ? c.enabled : true)));
+  // Only what's simply on or off. Connections that need an address, a login or a key (slskd, Lidarr,
+  // AudioMuse-AI, your music server, Discogs) are set up, and switched on, in their own steps or in Settings.
+  setKids(list, conn.connections.filter((c) => !NEEDS_SETUP.has(c.id)).map((c) => connectionRow(c, c.locked_by ? c.enabled : true)),
+    h("p", { class: "hint welcome-later" }, "Soulseek, Lidarr, AudioMuse-AI and your music server have their own steps next. Discogs needs a token: add it in Settings → Connections."));
   for (const r of document.querySelectorAll('input[name="welcome-mode"]')) r.checked = false;
   list.hidden = true;
   $("#welcome-go").disabled = true;
@@ -254,10 +259,8 @@ async function renderSetupStep(step) {
     await renderSlskdStep(form, step);
   } else if (step === "lidarr") {
     await renderLidarrStep(form, step);
-  } else if (step === "mediaserver") {
-    await renderServerStep(form, step);
-  } else if (step === "subsonic") {
-    await renderSubsonicStep(form, step);
+  } else if (step === "listen") {
+    await renderListenStep(form, step);
   } else if (step === "autoplay") {
     await loadAudioMuse();
     await renderAutoplayStep(form, step);

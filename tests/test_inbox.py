@@ -160,20 +160,33 @@ def test_onboarding_steps(make_client, tmp_path):
     app = create_app(Settings(music_dir=tmp_path / "music", config_dir=tmp_path / "fresh"))
     with TestClient(app) as c:
         c.post("/api/auth/setup", json={"username": "owner", "password": PASSWORD})
-        assert c.get("/api/onboarding").json()["steps"] == ["connections", "organize", "library", "inbox", "health", "slskd", "lidarr", "mediaserver", "autoplay", "subsonic"]
+        assert c.get("/api/onboarding").json()["steps"] == ["connections", "organize", "library", "inbox", "health", "slskd", "lidarr", "listen", "autoplay"]
         c.put("/api/connections", json={"enabled": {}})
-        assert c.post("/api/onboarding/organize").json()["steps"] == ["library", "inbox", "health", "slskd", "lidarr", "mediaserver", "autoplay", "subsonic"]
-        assert c.post("/api/onboarding/library").json()["steps"] == ["inbox", "health", "slskd", "lidarr", "mediaserver", "autoplay", "subsonic"]
-        assert c.post("/api/onboarding/inbox").json()["steps"] == ["health", "slskd", "lidarr", "mediaserver", "autoplay", "subsonic"]
-        assert c.post("/api/onboarding/health").json()["steps"] == ["slskd", "lidarr", "mediaserver", "autoplay", "subsonic"]
-        assert c.post("/api/onboarding/slskd").json()["steps"] == ["lidarr", "mediaserver", "autoplay", "subsonic"]
-        assert c.post("/api/onboarding/lidarr").json()["steps"] == ["mediaserver", "autoplay", "subsonic"]
-        assert c.post("/api/onboarding/mediaserver").json()["steps"] == ["autoplay", "subsonic"]
-        assert c.post("/api/onboarding/autoplay").json()["steps"] == ["subsonic"]
-        assert c.post("/api/onboarding/subsonic").json()["steps"] == []
+        assert c.post("/api/onboarding/organize").json()["steps"] == ["library", "inbox", "health", "slskd", "lidarr", "listen", "autoplay"]
+        assert c.post("/api/onboarding/library").json()["steps"] == ["inbox", "health", "slskd", "lidarr", "listen", "autoplay"]
+        assert c.post("/api/onboarding/inbox").json()["steps"] == ["health", "slskd", "lidarr", "listen", "autoplay"]
+        assert c.post("/api/onboarding/health").json()["steps"] == ["slskd", "lidarr", "listen", "autoplay"]
+        assert c.post("/api/onboarding/slskd").json()["steps"] == ["lidarr", "listen", "autoplay"]
+        assert c.post("/api/onboarding/lidarr").json()["steps"] == ["listen", "autoplay"]
+        assert c.post("/api/onboarding/listen").json()["steps"] == ["autoplay"]
+        assert c.post("/api/onboarding/autoplay").json()["steps"] == []
+        assert c.post("/api/onboarding/subsonic").status_code == 404  # merged into "listen"
         assert c.post("/api/onboarding/nope").status_code == 404
         c.post("/api/auth/logout")
         assert c.get("/api/onboarding").status_code == 401
+
+
+def test_someone_who_saw_either_old_listening_step_isnt_asked_again(tmp_path):
+    """The music server and music apps steps became one ("listen"): having seen either is enough."""
+    import json
+    cfg = tmp_path / "cfg"
+    cfg.mkdir()
+    (cfg / "onboarding.json").write_text(json.dumps({"done": ["organize", "library", "inbox", "health", "slskd", "lidarr",
+                                                              "mediaserver", "autoplay"]}))
+    with TestClient(create_app(Settings(music_dir=tmp_path / "music", config_dir=cfg))) as c:
+        c.post("/api/auth/setup", json={"username": "owner", "password": PASSWORD})
+        c.put("/api/connections", json={"enabled": {}})
+        assert c.get("/api/onboarding").json()["steps"] == []
 
 
 def test_changelog_is_public_and_parsed(tmp_path):

@@ -13,7 +13,9 @@ import tempfile
 import threading
 from pathlib import Path
 
-STEPS = ("connections", "organize", "library", "inbox", "health", "slskd", "lidarr", "mediaserver", "autoplay", "subsonic")  # in the order they're shown
+STEPS = ("connections", "organize", "library", "inbox", "health", "slskd", "lidarr", "listen", "autoplay")  # in the order they're shown
+# "listen" (music apps or your own music server) replaced two steps that asked much the same thing.
+MERGED = {"mediaserver": "listen", "subsonic": "listen"}
 
 
 class OnboardingStore:
@@ -23,7 +25,8 @@ class OnboardingStore:
         try:
             data = json.loads(file.read_text("utf-8"))
             done = data.get("done") if isinstance(data, dict) else None
-            self.done = {s for s in done if s in STEPS} if isinstance(done, list) else set()
+            done = [MERGED.get(s, s) for s in done] if isinstance(done, list) else []
+            self.done = {s for s in done if s in STEPS}
         except (OSError, ValueError):
             self.done = set()
 
