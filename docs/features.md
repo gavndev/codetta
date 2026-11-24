@@ -214,6 +214,21 @@ recording, whatever its name or track number says.
 Running your own MusicBrainz mirror? Point `CODETTA_MUSICBRAINZ_URL` at it and
 lookups stay on your network with no rate limit.
 
+## Your music: favourites, plays and playlists
+
+**Your music** (the heart in the top bar, or the pill at the bottom of a phone)
+has your **Favourites**, **Most played**, **Recently played** and your
+**playlists**. They're the same ones your music apps see through Codetta, so a
+song you star in Symfonium is a favourite here too, and the other way round.
+Select songs anywhere and use **Add to…** to add them to favourites or a
+playlist, or to make a new one; inside a playlist, Add to… can also take songs
+out. Each list plays, selects and edits like any folder. None of this touches
+your files: it's kept in `listening.sqlite3` in the config folder.
+
+On a phone, Library, Your music and the inbox sit in a pill at the bottom of
+the screen, like an iPhone app, which leaves the top bar for search, the tag
+filter, notifications and your account.
+
 ## Artist pages
 
 Open an artist's folder (a folder at the top of your library that holds their

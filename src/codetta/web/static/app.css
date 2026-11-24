@@ -2711,7 +2711,7 @@ dialog.player-sheet { width: min(480px, calc(100vw - 32px)); }
   .play-btn { height: 44px; min-width: 44px; border-radius: 22px; }
   .btn { min-height: 44px; }
   /* The selection bar: count, Clear, "…" (Preset, Replace, Actions) and Edit fit on one row. */
-  #sel-preset, #sel-replace, #sel-actions, #sel-download, #sel-copy, #sel-paste, #sel-match, #sel-compare { display: none; }
+  #sel-preset, #sel-replace, #sel-actions, #sel-download, #sel-copy, #sel-paste, #sel-add, #sel-match, #sel-compare { display: none; }
   .selection-bar { gap: 10px; padding-left: 14px; }
   #selection-count { white-space: nowrap; }
 }
@@ -3370,4 +3370,54 @@ dialog.confirm.wipe-final-step .sheet-head h2 { width: 100%; }
   .artist-chip:nth-child(n + 7) { display: none; }
   .artist-head > .artist-av { width: 96px; height: 96px; }
   .artist-head > .artist-av .artist-av-ini { font-size: 30px; }
+}
+
+/* ---- Your music ---- */
+.folders.yours-host { display: block; border-top: 0; }
+.yours-head h1 { font-size: 44px; }
+.yours-head p { color: var(--muted); margin-top: 6px; }
+.yours-tools { display: flex; gap: 8px; margin-top: 12px; }
+.yours-tools .btn { display: inline-flex; align-items: center; gap: 6px; }
+.yours-tools .btn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.yours-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin: 8px 0 28px; }
+.yours-tile { display: flex; align-items: center; gap: 14px; padding: 14px; border-radius: 16px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); text-decoration: none; transition: transform var(--dur) var(--ease-out), border-color var(--dur); }
+@media (hover: hover) { .yours-tile:hover { border-color: var(--spot); transform: translateY(-2px); } }
+.yours-tile .folder-text { display: grid; gap: 2px; min-width: 0; }
+.yours-tile .folder-name { font-weight: 650; }
+.yours-tile .folder-meta { color: var(--muted); font-size: 13px; }
+.yours-ico { display: grid; place-items: center; flex: none; width: 48px; height: 48px; border-radius: 12px; color: #fff; }
+.yours-ico svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.yours-ico[data-kind="starred"] { background: linear-gradient(135deg, #ff5f7e, #d6336c); }
+.yours-ico[data-kind="most"] { background: linear-gradient(135deg, #ffa94d, #e8590c); }
+.yours-ico[data-kind="recent"] { background: linear-gradient(135deg, #4dabf7, #1c7ed6); }
+.yours-pl-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.yours-pl-head h2 { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+.yours-pl-head .btn { display: inline-flex; align-items: center; gap: 6px; }
+.yours-pl-head .btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.yours-playlists { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 24px 22px; }
+.yours-empty { margin: 0; }
+
+/* ---- Phones: a pill at the bottom for Library, Your music and the inbox ---- */
+.tabbar { display: none; }
+@media (max-width: 760px) {
+  #yours-btn, #inbox-btn, #manage-btn, #theme-btn { display: none; }
+  .topbar-actions > #tagfilter-btn { margin-left: auto; } /* the first one still showing goes right */
+  .tabbar { position: fixed; left: 50%; bottom: max(14px, env(safe-area-inset-bottom)); z-index: 80; transform: translateX(-50%);
+    display: flex; gap: 2px; padding: 5px; border-radius: 999px; border: 1px solid var(--glass-line);
+    background: color-mix(in oklab, var(--surface-raised) 88%, transparent); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+    box-shadow: var(--shadow-lg); }
+  .tabbar button { position: relative; display: grid; justify-items: center; gap: 1px; min-width: 80px; white-space: nowrap; min-height: 48px; padding: 5px 12px 4px;
+    border: 0; border-radius: 999px; background: none; color: var(--muted); font: inherit; font-size: 11px; font-weight: 600; cursor: pointer; }
+  .tabbar button svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  .tabbar button.active { color: var(--spot); background: var(--accent-soft); }
+  .tabbar .badge-count { position: absolute; top: 2px; right: 14px; }
+  /* Selecting, editing or a window open: the pill steps aside (the selection bar takes its place). */
+  body:has(.selection-bar:not([hidden])) .tabbar, body:has(.editor:not([hidden])) .tabbar { display: none; }
+  body:has(.tabbar):not(:has(.selection-bar:not([hidden]))) .now-playing { bottom: calc(max(14px, env(safe-area-inset-bottom)) + 70px); }
+  .browser { padding-bottom: 110px; }
+  body:has(.now-playing:not([hidden])) .browser { padding-bottom: 190px; }
+  .yours-head h1 { font-size: 32px; }
+  .yours-tiles { grid-template-columns: 1fr; gap: 8px; }
+  .yours-playlists { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 14px; }
 }

@@ -3,12 +3,14 @@ player), ListenBrainz scrobbling, and plays reported by Codetta's player."""
 
 from __future__ import annotations
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Query
 
 from codetta.core.library import LibraryPathError
 from codetta.core.listenbrainz import ListenBrainzError, Scrobbler
 from codetta.core.listening import Listening, moves_in
-from codetta.web.common import VERSION, ListenBrainzIn, PlayedIn
+from codetta.web.common import VERSION, ListenBrainzIn, PlayedIn, PlaylistChangeIn, PlaylistIn, StarIn
+
+LIST_SIZE = 100  # most played / recently played
 
 
 def song_meta(tags: dict, duration: float | None) -> dict:
@@ -102,3 +104,91 @@ def register(app, shared) -> None:
         listening.played(body.path, fp=fingerprint(tags, track.get("duration") or 0), also=also)
         scrobbler.listened(song_meta(tags, track.get("duration")), player="Codetta")
         return {"ok": True}
+
+    # --- Your music: favourites, most and recently played, playlists (the same ones music apps see) ----
+
+    def existing(paths: list[str]) -> list[str]:
+        out = []
+        for p in paths:
+            try:
+                if library.resolve(p).is_file():
+                    out.append(p)
+            except (LibraryPathError, ValueError):
+                continue
+        return out
+
+    def checked(paths: list[str]) -> list[str]:
+        good = existing(list(dict.fromkeys(paths)))
+        if len(good) != len(set(paths)):
+            raise HTTPException(400, "Some of those files aren't in your music folder")
+        return paths
+
+    def summary() -> dict:
+        songs = listening.marks().get("s", {})
+        lists = [{"id": pl.id, "name": pl.name, "tracks": len(pl.paths), "changed": pl.changed, "first": pl.paths[0] if pl.paths else None}
+                 for pl in listening.playlists()]
+        return {"starred": sum(1 for m in songs.values() if m.starred), "played": sum(1 for m in songs.values() if m.plays),
+                "playlists": lists}
+
+    @app.get("/api/yours")
+    def yours(view: str = Query("", max_length=20), id: int = Query(0, ge=0)) -> dict:
+        """Your music: the overview (counts and playlists), or one list as tracks: "starred",
+        "most" (played), "recent" (played) or "playlist" (``id``)."""
+        shared.require_library()
+        songs = listening.marks().get("s", {})
+        if view == "":
+            return summary()
+        if view == "starred":
+            paths = [p for p, m in sorted(songs.items(), key=lambda kv: -(kv[1].starred or 0)) if m.starred]
+            name = "Favourites"
+        elif view == "most":
+            paths = [p for p, m in sorted(songs.items(), key=lambda kv: (-kv[1].plays, -(kv[1].last_played or 0))) if m.plays][:LIST_SIZE]
+            name = "Most played"
+        elif view == "recent":
+            paths = [p for p, m in sorted(songs.items(), key=lambda kv: -(kv[1].last_played or 0)) if m.last_played][:LIST_SIZE]
+            name = "Recently played"
+        elif view == "playlist":
+            pl = listening.playlist(id)
+            if pl is None:
+                raise HTTPException(404, "That playlist is gone")
+            paths, name = pl.paths, pl.name
+        else:
+            raise HTTPException(404, "Nothing here")
+        paths = existing(paths)
+        plays = {p: songs[p].plays for p in paths if p in songs}
+        starred = [p for p in paths if p in songs and songs[p].starred]
+        return {"name": name, "tracks": [t.model_dump() for t in shared.tracks_out(paths)], "plays": plays, "starred": starred}
+
+    @app.get("/api/yours/starred")
+    def starred_paths(paths: list[str] = Query(default=[], max_length=2000)) -> dict:
+        """Which of these songs are favourites (for the heart on a folder's rows)."""
+        songs = listening.marks().get("s", {})
+        return {"starred": [p for p in paths if p in songs and songs[p].starred]}
+
+    @app.post("/api/yours/star")
+    def star(body: StarIn) -> dict:
+        """Add songs to (or take them out of) your favourites: the same stars music apps show."""
+        listening.star("s", checked(body.paths), body.on)
+        return summary()
+
+    @app.post("/api/playlists")
+    def new_playlist(body: PlaylistIn) -> dict:
+        pid = listening.create_playlist(body.name.strip() or "New playlist", checked(body.paths))
+        return {"id": pid, **summary()}
+
+    @app.put("/api/playlists/{pid}")
+    def change_playlist(pid: int, body: PlaylistChangeIn) -> dict:
+        """Rename, add songs to the end, or take songs out (every copy of them)."""
+        pl = listening.playlist(pid)
+        if pl is None:
+            raise HTTPException(404, "That playlist is gone")
+        gone = set(body.remove)
+        drop = [i for i, p in enumerate(pl.paths) if p in gone]
+        listening.update_playlist(pid, name=body.name, add=checked(body.add), remove=drop)
+        return summary()
+
+    @app.delete("/api/playlists/{pid}")
+    def delete_playlist(pid: int) -> dict:
+        if not listening.delete_playlist(pid):
+            raise HTTPException(404, "That playlist is gone")
+        return summary()

@@ -23,6 +23,7 @@ import { openTracklist } from "./tracklist.js";
 import { doApply, openApply, openManage, runPreview, syncApplyUi } from "./presets.js";
 import { setHealthEnabled } from "./library.js";
 import { setupSettings } from "./settings.js";
+import { openAddTo, setupYours } from "./yours.js";
 import { compareSelected, copySelected, matchSelected, pasteSelected, setupSelectionTools, syncSelectionTools } from "./selection.js";
 import { placeAccount, setPasswordOpen, syncAccountTiles } from "./account.js";
 import { openReport, openTrash, setupContextMenu, setupDropImport } from "./files.js";
@@ -128,7 +129,9 @@ export function bindEvents() {
   $("#sel-replace").addEventListener("click", () => openReplace({ paths: [...state.selected] }, `${plural(state.selected.size, "selected track")}`));
   // Phones: the bar can't fit five buttons, so Preset, Replace and Actions share a "…" menu.
   setupSelectionTools();
+  setupYours();
   const selMore = iconButton("more", "More", () => openToolsMenu(selMore, [
+    { icon: "heart", label: "Add to…", run: () => openAddTo(selMore) },
     { icon: "copy", label: "Copy tags", run: copySelected },
     state.clipboard ? { icon: "paste", label: `Paste ${plural(Object.keys(state.clipboard.tags).length, "tag")}`, run: pasteSelected } : null,
     { icon: "disc", label: "Match album tags", run: matchSelected },

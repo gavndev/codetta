@@ -20,39 +20,40 @@ import { openFromNames } from "./fromnames.js";
 import { openTracklist } from "./tracklist.js";
 import { openCoverExport } from "./coverexport.js";
 import { artistButton, artistHead } from "./artists.js";
+import { renderYoursBody, yoursHead } from "./yours.js";
 
 /** A folder at the top of the library that holds albums: an artist's folder. */
-const isArtistFolder = (f) => !f.search && !f.mb && f.path && !f.path.includes("/") && !isSpecialPath(f.path)
+const isArtistFolder = (f) => !f.search && !f.mb && !f.yours && f.path && !f.path.includes("/") && !isSpecialPath(f.path)
   && f.folders.length > 0 && f.tracks.length <= 2;
 
 // ---- Batch tools: find & replace in tags, rename a folder, actions -----------------------------------
 
 /** The folder page's batch tools (icon buttons on computers, a "…" menu on phones). */
 function folderTools(f) {
-  const target = f.search ? { paths: f.tracks.map((t) => t.path).slice(0, 1000) } : { folder: state.path };
-  const label = f.search ? plural(Math.min(f.tracks.length, 1000), "result") : "this folder";
+  const target = (f.search || f.yours) ? { paths: f.tracks.map((t) => t.path).slice(0, 1000) } : { folder: state.path };
+  const label = (f.search || f.yours) ? plural(Math.min(f.tracks.length, 1000), f.yours ? "song" : "result") : "this folder";
   return [
-    (f.tracks.length || f.folders.length) && !f.search && !f.mb ? { icon: "layers", label: "Organize", run: openOrganize, primary: true,
+    (f.tracks.length || f.folders.length) && !(f.search || f.yours) && !f.mb ? { icon: "layers", label: "Organize", run: openOrganize, primary: true,
       title: "Rename and move files into folders from their tags (you see everything first)" } : null,
     f.tracks.length ? { icon: "replace", label: "Find & replace", run: () => openReplace(target, label), primary: true, group: "Fix tags",
       title: "Find & replace in the tags of these tracks (you see every change first)" } : null,
-    replayGainReady() && (f.tracks.length || (f.folders.length && !f.search && !f.mb)) && !f.mb
-      ? { icon: "volume", label: "ReplayGain", group: "Fix tags", run: () => openReplayGain(f.search ? target : { folder: state.path }, label),
+    replayGainReady() && (f.tracks.length || (f.folders.length && !(f.search || f.yours) && !f.mb)) && !f.mb
+      ? { icon: "volume", label: "ReplayGain", group: "Fix tags", run: () => openReplayGain((f.search || f.yours) ? target : { folder: state.path }, label),
         title: "Even out the volume: measure loudness and write ReplayGain tags (you see every value first)" } : null,
     f.tracks.length ? { icon: "tag", label: "Tags from file names", group: "Fix tags", run: () => openFromNames(target, label),
       title: "Fill in tags from file and folder names with a pattern (you see every change first)" } : null,
-    f.tracks.length && !f.search ? { icon: "paste", label: "Paste a tracklist", group: "Fix tags", run: () => openTracklist({ folder: state.path }, label),
+    f.tracks.length && !(f.search || f.yours) ? { icon: "paste", label: "Paste a tracklist", group: "Fix tags", run: () => openTracklist({ folder: state.path }, label),
       title: "Titles and numbers from a tracklist you paste (Discogs, Bandcamp, Wikipedia…), paired with the files" } : null,
-    (f.tracks.length || f.folders.length) && !f.search && !f.mb
+    (f.tracks.length || f.folders.length) && !(f.search || f.yours) && !f.mb
       ? { icon: "folder", label: "Save covers as files", group: "Folder", run: () => openCoverExport({ folder: state.path }, label),
         title: "Save each album's embedded cover as cover.jpg in its folder, for players that look for one" } : null,
     f.tracks.length ? { icon: "wand", label: "Actions", group: "Fix tags", run: () => openActions(target, label),
       title: "Clean up titles, Title Case and trim spaces (you see every change first)" } : null,
     f.tracks.length && !f.mb ? { icon: "trash", label: "Wipe all tags", group: "Danger", danger: true, run: () => wipeTags(target),
       title: "Remove every tag from these tracks (asks twice; Activity can undo it)" } : null,
-    state.path && !f.search && !f.mb ? { icon: "rename", label: "Rename folder", group: "Folder", run: renameFolder, title: "Rename this folder" } : null,
-    !f.search && !f.mb ? { icon: "plus", label: "New folder", group: "Folder", run: newFolderHere, title: "Make a new folder in here" } : null,
-    state.path && !f.search && !f.mb && !isSpecialPath(state.path) && (f.tracks.length || f.folders.length)
+    state.path && !(f.search || f.yours) && !f.mb ? { icon: "rename", label: "Rename folder", group: "Folder", run: renameFolder, title: "Rename this folder" } : null,
+    !(f.search || f.yours) && !f.mb ? { icon: "plus", label: "New folder", group: "Folder", run: newFolderHere, title: "Make a new folder in here" } : null,
+    state.path && !(f.search || f.yours) && !f.mb && !isSpecialPath(state.path) && (f.tracks.length || f.folders.length)
       ? { icon: "download", label: "Download as .zip", group: "Folder", run: () => downloadZip(state.path), title: "Download this folder as a .zip file" } : null,
   ].filter(Boolean).sort((a, b) => GROUPS.indexOf(a.group) - GROUPS.indexOf(b.group));
 }
@@ -355,6 +356,16 @@ export function renderFolderHead() {
   const f = state.folder;
   if (!f) return;
   updateHealthSlot(); // only on the Library page itself
+  if (f.yours) {
+    els.folderHead.replaceChildren(yoursHead(f), ...!f.tracks.length ? [] : [h("div", { class: "folder-actions" },
+      ...folderTools(f).filter((t) => t.primary).map((t) => iconButton(t.icon, t.label, t.run, { title: t.title, cls: "tool-desktop tool-labelled" })),
+      folderTools(f).length ? iconButton("more", "More", (e) => openToolsMenu(e.currentTarget, folderTools(f).filter((t) => !t.primary)),
+        { title: "More tools for these songs", cls: "tool-desktop tool-labelled" }) : null,
+      folderTools(f).length ? iconButton("more", "More", (e) => openToolsMenu(e.currentTarget, folderTools(f)), { cls: "tool-more" }) : null,
+      selectButtons(f))]);
+    els.tracks.classList.toggle("selecting", state.selectMode);
+    return;
+  }
   if (f.search) { renderSearchHead(f); return; }
   if (f.mb) { renderMbHead(f); return; }
   const counts = [];
@@ -474,6 +485,9 @@ function folderSummary(f) {
 export function renderFolders() {
   els.folders.classList.toggle("mbx-host", !!state.folder?.mb);
   if (state.folder?.mb) { renderMbBody(state.folder); return; }
+  const overview = !!state.folder?.yours && !state.folder.yours.view;
+  els.folders.classList.toggle("yours-host", overview);
+  if (overview) { els.folders.classList.remove("as-list"); renderYoursBody(state.folder); return; }
   const q = fold(state.filter);
   const folders = (state.folder?.folders || []).filter((f) => !q || fold(f.name).includes(q));
   const list = folderView() === "list";
@@ -518,6 +532,7 @@ export function renderTracks() {
   const f = state.folder;
   if (!f) return;
   if (f.mb) { els.tracks.replaceChildren(); return; }
+  if (f.yours && !f.tracks.length) { els.tracks.replaceChildren(); return; } // the head says what's empty
   const tracks = visibleTracks();
 
   if (!f.tracks.length && f.search) {
@@ -619,6 +634,14 @@ function subLine(t, { artist, album, title, oneAlbum, albumArtist }) {
   return sub;
 }
 
+/** In Your music lists, a song's place in the list (1, 2, 3…) instead of its album track number. */
+function yoursPosition(t) {
+  const f = state.folder;
+  if (!f?.yours) return null;
+  if (!f.positions) f.positions = new Map(f.tracks.map((x, i) => [x, String(i + 1)]));
+  return f.positions.get(t) ?? null;
+}
+
 function trackRow(t, { oneAlbum, albumArtist, disc }) {
   const title = first(t, "title");
   const artist = (t.tags.artist || []).join(", ");
@@ -645,11 +668,11 @@ function trackRow(t, { oneAlbum, albumArtist, disc }) {
     },
   },
     h("label", { class: "check-cell", onclick: (e) => e.stopPropagation() }, checkbox),
-    h("div", { class: "col-num" }, disc != null
+    h("div", { class: "col-num" }, yoursPosition(t) ?? (disc != null
       // Multi-disc: pointing at a row shows "2/01" (disc/track).
       ? [h("span", { class: "num-track" }, trackNo(first(t, "tracknumber"))),
         h("span", { class: "num-disc" }, `${disc}/${trackNo(first(t, "tracknumber"))}`)]
-      : trackNo(first(t, "tracknumber"))),
+      : trackNo(first(t, "tracknumber")))),
     h("div", { class: "col-art" }, t.art
       ? h("img", { src: artUrlFor(t), alt: "", loading: "lazy", decoding: "async", width: "40", height: "40" })
       : h("span", { class: "art-none", title: "No album art" }, icon("note"))),

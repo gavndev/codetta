@@ -12,6 +12,7 @@ import { closeEditor, confirmDiscard, fieldLabel, listParts, renderEditor } from
 import { connectionOn } from "./setup.js";
 import { openMusicBrainz } from "./musicbrainz.js";
 import { syncSelectionTools } from "./selection.js";
+import { fetchYours, syncTabbar } from "./yours.js";
 
 // ---- Routing ------------------------------------------------------------------------------------
 
@@ -24,11 +25,17 @@ const isSearchKey = (key) => typeof key === "string" && key.startsWith(SEARCH);
 // URLs: "#mb?q=…", "#mb/artist/<id>", "#mb/rg/<id>".
 export const MBX = "\x01";
 const isMbKey = (key) => typeof key === "string" && key.startsWith(MBX);
+// Your music (yours.js) is a "path" too: YOURS + "" | "starred" | "most" | "recent" | "playlist:<id>".
+// URLs: "#yours", "#yours/starred", "#yours/playlist/3".
+export const YOURS = "\x02";
+export const isYoursKey = (key) => typeof key === "string" && key.startsWith(YOURS);
 export const mbKey = (key) => { const [kind, ...rest] = key.slice(1).split(":"); return { kind, value: rest.join(":") }; };
 export const isSearch = () => isSearchKey(state.path);
 export const searchQuery = (key = state.path) => (isSearchKey(key) ? key.slice(1) : "");
 
 export function pathFromHash(hash = location.hash) {
+  const y = /^#yours(?:\/(starred|most|recent|playlist\/(\d+)))?\/?$/.exec(hash);
+  if (y) return y[2] ? `${YOURS}playlist:${y[2]}` : YOURS + (y[1] || "");
   if (hash.startsWith("#mb?")) {
     const q = (new URLSearchParams(hash.slice(4)).get("q") || "").trim();
     return q ? MBX + "search:" + q : "";
@@ -48,6 +55,10 @@ export function pathFromHash(hash = location.hash) {
 }
 
 export function hashFor(path) {
+  if (isYoursKey(path)) {
+    const v = path.slice(1);
+    return v ? `#yours/${v.replace(":", "/")}` : "#yours";
+  }
   if (isSearchKey(path)) return "#?q=" + encodeURIComponent(searchQuery(path));
   if (isMbKey(path)) {
     const { kind, value } = mbKey(path);
@@ -83,7 +94,7 @@ export async function onHistoryChange() {
 }
 
 export function folderLinkPath(event) {
-  const a = event.target.closest?.('a[href^="#/"], a[href^="#?"], a[href^="#mb"]');
+  const a = event.target.closest?.('a[href^="#/"], a[href^="#?"], a[href^="#mb"], a[href^="#yours"]');
   if (!a || !a.closest("#app")) return null;
   return pathFromHash(a.getAttribute("href"));
 }
@@ -120,7 +131,7 @@ function fetchMb(path) {
 
 function fetchFolder(path) {
   if (!inflight.has(path)) {
-    const req = (isMbKey(path) ? fetchMb(path) : isSearchKey(path)
+    const req = (isYoursKey(path) ? fetchYours(path) : isMbKey(path) ? fetchMb(path) : isSearchKey(path)
       ? api("GET", `/api/search?q=${encodeURIComponent(searchQuery(path))}`).then((data) => ({
         ...data, path, name: "Search",
         breadcrumbs: [{ name: "Library", path: "" }, { name: `Search: ${searchQuery(path)}`, path }],
@@ -228,6 +239,7 @@ function showFolder(data, scrollTop) {
   renderBrowser();
   els.browser.scrollTop = scrollTop;
   updateSpot();
+  syncTabbar();
 }
 
 // Lookups by path / cover, built once per folder instead of scanning every time
@@ -281,7 +293,7 @@ function matchesFilter(track) {
 /** Multi-disc album: every track has a disc number and there are at least two. */
 const discCache = new WeakMap();
 export function discInfo(f = state.folder) {
-  if (!f || f.search) return null;
+  if (!f || f.search || f.yours) return null; // a list of songs from anywhere: no discs
   if (discCache.has(f)) return discCache.get(f);
   const readable = f.tracks.filter((t) => !t.error);
   const discOf = (t) => parseInt(first(t, "discnumber"), 10);
@@ -297,7 +309,7 @@ const trackNum = (t) => parseInt(first(t, "tracknumber"), 10);
  * of loose files (all "1", or some unnumbered) keep their file-name order. */
 const numberedCache = new WeakMap();
 function numberedAlbum(f = state.folder) {
-  if (!f || f.search || f.mb) return false;
+  if (!f || f.search || f.mb || f.yours) return false; // Your music keeps its own order
   if (numberedCache.has(f)) return numberedCache.get(f);
   const nums = f.tracks.filter((t) => !t.error).map(trackNum);
   const yes = nums.length > 1 && nums.every(Number.isInteger) && new Set(nums).size === nums.length;
@@ -365,8 +377,6 @@ export function renderSearchHead(f) {
   els.tracks.classList.toggle("selecting", state.selectMode);
 }
 
-/** "Find in MusicBrainz" ("Find" on phones), shown when the MusicBrainz connection is on. */
-/** Find in MusicBrainz, with a chevron for Deezer and iTunes when they're on (a split button). */
 /** Harmony (a MusicBrainz importer), with this album already looked up: by its barcode, or its
  *  Deezer / iTunes page. The tab opens on the tap itself (browsers block tabs opened later). */
 async function openInHarmony() {
@@ -387,6 +397,7 @@ async function openInHarmony() {
   }
 }
 
+/** "Find in MusicBrainz" ("Find" on phones), with a chevron for Deezer, iTunes, Discogs and Harmony (a split button). */
 export function mbFindButton(where) {
   const mbOn = connectionOn("musicbrainz");
   const others = [["deezer", "Find in Deezer"], ["itunes", "Find in iTunes"], ["discogs", "Find in Discogs"]].filter(([s]) => connectionOn(s));

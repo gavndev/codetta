@@ -419,6 +419,22 @@ class MatchTagsIn(BaseModel):
     dry_run: bool = True
 
 
+class StarIn(BaseModel):
+    paths: list[Annotated[str, Field(max_length=MAX_PATH_CHARS)]] = Field(min_length=1, max_length=MAX_PATHS_PER_REQUEST)
+    on: bool = True
+
+
+class PlaylistIn(BaseModel):
+    name: str = Field("", max_length=200)
+    paths: list[Annotated[str, Field(max_length=MAX_PATH_CHARS)]] = Field(default=[], max_length=MAX_PATHS_PER_REQUEST)
+
+
+class PlaylistChangeIn(BaseModel):
+    name: str | None = Field(default=None, max_length=200)
+    add: list[Annotated[str, Field(max_length=MAX_PATH_CHARS)]] = Field(default=[], max_length=MAX_PATHS_PER_REQUEST)
+    remove: list[Annotated[str, Field(max_length=MAX_PATH_CHARS)]] = Field(default=[], max_length=MAX_PATHS_PER_REQUEST)  # every copy of these songs
+
+
 class WipeIn(BaseModel):
     paths: list[str] = Field(default=[], max_length=MAX_PATHS_PER_REQUEST)  # these files...
     folder: str | None = Field(default=None, max_length=MAX_PATH_CHARS)  # ...or the audio files in this folder

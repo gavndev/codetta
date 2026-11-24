@@ -241,7 +241,7 @@ export function setupSelectionTools() {
   $("#sel-compare").addEventListener("click", compareSelected);
   $("#sel-match").addEventListener("click", matchSelected);
   // A small picture beside each button's name.
-  for (const [id, name] of [["sel-clear", "close"], ["sel-copy", "copy"], ["sel-paste", "paste"], ["sel-match", "disc"],
+  for (const [id, name] of [["sel-clear", "close"], ["sel-copy", "copy"], ["sel-paste", "paste"], ["sel-add", "heart"], ["sel-match", "disc"],
     ["sel-compare", "compare"], ["sel-preset", "preset"], ["sel-replace", "replace"], ["sel-actions", "wand"],
     ["sel-download", "download"], ["sel-edit", "pencil"]]) {
     const btn = $(`#${id}`);
