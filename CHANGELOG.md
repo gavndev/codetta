@@ -2,7 +2,9 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.14.0 (2026-11-24)
+
+One Settings page for everything Codetta lets you change.
 
 - **All settings in one place:** a new **Settings** page (person icon → Settings) has every setting Codetta has, in plain sections: General, Library, Inbox, Listening, Music apps, Connections and About. Search finds any setting by name, so the file naming pattern is one "naming" away. On a phone it works like your phone's own settings. The account menu is now just quick switches, and the Settings buttons in the inbox, Tidy up and Library health open the right part of the page.
 - **New switch:** whether the inbox moves filed albums into your library or only tags them (Settings → Inbox).
