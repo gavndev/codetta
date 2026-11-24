@@ -7,6 +7,14 @@ the same one Navidrome serves: Symfonium, Narjo, Arpeggi, Feishin, DSub, Substre
 and many more. They can browse, search and play your music, show covers and lyrics, and offer
 "similar songs" (from [Autoplay](autoplay.md)). They can't change your files.
 
+**This feature is released in an alpha/WIP**, still working on…
+
+- Converting files to a smaller format for mobile data (currently always streamed in original format)
+- Playlists
+- Stars
+- Ratings
+- Play counts (apps can send them; Codetta doesn't keep them).
+
 Already run Navidrome? You don't need this: Navidrome is a full music server, and Codetta keeps
 its tags right. This is for libraries that only have Codetta.
 
@@ -30,9 +38,6 @@ The app password only works for music apps. **Make a new password** signs every 
 | Play | The original files, with seeking (no conversion) |
 | Covers, lyrics | Embedded covers; plain and synced lyrics |
 | Lists | Newest, random, A–Z, by year, by genre; random songs; similar songs |
-
-Not yet: converting files to a smaller format for mobile data, playlists, stars, ratings and
-play counts (apps can send them; Codetta doesn't keep them).
 
 ## How it signs in
 
