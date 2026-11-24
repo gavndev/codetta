@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import subprocess
 import threading
-from collections.abc import Callable, Iterator
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -98,7 +98,7 @@ class Transcoder:
         kbps = max_kbps if max_kbps > 0 else base
         return Plan(fmt, max(lo, min(hi, kbps)))
 
-    def stream(self, path: Path, plan: Plan, offset: float = 0.0) -> Iterator[bytes] | None:
+    def stream(self, path: Path, plan: Plan, offset: float = 0.0) -> _Stream | None:
         """The converted song as it's made, or None when every slot is busy (send the original)."""
         if not self.ffmpeg or not self._slots.acquire(timeout=5):
             return None
@@ -116,20 +116,43 @@ class Transcoder:
             self._slots.release()
             return None
 
-        def chunks() -> Iterator[bytes]:
-            try:
-                while True:
-                    data = proc.stdout.read(CHUNK)
-                    if not data:
-                        break
-                    yield data
-            finally:  # done, or the app hung up: never leave ffmpeg running
-                if proc.poll() is None:
-                    proc.kill()
-                try:
-                    proc.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    pass
-                self._slots.release()
+        return _Stream(proc, self._slots)
 
-        return chunks()
+
+class _Stream:
+    """ffmpeg's output, chunk by chunk. Closing it (done, the app hung up, or never started at all)
+    stops ffmpeg and frees the slot exactly once; garbage collection closes it as a last resort."""
+
+    def __init__(self, proc, slots: threading.BoundedSemaphore) -> None:
+        self.proc, self.slots = proc, slots
+        self._closed = False
+        self._lock = threading.Lock()
+
+    def __iter__(self) -> _Stream:
+        return self
+
+    def __next__(self) -> bytes:
+        if self._closed:
+            raise StopIteration
+        data = self.proc.stdout.read(CHUNK)
+        if not data:
+            self.close()
+            raise StopIteration
+        return data
+
+    def close(self) -> None:
+        with self._lock:
+            if self._closed:
+                return
+            self._closed = True
+        try:
+            if self.proc.poll() is None:
+                self.proc.kill()
+            self.proc.wait(timeout=5)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+        finally:
+            self.slots.release()
+
+    def __del__(self) -> None:
+        self.close()

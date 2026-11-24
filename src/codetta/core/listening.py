@@ -126,8 +126,16 @@ class Listening:
             return
         with self._lock:
             for old, new in pairs:
+                # Both have history (a song played under both names): add them together, never lose either.
+                self.db.execute(
+                    "UPDATE marks SET plays = plays + (SELECT plays FROM marks WHERE kind = 's' AND key = ?), "
+                    "starred = COALESCE(starred, (SELECT starred FROM marks WHERE kind = 's' AND key = ?)), "
+                    "rating = COALESCE(rating, (SELECT rating FROM marks WHERE kind = 's' AND key = ?)), "
+                    "last_played = MAX(COALESCE(last_played, 0), COALESCE((SELECT last_played FROM marks WHERE kind = 's' AND key = ?), 0)) "
+                    "WHERE kind = 's' AND key = ? AND EXISTS (SELECT 1 FROM marks WHERE kind = 's' AND key = ?)",
+                    (old, old, old, old, new, old))
                 self.db.execute("DELETE FROM marks WHERE kind = 's' AND key = ? AND EXISTS "
-                                "(SELECT 1 FROM marks WHERE kind = 's' AND key = ?)", (new, old))
+                                "(SELECT 1 FROM marks WHERE kind = 's' AND key = ?)", (old, new))
                 self.db.execute("UPDATE marks SET key = ? WHERE kind = 's' AND key = ?", (new, old))
                 self.db.execute("UPDATE playlist_entries SET path = ? WHERE path = ?", (new, old))
                 self.db.execute("DELETE FROM bookmarks WHERE path = ? AND EXISTS (SELECT 1 FROM bookmarks WHERE path = ?)", (new, old))
@@ -139,11 +147,12 @@ class Listening:
                 self.db.execute("UPDATE queue SET entries = ? WHERE id = 1", (json.dumps(entries),))
             self.version += 1
 
-    def relink(self, known: set[str], by_fp: dict[str, str]) -> int:
-        """Song marks whose file is gone are moved to the one song with the same fingerprint. Returns how many."""
+    def relink(self, known: set[str], by_fp: dict[str, str], gone=lambda path: True) -> int:
+        """Song marks whose file is really gone (``gone(path)``) are moved to the one song with the same
+        fingerprint, merging with any history it already has. Returns how many."""
         with self._lock:
             lost = [(k, fp) for k, fp in self.db.execute("SELECT key, fp FROM marks WHERE kind = 's' AND fp != ''")
-                    if k not in known]
+                    if k not in known and gone(k)]
         pairs = [(k, by_fp[fp]) for k, fp in lost if fp in by_fp]
         self.move(pairs)
         return len(pairs)

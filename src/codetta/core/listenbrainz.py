@@ -33,12 +33,22 @@ BATCH = 100
 Post = Callable[[str, dict, bytes | None], tuple[int, bytes]]  # (url, headers, body or None for GET) -> (status, body)
 
 
+class _NoRedirects(urllib.request.HTTPRedirectHandler):
+    """A redirect would re-send the Authorization header (the token) to wherever it points: refuse."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+_OPENER = urllib.request.build_opener(_NoRedirects)
+
+
 def http_post(url: str, headers: dict, body: bytes | None, timeout: float = 10) -> tuple[int, bytes]:
     if not url.startswith(API + "/"):
         raise ValueError("Only api.listenbrainz.org")
     req = urllib.request.Request(url, data=body, headers=headers, method="POST" if body is not None else "GET")
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 (fixed https host above)
+        with _OPENER.open(req, timeout=timeout) as resp:  # fixed https host above, no redirects
             return resp.status, resp.read(100_000)
     except urllib.error.HTTPError as exc:
         return exc.code, exc.read(10_000) if exc.fp else b""

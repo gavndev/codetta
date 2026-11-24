@@ -140,7 +140,8 @@ def test_a_busy_deezer_is_not_taken_for_a_missing_picture(tmp_path):
     art = ArtistArt(tmp_path / "music", tmp_path / "cache", lambda: True, lambda u: answers.pop(0), lambda u: JPEG)
     assert art.picture("Drake") is None
     assert not list((tmp_path / "cache").glob("*.none"))
-    assert art.picture("Drake") == (JPEG, "image/jpeg")  # asked again next time, and found
+    art._busy_until = 0  # a few minutes later
+    assert art.picture("Drake") == (JPEG, "image/jpeg")  # asked again, and found
 
 
 def test_a_broken_cached_picture_is_fetched_again_without_hanging(tmp_path):

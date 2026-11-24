@@ -7,6 +7,8 @@ rate-limited like the sign-in page, and it all answers "off" until switched on.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import random
 import re
 import time
@@ -15,6 +17,7 @@ from urllib.parse import urlencode
 from fastapi import Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, Response, StreamingResponse
+from starlette.background import BackgroundTask
 
 from codetta.core.artists import top_folders
 from codetta.core.artwork import sniff_image_type
@@ -48,7 +51,6 @@ IGNORED_ARTICLES = "The El La Los Las Le Les"
 MAX_LIST = 500
 LRC = re.compile(r"^\s*((?:\[\d{1,3}:\d{2}(?:[.:]\d{1,3})?\])+)(.*)$")
 STAMP = re.compile(r"\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]")
-AUTH_KEYS = ("u", "t", "s", "p", "apiKey", "v", "c")
 CORS = {"Access-Control-Allow-Origin": "*"}  # web players on other sites (sign-in is in the URL, never a cookie)
 PREFLIGHT = {**CORS, "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
              "Access-Control-Allow-Headers": "Content-Type, Range", "Access-Control-Max-Age": "86400"}
@@ -68,7 +70,18 @@ def register(app, shared) -> None:
     last_seen: dict[str, float] = {}
 
     def relink(cat) -> None:
-        listening.relink({s.path for s in cat.songs.values()}, cat.by_fp())
+        if lib_index.status().scanning:
+            return  # songs not read yet would look "gone": wait for the next build
+
+        def gone(path: str) -> bool:
+            if is_special(path):
+                return False  # the inbox and Recently deleted aren't the library: leave them be
+            try:
+                return not library.resolve(path).exists()
+            except (LibraryPathError, ValueError):
+                return False
+
+        listening.relink({s.path for s in cat.songs.values()}, cat.by_fp(), gone)
 
     cache = CatalogCache(lib_index.catalog_rows, lib_index.fingerprint, on_build=relink)
 
@@ -158,11 +171,21 @@ def register(app, shared) -> None:
         raise SubsonicError(NOT_FOUND, "Not found")
 
     def image_urls(request: Request, params: dict, raw: str) -> dict:
-        """Picture links an app can open as they are (they carry the request's own sign-in)."""
-        auth = {k: params[k] for k in AUTH_KEYS if params.get(k)}
-        base = str(request.base_url).rstrip("/") + "/rest/getCoverArt?"
-        return {name: base + urlencode({**auth, "id": raw, "size": size})
-                for name, size in (("smallImageUrl", 150), ("mediumImageUrl", 300), ("largeImageUrl", 600))}
+        """Picture links an app can open as they are. They carry a signature that only opens that one
+        picture at that size (never the app's password or token), and follow the address the app used,
+        HTTPS behind a reverse proxy included."""
+        proto = request.headers.get("x-forwarded-proto", "").split(",")[0].strip().lower()
+        base = str(request.base_url).rstrip("/")
+        if proto in ("http", "https"):
+            base = proto + base[base.index(":"):]
+        out = {}
+        for name, size in (("smallImageUrl", 150), ("mediumImageUrl", 300), ("largeImageUrl", 600)):
+            out[name] = f"{base}/rest/getCoverArt?" + urlencode({"id": raw, "size": size, "sig": image_sig(raw, str(size))})
+        return out
+
+    def image_sig(raw: str, size: str) -> str:
+        key = store.settings.password.encode()
+        return hmac.new(key, f"cover\x1f{raw}\x1f{size}".encode(), hashlib.sha256).hexdigest()[:32]
 
     def artist_out(cat, r, request, params, marks, with_albums=False) -> dict:
         out = cat.artist_out(r, with_albums=with_albums, marks=marks)
@@ -532,7 +555,11 @@ def register(app, shared) -> None:
         if m == "updatePlaylist":
             raw = need(params, "playlistId")
             add = [song_of(cat, s).path for s in multi.get("songIdToAdd", []) if s in cat.songs]
-            remove = [int(i) for i in multi.get("songIndexToRemove", []) if i.isdigit()]
+            pl_now = listening.playlist(int(raw)) if raw.isdigit() else None
+            # The app's indexes count the songs it was shown, which leave out entries not in the
+            # library right now: map them back to the stored positions.
+            shown = [i for i, p in enumerate(pl_now.paths if pl_now else []) if make_id("s", p) in cat.songs]
+            remove = [shown[int(i)] for i in multi.get("songIndexToRemove", []) if i.isdigit() and int(i) < len(shown)]
             public = params.get("public")
             if not raw.isdigit() or not listening.update_playlist(
                     int(raw), name=params.get("name"), comment=params.get("comment"),
@@ -646,11 +673,10 @@ def register(app, shared) -> None:
                     offset = number(params, "timeOffset", 0, 10**6)
                     chunks = transcoder.stream(target, plan, offset)
                     if chunks is not None:
-                        headers = dict(CORS)
-                        if flag(params, "estimateContentLength", False):
-                            left = max(0, song.base.get("duration", 0) - offset)
-                            headers["Content-Length"] = str(int(left * plan.kbps * 125))
-                        return StreamingResponse(chunks, media_type=plan.content_type, headers=headers)
+                        # No Content-Length, even when asked to estimate one: the real size isn't known
+                        # until ffmpeg is done, and a guess too small cuts the end of the song off.
+                        return StreamingResponse(chunks, media_type=plan.content_type, headers=dict(CORS),
+                                                 background=BackgroundTask(chunks.close))
             return FileResponse(target, media_type=CONTENT_TYPES.get(suffix, "application/octet-stream"),
                                 content_disposition_type="attachment" if m == "download" else "inline",
                                 filename=target.name if m == "download" else None, headers=CORS)
@@ -686,8 +712,11 @@ def register(app, shared) -> None:
                 raise SubsonicError(WRONG_LOGIN, "Too many failed sign-ins. Try again in a few minutes.")
             if not store.settings.enabled:
                 raise SubsonicError(NOT_AUTHORIZED, "Music app access is off. Turn it on in Codetta: Account → Connections.")
+            signed = (method == "getCoverArt" and params.get("sig") and store.settings.password
+                      and hmac.compare_digest(params["sig"], image_sig(params.get("id", ""), params.get("size", ""))))
             try:
-                check_login(params, username(), store.settings.password)
+                if not signed:  # a signed picture link opens that picture only, without signing in
+                    check_login(params, username(), store.settings.password)
             except SubsonicError as exc:
                 if exc.code != MISSING:
                     limiter.failed(key)

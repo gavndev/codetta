@@ -29,6 +29,7 @@ from codetta.core.index import sfold
 LOCAL_NAMES = ("artist", "folder", "poster")
 LOCAL_EXTS = (".jpg", ".jpeg", ".png", ".webp")
 MISS_SECONDS = 7 * 24 * 3600  # how long "Deezer has no picture" is believed
+BUSY_SECONDS = 300  # after Deezer says it's busy (over quota), leave it alone this long
 MAX_CACHE_FILES = 5000
 
 
@@ -51,6 +52,7 @@ class ArtistArt:
         self.fetch_json = fetch_json
         self.fetch_image = fetch_image
         self._locks: dict[str, threading.Lock] = {}
+        self._busy_until = 0.0  # Deezer said it's busy: don't ask again before this
         self._guard = threading.Lock()
 
     def local(self, folder: str | None) -> tuple[bytes, str] | None:
@@ -93,7 +95,7 @@ class ArtistArt:
                 return None
         except OSError:
             pass
-        if not self.deezer_on():
+        if not self.deezer_on() or time.time() < self._busy_until:
             return None
         with self._guard:
             lock = self._locks.setdefault(key, threading.Lock())
@@ -104,6 +106,7 @@ class ArtistArt:
             try:
                 data = self._deezer(name)
             except DeezerBusy:
+                self._busy_until = time.time() + BUSY_SECONDS  # a music app syncing 800 artists won't keep the quota spent
                 return None  # Deezer is busy or over quota: no answer is not "no picture"
             self._store(hit if data else miss, data or b"")
             kind = _sniff(data) if data else None

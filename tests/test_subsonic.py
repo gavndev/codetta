@@ -340,8 +340,71 @@ def test_artist_info_and_settings_card(client):
     pw = turn_on(client)
     artist, _, _ = first_song_ids(client, pw)
     info = j(client, "getArtistInfo2", pw, id=artist)["artistInfo2"]
-    assert info["largeImageUrl"].startswith("http") and "getCoverArt" in info["largeImageUrl"] and "t=" in info["largeImageUrl"]  # it carries the request's own sign-in
+    url = info["largeImageUrl"]
+    assert url.startswith("http") and "getCoverArt" in url and "sig=" in url
+    assert "t=" not in url and "p=" not in url and pw not in url  # never the app's sign-in
+    from urllib.parse import parse_qs, urlsplit
+    q = {k: v[0] for k, v in parse_qs(urlsplit(url).query).items()}
+    anon = client.get("/rest/getCoverArt", params=q)  # opens without signing in...
+    assert anon.status_code == 200
+    body = client.get("/rest/getCoverArt", params={**q, "id": artist + "x"})
+    assert "error" in body.text  # ...but only that picture
+    body = client.get("/rest/getAlbumList2", params={"sig": q["sig"], "f": "json"}).json()["subsonic-response"]
+    assert body["status"] == "failed"  # and nothing else
+    https = client.get("/rest/getArtistInfo2", params={"u": "owner", "p": pw, "f": "json", "id": artist},
+                       headers={"X-Forwarded-Proto": "https"}).json()["subsonic-response"]["artistInfo2"]
+    assert https["largeImageUrl"].startswith("https://")
     j(client, "ping", pw, c="Symfonium")
     card = client.get("/api/subsonic").json()
     assert card["transcode"] is True and card["format"] == "mp3"
     assert {x["name"] for x in card["clients"]} == {"Symfonium", "test"}  # the tests' own client says "test"
+
+
+def test_removing_from_a_playlist_with_a_song_missing_from_the_library(client):
+    pw = turn_on(client)
+    _, _, songs = first_song_ids(client, pw)
+    paths = [j(client, "getSong", pw, id=s)["song"]["path"] for s in songs]
+    params = [("u", "owner"), ("p", pw), ("f", "json"), ("name", "Mix")] + [("songId", s) for s in songs]
+    pl = client.get("/rest/createPlaylist", params=params).json()["subsonic-response"]["playlist"]
+    assert client.post("/api/files/delete", json={"paths": [paths[1]]}).status_code == 200  # the middle song
+    for _ in range(200):  # the app's view of the library catches up
+        shown = j(client, "getPlaylist", pw, id=pl["id"])["playlist"].get("entry", [])
+        if len(shown) == 2:
+            break
+        time.sleep(0.05)
+    assert [e["id"] for e in shown] == [songs[0], songs[2]]
+    # The app removes what it shows at index 1: the third song, not the hidden deleted one.
+    client.get("/rest/updatePlaylist", params=[("u", "owner"), ("p", pw), ("f", "json"),
+                                               ("playlistId", pl["id"]), ("songIndexToRemove", "1")])
+    assert [e["id"] for e in j(client, "getPlaylist", pw, id=pl["id"])["playlist"]["entry"]] == [songs[0]]
+
+
+def test_one_odd_track_number_never_freezes_the_library():
+    from codetta.core.subsonic import Catalog, CatalogCache
+    cat = Catalog([("A/1.flac", 1, 1, {"tags": {"title": ["X"], "tracknumber": ["①"], "date": ["²⁰²⁰"]}})])
+    assert len(cat.songs) == 1
+    calls = {"n": 0}
+
+    def rows():
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise RuntimeError("boom")
+        return [("A/1.flac", 1, calls["n"], {"tags": {"title": ["X"]}})]
+
+    sig = {"v": 1}
+    cache = CatalogCache(rows, lambda: sig["v"], every=0)
+    assert cache.get()  # first build
+    sig["v"] = 2
+    cache.get()  # second build fails in the background
+    for _ in range(100):
+        if not cache._building:
+            break
+        time.sleep(0.01)
+    assert not cache._building  # not stuck: the next change is picked up
+    sig["v"] = 3
+    cache.get()
+    for _ in range(100):
+        if cache._sig == 3:
+            break
+        time.sleep(0.01)
+    assert cache._sig == 3

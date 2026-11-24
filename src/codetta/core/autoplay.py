@@ -23,7 +23,7 @@ import threading
 from collections import OrderedDict
 from collections.abc import Callable, Iterable
 
-from codetta.core.catalogs import deezer_artist
+from codetta.core.catalogs import DeezerBusy, deezer_artist
 
 log = logging.getLogger("codetta")
 
@@ -203,7 +203,10 @@ class Autoplay:
             name = _first(t, "albumartist") or _first(t, "artist")
             if not name:
                 continue
-            best = self._remember("dz-artist:" + name.lower(), lambda n=name: deezer_artist(self.fetch, n))
+            try:
+                best = self._remember("dz-artist:" + name.lower(), lambda n=name: deezer_artist(self.fetch, n, lenient=True))
+            except DeezerBusy:
+                continue  # Deezer is busy for this one: keep what the other seeds found
             if not best:
                 continue
             aid = int(best["id"])

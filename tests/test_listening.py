@@ -249,3 +249,81 @@ def test_the_cache_stays_within_its_budget(tmp_path):
         cache.get(jpeg(800, 800), f"k{i}", 200)
     cache.prune()
     assert len(list((tmp_path / "cache").glob("*.jpg"))) <= 1
+
+
+# --- Second review (0.13) -----------------------------------------------------------------------
+
+def test_a_stream_that_never_started_still_frees_its_slot(tmp_path):
+    class Proc:
+        def __init__(self, *a, **k):
+            self.stdout = io.BytesIO(b"x" * 10)
+            self.killed = False
+
+        def poll(self):
+            return None
+
+        def kill(self):
+            self.killed = True
+
+        def wait(self, timeout=None):
+            return 0
+
+    t = Transcoder("/usr/bin/ffmpeg", popen=Proc, max_jobs=1)
+    t._encoders = {"libmp3lame"}
+    plan = t.plan("mp3", 128, "flac", 1000)
+    s = t.stream(tmp_path / "a.flac", plan)
+    s.close()  # the app hung up before a single byte was sent
+    s.close()  # closing twice frees the slot only once
+    assert s.proc.killed
+    s2 = t.stream(tmp_path / "b.flac", plan)
+    assert s2 is not None  # the slot came back
+    del s2  # dropped without closing: garbage collection frees it
+    import gc
+    gc.collect()
+    assert t.stream(tmp_path / "c.flac", plan) is not None
+
+
+def test_history_merges_instead_of_being_wiped():
+    store = Listening(None)
+    store.star("s", ["Lib/X.flac"], fps={"Lib/X.flac": "fp"})
+    store.rate("s", "Lib/X.flac", 5)
+    for _ in range(50):
+        store.played("Lib/X.flac", fp="fp")
+    store.played("@inbox/X.flac", fp="fp")  # a re-download played in the inbox
+    # The inbox file isn't in the library view, but it isn't gone: nothing moves.
+    assert store.relink({"Lib/X.flac"}, {"fp": "Lib/X.flac"}, gone=lambda p: not p.startswith("@")) == 0
+    m = store.marks()["s"]["Lib/X.flac"]
+    assert (m.plays, m.rating, bool(m.starred)) == (50, 5, True)
+    store.move([("@inbox/X.flac", "Lib/X.flac")])  # filed on top of the same song: added together
+    m = store.marks()["s"]["Lib/X.flac"]
+    assert (m.plays, m.rating, bool(m.starred)) == (51, 5, True) and "@inbox/X.flac" not in store.marks()["s"]
+
+
+def test_lenient_deezer_match_is_only_for_autoplay():
+    from codetta.core.catalogs import deezer_artist
+    found = {"data": [{"id": 9, "name": "Beyoncé", "nb_fan": 1}]}
+    assert deezer_artist(lambda u: found, "Beyonce") is None  # pictures: never a near-miss
+    assert deezer_artist(lambda u: found, "Beyonce", lenient=True)["id"] == 9
+
+
+def test_busy_deezer_backs_off(tmp_path):
+    from codetta.core.artistart import ArtistArt
+    asked = []
+    art = ArtistArt(tmp_path / "m", tmp_path / "c", lambda: True,
+                    lambda u: asked.append(u) or {"error": {"code": 4}}, lambda u: None)
+    for name in ("A", "B", "C"):
+        assert art.picture(name) is None
+    assert len(asked) == 1  # asked once, then left alone for a while
+
+
+def test_listenbrainz_refuses_redirects():
+    import urllib.request
+
+    from codetta.core.listenbrainz import _NoRedirects
+    req = urllib.request.Request("https://api.listenbrainz.org/1/validate-token", headers={"Authorization": "Token x"})
+    assert _NoRedirects().redirect_request(req, None, 302, "Found", {}, "http://elsewhere/") is None
+
+
+def test_a_truncated_cover_is_left_alone():
+    good = jpeg(800, 800)
+    assert resize(good[: len(good) // 3], 100) is None  # cut short: the original is sent instead

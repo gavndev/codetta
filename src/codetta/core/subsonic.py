@@ -22,6 +22,7 @@ import base64
 import hashlib
 import hmac
 import json
+import logging
 import os
 import re
 import secrets
@@ -35,6 +36,8 @@ from pathlib import Path
 from xml.sax.saxutils import escape, quoteattr
 
 from codetta.core.index import sfold
+
+log = logging.getLogger("codetta")
 
 API_VERSION = "1.16.1"
 EXTENSIONS = [{"name": "apiKeyAuthentication", "versions": [1]}, {"name": "formPost", "versions": [1]},
@@ -110,7 +113,7 @@ def _split(values: list[str]) -> list[str]:
 
 def _int(text: str) -> int | None:
     head = (text or "").split("/")[0].strip()
-    return int(head) if head.isdigit() else None
+    return int(head) if head.isascii() and head.isdecimal() else None  # "①" or "²" are digits, not numbers
 
 
 def _float(text: str) -> float | None:
@@ -121,14 +124,14 @@ def _float(text: str) -> float | None:
 def _year(tags: dict) -> int | None:
     for key in ("originaldate", "date", "year"):
         y = (_first(tags, key) or "")[:4]
-        if y.isdigit():
+        if y.isascii() and y.isdecimal():
             return int(y)
     return None
 
 
 def _date(text: str) -> dict | None:
     """"2016-08-20" -> {"year": 2016, "month": 8, "day": 20} (OpenSubsonic ItemDate)."""
-    parts = re.findall(r"\d+", text or "")
+    parts = re.findall(r"[0-9]+", text or "")
     if not parts or len(parts[0]) != 4:
         return None
     out = {"year": int(parts[0])}
@@ -573,13 +576,19 @@ class CatalogCache:
         self._building = False
         self._lock = threading.Lock()
 
-    def _build(self, sig) -> Catalog:
-        cat = Catalog(self.rows())
+    def _build(self, sig) -> Catalog | None:
+        try:
+            cat = Catalog(self.rows())
+        except Exception:  # noqa: BLE001 - keep serving the last good catalogue, and try again later
+            log.exception("Music apps: couldn't rebuild the library view")
+            with self._lock:
+                self._building = False
+            return None
         if self.on_build is not None:
             try:
                 self.on_build(cat)
             except Exception:  # noqa: BLE001 - never lose the catalogue over a follow-up
-                pass
+                log.exception("Music apps: follow-up after a rebuild failed")
         with self._lock:
             self._catalog, self._sig, self._building = cat, sig, False
         return cat
@@ -591,7 +600,10 @@ class CatalogCache:
             if due:
                 self._checked = now
         if cat is None:
-            return self._build(self.signature())
+            built = self._build(self.signature())
+            if built is None:
+                raise SubsonicError(0, "Codetta couldn't read the library for music apps. The server log has the details.")
+            return built
         if due:
             sig = self.signature()
             if sig != self._sig:

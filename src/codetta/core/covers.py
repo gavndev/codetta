@@ -33,7 +33,7 @@ def resize(data: bytes, size: int) -> bytes | None:
 
     Image.MAX_IMAGE_PIXELS = MAX_PIXELS
     try:
-        with Image.open(io.BytesIO(data)) as im:
+        with Image.open(io.BytesIO(data), formats=("JPEG", "PNG", "WEBP", "GIF")) as im:
             if im.width * im.height > MAX_PIXELS or max(im.width, im.height) <= size:
                 return None
             im.draft("RGB", (size, size))  # JPEG: decode at a smaller scale straight away
@@ -42,7 +42,7 @@ def resize(data: bytes, size: int) -> bytes | None:
             out = io.BytesIO()
             img.save(out, "JPEG", quality=QUALITY, optimize=True, progressive=True)
             return out.getvalue()
-    except (OSError, ValueError, Image.DecompressionBombError, SyntaxError):
+    except Exception:  # noqa: BLE001 - a damaged cover is sent as it is, never an error
         return None
 
 

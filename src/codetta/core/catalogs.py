@@ -28,15 +28,20 @@ class DeezerBusy(Exception):
     """Deezer answered with an error (often "over quota"): try again later, don't conclude anything."""
 
 
-def deezer_artist(fetch: Callable[[str], object], name: str) -> dict | None:
+def deezer_artist(fetch: Callable[[str], object], name: str, lenient: bool = False) -> dict | None:
     """Deezer's artist for ``name``: the same name with the most fans (search can put a tiny namesake
-    first). None when Deezer has no artist by that name; DeezerBusy when it didn't really answer."""
+    first). None when Deezer has no artist by that name; DeezerBusy when it didn't really answer.
+    ``lenient``: fall back to Deezer's top hit ("Beyonce" finds "Beyoncé"); fine for related artists,
+    never for a picture (a stranger's face is worse than initials)."""
     found = fetch(f"{DEEZER_API}/search/artist?q={urllib.parse.quote(name)}&limit=10")
     if not isinstance(found, dict) or "error" in found or not isinstance(found.get("data"), list):
         raise DeezerBusy(str((found or {}).get("error") if isinstance(found, dict) else "no answer"))
     same = [a for a in found["data"] if isinstance(a, dict) and a.get("id")
             and str(a.get("name") or "").casefold() == name.casefold()]
-    return max(same, key=lambda a: a.get("nb_fan") or 0) if same else None
+    if same:
+        return max(same, key=lambda a: a.get("nb_fan") or 0)
+    top = [a for a in found["data"] if isinstance(a, dict) and a.get("id")][:1]
+    return top[0] if lenient and top else None
 ITUNES_API = "https://itunes.apple.com"
 SOURCES = ("deezer", "itunes", "discogs")
 Fetcher = Callable[[str], object]  # url -> parsed JSON (or None)
