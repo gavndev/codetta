@@ -160,6 +160,7 @@ results like a folder. Start with a bang to search elsewhere from the same box: 
 - **Music servers:** Navidrome, Subsonic servers, Jellyfin, Emby and Plex read Codetta's tags, and rescan straight after every change. [More →](docs/media-servers.md)
 - **Lidarr:** rescans after Codetta's edits, and Codetta warns about settings that would undo them. [More →](docs/lidarr.md)
 - **Autoplay:** when an album ends, similar songs from your library keep playing, picked by AudioMuse-AI, ListenBrainz or Deezer. [More →](docs/autoplay.md)
+- **Music apps:** Symfonium, Narjo, Arpeggi, Feishin and other Subsonic apps can play your library straight from Codetta (opt-in, read-only). [More →](docs/music-apps.md)
 - **Your phone:** big touch targets and a full-screen editor; add it to your home screen and it opens like an app.
 - **Optional:** Soulseek through your own slskd. [More →](docs/features.md#soulseek-through-slskd)
 

@@ -15,7 +15,10 @@ from codetta.web.app import Settings, create_app
 from tests.conftest import FIXTURES_DIR
 
 # Routes anyone may call without signing in.
-PUBLIC = {("GET", "/"), ("GET", "/api/health"), ("GET", "/api/changelog"), ("GET", "/api/auth/status"),
+# /rest/ (music apps) skips the session but signs in with the app password on every request
+# (tests/test_subsonic.py, tests/test_security.py::test_music_app_api_is_the_only_new_public_path).
+PUBLIC = {("GET", "/rest/{method}"), ("POST", "/rest/{method}"),
+          ("GET", "/"), ("GET", "/api/health"), ("GET", "/api/changelog"), ("GET", "/api/auth/status"),
           ("POST", "/api/auth/setup"), ("POST", "/api/auth/login"), ("POST", "/api/auth/logout"),
           ("POST", "/api/auth/password"),  # checks the session itself (tested below)
           ("GET", "/api/auth/desktop")}  # the desktop app's window signing in: 404 without its launch secret (test_desktop.py)

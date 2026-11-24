@@ -2,6 +2,10 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+- **Listen in your music apps:** Codetta can now serve your library over the Subsonic / OpenSubsonic API, so Symfonium, Narjo, Arpeggi, Feishin, DSub, Eclipse and other Subsonic apps can browse, search and play it, with covers, lyrics and similar songs. It's off until you switch it on (Account → Connections, or the new setup step), apps sign in with their own app password, and they can't change your files. See [Listen in your music apps](docs/music-apps.md).
+
 ## 0.11.2 (2026-11-23)
 
 Two fixes from your reports: folders whose names start with "@", and an Inbox that could get stuck loading.

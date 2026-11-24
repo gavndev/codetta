@@ -414,3 +414,19 @@ def test_a_search_waits_for_an_edit_the_background_is_storing(library, tmp_path)
     (_, _, track), = idx.stored([rel]).values()
     assert track["tags"]["genre"] == ["Drill"]  # stored by the time the search's flush returned
     t.join()
+
+
+def test_fingerprint_survives_many_files_and_notices_changes(library, tmp_path):
+    # Nanosecond modification times summed whole overflow SQLite's integers past ~5 files.
+    root, add, engine = library
+    for i in range(40):
+        add(f"Many/{i:02}.flac", title=f"t{i}", artist="A")
+    idx = make_index(root, tmp_path, engine)
+    idx.scan()
+    before = idx.fingerprint()
+    base = len(idx.catalog_rows())
+    assert before[0] == base >= 40
+    add("Many/40.flac", title="new", artist="A")
+    idx.scan()
+    assert idx.fingerprint() != before
+    assert len(idx.catalog_rows()) == base + 1

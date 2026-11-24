@@ -690,3 +690,20 @@ def test_file_downloads_need_sign_in(music, tmp_path):
         c.post("/api/auth/logout")
         c.cookies.clear()
         assert c.get(url).status_code == 401  # a prepared link is no use without signing in
+
+
+def test_music_app_api_is_the_only_new_public_path(tmp_path):
+    """/rest/ skips Codetta's session check because apps sign in with the app password on every
+    request; it must not open anything else, and it stays shut until switched on."""
+    from fastapi.testclient import TestClient
+
+    from codetta.web.app import Settings, create_app
+    (tmp_path / "music").mkdir()
+    app = create_app(Settings(music_dir=tmp_path / "music", config_dir=tmp_path / "config"))
+    with TestClient(app) as c:
+        c.post("/api/auth/setup", json={"username": "owner", "password": "a-long-enough-password-1"})
+        anon = TestClient(app)
+        assert anon.get("/rest/ping", params={"f": "json"}).json()["subsonic-response"]["error"]["code"] == 50
+        assert anon.get("/rest/../api/browse", params={"path": ""}).status_code in (401, 404)
+        assert anon.get("/api/subsonic").status_code == 401
+        assert anon.put("/api/subsonic", json={"enabled": True}).status_code == 401

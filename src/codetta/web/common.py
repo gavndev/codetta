@@ -307,6 +307,10 @@ class LidarrSettingsIn(BaseModel):
     names: Literal["auto", "codetta"] = "auto"
 
 
+class SubsonicSettingsIn(BaseModel):
+    enabled: bool
+
+
 class AudioMuseSettingsIn(BaseModel):
     url: str = Field("", max_length=500)
     token: str | None = Field(default=None, max_length=500)  # None: keep the saved token

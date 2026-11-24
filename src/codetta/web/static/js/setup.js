@@ -8,6 +8,7 @@ import { state, toast } from "./state.js";
 import { renderSlskdSettings, renderSlskdStep } from "./search.js";
 import { loadLidarr, renderLidarrSettings, renderLidarrStep } from "./lidarr.js";
 import { loadAudioMuse, renderAudioMuseSettings, renderAutoplayStep } from "./autoplay.js";
+import { renderSubsonicSettings, renderSubsonicStep } from "./subsonic.js";
 import { loadDiscogs, renderDiscogsSettings } from "./discogs.js";
 import { loadServer, renderServerSettings, renderServerStep } from "./mediaserver.js";
 import { renderFolderHead } from "./tools.js";
@@ -126,6 +127,7 @@ export function renderConnections() {
   loadSlskd().then(renderSlskdSettings);
   loadLidarr().then(renderLidarrSettings);
   loadAudioMuse().then(renderAudioMuseSettings);
+  renderSubsonicSettings();
   loadDiscogs().then(renderDiscogsSettings);
   loadServer().then(renderServerSettings);
   setKids($("#conn-list"), conn.connections.map((c) => connectionRow(c, c.enabled, async (item, input) => {
@@ -256,6 +258,8 @@ async function renderSetupStep(step) {
     await renderLidarrStep(form, step);
   } else if (step === "mediaserver") {
     await renderServerStep(form, step);
+  } else if (step === "subsonic") {
+    await renderSubsonicStep(form, step);
   } else if (step === "autoplay") {
     await loadAudioMuse();
     await renderAutoplayStep(form, step);

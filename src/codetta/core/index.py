@@ -611,6 +611,20 @@ class LibraryIndex:
             rows = self.db.execute("SELECT path, track FROM files ORDER BY path").fetchall()
         return [(p, _unpack(t)) for p, t in rows]
 
+    def catalog_rows(self) -> list[tuple[str, int, int, dict]]:
+        """Every indexed track as (path, size, mtime in ns, details): what music apps browse."""
+        with self._lock:
+            rows = self.db.execute("SELECT path, size, mtime, track FROM files ORDER BY path").fetchall()
+        return [(p, s or 0, m or 0, _unpack(t)) for p, s, m, t in rows]
+
+    def fingerprint(self) -> tuple:
+        """Changes whenever a file is added, removed or re-read (cheap: no track details)."""
+        with self._lock:
+            # Modification times are in nanoseconds: summed whole they'd overflow SQLite's integers
+            # after a handful of files, so only their low digits are added up.
+            return tuple(self.db.execute("SELECT COUNT(*), COALESCE(MAX(id), 0), COALESCE(SUM(mtime % 1000000007), 0), "
+                                         "COALESCE(SUM(size % 1000000007), 0) FROM files").fetchone())
+
     def stored(self, rels: list[str]) -> dict[str, tuple[int, int, dict]]:
         """What the index has for these files: path -> (mtime_ns, size, details)."""
         out: dict[str, tuple[int, int, dict]] = {}

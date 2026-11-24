@@ -133,6 +133,7 @@ from codetta.web.routes import (
     discogs as discogs_routes,
     autoplay as autoplay_routes,
     artists as artists_routes,
+    subsonic as subsonic_routes,
     musicbrainz,
     onboarding,
     organize,
@@ -147,7 +148,7 @@ from codetta.web.security import GuardMiddleware, SelectiveGZip
 
 # The order matters a little: an area can use what earlier areas share right away,
 # and reaches later ones through shared.later(...).
-ROUTES = (status, library, musicbrainz, tags, organize, onboarding, inbox, care, soulseek, lidarr_routes, mediaserver_routes, replaygain_routes, discogs_routes, autoplay_routes, artists_routes, explore, health, tools,
+ROUTES = (status, library, musicbrainz, tags, organize, onboarding, inbox, care, soulseek, lidarr_routes, mediaserver_routes, replaygain_routes, discogs_routes, autoplay_routes, artists_routes, subsonic_routes, explore, health, tools,
           files, support, activity, presets)
 # Also importable from here, as before the split.
 __all__ = ["ACTIVITY_VALUE_CHARS", "VERSION", "Settings", "_is_public_address", "_to_track_out", "app", "create_app"]
@@ -300,7 +301,8 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     # Everything needs a signed-in session except the page shell, its static
     # files, the sign-in endpoints themselves, and the health check.
     PUBLIC_PATHS = {"/", "/api/health", "/api/changelog"}  # the changelog is the public CHANGELOG.md
-    PUBLIC_PREFIXES = ("/static/", "/api/auth/")
+    # /rest/ is the music-app API: it signs in with its own app password on every request.
+    PUBLIC_PREFIXES = ("/static/", "/api/auth/", "/rest/")
 
     @app.middleware("http")
     async def require_sign_in(request: Request, call_next):
@@ -603,7 +605,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
 
     # --- The API, one area per module in codetta/web/routes ----------------------------------
     shared = Shared(
-        acoustid=acoustid, activity=activity, audiomuse_request=audiomuse_request, art_cache=art_cache, art_info=art_info, art_store=art_store,
+        accounts=accounts, acoustid=acoustid, activity=activity, audiomuse_request=audiomuse_request, art_cache=art_cache, art_info=art_info, art_store=art_store,
         catalog_fetch=catalog_fetch, connections=connections, discogs_fetch=fetch_discogs or discogs_fetch,
         discogs_token=discogs_token, download_art=download_art, editions=editions,
         engine=engine, fetch_catalog=fetch_catalog, fingerprinter=fingerprinter, folder_out=folder_out, meter=meter,
