@@ -38,6 +38,7 @@ export function applyConnections() {
   if (state.status) {
     state.status.lyrics_lookup = connectionOn("lyrics");
     state.status.musicbrainz = connectionOn("musicbrainz");
+    state.status.matching = ["musicbrainz", "deezer", "itunes", "discogs"].some(connectionOn);
   }
   renderFolderHead();
   if (state.editor) renderEditor();
