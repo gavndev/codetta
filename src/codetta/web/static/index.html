@@ -404,22 +404,46 @@
 
           <section class="set-section" data-section="listening" hidden>
             <div class="set-card" id="set-listening"></div>
+            <h3 class="set-group">Online</h3>
+            <div class="set-card conn-group">
+              <div class="conn-item" data-conn="listenbrainz"><div id="listenbrainz-box" data-keys="listenbrainz scrobble scrobbling history token"></div></div>
+              <div class="conn-item" data-conn="audiomuse"><div id="audiomuse-box" data-keys="audiomuse autoplay similar"></div></div>
+            </div>
           </section>
 
           <section class="set-section" data-section="apps" hidden>
-            <p class="hint set-lead">Play your library in Subsonic music apps like Symfonium, Narjo, Arpeggi or Eclipse.</p>
+            <h3 class="set-group">Music apps</h3>
+            <p class="hint set-lead">Play your library in Subsonic music apps like Symfonium, Narjo, Arpeggi or Eclipse. Codetta is the server, so nothing else is needed.</p>
             <div id="subsonic-box" data-keys="music apps subsonic opensubsonic symfonium narjo eclipse app password mobile data transcode convert"></div>
+            <h3 class="set-group">Your music server</h3>
+            <p class="hint set-lead">Already use Navidrome, Jellyfin, Emby or Plex? Codetta tells it when files change, so your edits show up there straight away.</p>
+            <div class="set-card conn-group">
+              <div class="conn-item" data-conn="mediaserver"><div id="mediaserver-box" data-keys="navidrome jellyfin emby plex music server scan"></div></div>
+            </div>
           </section>
 
           <section class="set-section" data-section="connections" hidden>
             <p class="hint conn-intro set-lead" id="conn-intro"></p>
-            <div class="set-card" id="conn-list" data-keys="connections online musicbrainz deezer itunes acoustid lyrics offline privacy updates"></div>
-            <div id="slskd-box" data-keys="soulseek slskd downloads"></div>
-            <div id="discogs-box" data-keys="discogs token"></div>
-            <div id="lidarr-box" data-keys="lidarr"></div>
-            <div id="listenbrainz-box" data-keys="listenbrainz scrobble scrobbling history token"></div>
-            <div id="audiomuse-box" data-keys="audiomuse autoplay similar"></div>
-            <div id="mediaserver-box" data-keys="navidrome jellyfin emby plex music server scan"></div>
+            <h3 class="set-group">Tags, covers and lyrics</h3>
+            <div class="set-card conn-group">
+              <div class="conn-item" data-conn="musicbrainz"></div>
+              <div class="conn-item" data-conn="acoustid"></div>
+              <div class="conn-item" data-conn="deezer"></div>
+              <div class="conn-item" data-conn="itunes"></div>
+              <div class="conn-item" data-conn="discogs"><div id="discogs-box" data-keys="discogs token"></div></div>
+              <div class="conn-item" data-conn="lyrics"></div>
+            </div>
+            <h3 class="set-group">Getting music</h3>
+            <div class="set-card conn-group">
+              <div class="conn-item" data-conn="slskd"><div id="slskd-box" data-keys="soulseek slskd downloads"></div></div>
+              <div class="conn-item" data-conn="lidarr"><div id="lidarr-box" data-keys="lidarr"></div></div>
+            </div>
+            <h3 class="set-group">Codetta</h3>
+            <div class="set-card conn-group">
+              <div class="conn-item" data-conn="updates"></div>
+            </div>
+            <div class="set-card" id="conn-list" data-keys="connections online offline privacy"></div>
+            <p class="hint set-lead">ListenBrainz and AudioMuse-AI are under Listening, your music server under Music apps &amp; server.</p>
           </section>
 
           <section class="set-section" data-section="about" hidden>

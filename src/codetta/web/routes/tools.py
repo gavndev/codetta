@@ -23,6 +23,7 @@ from codetta.web.common import (
     CoverExportIn,
     FromNamesIn,
     TracklistIn,
+    WipeIn,
     FolderRenameIn,
     PluginToggleIn,
     ReplaceIn,
@@ -347,6 +348,32 @@ def register(app, shared) -> None:
             return out
         what = f"“{body.find}” → “{body.replace}”" if body.replace else f"removed “{body.find}”"
         done, failed = apply_per_file(plan, f"Find & replace: {what} in {len(plan)} track{'s' if len(plan) != 1 else ''}")
+        return {**out, "changed": len(done), "failed": len(failed), "errors": failed[:20]}
+
+    @app.post("/api/tags/wipe")
+    def wipe_tags(body: WipeIn) -> dict:
+        """Remove every tag from these tracks (or a folder's), leaving the audio and the cover.
+        ``dry_run`` (the default) only counts; otherwise it writes, as one undoable activity entry."""
+        require_library()
+        targets = _unique(body.paths) if body.paths else (
+            audio_files(library, body.folder.strip("/"), False, MAX_PATHS_PER_REQUEST) if body.folder is not None else [])
+        if not targets:
+            raise HTTPException(422, "Choose some tracks or a folder.")
+        plan: dict[str, dict] = {}
+        unreadable = 0
+        for rel in targets:
+            try:
+                tags = engine.load_metadata(library.resolve(rel)).tags
+            except (MetadataError, LibraryPathError, OSError):
+                unreadable += 1
+                continue
+            if tags:
+                plan[rel] = dict.fromkeys(tags)
+        out = {"tracks": len(targets), "changing": len(plan), "unreadable": unreadable,
+               "tags": sum(len(c) for c in plan.values())}
+        if body.dry_run or not plan:
+            return out
+        done, failed = apply_per_file(plan, f"Wiped all tags from {len(plan)} track{'s' if len(plan) != 1 else ''}")
         return {**out, "changed": len(done), "failed": len(failed), "errors": failed[:20]}
 
     @app.post("/api/folders/new")

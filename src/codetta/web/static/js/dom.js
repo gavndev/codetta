@@ -63,9 +63,12 @@ export function replay(el, cls) {
  * Codetta's own confirmation sheet. Resolves true (confirmed) or false.
  * ask({ title, message, details, confirmLabel, cancelLabel, danger })
  */
-export function ask({ title, message = "", details = null, confirmLabel = "OK", cancelLabel = "Cancel", danger = false }) {
+export function ask({ title, message = "", details = null, confirmLabel = "OK", cancelLabel = "Cancel", danger = false, cls = "" }) {
   return new Promise((resolve) => {
     const d = $("#confirm-dialog");
+    if (d.extraCls?.length) d.classList.remove(...d.extraCls); // from the last ask()
+    d.extraCls = cls ? cls.split(" ") : [];
+    if (d.extraCls.length) d.classList.add(...d.extraCls);
     const ok = $("#confirm-ok");
     const cancel = $("#confirm-cancel");
     $("#confirm-title").textContent = title;

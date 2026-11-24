@@ -41,6 +41,7 @@ STEPS = [
     ("add a cover", None, ("ART", None, None)),
     ("remove the cover", _put_art, ("DELETE", lambda c: f"/api/art?{_art_query(c)}", None)),
     ("find & replace", None, ("POST", "/api/tracks/replace", {"folder": F, "find": "song", "replace": "tune", "dry_run": False})),
+    ("wipe all tags", None, ("POST", "/api/tags/wipe", {"folder": F, "dry_run": False})),
     ("change case", None, ("POST", "/api/actions/tagtools.case/run",
                            {"folder": F, "options": {"field": "all", "style": "upper"}, "dry_run": False})),
     ("fix garbled text", None, ("POST", "/api/actions/tagtools.fix-garbled/run",

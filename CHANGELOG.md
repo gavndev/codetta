@@ -2,6 +2,12 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+- **Settings sits in the middle of big screens:** on a wide or ultrawide monitor, Settings opens as a centred window instead of stretching from edge to edge.
+- **Tidier Settings:** each online service's switch now sits right above its own settings, and they're grouped by what they're for. ListenBrainz and AudioMuse-AI are under Listening, your music server (Navidrome, Jellyfin, Emby, Plex) is next to the music apps in **Music apps & server**, and Connections is split into tags, covers and lyrics; getting music; and Codetta itself.
+- **Wipe all tags:** a folder's **More** menu has a red **Wipe all tags**, which removes every tag from its tracks and keeps the audio and the cover. It asks twice, in the middle of the screen, and Activity can undo it.
+
 ## 0.14.0 (2026-11-24)
 
 One Settings page for everything Codetta lets you change.

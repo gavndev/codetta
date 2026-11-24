@@ -44,13 +44,15 @@ function folderTools(f) {
         title: "Save each album's embedded cover as cover.jpg in its folder, for players that look for one" } : null,
     f.tracks.length ? { icon: "wand", label: "Actions", group: "Fix tags", run: () => openActions(target, label),
       title: "Clean up titles, Title Case and trim spaces (you see every change first)" } : null,
+    f.tracks.length && !f.mb ? { icon: "trash", label: "Wipe all tags", group: "Danger", danger: true, run: () => wipeTags(target),
+      title: "Remove every tag from these tracks (asks twice; Activity can undo it)" } : null,
     state.path && !f.search && !f.mb ? { icon: "rename", label: "Rename folder", group: "Folder", run: renameFolder, title: "Rename this folder" } : null,
     !f.search && !f.mb ? { icon: "plus", label: "New folder", group: "Folder", run: newFolderHere, title: "Make a new folder in here" } : null,
     state.path && !f.search && !f.mb && !isSpecialPath(state.path) && (f.tracks.length || f.folders.length)
       ? { icon: "download", label: "Download as .zip", group: "Folder", run: () => downloadZip(state.path), title: "Download this folder as a .zip file" } : null,
   ].filter(Boolean).sort((a, b) => GROUPS.indexOf(a.group) - GROUPS.indexOf(b.group));
 }
-const GROUPS = [undefined, "Fix tags", "Folder"]; // menu order: ungrouped (Organize) first
+const GROUPS = [undefined, "Fix tags", "Folder", "Danger"]; // menu order: ungrouped (Organize) first
 
 const sizeText = (n) => (n >= 1e9 ? `${(n / 1e9).toFixed(1)} GB` : n >= 1e6 ? `${Math.round(n / 1e6)} MB` : `${Math.max(1, Math.round(n / 1e3))} KB`);
 
@@ -85,11 +87,34 @@ export async function downloadZip(path) {
   toast(`Zipping “${info.name}” (${plural(info.files, "file")}, ${sizeText(info.size)}). It downloads as it's made.`, "success");
 }
 
+/** Wipe all tags: asked twice, centre stage, because it leaves the tracks with nothing. */
+async function wipeTags(target) {
+  let info;
+  try { info = await api("POST", "/api/tags/wipe", { ...target, dry_run: true }); } catch (err) { toast(err.message, "error"); return; }
+  if (!info.changing) { toast(info.tracks ? "These tracks have no tags to wipe." : "There are no tracks here.", "success"); return; }
+  const n = plural(info.changing, "track");
+  if (!await ask({ title: "Wipe all tags?", cls: "confirm-center", danger: true, confirmLabel: "Continue",
+    message: `Every tag on ${n} is removed: titles, artists, album, track numbers, genres, lyrics and MusicBrainz IDs. The audio and the cover stay.`,
+    details: info.tracks > info.changing ? h("p", { class: "hint" }, `Tracks here that already have no tags: ${info.tracks - info.changing}.`) : null })) return;
+  if (!await ask({ title: "Are you sure?", cls: "confirm-center wipe-final-step", danger: true, confirmLabel: `Wipe ${n}`,
+    details: h("div", { class: "wipe-final" },
+      h("span", { class: "wipe-ico", "aria-hidden": "true" }, icon("trash")),
+      h("p", {}, `${n} will have no title, artist or album. Music apps will show them as unknown until you tag them again.`),
+      h("p", { class: "hint" }, "You can undo this from Activity.")) })) return;
+  try {
+    const r = await api("POST", "/api/tags/wipe", { ...target, dry_run: false });
+    toast(r.failed ? `Wiped ${plural(r.changed, "track")}, ${r.failed} couldn't be changed` : `Wiped the tags from ${plural(r.changed, "track")}`, r.failed ? "error" : "success");
+    folderCache.clear(); folderCovers.clear();
+    refreshActivity();
+    loadFolder(state.path, { keepScroll: true });
+  } catch (err) { toast(err.message, "error"); }
+}
+
 export function openToolsMenu(anchor, tools) {
   // Tools that name a group get a small heading above the first of them ("Fix tags", "Folder").
   const menu = h("div", { class: "tools-menu", role: "menu" }, tools.flatMap((t, i) => [
     t.group && t.group !== tools[i - 1]?.group ? h("div", { class: "tools-head", role: "presentation" }, t.group) : null,
-    h("button", { class: "tools-item", type: "button", role: "menuitem", title: t.title || null,
+    h("button", { class: `tools-item${t.danger ? " danger" : ""}`, type: "button", role: "menuitem", title: t.title || null,
       onclick: () => { menu.remove(); t.run(); } }, icon(t.icon), t.label)]));
   popMenu(anchor, menu);
 }
@@ -105,6 +130,9 @@ export function popMenu(anchor, menu) {
   // No room below (the selection bar sits at the bottom of the screen): open upwards instead.
   const up = r.bottom + 8 + menu.offsetHeight > window.innerHeight - 8 && r.top - 8 - menu.offsetHeight > 8;
   if (up) menu.style.top = `${r.top - 8 - menu.offsetHeight}px`;
+  // Taller than the room it has (a long menu on a phone): it scrolls instead of running off screen.
+  const room = up ? r.top - 16 : window.innerHeight - (r.bottom + 8) - 12;
+  if (menu.offsetHeight > room) menu.style.maxHeight = `${Math.max(160, room)}px`;
   menu.style.transformOrigin = `${up ? "bottom" : "top"} ${left > r.left - 1 ? "left" : "right"}`;
   replay(menu, "opening");
   const close = (e) => { if (!menu.contains(e.target) && e.target !== anchor) { menu.remove(); document.removeEventListener("pointerdown", close, true); } };

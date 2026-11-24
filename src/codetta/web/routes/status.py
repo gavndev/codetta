@@ -104,7 +104,8 @@ def register(app, shared) -> None:
         if settings.offline:
             raise HTTPException(403, f"{name} is unavailable: Codetta is set to stay offline (CODETTA_OFFLINE).")
         locked = connections.locked_by(cid)
-        where = f"it's turned off by {locked}" if locked else "turn it on in Settings → Connections"
+        section = {"listenbrainz": "Listening", "audiomuse": "Listening", "mediaserver": "Music apps & server"}.get(cid, "Connections")
+        where = f"it's turned off by {locked}" if locked else f"turn it on in Settings → {section}"
         raise HTTPException(403, f"{name} is off: {where}.")
 
     @app.get("/api/fields")

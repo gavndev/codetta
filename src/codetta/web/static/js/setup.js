@@ -118,25 +118,36 @@ export function renderConnections() {
   loadListenBrainz().then(renderListenBrainzSettings);
   loadDiscogs().then(renderDiscogsSettings);
   loadServer().then(renderServerSettings);
-  setKids($("#conn-list"), conn.connections.map((c) => connectionRow(c, c.enabled, async (item, input) => {
-    input.disabled = true;
-    try {
-      state.connections = await api("PUT", "/api/connections", { enabled: { [item.id]: input.checked } });
-      applyConnections();
-      if (item.id === "slskd") { await loadSlskd(); renderSlskdSettings(); }
-      if (item.id === "lidarr") { await loadLidarr(); renderLidarrSettings(); }
-      if (item.id === "audiomuse") { await loadAudioMuse(); renderAudioMuseSettings(); }
-      if (item.id === "listenbrainz") { await loadListenBrainz(); renderListenBrainzSettings(); }
-      if (item.id === "discogs") { await loadDiscogs(); renderDiscogsSettings(); }
-      if (item.id === "mediaserver") { await loadServer(); renderServerSettings(); }
-      if (item.id === "updates") refreshUpdate();
-    } catch (err) {
-      input.checked = !input.checked;
-      toast(err.message, "error");
-    } finally {
-      input.disabled = !!item.locked_by;
-    }
-  })));
+  // Each switch sits in its place in Settings (data-conn), right above its own setup box. One
+  // without a place yet (a new connection) goes in the card at the end of Connections.
+  const extras = [];
+  for (const [c, row] of conn.connections.map((c) => [c, connectionRow(c, c.enabled, onSwitch)])) {
+    const slot = document.querySelector(`#settings-dialog [data-conn="${c.id}"]`);
+    if (!slot) { extras.push(row); continue; }
+    slot.querySelector(":scope > .conn-row")?.remove();
+    slot.prepend(row);
+  }
+  setKids($("#conn-list"), extras);
+}
+
+async function onSwitch(item, input) {
+  input.disabled = true;
+  try {
+    state.connections = await api("PUT", "/api/connections", { enabled: { [item.id]: input.checked } });
+    applyConnections();
+    if (item.id === "slskd") { await loadSlskd(); renderSlskdSettings(); }
+    if (item.id === "lidarr") { await loadLidarr(); renderLidarrSettings(); }
+    if (item.id === "audiomuse") { await loadAudioMuse(); renderAudioMuseSettings(); }
+    if (item.id === "listenbrainz") { await loadListenBrainz(); renderListenBrainzSettings(); }
+    if (item.id === "discogs") { await loadDiscogs(); renderDiscogsSettings(); }
+    if (item.id === "mediaserver") { await loadServer(); renderServerSettings(); }
+    if (item.id === "updates") refreshUpdate();
+  } catch (err) {
+    input.checked = !input.checked;
+    toast(err.message, "error");
+  } finally {
+    input.disabled = !!item.locked_by;
+  }
 }
 
 // ---- First-run setup: a few plain steps, each skippable ------------------------------------------------

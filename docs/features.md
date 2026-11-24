@@ -105,11 +105,16 @@ covers straight from your photo library (HEIC included).
 ## Settings
 
 Every setting is in one place: open the person icon, then **Settings**. It is
-split into General, Library, Inbox, Listening, Music apps, Connections and
-About, and the search box finds any setting by name (try "naming"). Settings
+split into General, Library, Inbox, Listening, Music apps & server, Connections
+and About, and the search box finds any setting by name (try "naming"). Settings
 marked **This browser** (theme, language, Advanced, Autoplay, folder view) are
 kept in that browser only, so each device can differ; everything else applies to
-the whole server.
+the whole server. Each online service's switch sits right above its own settings:
+ListenBrainz and AudioMuse-AI under Listening, your Navidrome, Jellyfin, Emby or
+Plex under Music apps & server, everything else under Connections.
+
+To clear a folder completely, **More → Wipe all tags** removes every tag from its
+tracks (the audio and the cover stay). It asks twice, and Activity can undo it.
 
 ## And the rest
 

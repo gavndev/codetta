@@ -2682,7 +2682,7 @@ dialog.player-sheet { width: min(480px, calc(100vw - 32px)); }
 .btn.icon-expand.tool-more { display: none; }
 .tools-menu { position: fixed; z-index: 60; min-width: 200px; padding: 6px; border-radius: 14px; border: 1px solid var(--glass-line);
   background: color-mix(in oklab, var(--surface-raised) 94%, transparent); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
-  box-shadow: var(--shadow-lg); transform-origin: top right; }
+  box-shadow: var(--shadow-lg); transform-origin: top right; overflow-y: auto; overscroll-behavior: contain; }
 .tools-menu.opening { animation: glass-pop 220ms var(--spring); }
 .tools-item { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 0 12px; border: 0; border-radius: 10px;
   background: none; color: var(--text); font: inherit; font-size: 15px; text-align: left; cursor: pointer; }
@@ -3237,3 +3237,40 @@ dialog.settings::backdrop { background: var(--bg); }
   .set-section .lang-row select { flex: 1 1 100%; }
 }
 @media (prefers-reduced-motion: reduce) { .set-nav, .set-main { transition: none; } }
+
+/* ---- Wipe all tags: asked twice, in the middle of the screen (a phone too, not a bottom sheet) ---- */
+dialog.sheet.small.confirm-center { margin: auto; }
+.wipe-final { display: grid; justify-items: center; gap: 10px; text-align: center; padding-top: 6px; }
+.wipe-final p { margin: 0; }
+.wipe-ico { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 50%;
+  background: color-mix(in srgb, var(--danger, #c0392b) 14%, transparent); color: var(--danger, #c0392b); }
+.wipe-ico svg { width: 28px; height: 28px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+dialog.confirm.wipe-final-step .sheet-head { justify-content: center; text-align: center; }
+dialog.confirm.wipe-final-step .sheet-head h2 { width: 100%; }
+@media (max-width: 760px) {
+  dialog.sheet.small.confirm-center { width: calc(100vw - 32px); max-width: 420px; margin: auto; border-radius: 22px; border-bottom: 1px solid var(--border); }
+  dialog.sheet.small.confirm-center[open] { animation: glass-in 380ms var(--spring) both; }
+  dialog.sheet.small.confirm-center.closing { animation: glass-out 180ms var(--ease-in) forwards; }
+}
+
+/* ---- Settings on a big screen: a centred window, not a page stretched edge to edge ---- */
+@media (min-width: 1100px) {
+  dialog.settings {
+    inset: 0; width: min(1080px, calc(100vw - 64px)); height: min(860px, calc(100dvh - 64px)); margin: auto;
+    border: 1px solid var(--border); border-radius: 22px; overflow: hidden;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.28), 0 2px 8px rgba(0, 0, 0, 0.12);
+  }
+  dialog.settings::backdrop { background: rgba(0, 0, 0, 0.32); -webkit-backdrop-filter: blur(8px) saturate(115%); backdrop-filter: blur(8px) saturate(115%); }
+  dialog.settings[open]::backdrop { animation: fade-in 320ms ease both; }
+  .set-shell { grid-template-columns: 280px minmax(0, 1fr); padding-top: 0; }
+  .set-section, .set-results { max-width: 700px; margin: 0 auto; }
+  .set-head { max-width: 756px; width: 100%; margin: 0 auto; }
+}
+
+/* Connections: each switch with its own setup box right under it */
+.conn-item:empty { display: none; }
+.conn-item > .conn-row { padding: 10px 0; }
+.conn-item > [id$="-box"]:empty { display: none; }
+.conn-item > [id$="-box"] > .sk-settings { margin-top: 0; padding: 0 0 14px 0; border-top: 0; }
+.conn-item .sk-head { display: none; }
+.conn-group:not(:has(.conn-row)), .set-group:has(+ .conn-group:not(:has(.conn-row))) { display: none; }

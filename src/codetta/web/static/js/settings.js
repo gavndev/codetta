@@ -19,9 +19,9 @@ const SECTIONS = [
   { id: "general", title: "General", icon: "gear", sub: "Theme, language, your account" },
   { id: "library", title: "Library", icon: "folder", sub: "File names, Tidy up, editions, health" },
   { id: "inbox", title: "Inbox", icon: "inbox", sub: "Where new music lands, automatic filing" },
-  { id: "listening", title: "Listening", icon: "autoplay", sub: "Autoplay, scrobbling, folder view" },
-  { id: "apps", title: "Music apps", icon: "note", sub: "Symfonium, Narjo, Eclipse and other Subsonic apps" },
-  { id: "connections", title: "Connections", icon: "spark", sub: "What Codetta may reach online" },
+  { id: "listening", title: "Listening", icon: "autoplay", sub: "Autoplay, folder view, ListenBrainz" },
+  { id: "apps", title: "Music apps & server", icon: "note", sub: "Subsonic apps like Symfonium, and your Navidrome, Jellyfin or Plex" },
+  { id: "connections", title: "Connections", icon: "spark", sub: "Tags, covers, lyrics and downloads from online" },
   { id: "about", title: "About", icon: "info", sub: "Version, updates, help" },
 ];
 const sectionOf = (id) => SECTIONS.find((s) => s.id === id);
@@ -88,14 +88,11 @@ function drawLibrary() {
 
 function drawListening() {
   setKids($("#set-listening"),
-    row("Autoplay", "When your queue ends, similar songs keep playing. Codetta finds them with AudioMuse-AI, ListenBrainz or Deezer, whichever you turn on in Connections.",
+    row("Autoplay", "When your queue ends, similar songs keep playing. Codetta finds them with AudioMuse-AI or ListenBrainz (below) or Deezer (in Connections), whichever is on.",
       toggle(autoplayOn(), setAutoplay), { keys: "autoplay similar radio keep playing queue", local: true }),
     row("Folders", "How folders are shown when you browse your library.",
       segmented("Folders", [["list", "List"], ["grid", "Grid"]], folderView(), setFolderView),
-      { keys: "view list grid folders layout", local: true }),
-    row("Scrobble to ListenBrainz", "Add what you play, here and in your music apps, to your ListenBrainz history. Turn on ListenBrainz in Connections and add your token.",
-      h("button", { class: "btn small", type: "button", onclick: () => go("connections", "listenbrainz-box") }, "Set up"),
-      { keys: "listenbrainz scrobble scrobbling history" }));
+      { keys: "view list grid folders layout", local: true }));
 }
 
 const DRAW = {

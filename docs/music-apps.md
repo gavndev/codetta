@@ -59,7 +59,7 @@ Install ffmpeg with MP3 (LAME), Opus or AAC encoding (most systems' ffmpeg has a
 
 ## Scrobbling to ListenBrainz
 
-Turn on the **ListenBrainz** connection in Settings → Connections and add your user token there (from
+Turn on the **ListenBrainz** switch in Settings → Listening and add your user token there (from
 [listenbrainz.org](https://listenbrainz.org/settings/)). What you play in your music apps and in
 Codetta's own player is then added to your ListenBrainz listening history, which also makes its
 recommendations (and Autoplay's) better. Plays that can't be sent right away are kept and sent

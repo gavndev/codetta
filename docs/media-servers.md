@@ -12,7 +12,7 @@ server** connection asks for that scan for you.
 
 ## Connect your server
 
-Open **Settings → Connections** and turn on **Music server**. New installs (and
+Open **Settings → Music apps & server** and turn on **Music server**. New installs (and
 existing ones, once) are also asked "Which music server do you use?" during
 setup.
 
@@ -39,7 +39,7 @@ of the page that opens ends in `X-Plex-Token=…`; that's your token.
   minute. Servers re-read only the files that changed, so scans are quick.
 - **Music only.** Jellyfin, Emby and Plex scan only their music libraries,
   never films or shows.
-- **Scan now** in Settings → Connections asks for a scan whenever you like.
+- **Scan now** in Settings → Music apps & server asks for a scan whenever you like.
 
 Most servers notice changes by themselves when the music is on a local disk.
 They don't on network shares (NFS, SMB), where changes never reach them, and

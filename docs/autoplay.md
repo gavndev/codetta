@@ -16,7 +16,7 @@ Codetta asks these in order and uses the first that finds enough songs in your l
 
 | Source | What it knows | What it sends | Needs |
 |---|---|---|---|
-| **AudioMuse-AI** | Songs that *sound* alike: it has listened to your whole library | The playing song's title and artist, to your own AudioMuse-AI server | Your AudioMuse-AI server, connected in Settings → Connections |
+| **AudioMuse-AI** | Songs that *sound* alike: it has listened to your whole library | The playing song's title and artist, to your own AudioMuse-AI server | Your AudioMuse-AI server, connected in Settings → Listening |
 | **ListenBrainz** | Artists people listen to together, and their best-known recordings | The playing artist's MusicBrainz ID, to api.listenbrainz.org | MusicBrainz IDs in your tags (Find in MusicBrainz adds them). No account |
 | **Deezer** | Deezer's related artists | The playing artist's name, to api.deezer.com | Nothing. No account |
 | **Your library** | The same artist's other albums, then the same genre | Nothing: works offline | Nothing |
@@ -33,7 +33,7 @@ at most two songs by one artist, and never plays two songs from the same album i
 [AudioMuse-AI](https://github.com/NeptuneHub/AudioMuse-AI) analyses your music through
 your music server (Navidrome, Jellyfin and others). Once it has analysed your library:
 
-1. In Codetta, open Settings → Connections and switch on **AudioMuse-AI**.
+1. In Codetta, open Settings → Listening and switch on **AudioMuse-AI**.
 2. Enter its address as Codetta sees it, for example `http://192.168.1.50:8000`, or
    `http://audiomuse-ai-flask-app:8000` when both run on the same Docker network.
 3. If AudioMuse-AI's sign-in is on, enter its API token: the `API_TOKEN` setting of the

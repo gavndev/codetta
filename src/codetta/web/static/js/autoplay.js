@@ -1,4 +1,4 @@
-// Autoplay: the AudioMuse-AI connection (Settings → Connections) and the "Keep the music going" setup step.
+// Autoplay: the AudioMuse-AI connection (Settings → Listening) and the "Keep the music going" setup step.
 // Part of Codetta's page; app.js is the entry point (see the note at its top).
 
 import { $, h, icon, setKids } from "./dom.js";
@@ -21,7 +21,7 @@ function checkView(d) {
       h("p", { class: "hint" }, "Autoplay asks it first for songs that sound like the one playing."));
 }
 
-/** The connection fields (Settings → Connections and the setup step). */
+/** The connection fields (Settings → Listening and the setup step). */
 function fields(d) {
   const locked = d?.locked || {};
   return h("div", { class: "sk-fields" },
@@ -109,7 +109,7 @@ export async function renderAutoplayStep(form, step) {
     state.connections?.offline_locked ? h("p", { class: "conn-lock" }, "This server stays offline (CODETTA_OFFLINE), so Autoplay picks from your library alone.") : null,
     h("button", { class: "btn primary auth-submit", type: "submit" }, "Continue"),
     h("button", { class: "link-btn setup-skip", type: "button", onclick: () => finishStep(step) }, "Not now"),
-    h("p", { class: "auth-foot" }, "You can change these later in Settings → Connections."));
+    h("p", { class: "auth-foot" }, "You can change these later in Settings → Listening."));
   $('[name="ap-audiomuse"]', form).addEventListener("change", (e) => { amBox.hidden = !e.target.checked; });
   form.onsubmit = async (e) => {
     e.preventDefault();
