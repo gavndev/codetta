@@ -1,7 +1,6 @@
 // Connections, the first-run setup and What's new.
 // Part of Codetta's page; app.js is the entry point (see the note at its top).
 
-import { t as tr } from "./i18n.js";
 import { $, h, openDialog, setKids } from "./dom.js";
 import { api } from "./api.js";
 import { state, toast } from "./state.js";
@@ -22,7 +21,7 @@ import { refreshUpdate } from "./account.js";
 // ---- Connections: online features, all opt-in ------------------------------------------------
 //
 // Codetta is offline until the user turns a connection on (first-run card or
-// Account → Connections). An env var on the server can lock a switch.
+// Settings → Connections). An env var on the server can lock a switch.
 
 export async function loadConnections() {
   try { state.connections = await api("GET", "/api/connections"); } catch { state.connections = null; }
@@ -91,8 +90,8 @@ export async function submitWelcome(e) {
     applyConnections();
     if (connectionOn("updates")) refreshUpdate();
     toast(state.connections.offline
-      ? "Codetta will stay offline. You can change this in Account → Connections."
-      : "Online features are on. Change them any time in Account → Connections.", "success");
+      ? "Codetta will stay offline. You can change this in Settings → Connections."
+      : "Online features are on. Change them any time in Settings → Connections.", "success");
     nextSetupStep();
   } catch (err) {
     $("#welcome-error").textContent = err.message;
@@ -101,21 +100,8 @@ export async function submitWelcome(e) {
   }
 }
 
-const connOpenPref = () => { try { return localStorage.getItem("codetta-connections-open") === "1"; } catch { return false; } };
-
-/** Open or close the Connections section (remembered per browser). */
-export function setConnectionsOpen(open) {
-  $("#conn-toggle").setAttribute("aria-expanded", String(open));
-  $("#conn-body").hidden = !open;
-  $(".connections").classList.toggle("open", open);
-  try { localStorage.setItem("codetta-connections-open", open ? "1" : "0"); } catch { /* private mode */ }
-}
-
 export function renderConnections() {
   const conn = state.connections;
-  const on = conn ? conn.connections.filter((c) => c.enabled).map((c) => c.name.split(":")[0]) : [];
-  $("#conn-summary").textContent = !conn ? "" : on.length ? `On: ${on.map((n) => tr(n)).join(", ")}` : "Offline: nothing is sent anywhere";
-  setConnectionsOpen(connOpenPref());
   const intro = $("#conn-intro");
   if (!conn) {
     intro.textContent = "Couldn't load the connection settings.";
@@ -136,8 +122,6 @@ export function renderConnections() {
     input.disabled = true;
     try {
       state.connections = await api("PUT", "/api/connections", { enabled: { [item.id]: input.checked } });
-      const names = state.connections.connections.filter((c) => c.enabled).map((c) => c.name.split(":")[0]);
-      $("#conn-summary").textContent = names.length ? `On: ${names.map((n) => tr(n)).join(", ")}` : "Offline: nothing is sent anywhere";
       applyConnections();
       if (item.id === "slskd") { await loadSlskd(); renderSlskdSettings(); }
       if (item.id === "lidarr") { await loadLidarr(); renderLidarrSettings(); }
@@ -249,7 +233,7 @@ async function renderSetupStep(step) {
         try { await setHealthEnabled(false); } catch { /* it stays as it was */ }
         finishStep(step);
       } }, "Leave it off"),
-      h("p", { class: "auth-foot" }, "You can change this any time in Account."));
+      h("p", { class: "auth-foot" }, "You can change this any time in Settings."));
     form.onsubmit = async (e) => {
       e.preventDefault();
       try { await setHealthEnabled(true); } catch (err) { toast(err.message, "error"); return; }
@@ -295,12 +279,12 @@ const CONFIDENCE = [
 /** How sure Codetta must be before it files (Inbox) or tags (Tidy up) an album on its own: one
  * setting for both, saved as soon as it changes. */
 export function confidenceChooser(where) {
-  const other = where === "inbox" ? "Tidy up" : "the inbox";
+  const usedBy = { inbox: "Also used by Tidy up.", care: "Also used by the inbox.", settings: "Used by the inbox's automatic filing and by Tidy up." }[where] || "";
   const select = h("select", { "aria-label": "How sure Codetta must be" }, CONFIDENCE.map((c) => h("option", { value: c.id }, c.title)));
   const hint = h("span", { class: "hint" });
   const explain = () => {
     const c = CONFIDENCE.find((x) => x.id === select.value) || CONFIDENCE[0];
-    hint.textContent = `${c.sub} Every track still has to line up with the album, and anything Codetta does can be undone in Activity. Also used by ${other}.`;
+    hint.textContent = `${c.sub} Every track still has to line up with the album, and anything Codetta does can be undone in Activity. ${usedBy}`;
   };
   select.disabled = true;
   explain();
@@ -351,7 +335,7 @@ export function inboxSettingsFields(s, folders, external = { available: false })
       h("span", {}, "Add that folder to Codetta's Docker volumes as /inbox, then restart Codetta:"),
       h("pre", {}, "volumes:\n  - /path/to/downloads:/inbox"),
       h("span", {}, "It'll then show up here as your downloads folder. (Without Docker: set CODETTA_INBOX_DIR.)")) : null,
-    !connectionOn("musicbrainz") ? h("p", { class: "hint" }, "Online lookups are off, so albums are filed by their own tags. Turn on MusicBrainz in Account → Connections to match them automatically.") : null,
+    !connectionOn("musicbrainz") ? h("p", { class: "hint" }, "Online lookups are off, so albums are filed by their own tags. Turn on MusicBrainz in Settings → Connections to match them automatically.") : null,
     h("label", { class: "switch-row" },
       h("span", { class: "switch-text" },
         h("span", { class: "switch-title" }, "File confident matches automatically"),
@@ -362,7 +346,12 @@ export function inboxSettingsFields(s, folders, external = { available: false })
       h("span", { class: "switch-text" },
         h("span", { class: "switch-title" }, "Check for new music every 15 minutes"),
         h("span", { class: "switch-sub" }, "Off: Codetta only looks when you open the Inbox (so idle disks can sleep).")),
-      h("input", { type: "checkbox", role: "switch", name: "inbox-watch", checked: s.watch })));
+      h("input", { type: "checkbox", role: "switch", name: "inbox-watch", checked: s.watch })),
+    h("label", { class: "switch-row" },
+      h("span", { class: "switch-text" },
+        h("span", { class: "switch-title" }, "Move filed albums into your library"),
+        h("span", { class: "switch-sub" }, "Renamed and put in folders with your folder pattern. Off: albums are tagged but stay in the inbox folder.")),
+      h("input", { type: "checkbox", role: "switch", name: "inbox-organize", checked: s.organize !== false })));
 }
 
 export function readInboxFields(root) {
@@ -370,7 +359,7 @@ export function readInboxFields(root) {
     folder: $('[name="inbox-folder"]', root).value,
     auto: $('[name="inbox-auto"]', root).checked,
     watch: $('[name="inbox-watch"]', root).checked,
-    organize: true,
+    organize: $('[name="inbox-organize"]', root)?.checked ?? true,
   };
 }
 

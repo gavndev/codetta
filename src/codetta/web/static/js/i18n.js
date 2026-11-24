@@ -27,7 +27,7 @@ export function countWord(n, word, many) {
   return `${n} ${n === 1 ? word : many}`;
 }
 
-/** The language picked in Account ("" = follow the browser). */
+/** The language picked in Settings ("" = follow the browser). */
 export function chosenLanguage() {
   try { return localStorage.getItem(KEY) || ""; } catch { return ""; }
 }

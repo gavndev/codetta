@@ -57,3 +57,21 @@ def test_every_module_is_preloaded():
     html = (STATIC / "index.html").read_text("utf-8")
     preloaded = set(re.findall(r'<link rel="modulepreload" href="/static/js/([\w-]+\.js)">', html))
     assert preloaded == {p.name for p in (STATIC / "js").glob("*.js")}
+
+
+def test_settings_page_has_every_section_and_unique_ids():
+    """Settings took over the account sheet's boxes: each id must exist exactly once, or a renderer
+    fills the wrong copy."""
+    import collections
+    import re
+    html = (STATIC / "index.html").read_text("utf-8")
+    ids = collections.Counter(re.findall(r'\bid="([^"]+)"', html))
+    assert [k for k, n in ids.items() if n > 1] == []
+    for section in ("general", "library", "inbox", "listening", "apps", "connections", "about"):
+        assert f'data-section="{section}"' in html
+    for box in ("conn-list", "slskd-box", "subsonic-box", "listenbrainz-box", "lidarr-box", "mediaserver-box",
+                "set-pattern", "set-care", "set-inbox", "password-form", "log-tile", "lang-select"):
+        assert ids[box] == 1, box
+    js = (STATIC / "js" / "settings.js").read_text("utf-8")
+    for section in ("general", "library", "inbox", "listening", "apps", "connections", "about"):
+        assert f'id: "{section}"' in js

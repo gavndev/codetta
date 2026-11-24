@@ -91,7 +91,7 @@ def register(app, shared) -> None:
         ids = {first(p, "musicbrainz_albumid") for p in paths}
         status, note, title, tagged = care_mod.SKIPPED, "", "", paths if matched else []
         if not matched and not online:
-            status, note = care_mod.REVIEW, "Turn on MusicBrainz (Account → Connections) to match it"
+            status, note = care_mod.REVIEW, "Turn on MusicBrainz (Settings → Connections) to match it"
         elif not matched and loose:
             # A folder of loose songs: each one is matched as a song, on its own.
             tagged = []

@@ -114,7 +114,7 @@ class Catalogs:
             if self.discogs_token():
                 out += self._discogs_search(album, artist, limit)
             elif only == "discogs":
-                raise discogs_mod.DiscogsTokenError("Searching Discogs needs your Discogs token: add it in Account → Connections → Discogs.")
+                raise discogs_mod.DiscogsTokenError("Searching Discogs needs your Discogs token: add it in Settings → Connections → Discogs.")
         return out
 
     # --- Discogs ------------------------------------------------------------------------------
@@ -130,7 +130,7 @@ class Catalogs:
         except ProviderError as exc:
             if "(401)" in str(exc) or "(403)" in str(exc):
                 raise discogs_mod.DiscogsTokenError("Discogs turned down the token. Make a new one on discogs.com "
-                                                    "(Settings → Developers) and add it in Account → Connections.") from exc
+                                                    "(Settings → Developers) and add it in Settings → Connections.") from exc
             raise
 
     def fetch_discogs(self, url: str, headers: dict) -> object:
@@ -214,7 +214,7 @@ class Catalogs:
             raise LookupError(f"{source.title()} isn't on")
         if source == "discogs":  # one entry per album (a "master"), not every pressing
             if not self.discogs_token():
-                raise discogs_mod.DiscogsTokenError("Searching Discogs needs your Discogs token: add it in Account → Connections → Discogs.")
+                raise discogs_mod.DiscogsTokenError("Searching Discogs needs your Discogs token: add it in Settings → Connections → Discogs.")
             data = self._dg("/database/search?" + urllib.parse.urlencode({"q": text.strip(), "type": "master",
                                                                            "per_page": str(limit)})) or {}
             out = []

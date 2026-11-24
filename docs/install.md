@@ -86,9 +86,9 @@ library.
 
 ## Updating
 
-Your version is shown on the sign-in screen and in the account menu (the
-person icon). When a new release is out, a dot appears on that icon, and the
-account menu shows what's new and the commands to run:
+Your version is shown on the sign-in screen and in Settings → About. When a
+new release is out, a dot appears on the person icon, and Settings → About
+shows what's new and the commands to run:
 
 ```sh
 cd codetta

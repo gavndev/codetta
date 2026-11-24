@@ -2,6 +2,11 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+- **All settings in one place:** a new **Settings** page (person icon → Settings) has every setting Codetta has, in plain sections: General, Library, Inbox, Listening, Music apps, Connections and About. Search finds any setting by name, so the file naming pattern is one "naming" away. On a phone it works like your phone's own settings. The account menu is now just quick switches, and the Settings buttons in the inbox, Tidy up and Library health open the right part of the page.
+- **New switch:** whether the inbox moves filed albums into your library or only tags them (Settings → Inbox).
+
 ## 0.13.1 (2026-11-24)
 
 - **The snap is back up to date:** 0.13.0's snap couldn't be built, so snap installs now get everything from 0.13.0 (music apps in full, the "how sure Codetta must be" setting) with this release.

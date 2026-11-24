@@ -8,7 +8,7 @@ The **Lidarr** connection takes care of both.
 ## Connect them
 
 1. In Lidarr, copy the API key from **Settings → General → API Key**.
-2. In Codetta, open **Account → Connections**, turn on **Lidarr**, and enter
+2. In Codetta, open **Settings → Connections**, turn on **Lidarr**, and enter
    Lidarr's address (`http://lidarr:8686` on the same Docker network, or
    `http://192.168.1.50:8686`) and the key. Press **Save and test**.
 

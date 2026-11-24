@@ -1,7 +1,7 @@
 // Matching on MusicBrainz and switching editions.
 // Part of Codetta's page; app.js is the entry point (see the note at its top).
 
-import { $, ask, closeDialog, h, icon, openDialog, sentences, setKids } from "./dom.js";
+import { $, closeDialog, h, icon, openDialog, sentences, setKids } from "./dom.js";
 import { api } from "./api.js";
 import { fmtDuration, plural, relativeToFolder, state, toast } from "./state.js";
 import { folderCache, isSearch, loadFolder } from "./browse.js";
@@ -234,9 +234,9 @@ function editionsList(id) {
       c.current ? h("span", { class: "mb-edition-tag" }, "This one") : c.recommended ? h("span", { class: "mb-edition-tag rec" }, "Recommended") : null)))));
 }
 
-export async function openEditionPrefs() {
+export async function editionSettings() {
   let p;
-  try { p = await api("GET", "/api/editions"); } catch (err) { toast(err.message, "error"); return; }
+  try { p = await api("GET", "/api/editions"); } catch (err) { return h("p", { class: "error-box" }, err.message); }
   const sw = (name, title, sub, on) => h("label", { class: "switch-row" },
     h("span", { class: "switch-text" }, h("span", { class: "switch-title" }, title), h("span", { class: "switch-sub" }, sub)),
     h("input", { type: "checkbox", role: "switch", name, checked: on }));
@@ -257,14 +257,19 @@ export async function openEditionPrefs() {
     sw("avoid_deluxe", "Prefer the standard edition", "Skip deluxe and expanded editions, unless your files match one.", p.avoid_deluxe),
     h("label", { class: "field" }, h("span", { class: "field-label" }, "iTunes store"), store),
     h("p", { class: "hint" }, "Apple's catalogue differs by country, and some albums are only in some stores. Codetta tries the US store when this one has nothing."));
-  const ok = await ask({ title: "Album editions", confirmLabel: "Save", details: form,
-    message: "An album can have dozens of editions. When Codetta matches on its own (the inbox, Tidy up), it picks the one you'd pick." });
-  if (!ok) return;
-  try {
-    await api("PUT", "/api/editions", { original_year: $('[name="original_year"]', form).checked, format: format.value,
-      country: country.value, avoid_deluxe: $('[name="avoid_deluxe"]', form).checked, store: store.value });
-    toast("Saved", "success");
-  } catch (err) { toast(err.message, "error"); }
+  const save = h("button", { class: "btn primary", type: "button" }, "Save");
+  save.addEventListener("click", async () => {
+    save.disabled = true;
+    try {
+      await api("PUT", "/api/editions", { original_year: $('[name="original_year"]', form).checked, format: format.value,
+        country: country.value, avoid_deluxe: $('[name="avoid_deluxe"]', form).checked, store: store.value });
+      toast("Saved", "success");
+    } catch (err) { toast(err.message, "error"); }
+    finally { save.disabled = false; }
+  });
+  return h("div", { class: "set-pad" },
+    h("p", { class: "hint set-lead" }, "An album can have dozens of editions. When Codetta matches on its own (the inbox, Tidy up), it picks the one you'd pick."),
+    form, h("div", { class: "set-actions" }, save));
 }
 
 function mbPick(id) {

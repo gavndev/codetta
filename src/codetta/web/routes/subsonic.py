@@ -711,7 +711,7 @@ def register(app, shared) -> None:
             if limiter.retry_after(key):
                 raise SubsonicError(WRONG_LOGIN, "Too many failed sign-ins. Try again in a few minutes.")
             if not store.settings.enabled:
-                raise SubsonicError(NOT_AUTHORIZED, "Music app access is off. Turn it on in Codetta: Account → Connections.")
+                raise SubsonicError(NOT_AUTHORIZED, "Music app access is off. Turn it on in Codetta: Settings → Connections.")
             signed = (method == "getCoverArt" and params.get("sig") and store.settings.password
                       and hmac.compare_digest(params["sig"], image_sig(params.get("id", ""), params.get("size", ""))))
             try:

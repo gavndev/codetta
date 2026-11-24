@@ -1,4 +1,4 @@
-// Lidarr: keeping the user's Lidarr in step (Account → Connections and a setup step).
+// Lidarr: keeping the user's Lidarr in step (Settings → Connections and a setup step).
 // Part of Codetta's page; app.js is the entry point (see the note at its top).
 
 import { $, h, icon, setKids } from "./dom.js";
@@ -41,7 +41,7 @@ function checkView(d) {
         : `Last asked Lidarr to rescan ${d.last_sync.folders} folders ${ago(d.last_sync.at)}.`)) : null);
 }
 
-/** The connection fields (Account → Connections and the setup step). */
+/** The connection fields (Settings → Connections and the setup step). */
 function fields(d) {
   const locked = d?.locked || {};
   return h("div", { class: "sk-fields" },
@@ -120,7 +120,7 @@ export async function renderLidarrStep(form, step) {
     fields(null),
     h("button", { class: "btn primary auth-submit", type: "submit" }, "Connect Lidarr"),
     h("button", { class: "link-btn setup-skip", type: "button", onclick: () => finishStep(step) }, "I don't use Lidarr"),
-    h("p", { class: "auth-foot" }, "You can connect it later in Account → Connections."));
+    h("p", { class: "auth-foot" }, "You can connect it later in Settings → Connections."));
   let shown = false;
   form.onsubmit = async (e) => {
     e.preventDefault();

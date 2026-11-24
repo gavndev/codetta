@@ -1,4 +1,4 @@
-// Music apps: the Subsonic / OpenSubsonic API (Account → Connections and a setup step).
+// Music apps: the Subsonic / OpenSubsonic API (Settings → Connections and a setup step).
 // Part of Codetta's page; app.js is the entry point (see the note at its top).
 
 import { $, h, setKids } from "./dom.js";
@@ -105,7 +105,7 @@ export async function renderSubsonicStep(form, step) {
       + "It's off unless you turn it on, apps sign in with their own password, and they can't change your files. Already run Navidrome? You can skip this."),
     h("button", { class: "btn primary auth-submit", type: "submit" }, "Turn it on"),
     h("button", { class: "link-btn setup-skip", type: "button", onclick: () => finishStep(step) }, "Not now"),
-    h("p", { class: "auth-foot" }, "You can change this later in Account → Connections."));
+    h("p", { class: "auth-foot" }, "You can change this later in Settings → Connections."));
   form.onsubmit = async (e) => {
     e.preventDefault();
     try {

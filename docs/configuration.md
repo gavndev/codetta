@@ -29,7 +29,7 @@ All optional. Set them under `environment:` in your
 Codetta is **fully offline unless you opt in**. Online features are called
 *connections*, and they're all off until you turn them on. You can do that on
 the welcome card after creating your account, any time in
-**Account → Connections**, or with these settings. Setting one locks its
+**Settings → Connections**, or with these settings. Setting one locks its
 switch in the app, which is handy if you manage everything from your compose file.
 
 | Variable | Default | What it does |

@@ -26,7 +26,7 @@ def register(app, shared) -> None:
         result = updates.status(force=force)
         if result.get("update_available") and result.get("latest"):
             notices.add("update", f"Codetta {result['latest']} is out",
-                      "See what's new and how to update in Account.", {"open": "account"},
+                      "See what's new and how to update in Settings → About.", {"open": "about"},
                       key=f"update:{result['latest']}")
         return result
 
@@ -104,7 +104,7 @@ def register(app, shared) -> None:
         if settings.offline:
             raise HTTPException(403, f"{name} is unavailable: Codetta is set to stay offline (CODETTA_OFFLINE).")
         locked = connections.locked_by(cid)
-        where = f"it's turned off by {locked}" if locked else "turn it on in Account → Connections"
+        where = f"it's turned off by {locked}" if locked else "turn it on in Settings → Connections"
         raise HTTPException(403, f"{name} is off: {where}.")
 
     @app.get("/api/fields")

@@ -8,6 +8,9 @@ import { discInfo, navigate, visibleTracks } from "./browse.js";
 import { artUrlFor, openEditor } from "./editor.js";
 import { artistButton } from "./artists.js";
 
+/** Is Autoplay on (in this browser)? */
+export const autoplayOn = () => player.autoplay;
+
 // ---- Player: a quick listen, straight from the file -------------------------------------------
 //
 // One shared <audio>, streaming /api/stream (the server sends the file as-is
@@ -90,7 +93,7 @@ function extendQueue() {
   return player.extending;
 }
 
-function setAutoplay(on) {
+export function setAutoplay(on) {
   player.autoplay = on;
   try { localStorage.setItem("codetta-autoplay", on ? "1" : "0"); } catch { /* private mode */ }
   if (!on) { // drop the Autoplay songs that haven't played yet (and any still on their way)

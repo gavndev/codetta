@@ -12,6 +12,7 @@ import { connectionOn, inboxLabel, inboxSettingsFields, readInboxFields } from "
 import { mbMeta, mbThumb, openMusicBrainzFor } from "./musicbrainz.js";
 import { pollNotifications } from "./notifications.js";
 import { pickImport } from "./files.js";
+import { openSettings } from "./settings.js";
 
 // ---- Inbox: new music waiting to be filed -------------------------------------------------------------
 
@@ -42,6 +43,26 @@ export async function openInbox() {
   setKids($("#inbox-body"), h("p", { class: "loading" }, "Looking in your inbox…"));
   setKids($("#inbox-foot"));
   await loadInbox();
+}
+
+/** Settings → Inbox: the folder, automatic filing, watching and moving, saved with a button. */
+export async function inboxSettings() {
+  let d, root;
+  try { [d, root] = await Promise.all([api("GET", "/api/inbox"), api("GET", "/api/browse?path=").catch(() => ({ folders: [] }))]); }
+  catch (err) { return h("p", { class: "error-box" }, err.message); }
+  const form = h("form", { class: "inbox-settings set-pad" },
+    h("p", { class: "hint set-lead" }, "The folder new music lands in (downloads, rips). Codetta finds each album on MusicBrainz and files it into your music folder."),
+    inboxSettingsFields(d.settings, root.folders, d.external),
+    h("div", { class: "set-actions" }, h("button", { class: "btn primary", type: "submit" }, "Save")));
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    try {
+      inboxState.data = await api("PUT", "/api/inbox/settings", readInboxFields(form));
+      refreshInboxBadge(inboxState.data);
+      toast("Saved", "success");
+    } catch (err) { toast(err.message, "error"); }
+  });
+  return form;
 }
 
 export async function loadInbox() {
@@ -180,7 +201,7 @@ function renderInbox() {
         h("button", { class: "btn small with-icon", type: "button", onclick: pickImport }, icon("upload"), "Import"),
         skReady() ? h("button", { class: "btn small with-icon", type: "button", onclick: () => { closeDialog($("#inbox-dialog")); openSoulseek(); } },
           icon("slskd"), "Soulseek") : null,
-        h("button", { class: "btn small with-icon", type: "button", onclick: () => { inboxState.settingsOpen = true; renderInbox(); } },
+        h("button", { class: "btn small with-icon", type: "button", onclick: () => { closeDialog($("#inbox-dialog")); openSettings("inbox"); } },
           icon("gear"), "Settings"))),
     d.groups.length ? h("div", { class: "inbox-list" }, d.groups.flatMap((g, i) => {
       const filed = d.groups.filter((x) => x.status === "filed");

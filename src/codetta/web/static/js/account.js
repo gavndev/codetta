@@ -11,12 +11,12 @@ import { isPhone, renderFolderHead, renderFolders, renderTracks } from "./tools.
 import { isDirty } from "./editor.js";
 import { refreshActivity, startActivityPolling } from "./activity.js";
 import {
-  loadConnections, openNews, renderConnections, runSetup, setConnectionsOpen, submitWelcome,
-  welcomeModeChanged,
+  openNews, runSetup, submitWelcome, welcomeModeChanged,
 } from "./setup.js";
 import { loadSlskd, openInbox, sk } from "./inbox.js";
 import { closeNotifications, openNotifications, pollNotifications, showStatus } from "./notifications.js";
 import { bindEvents } from "./wiring.js";
+import { openSettings } from "./settings.js";
 
 // ---- Sign in ----------------------------------------------------------------------------------------
 
@@ -81,7 +81,7 @@ function avatarUrl() {
   return v ? `/api/account/avatar?v=${v}` : null;
 }
 
-function renderAvatar() {
+export function renderAvatar() {
   const url = avatarUrl();
   const btn = $("#account-btn");
   btn.classList.toggle("has-avatar", !!url);
@@ -91,6 +91,8 @@ function renderAvatar() {
     ? h("img", { src: url, alt: "" })
     : h("span", { class: "avatar-initial", "aria-hidden": "true" }, (Array.from(name)[0] || "?").toUpperCase()));
   $("#avatar-remove").hidden = !url;
+  setKids($("#cc-avatar"), url ? h("img", { src: url, alt: "" })
+    : h("span", { class: "avatar-initial" }, (Array.from(name)[0] || "?").toUpperCase()));
 }
 
 /** Decode any image the browser can read (HEIC works in Safari / on iPhone). */
@@ -183,6 +185,8 @@ export function syncAccountTiles() {
   $("#cc-theme-state").textContent = { system: "Automatic", light: "Light", dark: "Dark" }[theme];
   if (!$("#cc-health-icon").firstChild) $("#cc-health-icon").append(icon("pulse"));
   if (!$("#cc-advanced-icon").firstChild) $("#cc-advanced-icon").append(icon("code"));
+  if (!$("#cc-settings-icon").firstChild) $("#cc-settings-icon").append(icon("gear"));
+  $("#advanced-toggle").checked = state.advanced;
 }
 
 export function setPasswordOpen(open) {
@@ -192,22 +196,11 @@ export function setPasswordOpen(open) {
   if (open) setTimeout(() => $("#pw-current").focus(), 50);
 }
 
-export function openAccount() {
-  renderAvatar();
-  renderAbout();
-  if (!state.update) refreshUpdate();
-  renderConnections();
-  loadConnections().then(renderConnections); // pick up changes from other devices
-  api("GET", "/api/library-health/summary").then((s) => { $("#health-toggle").checked = s.enabled !== false; }).catch(() => {});
+/** The account fields in Settings → General (shown only with sign-in on, never in the desktop app). */
+export function syncAccountSettings() {
   const a = state.auth || {};
-  // With sign-in off (behind a proxy that handles it) this is just Settings.
   const signedIn = !!a.auth_enabled;
-  $("#account-title").textContent = signedIn ? "Account" : "Settings";
-  $(".profile").hidden = !signedIn;
-  // The desktop app signs its own window in: no signing out (there'd be no password to sign back
-  // in with), and Quit Codetta instead, for when it opened in a browser tab.
-  $("#sign-out").hidden = !signedIn || !!a.desktop;
-  $("#quit-app").hidden = !a.desktop;
+  $("#set-account-title").hidden = $("#set-account-card").hidden = !signedIn;
   $("#account-name").textContent = a.username || "";
   $("#pw-username").value = a.username || "";
   $("#pw-tile").hidden = !signedIn || !!a.desktop;
@@ -215,6 +208,25 @@ export function openAccount() {
   setPasswordOpen(false);
   $("#pw-env-note").hidden = !signedIn || !a.managed_by_env;
   $("#pw-error").hidden = true;
+  renderAvatar();
+  renderAbout();
+  if (!state.update) refreshUpdate();
+}
+
+export function openAccount() {
+  const a = state.auth || {};
+  // With sign-in off (behind a proxy that handles it) there's no account: straight to Settings.
+  if (!a.auth_enabled) { openSettings(); return; }
+  renderAvatar();
+  api("GET", "/api/library-health/summary").then((s) => { $("#health-toggle").checked = s.enabled !== false; }).catch(() => {});
+  // The desktop app signs its own window in: no signing out (there'd be no password to sign back
+  // in with), and Quit Codetta instead, for when it opened in a browser tab.
+  $("#sign-out").hidden = !!a.desktop;
+  $("#quit-app").hidden = !a.desktop;
+  $("#cc-name").textContent = a.username || "";
+  const u = state.update;
+  $("#cc-update-row").hidden = !u?.update_available;
+  if (u?.update_available) $("#cc-update-title").textContent = `Codetta ${u.latest} is available`;
   syncAccountTiles();
   placeAccount();
   openDialog($("#account-dialog"));
@@ -228,7 +240,7 @@ async function changePassword(e) {
   try {
     await api("POST", "/api/auth/password", { current_password: $("#pw-current").value, new_password: next });
     for (const id of ["#pw-current", "#pw-new", "#pw-confirm"]) $(id).value = "";
-    closeDialog($("#account-dialog"));
+    setPasswordOpen(false);
     toast("Password changed. Your other devices were signed out.", "success");
   } catch (error) {
     err.textContent = error.message;
@@ -249,7 +261,6 @@ export async function boot() {
   bindEvents();
   $("#auth-form").addEventListener("submit", submitAuth);
   $("#welcome-form").addEventListener("submit", submitWelcome);
-  $("#conn-toggle").addEventListener("click", () => setConnectionsOpen($("#conn-body").hidden));
   $("#inbox-btn").addEventListener("click", openInbox);
   // The search bar widens while you use it; on phones a Cancel button slides in (like iOS).
   const wrap = $("#search-wrap");
@@ -352,7 +363,7 @@ export async function refreshUpdate(force = false) {
 
 const UPDATE_STEPS = "cd /path/to/codetta\ndocker compose pull\ndocker compose up -d";
 
-function renderAbout() {
+export function renderAbout() {
   const u = state.update;
   const status = $("#update-status");
   const box = $("#update-box");

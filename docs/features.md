@@ -42,7 +42,7 @@ service. Press <kbd>Enter</kbd> to search it:
 
 Deezer and iTunes results mark what's already in your library and link to the
 album there, or start a Find in slskd. Each bang only works when its connection
-is switched on (Account → Connections), and only the words you type are sent.
+is switched on (Settings → Connections), and only the words you type are sent.
 
 <p align="center">
   <img src="media/bangs.webp" alt="Typing bangs in the search bar: the Deezer chip and its note about release years, Deezer and iTunes albums with the ones already in the library marked, then !mb for artists on MusicBrainz" width="900">
@@ -84,7 +84,7 @@ never overwritten.
 ## In your language
 
 Codetta's page is in **English** and **Spanish**. It follows your browser's
-language, and **Account → Language** picks one for that browser. Your music is
+language, and **Settings → General → Language** picks one for that browser. Your music is
 never translated: titles, artists and folder names show exactly as they are.
 More languages are welcome: see [Translating Codetta](translating.md).
 
@@ -101,6 +101,15 @@ covers straight from your photo library (HEIC included).
   &nbsp;
   <img src="screenshots/phone-editor.png" alt="Track editor on a phone" width="260">
 </p>
+
+## Settings
+
+Every setting is in one place: open the person icon, then **Settings**. It is
+split into General, Library, Inbox, Listening, Music apps, Connections and
+About, and the search box finds any setting by name (try "naming"). Settings
+marked **This browser** (theme, language, Advanced, Autoplay, folder view) are
+kept in that browser only, so each device can differ; everything else applies to
+the whole server.
 
 ## And the rest
 
@@ -123,7 +132,7 @@ covers straight from your photo library (HEIC included).
   animations (off when your system asks for reduced motion).
 - **Recently deleted.** Deleted files are kept for 30 days in your account
   menu, where you can restore them.
-- **Report a problem** (in your account menu) gathers your version, setup and
+- **Report a problem** (in Settings → About) gathers your version, setup and
   recent warnings into a GitHub issue for you to finish, so a bug report
   takes a minute. Nothing is sent until you open it on GitHub, and you can
   look it over first (log lines can include file and folder names).
@@ -149,7 +158,7 @@ link instead of searching.
 **Editions.** An album can have dozens of editions (the original, remasters,
 deluxe sets, CD, vinyl, digital, one per country). **Other editions** lists
 them all so you can switch to the one that matches your copy. Under **Album
-editions** in your account menu you choose which one Codetta prefers when it
+editions** in Settings → Library you choose which one Codetta prefers when it
 matches on its own (in the inbox and Tidy up): the album's original year even
 for a reissue, a format, a country, and the standard edition over deluxe ones
 unless your files match. Preferences only reorder the choices; they never make
@@ -168,7 +177,7 @@ into the Find dialog. It brings the label, catalogue number, barcode, country,
 format, styles and per-track credits (producer, mixer, engineer, composer,
 lyricist, arranger, remixer). Pasting a link works as it is; searching needs a
 free personal token from discogs.com (Settings → Developers → Generate new
-token), saved in Account → Connections → Discogs and never shown again.
+token), saved in Settings → Connections → Discogs and never shown again.
 
 <p align="center">
   <img src="media/match.webp" alt="Matching Rumours on MusicBrainz, opening Other editions and switching to the recommended CD edition, with every change listed per file" width="900">
@@ -210,6 +219,9 @@ which gives `Kōsei Mori/Northern Signal (2021)/03 Harbour Lights.flac`
 (`2-03` on multi-disc albums). `{a|b}` uses the first tag that has a value,
 `[ … ]` disappears when a tag in it is empty, and `/` starts a folder. Pick a
 starting pattern, tap tag buttons to build your own, and watch the live example.
+
+Your default pattern lives in **Settings → Library → File and folder names**.
+Organize, Tidy up (with names and folders on) and the inbox all use it.
 
 You see every move before anything happens. Codetta never overwrites a file:
 if a name is taken, that file is listed and left alone. Lyrics files
@@ -319,8 +331,8 @@ thousands of albums is checked in well under a second.
 ## Tidy up your library
 
 Library health points things out; **Tidy up** fixes them for you, in the
-background. Choose once (it's a setup step, and under **Tidy up** in your
-account menu):
+background. Choose once (it's a setup step, and under **Tidy up** in
+Settings → Library):
 
 - **Leave my files alone:** Codetta won't change anything on its own.
 - **Fix tags only:** each album is looked up and its tags fixed (names,
@@ -446,7 +458,7 @@ then Save. Navidrome and most players read synced lyrics straight from the tag.
 
 ## Advanced mode
 
-Turn on **Advanced mode** in the account menu to see a **Raw tags** section in
+Turn on **Advanced mode** in the account menu (or Settings → General) to see a **Raw tags** section in
 the editor: every field exactly as the file stores it (ID3 frames, MP4 atoms,
 Vorbis comments, APEv2 items, WMA attributes and embedded pictures).
 

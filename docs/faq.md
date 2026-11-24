@@ -36,7 +36,7 @@ served from your own server. After you create your account, Codetta asks
 whether to stay offline or turn on online features ("connections"):
 **Match on MusicBrainz** (with cover art), **Identify by sound** (AcoustID),
 **Find lyrics** (LRCLIB) and the **update check**. Each one says exactly what it sends and where. Change them
-any time in **Account → Connections**, or lock them with environment variables;
+any time in **Settings → Connections**, or lock them with environment variables;
 `CODETTA_OFFLINE=on` blocks them all (see [Configuration](configuration.md)).
 
 **How does Find in MusicBrainz work?**

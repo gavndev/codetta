@@ -16,7 +16,7 @@ its tags right. This is for libraries that only have Codetta.
 
 ## Turn it on
 
-1. In Codetta, open **Account → Connections** and switch on **Listen in your music apps** (or
+1. In Codetta, open **Settings → Music apps** and switch on **Listen in your music apps** (or
    say yes in the setup step).
 2. In your app, add a **Subsonic** (or **Navidrome**) server with:
    - **Server address:** the address you open Codetta at, e.g. `http://192.168.1.50:8111`
@@ -59,7 +59,7 @@ Install ffmpeg with MP3 (LAME), Opus or AAC encoding (most systems' ffmpeg has a
 
 ## Scrobbling to ListenBrainz
 
-Turn on the **ListenBrainz** connection in Account → Connections and add your user token (from
+Turn on the **ListenBrainz** connection in Settings → Connections and add your user token there (from
 [listenbrainz.org](https://listenbrainz.org/settings/)). What you play in your music apps and in
 Codetta's own player is then added to your ListenBrainz listening history, which also makes its
 recommendations (and Autoplay's) better. Plays that can't be sent right away are kept and sent

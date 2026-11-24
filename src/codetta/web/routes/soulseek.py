@@ -74,9 +74,9 @@ def register(app, shared) -> None:
 
     def sk_ready() -> None:
         if not connections.enabled("slskd"):
-            raise HTTPException(403, "Soulseek is off. Turn it on in Account → Connections.")
+            raise HTTPException(403, "Soulseek is off. Turn it on in Settings → Connections.")
         if not soulseek_store.configured:
-            raise HTTPException(409, "Connect your slskd first: Account → Connections → Soulseek.")
+            raise HTTPException(409, "Connect your slskd first: Settings → Connections → Soulseek.")
 
     def sk_job(job_id: str):
         if not re.fullmatch(r"[0-9a-f-]{32,36}", job_id or ""):

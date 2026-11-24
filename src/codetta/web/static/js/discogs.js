@@ -1,4 +1,4 @@
-// Discogs: the person's token (Account → Connections), which searching Discogs needs.
+// Discogs: the person's token (Settings → Connections), which searching Discogs needs.
 // Part of Codetta's page; app.js is the entry point (see the note at its top).
 
 import { $, h, icon, setKids } from "./dom.js";

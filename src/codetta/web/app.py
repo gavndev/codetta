@@ -13,7 +13,7 @@ Settings (environment variables):
                      that already handles it (default: on)
 
   Codetta is fully offline unless you opt in. Online features ("connections")
-  are off until turned on in the app (first-run card or Account → Connections)
+  are off until turned on in the app (first-run card or Settings → Connections)
   or here. Setting one of these locks its switch in the app:
     CODETTA_OFFLINE       "on" blocks every connection, whatever else is set
     CODETTA_MUSICBRAINZ   "on"/"off": Match on MusicBrainz + Cover Art Archive

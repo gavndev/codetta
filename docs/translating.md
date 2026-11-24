@@ -3,7 +3,7 @@
 # Translating Codetta
 
 Codetta's page speaks **English** and **Spanish (Español)**. It follows each
-browser's language, and **Account → Language** picks another one for that
+browser's language, and **Settings → General → Language** picks another one for that
 browser. Your music is never translated: titles, artists, albums, folder names
 and tag values always show exactly as they are in your files.
 

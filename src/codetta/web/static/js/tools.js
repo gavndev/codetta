@@ -420,11 +420,11 @@ export function toggleSelectAllVisible() {
 }
 
 // Folders show as a list by default (clean with hundreds of artists), or as a grid.
-function folderView() {
+export function folderView() {
   try { return localStorage.getItem("codetta-folder-view") === "grid" ? "grid" : "list"; } catch { return "list"; }
 }
 
-function setFolderView(view) {
+export function setFolderView(view) {
   try { localStorage.setItem("codetta-folder-view", view); } catch { /* ignore */ }
   renderFolderHead();
   renderFolders();

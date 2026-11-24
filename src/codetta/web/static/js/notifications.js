@@ -9,7 +9,7 @@ import { openSoulseek } from "./search.js";
 import { isPhone } from "./tools.js";
 import { openNews } from "./setup.js";
 import { openInbox } from "./inbox.js";
-import { openAccount } from "./account.js";
+import { openSettings } from "./settings.js";
 
 // ---- Notifications: the bell -------------------------------------------------------------------------
 //
@@ -55,7 +55,7 @@ function runNotifAction(n) {
   const a = n.action || {};
   if (a.open === "inbox") openInbox();
   else if (a.open === "soulseek") openSoulseek(a.job || null);
-  else if (a.open === "account") openAccount();
+  else if (a.open === "about" || a.open === "account") openSettings("about");
   else if (a.open === "news") openNews();
   else if (a.open === "folder" && a.path != null) navigate(a.path);
   api("POST", "/api/notifications/read", { ids: [n.id] }).then((res) => { notif.unread = res.unread; renderNotifBadge(); }).catch(() => {});

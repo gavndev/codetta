@@ -12,6 +12,7 @@ import { refreshActivity } from "./activity.js";
 import { confidenceChooser, connectionOn } from "./setup.js";
 import { openMusicBrainzFor } from "./musicbrainz.js";
 import { skReady } from "./inbox.js";
+import { openSettings } from "./settings.js";
 
 // ---- Library health -----------------------------------------------------------------------------------
 //
@@ -116,18 +117,25 @@ export async function previewFullCare() {
     a.moving > a.examples.length ? h("span", { class: "hint" }, `and ${plural(a.moving - a.examples.length, "more song")}`) : null)))
     : h("p", { class: "hint" }, "Your files already follow your folder pattern, so only tags will change for now.");
   return ask({ title: "Here's how it will look", confirmLabel: "Start", cancelLabel: "Not yet", details: list,
-    message: "A few of your albums, renamed with your folder pattern (Organize settings). Codetta checks each album online first and only moves the ones it's sure about. Every change can be undone in Activity." });
+    message: "A few of your albums, renamed with your folder pattern (Settings → Library). Codetta checks each album online first and only moves the ones it's sure about. Every change can be undone in Activity." });
 }
 
-export async function chooseCare() {
+/** Settings → Library → Tidy up: the mode, saved with a button (names and folders shows a preview first). */
+export async function careSettings() {
   await loadCare();
   const pick = careChoices(care?.mode || "off");
-  const ok = await ask({ title: "Tidy up", details: h("div", { class: "sk-fields" }, pick.box, confidenceChooser("care")), confirmLabel: "Save",
-    message: "Codetta goes through your music one album at a time. It only changes an album when it's sure it found the right one, and you can undo anything in Activity." });
-  if (!ok) return;
-  if (pick.value() === "full" && care?.mode !== "full" && !(await previewFullCare())) return;
-  try { care = await api("PUT", "/api/library-care", { mode: pick.value(), paused: false }); toast("Saved", "success"); } catch (err) { toast(err.message, "error"); }
-  updateCareSlot();
+  const save = h("button", { class: "btn primary", type: "button" }, "Save");
+  save.addEventListener("click", async () => {
+    if (pick.value() === "full" && care?.mode !== "full" && !(await previewFullCare())) return;
+    save.disabled = true;
+    try { care = await api("PUT", "/api/library-care", { mode: pick.value(), paused: false }); toast("Saved", "success"); }
+    catch (err) { toast(err.message, "error"); }
+    finally { save.disabled = false; }
+    updateCareSlot();
+  });
+  return h("div", { class: "set-pad" },
+    h("p", { class: "hint set-lead" }, "Codetta goes through your music one album at a time. It only changes an album when it's sure it found the right one, and you can undo anything in Activity."),
+    pick.box, h("div", { class: "set-actions" }, save));
 }
 
 async function openCare() {
@@ -172,7 +180,7 @@ async function openCare() {
   const pause = h("button", { class: "btn small", type: "button", onclick: async () => {
     care = await api("PUT", "/api/library-care", { paused: !care.paused }); closeDialog($("#confirm-dialog")); updateCareSlot();
   } }, care.paused ? "Resume" : "Pause");
-  const change = h("button", { class: "btn small", type: "button", onclick: () => { closeDialog($("#confirm-dialog")); setTimeout(chooseCare, 250); } }, "Change");
+  const change = h("button", { class: "btn small", type: "button", onclick: () => { closeDialog($("#confirm-dialog")); openSettings("library", "set-care"); } }, "Change");
   const rerun = h("button", { class: "btn small", type: "button", disabled: st.busy, title: "Go through your whole library again", onclick: async () => {
     closeDialog($("#confirm-dialog"));
     const ok = await ask({ title: "Run Tidy up again?", confirmLabel: "Run again",
@@ -303,15 +311,18 @@ export async function setHealthEnabled(on) {
   return data;
 }
 
-function healthMasterSwitch() {
-  const input = h("input", { type: "checkbox", role: "switch", checked: true });
+function healthMasterSwitch(inSettings = false, on = true, after = () => {}) {
+  const input = h("input", { type: "checkbox", role: "switch", checked: on });
   input.addEventListener("change", async () => {
     input.disabled = true;
     try {
       await setHealthEnabled(input.checked);
-      closeDialog($("#health-dialog"));
-      toast("Library health is off. Switch it back on in Account.");
-    } catch (err) { input.checked = !input.checked; toast(err.message, "error"); input.disabled = false; }
+      if (!inSettings) {
+        closeDialog($("#health-dialog"));
+        toast("Library health is off. Switch it back on in Settings.");
+      } else after();
+    } catch (err) { input.checked = !input.checked; toast(err.message, "error"); }
+    finally { input.disabled = false; }
   });
   return h("label", { class: "switch-row health-master" },
     h("span", { class: "switch-text" }, h("span", { class: "switch-title" }, "Library health"),
@@ -319,10 +330,11 @@ function healthMasterSwitch() {
     input);
 }
 
-function renderHealthSettings() {
+function renderHealthSettings(inSettings = false, after = () => {}) {
   const d = health.data;
+  if (d.enabled === false) return h("div", { class: "health-settings" }, healthMasterSwitch(inSettings, false, after));
   return h("div", { class: "health-settings" },
-    healthMasterSwitch(),
+    healthMasterSwitch(inSettings, true, after),
     h("p", { class: "mb-lead" }, "Choose what Library health looks for. Switched-off checks are skipped; you can switch them back on any time."),
     d.categories.map((cat) => h("section", { class: "health-cat" },
       h("h3", { class: "field-label" }, cat.label),
@@ -340,6 +352,18 @@ function renderHealthSettings() {
       }))));
 }
 
+/** Settings → Library → Library health: on/off and which checks run. */
+export async function healthSettings() {
+  const box = h("div", { class: "set-pad" });
+  const draw = async () => {
+    try { health.data = await api("GET", `/api/library-health?category=${encodeURIComponent(health.filter)}`); }
+    catch (err) { setKids(box, h("p", { class: "error-box" }, err.message)); return; }
+    setKids(box, renderHealthSettings(true, draw));
+  };
+  await draw();
+  return box;
+}
+
 function renderHealth() {
   const d = health.data;
   const body = $("#health-body");
@@ -347,10 +371,9 @@ function renderHealth() {
   const tab = (view, label) => h("button", { class: `btn small${health.view === view ? " primary" : ""}`, type: "button",
     "aria-pressed": String(health.view === view), onclick: () => { health.view = health.view === view ? "issues" : view; renderHealth(); } }, label);
   setKids($("#health-foot"),
-    tab("settings", "Checks"),
+    h("button", { class: "btn small", type: "button", onclick: () => { closeDialog($("#health-dialog")); openSettings("library", "set-health"); } }, "Checks"),
     d.ignored_total || health.view === "ignored" ? tab("ignored", `Ignored (${(d.ignored_total ?? d.ignored.length).toLocaleString()})`) : null,
     h("span", { class: "spacer" }), close);
-  if (health.view === "settings") { setKids(body, renderHealthSettings()); return; }
   if (health.view === "ignored") {
     setKids(body, h("p", { class: "mb-lead" }, d.ignored.length ? "Issues you chose to ignore. Show one again to put it back on the list." : "Nothing ignored."),
       d.ignored.length ? h("div", { class: "inbox-list" }, d.ignored.map((i) => healthItem(i, true))) : null);
@@ -417,22 +440,73 @@ export async function openOrganize() {
   org.error = null;
   renderOrganize();
   openDialog($("#organize-dialog"));
-  orgExample();
   orgPreview(0);
 }
 
-function orgExample() {
-  clearTimeout(org.exTimer);
-  org.exTimer = setTimeout(async () => {
-    try { org.example = await api("POST", "/api/organize/example", { pattern: org.pattern }); } catch { org.example = null; }
-    const box = $("#org-example");
-    if (!box) return;
-    const ex = org.example;
-    setKids(box, !ex ? null : ex.ok
-      ? [h("span", { class: "org-ex-label" }, "Example"), h("code", { dir: "auto" }, ex.single),
-        h("code", { dir: "auto" }, ex.multi), h("span", { class: "hint" }, "Second line: a multi-disc album")]
-      : h("span", { class: "org-ex-error" }, ex.error));
-  }, 120);
+/** The folder-pattern editor (Organize and Settings): the pattern, ready-made patterns, tokens to
+ * insert, and a live example. onChange runs on every edit. */
+export function patternField(value, presets, onChange = () => {}) {
+  const exBox = h("div", { class: "org-example", "aria-live": "polite" });
+  let timer = null;
+  const showExample = () => {
+    clearTimeout(timer);
+    timer = setTimeout(async () => {
+      let ex = null;
+      try { ex = await api("POST", "/api/organize/example", { pattern: input.value }); } catch { /* shown empty */ }
+      setKids(exBox, !ex ? null : ex.ok
+        ? [h("span", { class: "org-ex-label" }, "Example"), h("code", { dir: "auto" }, ex.single),
+          h("code", { dir: "auto" }, ex.multi), h("span", { class: "hint" }, "Second line: a multi-disc album")]
+        : h("span", { class: "org-ex-error" }, ex.error));
+    }, 120);
+  };
+  const input = h("input", { type: "text", value, spellcheck: "false", autocomplete: "off",
+    autocapitalize: "off", "aria-label": "Pattern", class: "org-pattern" });
+  const changed = () => { onChange(input.value); showExample(); };
+  input.addEventListener("input", changed);
+  const insert = (text) => {
+    const [a, b] = [input.selectionStart ?? input.value.length, input.selectionEnd ?? input.value.length];
+    input.setRangeText(text, a, b, "end");
+    input.focus();
+    changed();
+  };
+  const patterns = h("select", { "aria-label": "Start from a pattern" },
+    h("option", { value: "" }, "Patterns…"),
+    presets.map((p) => h("option", { value: p.pattern }, p.name)));
+  patterns.addEventListener("change", () => {
+    if (!patterns.value) return;
+    input.value = patterns.value;
+    patterns.value = "";
+    changed();
+  });
+  showExample();
+  const el = h("div", { class: "field" },
+    h("span", { class: "field-label" }, "Pattern"),
+    h("div", { class: "org-pattern-row" }, input, patterns),
+    h("div", { class: "org-tokens", role: "group", "aria-label": "Insert" },
+      ORG_TOKENS.map(([label, text]) => h("button", { type: "button", class: "chip-btn", onclick: () => insert(text) }, label))),
+    h("p", { class: "hint org-help" }, "{tag} inserts a tag · {a|b} uses the first that has a value · [ … ] disappears when a tag in it is empty · / starts a folder. The extension is added for you."),
+    exBox);
+  return { el, input };
+}
+
+/** Settings → Library: the pattern Organize, Tidy up and the inbox all use. */
+export async function patternSettings() {
+  let s;
+  try { s = await api("GET", "/api/organize/settings"); } catch (err) { return h("p", { class: "error-box" }, err.message); }
+  let saved = s.pattern;
+  const save = h("button", { class: "btn primary", type: "button", disabled: true }, "Save");
+  const reset = h("button", { class: "btn", type: "button", hidden: saved === s.default }, "Use the default");
+  const field = patternField(saved, s.presets, (v) => { save.disabled = v === saved || !v.trim(); });
+  save.addEventListener("click", async () => {
+    save.disabled = true;
+    try { saved = (await api("PUT", "/api/organize/settings", { pattern: field.input.value })).pattern; toast("Saved", "success"); reset.hidden = saved === s.default; }
+    catch (err) { toast(err.message, "error"); save.disabled = false; }
+  });
+  reset.addEventListener("click", () => { field.input.value = s.default; field.input.dispatchEvent(new Event("input")); });
+  return h("div", { class: "set-pad" },
+    h("p", { class: "hint set-lead" }, "How Codetta names files and folders when it moves them: Organize, Tidy up (with names and folders on) and the inbox all use this pattern."),
+    field.el,
+    h("div", { class: "set-actions" }, reset, save));
 }
 
 function orgPreview(delay = 300) {
@@ -457,34 +531,13 @@ function orgPreview(delay = 300) {
 
 function renderOrganize() {
   const target = orgTarget();
-  const input = h("input", { type: "text", id: "org-pattern", value: org.pattern, spellcheck: "false", autocomplete: "off",
-    autocapitalize: "off", "aria-label": "Pattern", class: "org-pattern" });
-  input.addEventListener("input", () => { org.pattern = input.value; orgExample(); orgPreview(); });
-  const insert = (text) => {
-    const [a, b] = [input.selectionStart ?? input.value.length, input.selectionEnd ?? input.value.length];
-    input.setRangeText(text, a, b, "end");
-    input.focus();
-    input.dispatchEvent(new Event("input"));
-  };
-  const patterns = h("select", { "aria-label": "Start from a pattern" },
-    h("option", { value: "" }, "Patterns…"),
-    org.settings.presets.map((p) => h("option", { value: p.pattern }, p.name)));
-  patterns.addEventListener("change", () => {
-    if (!patterns.value) return;
-    input.value = org.pattern = patterns.value;
-    patterns.value = "";
-    orgExample();
-    orgPreview(0);
-  });
+  const field = patternField(org.pattern, org.settings.presets, (v) => { org.pattern = v; orgPreview(); });
+  field.input.id = "org-pattern";
   setKids($("#organize-body"),
     h("p", { class: "mb-lead" }, `Rename and move the audio files in ${target.label} into folders from their tags. You'll see every move first, nothing is ever overwritten, and it can all be undone.`),
-    h("div", { class: "field" },
-      h("span", { class: "field-label" }, "Pattern"),
-      h("div", { class: "org-pattern-row" }, input, patterns),
-      h("div", { class: "org-tokens", role: "group", "aria-label": "Insert" },
-        ORG_TOKENS.map(([label, text]) => h("button", { type: "button", class: "chip-btn", onclick: () => insert(text) }, label))),
-      h("p", { class: "hint org-help" }, "{tag} inserts a tag · {a|b} uses the first that has a value · [ … ] disappears when a tag in it is empty · / starts a folder. The extension is added for you."),
-      h("div", { class: "org-example", id: "org-example", "aria-live": "polite" })),
+    field.el,
+    h("button", { class: "linkish org-settings-link", type: "button", onclick: () => { closeDialog($("#organize-dialog")); openSettings("library", "set-pattern"); } },
+      "Change the pattern Codetta uses by default in Settings"),
     target.folder && state.folder?.folders.length ? h("label", { class: "check" },
       h("input", { type: "checkbox", checked: org.recursive, onchange: (e) => { org.recursive = e.target.checked; orgPreview(0); } }),
       " Include subfolders") : null,
@@ -522,8 +575,8 @@ function renderOrganizePreview() {
   if (problems.length) summary.push(problems.length === 1 ? "1 file can't move (see below)." : `${plural(problems.length, "file")} can't move (see below).`);
   if (kept.length) summary.push(kept.length === 1 ? "1 file stays where it is: not enough tags to place it (find its details first)."
     : `${plural(kept.length, "file")} stay where they are: not enough tags to place them (find their details first).`);
-  if (byLidarr.length) summary.push(byLidarr.length === 1 ? "1 file stays where it is: Lidarr names the files in its folders (Account → Connections → Lidarr)."
-    : `${plural(byLidarr.length, "file")} stay where they are: Lidarr names the files in its folders (Account → Connections → Lidarr).`);
+  if (byLidarr.length) summary.push(byLidarr.length === 1 ? "1 file stays where it is: Lidarr names the files in its folders (Settings → Connections → Lidarr)."
+    : `${plural(byLidarr.length, "file")} stay where they are: Lidarr names the files in its folders (Settings → Connections → Lidarr).`);
   const unknown = moving.filter((m) => /(^|\/)Unknown (Artist|Album)\//.test(m.dst)).length;
   const warn = unknown ? h("p", { class: "org-warn" }, unknown === 1
     ? "1 file has no artist or album tag, so it would go to “Unknown Artist” / “Unknown Album”. Tag it first (Find in MusicBrainz can help), or move it anyway."

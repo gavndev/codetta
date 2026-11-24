@@ -21,8 +21,8 @@ import { activity, renderActivity } from "./activity.js";
 import { openFromNames } from "./fromnames.js";
 import { openTracklist } from "./tracklist.js";
 import { doApply, openApply, openManage, runPreview, syncApplyUi } from "./presets.js";
-import { openEditionPrefs } from "./musicbrainz.js";
-import { chooseCare, setHealthEnabled } from "./library.js";
+import { setHealthEnabled } from "./library.js";
+import { setupSettings } from "./settings.js";
 import { placeAccount, setPasswordOpen, syncAccountTiles } from "./account.js";
 import { openReport, openTrash, setupContextMenu, setupDropImport } from "./files.js";
 
@@ -112,12 +112,12 @@ export function bindEvents() {
 
   setupContextMenu();
   setupDropImport();
-  $("#editions-toggle").addEventListener("click", () => { closeDialog($("#account-dialog")); setTimeout(openEditionPrefs, 250); });
-  $("#report-toggle").addEventListener("click", () => { closeDialog($("#account-dialog")); setTimeout(openReport, 250); });
-  $("#trash-toggle").addEventListener("click", () => { closeDialog($("#account-dialog")); setTimeout(openTrash, 250); });
-  $("#care-toggle").addEventListener("click", () => { closeDialog($("#account-dialog")); setTimeout(chooseCare, 250); });
+  // Rows in Settings that open their own window (on top of Settings).
+  $("#report-toggle").addEventListener("click", openReport);
+  $("#trash-toggle").addEventListener("click", openTrash);
+  $("#set-presets").addEventListener("click", openManage);
   $("#log-tile").addEventListener("toggle", () => { if ($("#log-tile").open) pollLog(); else stopLogPolling(); });
-  $("#account-dialog").addEventListener("close", stopLogPolling);
+  setupSettings();
   syncLogTile();
   $("#sel-clear").addEventListener("click", () => { state.selected.clear(); updateRowStates(); renderSelectionBar(); });
   $("#sel-edit").addEventListener("click", () => openEditor([...state.selected]));

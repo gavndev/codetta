@@ -78,7 +78,7 @@
       <div class="welcome-list" id="welcome-list" hidden></div>
       <div class="error-box" id="welcome-error" role="alert" hidden></div>
       <button class="btn primary auth-submit" id="welcome-go" type="submit" disabled>Continue</button>
-      <p class="auth-foot">It's your choice, and you can change it any time in Account → Connections.</p>
+      <p class="auth-foot">It's your choice, and you can change it any time in Settings → Connections.</p>
     </form>
     <!-- Later setup steps (folder names, downloads inbox), drawn by app.js -->
     <form class="auth-card welcome-card" id="setup-step" method="post" action="#" hidden></form>
@@ -262,21 +262,13 @@
     </div>
   </dialog>
 
-  <!-- Account -->
+  <!-- Account: quick switches; everything else is in Settings -->
   <dialog class="cc" id="account-dialog" aria-labelledby="account-title">
     <div class="cc-panel">
       <h2 id="account-title" class="visually-hidden">Account</h2>
-      <section class="cc-tile profile" aria-label="Profile">
-        <button class="avatar-lg" type="button" id="profile-avatar" aria-label="Change profile picture" title="Change profile picture"></button>
-        <div class="profile-info">
-          <div class="profile-sub">Signed in as</div>
-          <div class="profile-name" id="account-name"></div>
-          <div class="profile-actions">
-            <button class="btn small" type="button" id="avatar-change">Change photo</button>
-            <button class="btn small danger" type="button" id="avatar-remove" hidden>Remove</button>
-          </div>
-        </div>
-        <input type="file" id="avatar-file" accept="image/*,.heic,.heif" hidden>
+      <section class="cc-tile cc-who" id="cc-who" aria-label="Signed in">
+        <span class="avatar-md" id="cc-avatar" aria-hidden="true"></span>
+        <span class="profile-info"><span class="profile-sub">Signed in as</span><span class="profile-name" id="cc-name"></span></span>
       </section>
 
       <div class="cc-grid" role="group" aria-label="Quick settings">
@@ -285,137 +277,187 @@
         <label class="cc-toggle"><input type="checkbox" role="switch" id="advanced-toggle"><span class="cc-ico" id="cc-advanced-icon"></span><span class="cc-label">Advanced</span><span class="cc-state cc-onoff"></span></label>
       </div>
 
-      <section class="cc-tile about" aria-labelledby="about-title">
-        <div class="about-head">
-          <h3 id="about-title" class="field-label">Codetta</h3>
-          <span class="badge" id="about-version"></span>
-          <button class="btn small" type="button" id="check-updates">Check for updates</button>
-          <button class="btn small" type="button" data-news>What's new</button>
-        </div>
-        <p class="about-status" id="update-status" aria-live="polite"></p>
-        <div class="update-box" id="update-box" hidden></div>
-      </section>
-
-      <section class="cc-group" aria-labelledby="ccg-library">
-        <h3 class="cc-group-title" id="ccg-library">Library</h3>
-        <div class="cc-tile cc-list">
-          <div class="cc-row">
-            <button class="conn-toggle" id="care-toggle" type="button">
-              <span class="switch-text">
-                <span class="switch-title">Tidy up</span>
-                <span class="switch-sub" id="care-sub">Tag and organize the music you already have</span>
-              </span>
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg>
-            </button>
-          </div>
-          <div class="cc-row">
-            <button class="conn-toggle" id="editions-toggle" type="button">
-              <span class="switch-text">
-                <span class="switch-title">Album editions</span>
-                <span class="switch-sub">Which edition Codetta picks: year, format, country</span>
-              </span>
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg>
-            </button>
-          </div>
-          <div class="cc-row">
-            <button class="conn-toggle" id="trash-toggle" type="button">
-              <span class="switch-text">
-                <span class="switch-title">Recently deleted</span>
-                <span class="switch-sub" id="trash-sub">Kept for 30 days, then removed</span>
-              </span>
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg>
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <section class="cc-group" aria-labelledby="ccg-online">
-        <h3 class="cc-group-title" id="ccg-online">Online</h3>
-        <div class="cc-tile cc-list">
-          <div class="cc-row connections" aria-labelledby="conn-title">
-            <button class="conn-toggle" id="conn-toggle" type="button" aria-expanded="false" aria-controls="conn-body">
-              <span class="switch-text">
-                <span id="conn-title" class="switch-title">Connections</span>
-                <span class="switch-sub" id="conn-summary"></span>
-              </span>
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg>
-            </button>
-            <div id="conn-body" hidden>
-              <p class="hint conn-intro" id="conn-intro"></p>
-              <div id="conn-list"></div>
-              <div id="slskd-box"></div>
-              <div id="discogs-box"></div>
-              <div id="lidarr-box"></div>
-              <div id="audiomuse-box"></div>
-              <div id="listenbrainz-box"></div>
-              <div id="subsonic-box"></div>
-              <div id="mediaserver-box"></div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="cc-group" aria-labelledby="ccg-account">
-        <h3 class="cc-group-title" id="ccg-account">Account &amp; help</h3>
-        <div class="cc-tile cc-list">
-          <div class="cc-row">
-            <label class="lang-row">
-              <span class="switch-text">
-                <span class="switch-title">Language</span>
-                <span class="switch-sub" id="lang-sub">Follows this browser unless you pick one</span>
-              </span>
-              <select id="lang-select" aria-label="Language" translate="no"></select>
-            </label>
-          </div>
-          <div class="cc-row password" id="pw-tile">
-            <button class="conn-toggle" id="pw-toggle" type="button" aria-expanded="false" aria-controls="password-form">
-              <span class="switch-text">
-                <span class="switch-title">Password</span>
-                <span class="switch-sub">Change it (signs out your other devices)</span>
-              </span>
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg>
-            </button>
-            <form id="password-form" class="password-form" hidden>
-              <input type="text" name="username" id="pw-username" autocomplete="username" hidden>
-              <div class="error-box" id="pw-error" role="alert" hidden></div>
-              <label class="field"><span class="field-label">Current password</span>
-                <input id="pw-current" type="password" autocomplete="current-password" required></label>
-              <label class="field"><span class="field-label">New password</span>
-                <input id="pw-new" type="password" autocomplete="new-password" minlength="8" required></label>
-              <label class="field"><span class="field-label">Repeat new password</span>
-                <input id="pw-confirm" type="password" autocomplete="new-password" minlength="8" required></label>
-              <button class="btn" type="submit" id="pw-save">Change password</button>
-            </form>
-            <p class="hint" id="pw-env-note" hidden>The password is set by the <code>CODETTA_PASSWORD</code> environment variable, so it can only be changed there.</p>
-          </div>
-          <div class="cc-row">
-            <button class="conn-toggle" id="report-toggle" type="button">
-              <span class="switch-text">
-                <span class="switch-title">Report a problem</span>
-                <span class="switch-sub">Something not working? Tell us on GitHub</span>
-              </span>
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg>
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <details class="cc-tile log-tile" id="log-tile" hidden>
-        <summary>
-          <span class="switch-text">
-            <span class="switch-title">Server log</span>
-            <span class="switch-sub">Live, what <code>docker logs</code> shows. Kept in memory only.</span>
-          </span>
-        </summary>
-        <div class="log-lines" id="log-lines" role="log" aria-live="off" tabindex="0"></div>
-        <p class="hint" id="log-empty">Nothing logged yet.</p>
-      </details>
+      <div class="cc-tile cc-list">
+        <div class="cc-row"><button class="conn-toggle cc-settings" id="open-settings" type="button">
+          <span class="cc-ico" id="cc-settings-icon" aria-hidden="true"></span>
+          <span class="switch-text"><span class="switch-title">Settings</span><span class="switch-sub">Naming, Tidy up, inbox, music apps, connections and more</span></span>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg></button></div>
+        <div class="cc-row" id="cc-update-row" hidden><button class="conn-toggle" id="cc-update" type="button">
+          <span class="switch-text"><span class="switch-title" id="cc-update-title">Update available</span><span class="switch-sub">See what's new and how to update</span></span>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg></button></div>
+        <div class="cc-row"><button class="conn-toggle" type="button" data-news>
+          <span class="switch-text"><span class="switch-title">What's new</span><span class="switch-sub" data-version></span></span>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg></button></div>
+      </div>
 
       <div class="cc-foot">
         <button class="btn danger" type="button" id="sign-out">Sign out</button>
         <button class="btn" type="button" id="quit-app" hidden>Quit Codetta</button>
         <span class="spacer"></span>
         <button class="btn primary" type="button" data-close>Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Settings: every setting in one place (filled in by settings.js) -->
+  <dialog class="settings" id="settings-dialog" aria-labelledby="set-heading">
+    <div class="set-shell">
+      <nav class="set-nav" aria-label="Settings sections">
+        <div class="set-nav-head">
+          <h2 id="set-heading">Settings</h2>
+          <button class="btn primary set-done phone-only" type="button" data-close>Done</button>
+        </div>
+        <label class="set-search"><span class="visually-hidden">Search settings</span>
+          <input type="search" id="set-search" placeholder="Search settings" autocomplete="off" spellcheck="false" enterkeyhint="search"></label>
+        <div class="set-nav-list" id="set-nav-list" role="list"></div>
+      </nav>
+      <div class="set-main" id="set-main">
+        <header class="set-head">
+          <button class="set-back phone-only" type="button" id="set-back"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12 5-5 5 5 5"/></svg><span>Settings</span></button>
+          <h2 class="set-title" id="set-title"></h2>
+          <button class="btn primary set-done desktop-only" type="button" data-close>Done</button>
+        </header>
+        <div class="set-body" id="set-body">
+          <div class="set-results" id="set-results" hidden></div>
+
+          <section class="set-section" data-section="general" hidden>
+            <div class="set-card" id="set-general"></div>
+            <div class="set-card" id="set-lang-card">
+              <div class="cc-row" data-keys="language español idioma translation">
+                <label class="lang-row">
+                  <span class="switch-text">
+                    <span class="switch-title">Language <span class="set-badge" title="Saved in this browser only, so each device can differ">This browser</span></span>
+                    <span class="switch-sub" id="lang-sub">Follows this browser unless you pick one</span>
+                  </span>
+                  <select id="lang-select" aria-label="Language" translate="no"></select>
+                </label>
+              </div>
+            </div>
+            <h3 class="set-group" id="set-account-title">Your account</h3>
+            <div class="set-card" id="set-account-card">
+            <section class="profile" aria-label="Profile">
+              <button class="avatar-lg" type="button" id="profile-avatar" aria-label="Change profile picture" title="Change profile picture"></button>
+              <div class="profile-info">
+                <div class="profile-sub">Signed in as</div>
+                <div class="profile-name" id="account-name"></div>
+                <div class="profile-actions">
+                  <button class="btn small" type="button" id="avatar-change">Change photo</button>
+                  <button class="btn small danger" type="button" id="avatar-remove" hidden>Remove</button>
+                </div>
+              </div>
+              <input type="file" id="avatar-file" accept="image/*,.heic,.heif" hidden>
+            </section>
+              <div class="cc-row password" data-keys="password sign in security" id="pw-tile">
+                <button class="conn-toggle" id="pw-toggle" type="button" aria-expanded="false" aria-controls="password-form">
+                  <span class="switch-text">
+                    <span class="switch-title">Password</span>
+                    <span class="switch-sub">Change it (signs out your other devices)</span>
+                  </span>
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg>
+                </button>
+                <form id="password-form" class="password-form" hidden>
+                  <input type="text" name="username" id="pw-username" autocomplete="username" hidden>
+                  <div class="error-box" id="pw-error" role="alert" hidden></div>
+                  <label class="field"><span class="field-label">Current password</span>
+                    <input id="pw-current" type="password" autocomplete="current-password" required></label>
+                  <label class="field"><span class="field-label">New password</span>
+                    <input id="pw-new" type="password" autocomplete="new-password" minlength="8" required></label>
+                  <label class="field"><span class="field-label">Repeat new password</span>
+                    <input id="pw-confirm" type="password" autocomplete="new-password" minlength="8" required></label>
+                  <button class="btn" type="submit" id="pw-save">Change password</button>
+                </form>
+                <p class="hint" id="pw-env-note" hidden>The password is set by the <code>CODETTA_PASSWORD</code> environment variable, so it can only be changed there.</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="set-section" data-section="library" hidden>
+            <h3 class="set-group">File and folder names</h3>
+            <div class="set-card" id="set-pattern" data-keys="naming pattern file names folders rename organize scheme"></div>
+            <h3 class="set-group">Tidy up</h3>
+            <div class="set-card" id="set-care" data-keys="tidy up library care fix tags automatically"></div>
+            <div class="set-card" id="set-confidence" data-keys="confidence match sure strict balanced relaxed percent automatic filing"></div>
+            <h3 class="set-group">Album editions</h3>
+            <div class="set-card" id="set-editions" data-keys="edition year original reissue format cd vinyl digital country deluxe itunes store"></div>
+            <h3 class="set-group">Library health</h3>
+            <div class="set-card" id="set-health" data-keys="library health checks problems issues covers duplicates"></div>
+            <h3 class="set-group">More</h3>
+            <div class="set-card">
+          <div class="cc-row"><button class="conn-toggle" id="set-presets" type="button">
+            <span class="switch-text"><span class="switch-title">Tag presets</span><span class="switch-sub">Sets of tags you apply in one go</span></span>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg></button></div>
+              <div class="cc-row" data-keys="trash recently deleted restore bin">
+              <button class="conn-toggle" id="trash-toggle" type="button">
+                <span class="switch-text">
+                  <span class="switch-title">Recently deleted</span>
+                  <span class="switch-sub" id="trash-sub">Kept for 30 days, then removed</span>
+                </span>
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg>
+              </button>
+              </div>
+            </div>
+          </section>
+
+          <section class="set-section" data-section="inbox" hidden>
+            <div class="set-card" id="set-inbox" data-keys="inbox downloads import folder automatic filing watch move"></div>
+          </section>
+
+          <section class="set-section" data-section="listening" hidden>
+            <div class="set-card" id="set-listening"></div>
+          </section>
+
+          <section class="set-section" data-section="apps" hidden>
+            <p class="hint set-lead">Play your library in Subsonic music apps like Symfonium, Narjo, Arpeggi or Eclipse.</p>
+            <div id="subsonic-box" data-keys="music apps subsonic opensubsonic symfonium narjo eclipse app password mobile data transcode convert"></div>
+          </section>
+
+          <section class="set-section" data-section="connections" hidden>
+            <p class="hint conn-intro set-lead" id="conn-intro"></p>
+            <div class="set-card" id="conn-list" data-keys="connections online musicbrainz deezer itunes acoustid lyrics offline privacy updates"></div>
+            <div id="slskd-box" data-keys="soulseek slskd downloads"></div>
+            <div id="discogs-box" data-keys="discogs token"></div>
+            <div id="lidarr-box" data-keys="lidarr"></div>
+            <div id="listenbrainz-box" data-keys="listenbrainz scrobble scrobbling history token"></div>
+            <div id="audiomuse-box" data-keys="audiomuse autoplay similar"></div>
+            <div id="mediaserver-box" data-keys="navidrome jellyfin emby plex music server scan"></div>
+          </section>
+
+          <section class="set-section" data-section="about" hidden>
+            <div class="set-card" data-keys="version updates check what's new">
+            <section class="about" aria-labelledby="about-title">
+              <div class="about-head">
+                <h3 id="about-title" class="field-label">Codetta</h3>
+                <span class="badge" id="about-version"></span>
+                <button class="btn small" type="button" id="check-updates">Check for updates</button>
+                <button class="btn small" type="button" data-news>What's new</button>
+              </div>
+              <p class="about-status" id="update-status" aria-live="polite"></p>
+              <div class="update-box" id="update-box" hidden></div>
+            </section>
+            </div>
+            <div class="set-card">
+              <div class="cc-row" data-keys="report problem bug github help">
+              <button class="conn-toggle" id="report-toggle" type="button">
+                <span class="switch-text">
+                  <span class="switch-title">Report a problem</span>
+                  <span class="switch-sub">Something not working? Tell us on GitHub</span>
+                </span>
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg>
+              </button>
+              </div>
+            </div>
+            <details class="set-card log-tile" id="log-tile" hidden>
+              <summary>
+                <span class="switch-text">
+                  <span class="switch-title">Server log</span>
+                  <span class="switch-sub">Live, what <code>docker logs</code> shows. Kept in memory only.</span>
+                </span>
+              </summary>
+              <div class="log-lines" id="log-lines" role="log" aria-live="off" tabindex="0"></div>
+              <p class="hint" id="log-empty">Nothing logged yet.</p>
+            </details>
+          </section>
+        </div>
       </div>
     </div>
   </dialog>
@@ -624,6 +666,7 @@
   <link rel="modulepreload" href="/static/js/player.js">
   <link rel="modulepreload" href="/static/js/presets.js">
   <link rel="modulepreload" href="/static/js/search.js">
+  <link rel="modulepreload" href="/static/js/settings.js">
   <link rel="modulepreload" href="/static/js/setup.js">
   <link rel="modulepreload" href="/static/js/state.js">
   <link rel="modulepreload" href="/static/js/subsonic.js">

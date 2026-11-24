@@ -1,5 +1,5 @@
 // Music server: Navidrome (or any Subsonic server), Jellyfin, Emby or Plex hears about Codetta's
-// changes (Account → Connections and a setup step).
+// changes (Settings → Connections and a setup step).
 // Part of Codetta's page; app.js is the entry point (see the note at its top).
 
 import { $, h, icon, setKids } from "./dom.js";
@@ -159,7 +159,7 @@ export async function renderServerStep(form, step) {
     fields(null),
     h("button", { class: "btn primary auth-submit", type: "submit" }, "Connect"),
     h("button", { class: "link-btn setup-skip", type: "button", onclick: () => finishStep(step) }, "I don't use one"),
-    h("p", { class: "auth-foot" }, "You can connect it later in Account → Connections."));
+    h("p", { class: "auth-foot" }, "You can connect it later in Settings → Connections."));
   let shown = false;
   form.onsubmit = async (e) => {
     e.preventDefault();

@@ -1,4 +1,4 @@
-// ListenBrainz scrobbling: the user token (Account → Connections, shown while ListenBrainz is on).
+// ListenBrainz scrobbling: the user token (Settings → Connections, shown while ListenBrainz is on).
 // Part of Codetta's page; app.js is the entry point (see the note at its top).
 
 import { $, h, icon, setKids } from "./dom.js";

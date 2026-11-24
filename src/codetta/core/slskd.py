@@ -256,7 +256,7 @@ def folder_progress(downloads: list[dict], names: set[str], now: float | None = 
 
 
 def check(client: SlskdClient) -> dict:
-    """What Account → Connections shows: reachable? shares? where downloads go?"""
+    """What Settings → Connections shows: reachable? shares? where downloads go?"""
     out = {"ok": False, "version": "", "shared_folders": 0, "shared_files": 0, "downloads_dir": "",
            "logged_in": None, "error": ""}
     try:
@@ -530,7 +530,7 @@ class Soulseek:
 
     def client(self) -> SlskdClient:
         if not self.store.configured:
-            raise SlskdError("Connect your slskd first (Account → Connections).")
+            raise SlskdError("Connect your slskd first (Settings → Connections).")
         return SlskdClient(self.store.url, self.store.api_key, self.request)
 
     def search(self, query: str, upgrade: str = "") -> Job:

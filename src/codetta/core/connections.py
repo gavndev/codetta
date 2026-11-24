@@ -1,7 +1,7 @@
 """Connections: the only parts of Codetta that talk to the internet.
 
 Codetta on its own is fully offline. Each online feature is a *connection*
-the user opts in to: on the first-run card, in Account → Connections, or with
+the user opts in to: on the first-run card, in Settings → Connections, or with
 an environment variable. Everything is off until someone turns it on.
 
 Who decides, strongest first:

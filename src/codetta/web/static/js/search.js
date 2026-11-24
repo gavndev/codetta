@@ -13,13 +13,13 @@ import {
 } from "./tools.js";
 import { refreshActivity } from "./activity.js";
 import {
-  applyConnections, connectionOn, finishStep, setConnectionsOpen, setupLogo, stepCount,
+  applyConnections, connectionOn, finishStep, setupLogo, stepCount,
 } from "./setup.js";
 import { mbMeta, mbThumb, openMusicBrainzFor } from "./musicbrainz.js";
 import {
   etaText, loadSlskd, progressBar, refreshInboxBadge, sk, SK_ACTIVE, SK_LABELS, skReady, skSize,
 } from "./inbox.js";
-import { openAccount } from "./account.js";
+import { openSettings } from "./settings.js";
 
 // ---- Explore MusicBrainz (the !mb bang): search results, artists, releases ---------------------------
 
@@ -179,7 +179,7 @@ export const BANGS = {
   mb: {
     names: ["mb", "musicbrainz"], label: "MusicBrainz", icon: "musicbrainz", about: "Artists and releases on MusicBrainz",
     placeholder: "Search MusicBrainz: artists, albums", available: () => connectionOn("musicbrainz"),
-    missing: "MusicBrainz isn't on. Turn it on in Account → Connections.",
+    missing: "MusicBrainz isn't on. Turn it on in Settings → Connections.",
     run: (q) => {
       const query = q.trim();
       if (!query) return;
@@ -189,26 +189,26 @@ export const BANGS = {
   slskd: {
     names: ["slskd", "soulseek"], label: "slskd", icon: "slskd", about: "Look for music on Soulseek",
     placeholder: "Search Soulseek (* is a wildcard)", available: () => skReady(),
-    missing: "Soulseek isn't connected. Set it up in Account → Connections.",
+    missing: "Soulseek isn't connected. Set it up in Settings → Connections.",
     run: (q) => skSearch(q),
   },
   dz: {
     names: ["dz", "deezer"], label: "Deezer", icon: "deezer", about: "Albums on Deezer",
     note: "Deezer's search doesn't include release years. Open an album on Deezer for the full details.",
     placeholder: "Search Deezer: artists, albums", available: () => connectionOn("deezer"),
-    missing: "Deezer isn't on. Turn it on in Account → Connections.",
+    missing: "Deezer isn't on. Turn it on in Settings → Connections.",
     run: (q) => catalogSearch("deezer", q),
   },
   it: {
     names: ["it", "itunes", "apple"], label: "iTunes", icon: "itunes", about: "Albums on iTunes and Apple Music",
     placeholder: "Search iTunes: artists, albums", available: () => connectionOn("itunes"),
-    missing: "iTunes isn't on. Turn it on in Account → Connections.",
+    missing: "iTunes isn't on. Turn it on in Settings → Connections.",
     run: (q) => catalogSearch("itunes", q),
   },
   dg: {
     names: ["dg", "discogs"], label: "Discogs", icon: "discogs", about: "Albums on Discogs",
     placeholder: "Search Discogs: artists, albums", available: () => connectionOn("discogs"),
-    missing: "Discogs isn't on. Turn it on in Account → Connections.",
+    missing: "Discogs isn't on. Turn it on in Settings → Connections.",
     run: (q) => catalogSearch("discogs", q),
   },
 };
@@ -542,7 +542,7 @@ function skCheckView(c, d) {
         : "Mount slskd's downloads folder into Codetta at /inbox and choose it as the inbox (Inbox button), so downloads arrive there."));
 }
 
-/** The slskd connection fields (Account → Connections and the setup step). */
+/** The slskd connection fields (Settings → Connections and the setup step). */
 function slskdFields(d) {
   const st = d?.settings || { review: true, lossless_only: false, min_bitrate: 320 };
   const locked = d?.locked || {};
@@ -638,7 +638,7 @@ export async function renderSlskdStep(form, step) {
     slskdFields(d),
     h("button", { class: "btn primary auth-submit", type: "submit" }, "Connect slskd"),
     h("button", { class: "link-btn setup-skip", type: "button", onclick: () => finishStep(step) }, "I don't use slskd"),
-    h("p", { class: "auth-foot" }, "You can connect it later in Account → Connections."));
+    h("p", { class: "auth-foot" }, "You can connect it later in Settings → Connections."));
   form.onsubmit = async (e) => {
     e.preventDefault();
     const go = $("[type=submit]", form);
@@ -735,9 +735,9 @@ function renderSoulseek() {
   const close = h("button", { class: "btn", type: "button", "data-close": true }, "Close");
   if (!d.enabled || !d.configured) {
     setKids(body,
-      h("p", { class: "mb-lead" }, "Connect your slskd to find music on Soulseek. It's in Account → Connections → Soulseek (slskd)."),
+      h("p", { class: "mb-lead" }, "Connect your slskd to find music on Soulseek. It's in Settings → Connections → Soulseek (slskd)."),
       h("button", { class: "btn primary", type: "button", onclick: () => {
-        closeDialog($("#soulseek-dialog")); openAccount(); setConnectionsOpen(true);
+        closeDialog($("#soulseek-dialog")); openSettings("connections", "slskd-box");
       } }, "Open Connections"));
     setKids($("#soulseek-foot"), h("span", { class: "spacer" }), close);
     return;
