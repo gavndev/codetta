@@ -34,7 +34,7 @@ export function showAuth(mode, message = "") {
   $("#auth-pass").minLength = setup ? 8 : 0;
   $("#auth-submit").textContent = setup ? "Create account" : "Sign in";
   $("#auth-foot").textContent = setup
-    ? "Use at least 8 characters. You can change it later from the account menu."
+    ? "Use at least 8 characters. You can change it later in Settings → General."
     : "Forgot your password? It can be reset on the server (see “Resetting your password” in Codetta's install guide).";
   $("#auth-error").hidden = true;
   const wasHidden = $("#auth").hidden;

@@ -529,7 +529,7 @@ then Save. Navidrome and most players read synced lyrics straight from the tag.
 
 ## Advanced mode
 
-Turn on **Advanced mode** in the account menu (or Settings → General) to see a **Raw tags** section in
+Turn on **Advanced mode** in Settings → General (or its quick switch in the account menu) to see a **Raw tags** section in
 the editor: every field exactly as the file stores it (ID3 frames, MP4 atoms,
 Vorbis comments, APEv2 items, WMA attributes and embedded pictures).
 

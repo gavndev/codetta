@@ -3457,3 +3457,12 @@ dialog.confirm.wipe-final-step .sheet-head h2 { width: 100%; }
 .track-row.dragging { position: relative; z-index: 5; background: var(--surface-raised); border-radius: 10px;
   box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.45), 0 0 0 1px var(--border-strong); }
 @media (max-width: 760px) { .reorder-grip { width: 44px; height: 44px; } }
+
+.empty .empty-back { margin-top: 12px; text-decoration: none; display: inline-flex; }
+/* The editor open beside the list: the selection bar has half the room, so its tools show only their picture. */
+@media (min-width: 761px) {
+  body:has(.editor:not([hidden])) .selection-actions .btn:not(#sel-edit):not(#sel-clear) .lbl { display: none; }
+  body:has(.editor:not([hidden])) .selection-bar { gap: 10px; }
+  body:has(.editor:not([hidden])) .selection-actions { gap: 4px; }
+}
+#yours-btn[aria-pressed="true"] { color: var(--spot); background: var(--accent-soft); }

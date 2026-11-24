@@ -36,10 +36,10 @@ async function summary() {
 }
 
 /** Something changed: forget what's cached, and redraw if Your music is on screen. */
-function changed(d) {
+function changed(d, { reload = true } = {}) {
   if (d && d.playlists) yours.summary = d;
   for (const key of [...folderCache.keys()]) if (key.startsWith(YOURS)) folderCache.delete(key);
-  if (state.path.startsWith(YOURS)) loadFolder(state.path, { keepScroll: true });
+  if (reload && state.path.startsWith(YOURS)) loadFolder(state.path, { keepScroll: true });
 }
 
 // ---- The head and the overview ---------------------------------------------------------------------
@@ -119,7 +119,7 @@ async function deletePlaylist(id, name) {
   if (!await ask({ title: `Delete “${name}”?`, message: "The playlist goes, in Codetta and your music apps. The songs stay in your library.",
     confirmLabel: "Delete playlist", danger: true })) return;
   try {
-    changed(await api("DELETE", `/api/playlists/${id}`));
+    changed(await api("DELETE", `/api/playlists/${id}`), { reload: false }); // it's gone: go to Your music, not back to it
     toast(`Deleted “${name}”`);
     navigate(YOURS);
   } catch (err) { toast(err.message, "error"); }
@@ -127,7 +127,9 @@ async function deletePlaylist(id, name) {
 
 /** The selection bar's "Add to…": favourites, a playlist, a new one; in a list, take songs out of it. */
 export async function openAddTo(anchor) {
-  const paths = [...state.selected];
+  // In the order they're listed (not the order they were ticked), as a music app does.
+  const order = new Map((state.folder?.tracks || []).map((t, i) => [t.path, i]));
+  const paths = [...state.selected].sort((a, b) => (order.get(a) ?? 1e9) - (order.get(b) ?? 1e9));
   if (!paths.length) return;
   const s = await summary();
   const y = state.folder?.yours;
@@ -157,6 +159,7 @@ export function syncTabbar() {
     b.classList.toggle("active", b.dataset.tab === at);
     b.setAttribute("aria-current", b.dataset.tab === at ? "page" : "false");
   }
+  $("#yours-btn")?.setAttribute("aria-pressed", String(at === "yours")); // the top bar's heart shows where you are too
   const count = $("#inbox-count");
   const mirror = $("#tab-inbox-count");
   if (count && mirror) { mirror.hidden = count.hidden; mirror.textContent = count.textContent; }

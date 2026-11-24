@@ -61,6 +61,8 @@ const lufs = (x) => (x == null ? "silent" : `${x.toFixed(1)} LUFS`);
 
 function render() {
   const d = rg.data;
+  // Only tracks with a gain get one written: a silent track has none.
+  const writable = d.albums.reduce((n, a) => n + a.tracks.filter((t) => t.gain).length, 0);
   setKids($("#rg-body"), intro(),
     h("div", { class: "rg-results" }, d.albums.map((a) => h("section", { class: "rg-album" },
       rg.mode === "album" ? h("div", { class: "rg-album-head" },
@@ -73,11 +75,12 @@ function render() {
     d.failed.length ? h("div", { class: "rg-failed" }, h("p", { class: "field-error" }, `${plural(d.failed.length, "track")} couldn't be measured:`),
       h("ul", { class: "rg-list" }, d.failed.slice(0, 10).map((f) => h("li", {}, h("span", { class: "rg-file", dir: "auto" }, name(f.path)),
         h("span", { class: "hint" }, f.error))))) : null,
+    writable ? null : h("p", { class: "field-error" }, "These tracks are silent, so there's no gain to write."),
     h("p", { class: "hint" }, "Players turn tracks up or down by the gain shown. The music itself isn't changed, only its tags, and Activity can undo it."));
   setKids($("#rg-foot"), h("span", { class: "spacer" }),
     h("button", { class: "btn", type: "button", "data-close": true }, "Cancel"),
-    h("button", { class: "btn primary", type: "button", id: "rg-apply", disabled: !d.measured, onclick: apply },
-      d.measured ? `Write ReplayGain to ${plural(d.measured, "track")}` : "Write ReplayGain"));
+    h("button", { class: "btn primary", type: "button", id: "rg-apply", disabled: !writable, onclick: apply },
+      writable ? `Write ReplayGain to ${plural(writable, "track")}` : "Write ReplayGain"));
 }
 
 async function apply() {

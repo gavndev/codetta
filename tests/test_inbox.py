@@ -346,6 +346,21 @@ def test_an_album_you_already_have_is_labelled(make_client, music):
     assert g["owned"] == {"folder": "Library/Have it", "tracks": 3}
 
 
+def test_an_album_removed_outside_codetta_isnt_said_to_be_owned(make_client, music):
+    """The search index can be behind: files deleted (or moved into the inbox) outside Codetta
+    must not make the inbox say "Already in your library"."""
+    shutil.copytree(music / ALBUM_DIR, music / "Library" / "Had it")
+    c = make_client(online=False)
+    end = time.time() + 10
+    while c.get("/api/library-health/summary").json()["indexing"]:
+        assert time.time() < end
+        time.sleep(0.05)
+    shutil.rmtree(music / "Library" / "Had it")  # gone, and the index doesn't know yet
+    c.put("/api/inbox/settings", json={"folder": "Downloads"})
+    g = settle(c)["groups"][0]
+    assert g["owned"] is None
+
+
 # --- "Still arriving" must always end -----------------------------------------------------------
 
 def _downloading_inbox(tmp_path, settle_seconds=120):

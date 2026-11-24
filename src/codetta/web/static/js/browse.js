@@ -190,13 +190,14 @@ export async function loadFolder(path, { keepScroll = false } = {}) {
     navTarget = null;
     folderCache.delete(path);
     state.folder = null;
+    renderCrumbs(); // not the last folder's path: just Library
     els.folderHead.replaceChildren();
     els.tracks.replaceChildren();
     els.folders.replaceChildren(
       h("div", { class: "empty" },
         h("strong", {}, "Couldn't open this folder"),
         h("span", {}, err.message), h("br"),
-        h("a", { href: "#/" }, "Back to library")),
+        h("a", { href: "#/", class: "btn small empty-back" }, "Back to library")),
     );
   }
 }

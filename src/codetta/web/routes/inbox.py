@@ -330,6 +330,17 @@ def register(app, shared) -> None:
         base = inbox.settings.folder
         mine = set(g.paths)
         found = {p for p in found if not is_special(p) and p not in mine and not (base and p.startswith(base + "/"))}
+        # The index can be behind files moved or deleted outside Codetta: only files still there count.
+        still = set()
+        for p in list(found)[:400]:
+            try:
+                if library.resolve(p).is_file():
+                    still.add(p)
+            except (LibraryPathError, OSError, ValueError):
+                pass
+        if len(still) < min(len(found), 400):
+            lib_index.request_rescan()
+        found = still
         out = None
         if found:
             folders: dict[str, int] = {}

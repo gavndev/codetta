@@ -341,10 +341,12 @@ function renderHealthSettings(inSettings = false, after = () => {}) {
       d.checks.filter((c) => c.category === cat.id).map((c) => {
         const input = h("input", { type: "checkbox", role: "switch", checked: c.enabled });
         input.addEventListener("change", async () => {
-          const disabled = d.checks.filter((x) => (x.id === c.id ? !input.checked : !x.enabled)).map((x) => x.id);
+          // From the latest answer, not the one this switch was drawn with (another switch may have changed since).
+          const disabled = health.data.checks.filter((x) => (x.id === c.id ? !input.checked : !x.enabled)).map((x) => x.id);
           input.disabled = true;
           try { afterHealthChange(await api("PUT", "/api/library-health/settings", { disabled })); }
           catch (err) { input.checked = !input.checked; toast(err.message, "error"); }
+          finally { input.disabled = false; }
         });
         return h("label", { class: "switch-row" },
           h("span", { class: "switch-text" }, h("span", { class: "switch-title" }, c.label), h("span", { class: "switch-sub" }, c.about)),
@@ -417,7 +419,7 @@ function renderHealth() {
 
 // ---- Organize: rename and move files from a pattern -------------------------------------------------
 
-const org = { settings: null, pattern: "", recursive: false, remember: true, preview: null, error: null, token: 0, timer: null, exTimer: null, example: null };
+const org = { settings: null, pattern: "", recursive: false, remember: false, preview: null, error: null, token: 0, timer: null, exTimer: null, example: null };
 const ORG_TOKENS = [
   ["Album artist", "{albumartist|artist}"], ["Artist", "{artist}"], ["Album", "{album}"], ["Year", "[ ({year})]"],
   ["Disc-track", "{disctrack}"], ["Track", "{track}"], ["Title", "{title}"], ["Genre", "{genre}"], ["Folder", "/"],
@@ -435,6 +437,7 @@ export async function openOrganize() {
     org.settings = await api("GET", "/api/organize/settings");
   } catch (err) { toast(err.message, "error"); return; }
   org.pattern = org.settings.pattern;
+  org.remember = false; // a pattern typed here is for this once, unless you tick "Remember this pattern"
   org.recursive = !state.folder?.tracks.length; // a folder of folders: include them
   org.preview = null;
   org.error = null;
@@ -536,7 +539,7 @@ function renderOrganize() {
   setKids($("#organize-body"),
     h("p", { class: "mb-lead" }, `Rename and move the audio files in ${target.label} into folders from their tags. You'll see every move first, nothing is ever overwritten, and it can all be undone.`),
     field.el,
-    h("button", { class: "linkish org-settings-link", type: "button", onclick: () => { closeDialog($("#organize-dialog")); openSettings("library", "set-pattern"); } },
+    h("button", { class: "link-btn org-settings-link", type: "button", onclick: () => { closeDialog($("#organize-dialog")); openSettings("library", "set-pattern"); } },
       "Change the pattern Codetta uses by default in Settings"),
     target.folder && state.folder?.folders.length ? h("label", { class: "check" },
       h("input", { type: "checkbox", checked: org.recursive, onchange: (e) => { org.recursive = e.target.checked; orgPreview(0); } }),
@@ -570,7 +573,7 @@ function renderOrganizePreview() {
   if (moving.length) summary.push(moving.length === 1 ? "1 file will move." : `${plural(moving.length, "file")} will move.`);
   if (moving.length && p.extras) summary.push(p.extras === 1 ? "1 other file comes along (cover, lyrics, booklet…)."
     : `${plural(p.extras, "other file")} come along (cover, lyrics, booklet…).`);
-  else summary.push(c.same ? "Everything is already where this pattern puts it." : "Nothing to move.");
+  if (!moving.length) summary.push(c.same ? "Everything is already where this pattern puts it." : "Nothing to move.");
   if (c.same && moving.length) summary.push(`${plural(c.same, "file")} already in place.`);
   if (problems.length) summary.push(problems.length === 1 ? "1 file can't move (see below)." : `${plural(problems.length, "file")} can't move (see below).`);
   if (kept.length) summary.push(kept.length === 1 ? "1 file stays where it is: not enough tags to place it (find its details first)."

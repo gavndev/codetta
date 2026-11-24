@@ -4,6 +4,17 @@ All notable changes to Codetta. Versions follow [Semantic Versioning](https://se
 
 ## Unreleased
 
+- **Fixes from a full test of every feature:**
+  - In Settings → Library health, a check's switch stayed greyed out after one change, and changing a second check could quietly switch the first back on.
+  - Organize said "17 files will move. Nothing to move." at once, and its "Remember this pattern" box was ticked by default, so a one-off pattern became your default.
+  - ReplayGain offered to write gains for silent tracks, then wrote nothing.
+  - The inbox could say "Already in your library" about an album moved or deleted outside Codetta.
+  - With the editor open, the selection bar ran under it.
+  - Add to… put songs in a playlist in the order you ticked them, not the order they're listed.
+  - Deleting a playlist briefly showed an error before going back to Your music.
+  - The heart in the top bar now lights up on Your music.
+  - A link to a folder that doesn't exist kept the old folder's path at the top.
+  - Two setup screens still pointed to the old account menu.
 - **Reorder playlists:** press **Reorder** in a playlist and drag songs by their grip, with the mouse or a finger (the list scrolls when you reach the edge; the arrow keys work too). The new order is saved straight away, and music apps see it as well.
 - **Covers of every shape:** a Japanese CD with its obi, a cassette J-card, a long soundtrack sleeve. The album page now shows a cover at its own shape, and the folder grid, the player and the editor show the whole cover (over a soft blur of itself) instead of cropping it square.
 - **Choose which cover when matching:** when the Cover Art Archive has more than one front for a release, such as with and without the obi, the MusicBrainz review shows them all under **Which cover** so you can pick the one written to your files.

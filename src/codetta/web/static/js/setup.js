@@ -226,7 +226,7 @@ async function renderSetupStep(step) {
       h("p", { class: "auth-sub" }, "Codetta can go through the music you already have, one album at a time, and fix it for you. It only changes an album when it's sure, and you can undo anything."),
       pick.box,
       h("button", { class: "btn primary auth-submit", type: "submit" }, "Continue"),
-      h("p", { class: "auth-foot" }, "You can change this any time in the account menu → Tidy up."));
+      h("p", { class: "auth-foot" }, "You can change this any time in Settings → Library → Tidy up."));
     form.onsubmit = async (e) => {
       e.preventDefault();
       if (pick.value() === "full" && !(await previewFullCare())) return; // stay here to choose again
