@@ -2,6 +2,10 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.13.1 (2026-11-24)
+
+- **The snap is back up to date:** 0.13.0's snap couldn't be built, so snap installs now get everything from 0.13.0 (music apps in full, the "how sure Codetta must be" setting) with this release.
+
 ## 0.13.0 (2026-11-24)
 
 Music apps in full: stars, ratings, play counts, playlists and your play queue are kept and shared by every app, songs convert for mobile data, covers come at the right size, and plays can be scrobbled to ListenBrainz. Plus a setting for how sure Codetta must be before filing on its own, and fixes from two careful reviews.
