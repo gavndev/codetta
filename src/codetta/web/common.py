@@ -508,6 +508,7 @@ class HealthIssueIn(BaseModel):
 
 class SlskdPickIn(BaseModel):
     index: int = Field(ge=0, le=100)
+    files: list[Annotated[str, Field(max_length=500)]] | None = Field(default=None, max_length=2000)  # only these (file names)
 
 
 class PatternIn(BaseModel):

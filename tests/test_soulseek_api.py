@@ -290,3 +290,20 @@ def test_pick_the_source_before_downloading(client):
     c.post(f"/api/slskd/jobs/{job['id']}/pick", json={"index": two["index"]})
     job = wait_for(c, job["id"], reviewable)
     assert job["current"]["username"] == "two"
+
+
+def test_view_a_sources_folder_and_pick_some_files(client):
+    c, fake = client(sellers=("one", "two"))
+    c.put("/api/slskd/settings", json={"url": "slskd:5030", "api_key": "codetta-test-key-0001", "choose": True})
+    job = c.post("/api/slskd/search", json={"query": "Coda Tester Fixture Album"}).json()["job"]
+    job = wait_for(c, job["id"], lambda j: j["status"] == "choosing")
+    two = next(x for x in job["candidates"] if x["username"] == "two")
+    first = two["files"][0]
+    res = c.get(f"/api/slskd/jobs/{job['id']}/candidates/{two['index']}/folder")
+    assert res.status_code == 200, res.text
+    files = res.json()["files"]
+    assert {f["name"] for f in files if f["found"]} == set(two["files"])  # what the search found is marked
+    assert all(not f["name"].endswith(".jpg") for f in files)  # audio only
+    assert c.get(f"/api/slskd/jobs/{job['id']}/candidates/99/folder").status_code == 404
+    c.post(f"/api/slskd/jobs/{job['id']}/pick", json={"index": two["index"], "files": [first]})
+    assert [t["filename"].replace("\\", "/").rsplit("/", 1)[-1] for t in fake.downloads["two"]] == [first]

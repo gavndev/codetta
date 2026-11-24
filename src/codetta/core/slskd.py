@@ -177,6 +177,27 @@ class SlskdClient:
         self.call("POST", f"/transfers/downloads/{self._user(username)}",
                   [{"filename": f["filename"], "size": f["size"]} for f in files])
 
+    def directory(self, username: str, folder: str) -> list[dict]:
+        """Every file in one of a user's shared folders (search results only list the files that
+        matched), as search-style files with the full remote path."""
+        r = self.call("POST", f"/users/{self._user(username)}/directory", {"directory": folder})
+        dirs = r if isinstance(r, list) else [r] if isinstance(r, dict) else []
+        sep = "\\" if "\\" in folder or "/" not in folder else "/"
+        out = []
+        for d in dirs:
+            if not isinstance(d, dict):
+                continue
+            base = str(d.get("name") or d.get("directory") or folder)
+            if base.rstrip("\\/") != folder.rstrip("\\/"):
+                continue  # only this folder, not its subfolders
+            for f in d.get("files") or []:
+                if not isinstance(f, dict) or not f.get("filename"):
+                    continue
+                name = str(f["filename"])
+                full = name if ("\\" in name or "/" in name) else f"{folder.rstrip(sep)}{sep}{name}"
+                out.append({**f, "filename": full})
+        return out
+
     def downloads(self, username: str) -> list[dict]:
         """Every download from this user, flattened."""
         try:
@@ -414,8 +435,24 @@ class Job:
 
 def _slim(job: Job) -> None:
     """A finished request keeps its summary, not every candidate's file list (most of its size)."""
-    if job.status in DONE and any("files" in c for c in job.candidates):
-        job.candidates = [{k: v for k, v in c.items() if k != "files"} for c in job.candidates]
+    if job.status in DONE and any("files" in c or "all_files" in c for c in job.candidates):
+        job.candidates = [{k: v for k, v in c.items() if k not in ("files", "all_files")} for c in job.candidates]
+
+
+FILE_KEYS = ("filename", "size", "bitRate", "bitDepth", "sampleRate", "length", "isVariableBitRate")
+
+
+def audio_only(files: list[dict]) -> list[dict]:
+    """The audio files of a listing, in the candidate format, sorted by name."""
+    keep = [f for f in files if isinstance(f, dict) and _ext(f.get("filename") or "") in AUDIO and not f.get("isLocked")]
+    return [{k: f.get(k) for k in FILE_KEYS} for f in sorted(keep, key=lambda f: f["filename"])]
+
+
+def with_files(cand: dict, files: list[dict]) -> dict:
+    """A candidate narrowed (or widened) to these files: tracks, size and quality follow."""
+    q, label = quality(files)
+    return {**cand, "files": files, "tracks": len(files), "size": sum(int(f.get("size") or 0) for f in files),
+            "quality": label, "lossless": q == 3}
 
 
 class SoulseekStore:
@@ -609,6 +646,27 @@ class Soulseek:
             self.notify(f"Soulseek: pick a source for “{job.query}”", note, {"open": "soulseek", "job": job.id})
             return
         self.start(job, 0)
+
+    def folder(self, job: Job, index: int) -> list[dict]:
+        """Every audio file in candidate ``index``'s folder (asked from the sharer once, then kept)."""
+        cand = job.candidates[index]
+        if "all_files" not in cand:
+            files = audio_only(self.client().directory(cand["username"], cand["folder"]))
+            known = {f["filename"] for f in files}
+            files += [f for f in cand.get("files", []) if f["filename"] not in known]  # never lose what the search found
+            cand["all_files"] = sorted(files, key=lambda f: f["filename"])
+            self.store.update(job)
+        return cand["all_files"]
+
+    def choose_files(self, job: Job, index: int, names: list[str]) -> None:
+        """Download only these files of candidate ``index`` (file names, from its folder)."""
+        cand = job.candidates[index]
+        pool = {split_remote(f["filename"])[1]: f for f in cand.get("all_files") or cand.get("files", [])}
+        chosen = [pool[n] for n in dict.fromkeys(names) if n in pool]
+        if not chosen:
+            raise SlskdError("Pick at least one file to download.")
+        job.candidates[index] = with_files(cand, chosen) | ({"all_files": cand["all_files"]} if "all_files" in cand else {})
+        self.store.update(job)
 
     def start(self, job: Job, index: int) -> None:
         """Download candidate ``index``."""

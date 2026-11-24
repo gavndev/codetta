@@ -335,6 +335,8 @@ def register(app, shared) -> None:
         try:
             if job.status == SK_DOWNLOADING:
                 soulseek.cancel_transfers(job)
+            if body.files is not None:
+                soulseek.choose_files(job, body.index, body.files)
             if job.status == SK_ARRIVED:
                 sk_drop_download(job)
             soulseek.start(job, body.index)
@@ -343,6 +345,21 @@ def register(app, shared) -> None:
         sk_clear_leftovers(job)
         sk_start()
         return soulseek_out()
+
+    @app.get("/api/slskd/jobs/{job_id}/candidates/{index}/folder")
+    def soulseek_folder(job_id: str, index: int) -> dict:
+        """Every file in a source's folder: a search only lists the files that matched its words."""
+        sk_ready()
+        job = sk_job(job_id)
+        if not 0 <= index < len(job.candidates) or "files" not in job.candidates[index]:
+            raise HTTPException(404, "That result is gone")
+        try:
+            files = soulseek.folder(job, index)
+        except SlskdError as exc:
+            raise HTTPException(502, str(exc)) from exc
+        found = {split_name(f["filename"]) for f in job.candidates[index].get("files", [])}
+        return {"files": [{"name": split_name(f["filename"]), "size": f.get("size") or 0, "length": f.get("length"),
+                           "found": split_name(f["filename"]) in found} for f in files]}
 
     @app.post("/api/slskd/jobs/{job_id}/import")
     def soulseek_import(job_id: str, body: SlskdImportIn | None = None) -> dict:

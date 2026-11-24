@@ -78,6 +78,13 @@ class FakeSlskd:
             return 200, json.dumps({"username": user, "directories": [{"directory": "x", "files": self.downloads[user]}]}).encode()
         if method == "DELETE" and path.startswith("/transfers/downloads/"):
             return 204, b""
+        if method == "POST" and path.startswith("/users/") and path.endswith("/directory"):
+            folder = data["directory"]  # the whole folder: the 2 found files plus the rest, as bare names
+            return 200, json.dumps([{"name": folder, "fileCount": 4, "files": [
+                {"filename": "01 Bartender.flac", "size": 30_000, "bitDepth": 16, "sampleRate": 44100},
+                {"filename": "02 Church.flac", "size": 30_000, "bitDepth": 16, "sampleRate": 44100},
+                {"filename": "03 Buy U a Drank.flac", "size": 31_000, "bitDepth": 16, "sampleRate": 44100},
+                {"filename": "folder.jpg", "size": 500}]}]).encode()
         return 404, b""
 
     def finish(self, user, state="Completed, Succeeded"):
@@ -316,3 +323,23 @@ def test_switching_source_remembers_what_already_arrived(setup):
     sk.tick(lambda j: None)
     assert job.current["username"] != user
     assert job.leftovers and job.leftovers[0]["files"] and len(job.leftovers[0]["files"]) == 1
+
+
+def test_view_the_whole_folder_and_download_only_some(setup):
+    """A search lists only the files that matched; the folder has more. Pick which ones come."""
+    fake, store, sk, clock, notes = setup
+    store.settings.choose = True
+    job = sk.search("T-Pain Bartender")
+    fake.searches[job.id]["done"] = True
+    sk.tick(lambda j: None)
+    i = next(n for n, c in enumerate(job.candidates) if c["username"] == "flacfan")
+    files = sk.folder(job, i)
+    names = [n["filename"].rsplit("\\", 1)[1] for n in files]
+    assert names == ["01 Bartender.flac", "02 Church.flac", "03 Buy U a Drank.flac"]  # audio only, full paths
+    assert all(n["filename"].startswith("Music\\T-Pain\\Epiphany (2007)\\") for n in files)
+    sk.choose_files(job, i, ["01 Bartender.flac", "03 Buy U a Drank.flac"])
+    assert job.candidates[i]["tracks"] == 2 and job.candidates[i]["size"] == 61_000
+    sk.start(job, i)
+    assert [t["filename"].rsplit("\\", 1)[1] for t in fake.downloads["flacfan"]] == ["01 Bartender.flac", "03 Buy U a Drank.flac"]
+    with pytest.raises(SlskdError):
+        sk.choose_files(job, i, ["not there.flac"])

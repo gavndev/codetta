@@ -668,19 +668,84 @@ const skSpeed = (bps) => (bps >= 1e6 ? `${(bps / 1e6).toFixed(1)} MB/s` : bps >=
 
 function skCandidates(j) {
   const choosing = j.status === "choosing";
-  return h("ol", { class: `sk-cands${choosing ? " choosing" : ""}` }, j.candidates.slice(0, choosing ? 8 : 25).map((c) => {
+  const limit = sk.shown[j.id] || (choosing ? 8 : 25);
+  const more = j.candidates.length - limit;
+  const list = h("ol", { class: `sk-cands${choosing ? " choosing" : ""}` }, j.candidates.slice(0, limit).map((c) => {
     const here = c.index === j.current?.index;
     return h("li", { class: here ? "current" : "" },
       h("span", { class: "sk-cand-text" },
         h("strong", { dir: "auto" }, c.name),
         h("span", {}, [c.quality, plural(c.tracks, "track"), skSize(c.size), c.username,
           c.free_slot ? "free slot" : `${c.queue} queued`, choosing ? skSpeed(c.speed) : null].filter(Boolean).join(" · ")),
-        choosing && c.files?.length ? h("details", { class: "sk-files" }, h("summary", {}, `Files (${c.files.length})`),
-          h("ol", {}, c.files.map((n) => h("li", { dir: "auto" }, n)))) : null),
+        choosing && c.files?.length ? skFiles(j, c) : null),
       here ? h("span", { class: "inbox-note" }, "This one")
-        : h("button", { class: "btn small", type: "button", onclick: () => skAction("POST", `/api/slskd/jobs/${j.id}/pick`, { index: c.index },
-          () => { sk.picking = null; toast(`Downloading ${c.name}…`); }) }, c.tried ? "Try again" : "Download"));
+        : h("button", { class: "btn small", type: "button", onclick: () => {
+          const files = choosing ? skPicked(j, c) : null;
+          skAction("POST", `/api/slskd/jobs/${j.id}/pick`, { index: c.index, ...(files ? { files } : {}) },
+            () => { sk.picking = null; delete sk.sel[`${j.id}:${c.index}`]; toast(`Downloading ${c.name}…`); });
+        } }, c.tried ? "Try again" : skDownloadLabel(j, c)));
   }));
+  if (more <= 0) return list;
+  return h("div", {}, list, h("button", { class: "btn small sk-more", type: "button",
+    onclick: () => { sk.shown[j.id] = limit + 10; renderSoulseek(); } }, more > 10 ? `Load more sources (${more} more)` : `Show the last ${plural(more, "source")}`));
+}
+
+// ---- Choosing files: a source's whole folder, and which of its tracks come ------------------------------
+// A search only lists the files that matched its words; "View all files" asks the sharer for the rest.
+// The ticks live in sk.sel so they survive the window redrawing itself.
+
+function skSel(j, c) {
+  const key = `${j.id}:${c.index}`;
+  if (!sk.sel[key]) sk.sel[key] = { all: null, picked: new Set(c.files), loading: false, error: "" };
+  return sk.sel[key];
+}
+
+/** The file names to download, or null for "just what the search found" (the usual case). */
+function skPicked(j, c) {
+  const sel = sk.sel[`${j.id}:${c.index}`];
+  if (!sel) return null;
+  const found = new Set(c.files);
+  const same = sel.picked.size === found.size && [...found].every((n) => sel.picked.has(n));
+  return same ? null : [...sel.picked];
+}
+
+function skDownloadLabel(j, c) {
+  const sel = sk.sel[`${j.id}:${c.index}`];
+  const total = sel?.all ? sel.all.length : c.files?.length || 0;
+  if (!sel || (!sel.all && sel.picked.size === total)) return "Download";
+  return sel.picked.size === total ? `Download all ${total}` : `Download ${sel.picked.size} of ${total}`;
+}
+
+async function skLoadFolder(j, c) {
+  const sel = skSel(j, c);
+  sel.loading = true; sel.error = "";
+  renderSoulseek();
+  try {
+    const d = await api("GET", `/api/slskd/jobs/${j.id}/candidates/${c.index}/folder`);
+    sel.all = d.files;
+  } catch (err) { sel.error = err.message; }
+  sel.loading = false;
+  if ($("#soulseek-dialog").open) renderSoulseek();
+}
+
+function skFiles(j, c) {
+  const sel = skSel(j, c);
+  const list = sel.all || c.files.map((name) => ({ name, found: true }));
+  const tick = (name, on) => { if (on) sel.picked.add(name); else sel.picked.delete(name); renderSoulseek(); };
+  const setAll = (names) => { sel.picked = new Set(names); renderSoulseek(); };
+  return h("details", { class: "sk-files", "data-key": `${j.id}:${c.index}` },
+    h("summary", {}, sel.all ? `Files (${sel.picked.size} of ${sel.all.length} ticked)`
+      : sel.picked.size === c.files.length ? `Files (${c.files.length})` : `Files (${sel.picked.size} of ${c.files.length} ticked)`),
+    h("ul", { class: "sk-file-picks" }, list.map((f) => h("li", {}, h("label", { class: f.found ? "" : "extra" },
+      h("input", { type: "checkbox", checked: sel.picked.has(f.name), onchange: (e) => tick(f.name, e.target.checked) }),
+      h("span", { dir: "auto" }, f.name),
+      f.size ? h("span", { class: "sk-file-size" }, skSize(f.size)) : null)))),
+    h("div", { class: "sk-file-tools" },
+      sel.all ? null : h("button", { class: "link-btn", type: "button", disabled: sel.loading, onclick: () => skLoadFolder(j, c) },
+        sel.loading ? "Asking for the folder…" : "View all files in the folder"),
+      sel.all && sel.picked.size < sel.all.length ? h("button", { class: "link-btn", type: "button", onclick: () => setAll(sel.all.map((f) => f.name)) }, "Tick all") : null,
+      sel.picked.size ? h("button", { class: "link-btn", type: "button", onclick: () => setAll([]) }, "Untick all") : null,
+      sel.error ? h("span", { class: "field-error" }, sel.error) : null));
 }
 
 function skItem(j) {
@@ -723,7 +788,7 @@ function skItem(j) {
         h("span", { class: `inbox-chip ${chipClass}` }, SK_ACTIVE.includes(j.status) || chipClass === "matching"
           ? h("span", { class: "live-dot", "aria-hidden": "true" }) : null, chip),
         j.note ? h("span", { class: "inbox-note" }, j.note) : null),
-      reviewable && c ? h("details", { class: "sk-files" }, h("summary", {}, `What came: ${plural(c.files.length, "file")}`),
+      reviewable && c ? h("details", { class: "sk-files", "data-key": `${j.id}:came` }, h("summary", {}, `What came: ${plural(c.files.length, "file")}`),
         h("ol", {}, c.files.map((n) => h("li", { dir: "auto" }, n)))) : null,
       sk.picking === j.id || j.status === "choosing" ? skCandidates(j) : null),
     h("div", { class: "inbox-actions" }, actions));
@@ -742,12 +807,20 @@ function renderSoulseek() {
     setKids($("#soulseek-foot"), h("span", { class: "spacer" }), close);
     return;
   }
-  const form = h("form", { class: "sk-search" },
-    h("span", { class: "bang-chip" }, icon("slskd"), "slskd"),
-    h("input", { type: "search", name: "q", placeholder: "Artist and album (* is a wildcard)", "aria-label": "Search Soulseek", maxlength: "300",
-      autocomplete: "off", spellcheck: "false", enterkeyhint: "search" }),
-    h("button", { class: "btn primary", type: "submit" }, "Search"));
-  form.addEventListener("submit", (e) => { e.preventDefault(); skSearch(form.q.value, ""); });
+  // The window redraws every couple of seconds while something is busy. The search box is made
+  // once and kept, so what you're typing (and the cursor) survives; open file lists stay open.
+  if (!sk.form) {
+    sk.form = h("form", { class: "sk-search" },
+      h("span", { class: "bang-chip" }, icon("slskd"), "slskd"),
+      h("input", { type: "search", name: "q", placeholder: "Artist and album (* is a wildcard)", "aria-label": "Search Soulseek", maxlength: "300",
+        autocomplete: "off", spellcheck: "false", enterkeyhint: "search" }),
+      h("button", { class: "btn primary", type: "submit" }, "Search"));
+    sk.form.addEventListener("submit", (e) => { e.preventDefault(); skSearch(sk.form.q.value, ""); });
+  }
+  const form = sk.form;
+  const focused = document.activeElement === form.q;
+  const open = new Set([...body.querySelectorAll("details[data-key][open]")].map((el) => el.dataset.key));
+  const scroll = body.scrollTop;
   setKids(body,
     !d.inbox.folder ? h("p", { class: "org-warn" }, "Set up the inbox first: Soulseek downloads arrive there (Inbox button in the top bar).") : null,
     d.check?.ok && !d.check.shared_folders ? shareWarning() : null,
@@ -761,6 +834,9 @@ function renderSoulseek() {
       }
     } }, `Clear blocklist (${d.blocked})`) : null,
     h("span", { class: "spacer" }), close);
+  for (const el of body.querySelectorAll("details[data-key]")) if (open.has(el.dataset.key)) el.open = true;
+  body.scrollTop = scroll;
+  if (focused) form.q.focus({ preventScroll: true });
   if (sk.focus) {
     const el = body.querySelector(`[data-job="${CSS.escape(sk.focus)}"]`);
     if (el) { el.classList.add("focus"); el.scrollIntoView({ block: "nearest" }); }

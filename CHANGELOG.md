@@ -4,6 +4,8 @@ All notable changes to Codetta. Versions follow [Semantic Versioning](https://se
 
 ## Unreleased
 
+- **Fix: you can type in the Soulseek search box while a search runs.** The window refreshes itself every couple of seconds while it works, and that used to empty the box (and close any open file list). Both now stay as they are.
+- **Soulseek, more like slskd's own:** **View all files in the folder** shows every file a source has in that folder (a search only lists the ones that matched your words), tick boxes choose which tracks to download (the button says "Download 3 of 12"), and **Load more sources** shows the rest of what the search found instead of the first 8.
 - **Fix: some windows couldn't be closed.** Save covers as files, Paste a tracklist, Tags from file names and ReplayGain ignored their X and Cancel buttons (only Escape worked). Every window now closes from its buttons or a click outside it.
 - **Settings sits in the middle of big screens:** on a wide or ultrawide monitor, Settings opens as a centred window instead of stretching from edge to edge.
 - **Tidier Settings:** each online service's switch now sits right above its own settings, and they're grouped by what they're for. ListenBrainz and AudioMuse-AI are under Listening, your music server (Navidrome, Jellyfin, Emby, Plex) is next to the music apps in **Music apps & server**, and Connections is split into tags, covers and lyrics; getting music; and Codetta itself.

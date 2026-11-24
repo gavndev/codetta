@@ -228,7 +228,7 @@ function renderInbox() {
 // Codetta downloads the best copy into the inbox, and the Soulseek sheet asks
 // whether to keep it (or blocklist it and try the next one).
 
-export const sk = { data: null, timer: null, focus: null, picking: null };
+export const sk = { data: null, timer: null, focus: null, picking: null, form: null, shown: {}, sel: {} };
 export const SK_LABELS = {
   searching: "Searching", choosing: "Pick a source", downloading: "Downloading", fetched: "Downloaded", arrived: "Matching", imported: "Imported",
   nothing: "Nothing found", failed: "Couldn't get it", cancelled: "Cancelled",
