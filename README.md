@@ -89,7 +89,7 @@ Open `http://<your-server>:8111` and create your account. A few short setup
 steps follow (online features, folder naming, Tidy up, the inbox, optional
 integrations). Each can be skipped and changed later.
 
-Runs on Intel/AMD and ARM, from a Raspberry Pi 4 up: about a 100 MB download
+Runs on Intel/AMD and ARM, from a Raspberry Pi 4 up: about a 40 MB download
 and 70 MB of memory (about 130 MB at 100,000 tracks), and no disk activity when idle. The
 [install guide](docs/install.md) walks through every step, including updates.
 
