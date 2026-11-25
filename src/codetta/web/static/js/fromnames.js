@@ -9,13 +9,14 @@ import { refreshActivity } from "./activity.js";
 import { fieldLabel } from "./editor.js";
 import { t as tr } from "./i18n.js";
 
-const fn = { target: null, label: "", timer: null, token: 0, data: null, el: {} };
-const CHIPS = ["{track}", "{title}", "{artist}", "{album}", "{albumartist}", "{year}", "{disc}", "{skip}", "/"];
+const fn = { target: null, label: "", timer: null, token: 0, data: null, el: {}, underSet: false };
+const CHIPS = ["{track}", "{title}", "{artist}", "{album}", "{albumartist}", "{year}", "{month}", "{day}", "{disc}", "{skip}", "/"];
 const EXAMPLES = ["{track} - {title}", "{track} - {artist} - {title}", "{artist} - {title}", "{track}. {title}",
-  "{artist}/{album}/{track} - {title}", "{artist}/{album} ({year})/{track} - {title}"];
+  "{artist}/{album}/{track} - {title}", "{artist}/{album} ({year})/{track} - {title}",
+  "{title} {year} {month} {day} {skip}"];
 
 export function openFromNames(target, label) {
-  fn.target = target; fn.label = tr(label); fn.data = null;
+  fn.target = target; fn.label = tr(label); fn.data = null; fn.underSet = false;
   const el = fn.el;
   el.pattern = h("input", { type: "text", maxlength: "300", spellcheck: "false", autocomplete: "off", autocapitalize: "off",
     placeholder: "{track} - {artist} - {title}", "aria-label": "Pattern", class: "fn-pattern" });
@@ -23,6 +24,7 @@ export function openFromNames(target, label) {
   el.under = h("input", { type: "checkbox" });
   el.pattern.addEventListener("input", () => previewSoon());
   for (const c of [el.keep, el.under]) c.addEventListener("change", () => previewSoon(0));
+  el.under.addEventListener("change", () => { fn.underSet = true; }); // until then, Codetta decides from the names
   const insert = (text) => {
     const i = el.pattern.selectionStart ?? el.pattern.value.length;
     const j = el.pattern.selectionEnd ?? i;
@@ -40,6 +42,7 @@ export function openFromNames(target, label) {
     h("div", { class: "fn-chips" }, CHIPS.map((c) => h("button", { class: "fn-chip", type: "button", translate: "no",
       title: c === "/" ? tr("A folder") : c === "{skip}" ? tr("A part to leave out") : null, onclick: () => insert(c) }, c)), examples),
     h("p", { class: "hint" }, "Text outside the braces must be in the name as written. A / reaches into the folders above, so {artist}/{album}/{track} - {title} reads the artist and album from the folders too."),
+    h("p", { class: "hint" }, "{year}, {track}, {month} and {day} only match numbers, so a date is found wherever it is in a name: {title} {year} {month} {day} {skip} reads microphone_verse_2018_4_17_16_45 as “microphone verse”, 2018-04-17."),
     h("div", { class: "rep-options" },
       h("label", { class: "rep-check" }, el.keep, "Keep tags that already have a value"),
       h("label", { class: "rep-check" }, el.under, "Underscores are spaces")),
@@ -52,7 +55,7 @@ export function openFromNames(target, label) {
 }
 
 function body(dry) {
-  return { ...fn.target, pattern: fn.el.pattern.value, keep_existing: fn.el.keep.checked, underscores: fn.el.under.checked, dry_run: dry };
+  return { ...fn.target, pattern: fn.el.pattern.value, keep_existing: fn.el.keep.checked, underscores: fn.underSet ? fn.el.under.checked : null, dry_run: dry };
 }
 
 function previewSoon(wait = 300) {
@@ -72,6 +75,7 @@ async function preview() {
     if (token !== fn.token) return;
     fn.data = d;
     if (d.suggested && !fn.el.pattern.value) fn.el.pattern.value = d.pattern;
+    if (!fn.underSet) fn.el.under.checked = !!d.underscores;
     go.disabled = !d.changing;
     go.textContent = d.changing ? `Fill in ${plural(d.changing, "track")}` : "Fill in tags";
     setKids(box,

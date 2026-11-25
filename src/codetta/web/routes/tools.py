@@ -119,7 +119,11 @@ def register(app, shared) -> None:
                 library.resolve(rel)
             except LibraryPathError as exc:
                 raise HTTPException(400, str(exc)) from exc
-        names = [rel.replace("_", " ") if body.underscores else rel for rel in targets]
+        underscores = body.underscores
+        if underscores is None:  # names like "microphone_verse_2018_4_17" use "_" for spaces; "01 - Song" don't
+            stems = [rel.rsplit("/", 1)[-1].rsplit(".", 1)[0] for rel in targets]
+            underscores = sum(s.count("_") > s.count(" ") for s in stems) * 2 > len(stems)
+        names = [rel.replace("_", " ") if underscores else rel for rel in targets]
         text = body.pattern.strip() or suggest(names) or "{title}"
         try:
             pattern = compile_pattern(text)
@@ -150,7 +154,7 @@ def register(app, shared) -> None:
                 plan[rel] = changes
                 if len(preview) < 200:
                     preview.append({"path": rel, "changes": shown})
-        out = {"pattern": text, "suggested": not body.pattern.strip(), "tracks": len(targets),
+        out = {"pattern": text, "suggested": not body.pattern.strip(), "underscores": underscores, "tracks": len(targets),
                "matched": len(targets) - misses, "unmatched": unmatched, "unmatched_count": misses, "changing": len(plan), "unreadable": unreadable, "preview": preview}
         if body.dry_run or not plan:
             return out

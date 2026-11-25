@@ -5,6 +5,11 @@ is a tag, anything else must be there as written, and "/" reaches into folders, 
 "{artist}/{album} ({year})/{track} {title}" reads the artist and album from the folders too.
 "{skip}" matches a part you don't want. Spaces in the pattern match any run of spaces, so
 "01 -  Title" and "01 - Title" both fit "{track} - {title}".
+
+Tags that can only be numbers only match numbers: {year} four digits, {track} and {disc} a number,
+{month} and {day} one or two digits. So "{title}_{year}_{skip}" finds the year in
+"microphone_verse_2018_4_17_16_45_3" instead of trying "verse" as one, and {month} and {day} make
+the date whole ("2018-04-17").
 """
 
 from __future__ import annotations
@@ -12,6 +17,7 @@ from __future__ import annotations
 import posixpath
 import re
 from dataclasses import dataclass
+from datetime import date as _date
 
 # Names people type -> Codetta's tag names.
 ALIASES = {
@@ -19,7 +25,11 @@ ALIASES = {
     "year": "date", "date": "date", "title": "title", "artist": "artist", "album": "album",
     "albumartist": "albumartist", "genre": "genre", "composer": "composer", "comment": "comment",
     "label": "label", "catalognumber": "catalognumber", "skip": None,
+    "month": "_month", "day": "_day",  # parts of the date, joined to {year} as "2018-04-17"
 }
+# What a tag can look like in a name (by the name used in the pattern); others take any text.
+_SHAPES = {"year": r"\d{4}", "date": r"\d{4}(?:-\d{2}(?:-\d{2})?)?", "track": r"\d+", "tracknumber": r"\d+",
+           "disc": r"\d+", "discnumber": r"\d+", "month": r"\d{1,2}", "day": r"\d{1,2}"}
 SUGGESTIONS = (
     "{track} - {artist} - {title}",
     "{track} - {title}",
@@ -34,6 +44,14 @@ SUGGESTIONS = (
     "{artist}/{album} ({year})/{track} - {title}",
     "{artist}/{year} - {album}/{track} - {title}",
     "{artist}/{album}/{track} {title}",
+    # Dated recordings and demos: "microphone_verse_2018_4_17_16_45_3", "idea 2019-03-02".
+    "{title} {year} {month} {day} {skip}",
+    "{title} {year} {month} {day}",
+    "{title}_{year}_{month}_{day}_{skip}",
+    "{title}_{year}_{month}_{day}",
+    "{title} {date}",
+    "{title} {year} {skip}",
+    "{title}_{year}_{skip}",
     "{title}",  # at least the title, from a plain name
 )
 _PLACEHOLDER = re.compile(r"\{([a-z_]+)\}", re.IGNORECASE)
@@ -69,7 +87,26 @@ class Pattern:
             if tag in out and out[tag] != value:
                 return None
             out[tag] = value
+        return _whole_date(out)
+
+
+def _whole_date(out: dict[str, str]) -> dict[str, str] | None:
+    """Join {month} and {day} to the year ("2018", "4", "17" -> "2018-04-17"); None if that's no real date."""
+    month, day = out.pop("_month", None), out.pop("_day", None)
+    if month is None:
         return out
+    year = out.get("date", "")[:4]
+    if not year:
+        return None  # a month with no year to go with it
+    try:
+        when = _date(int(year), int(month), int(day or 1))
+    except ValueError:
+        return None
+    full = f"{when:%Y-%m}" if day is None else f"{when:%Y-%m-%d}"
+    if len(out["date"]) > 4 and not out["date"].startswith(full):
+        return None  # a full {date} that disagrees
+    out["date"] = full
+    return out
 
 
 def compile_pattern(text: str) -> Pattern:
@@ -85,20 +122,21 @@ def compile_pattern(text: str) -> Pattern:
             name = piece.lower()
             if name not in ALIASES:
                 known = ", ".join("{" + k + "}" for k in ("track", "title", "artist", "album", "albumartist", "year",
-                                                          "disc", "genre", "skip"))
+                                                          "disc", "month", "day", "genre", "skip"))
                 raise PatternError(f"{{{piece}}} isn't a tag Codetta knows. Use {known}.")
             fields.append(ALIASES[name])
-            parts.append(None)
+            parts.append(("tag", name))
         elif piece:
             parts.append(piece)
     if not any(f for f in fields):
         raise PatternError("Put at least one tag in braces, like {title}.")
     regex = []
     for n, part in enumerate(parts):
-        if part is None:
+        if isinstance(part, tuple):
             nxt = parts[n + 1] if n + 1 < len(parts) else None
             # A tag never crosses a folder; the last one in a name takes the rest of it.
-            regex.append("([^/]+?)" if nxt is not None else "([^/]+)")
+            shape = _SHAPES.get(part[1])
+            regex.append(f"({shape})" if shape else "([^/]+?)" if nxt is not None else "([^/]+)")
         else:
             regex.append(r"\s+".join(re.escape(w) for w in re.split(r"\s+", part)) if part.strip() else r"\s+")
     try:

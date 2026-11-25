@@ -90,7 +90,7 @@ def test_existing_tags_are_kept_unless_asked(client):
 
 def test_underscores_can_count_as_spaces(client):
     body = {"paths": [f"{FOLDER}/03_-_Nude.flac"], "pattern": "{track} - {title}"}
-    assert client.post("/api/tags/from-names", json=body).json()["changing"] == 0
+    assert client.post("/api/tags/from-names", json={**body, "underscores": False}).json()["changing"] == 0
     d = client.post("/api/tags/from-names", json={**body, "underscores": True}).json()
     assert d["changing"] == 1 and {ch["new"] for ch in d["preview"][0]["changes"]} == {"3", "Nude"}
 
@@ -109,3 +109,50 @@ def test_filling_in_writes_real_files_and_can_be_undone(client):
 def test_a_bad_pattern_is_refused_and_paths_stay_inside(client):
     assert client.post("/api/tags/from-names", json={"folder": FOLDER, "pattern": "{oops}"}).status_code == 422
     assert client.post("/api/tags/from-names", json={"paths": ["../x.flac"], "pattern": "{title}"}).status_code in (400, 422)
+
+
+DEMOS = ["Demos/microphone_verse_2018_4_17_16_45_3.mp3", "Demos/microphone_verse_lyrics @ 110 _2018_5_7_16_57_0.mp3",
+         "Demos/mirror_image_in_5_at_84_chorus_2018_10_17_16_5_11.mp3"]
+
+
+@pytest.mark.parametrize(("pattern", "rel", "expected"), [
+    # Number-only tags skip past words, so the year is found wherever it sits.
+    ("{title}_{year}_{skip}", DEMOS[0], {"title": "microphone_verse", "date": "2018"}),
+    ("{title}_{year}_{skip}", DEMOS[2], {"title": "mirror_image_in_5_at_84_chorus", "date": "2018"}),
+    ("{title}_{year}_{month}_{day}_{skip}", DEMOS[1], {"title": "microphone_verse_lyrics @ 110", "date": "2018-05-07"}),
+    ("{title} {year} {month}", "Demos/idea 2019 3.mp3", {"title": "idea", "date": "2019-03"}),
+    ("{title} {date}", "Demos/idea 2019-03-02.mp3", {"title": "idea", "date": "2019-03-02"}),
+    ("{track} {title}", "Album/07 Song 2.flac", {"tracknumber": "7", "title": "Song 2"}),
+])
+def test_dates_and_numbers_are_found_anywhere(pattern, rel, expected):
+    assert compile_pattern(pattern).match(rel) == expected
+
+
+@pytest.mark.parametrize(("pattern", "rel"), [
+    ("{title}_{year}_{month}_{day}", "x_2018_2_30.mp3"),  # no 30 February
+    ("{title}_{year}_{month}_{day}", "x_2018_13_1.mp3"),  # no 13th month
+    ("{title} {month} {day}", "x 4 17.mp3"),  # a month with no year
+    ("{title}_{year}_{skip}", "x_201_y.mp3"),  # not four digits
+])
+def test_impossible_dates_dont_fit(pattern, rel):
+    assert compile_pattern(pattern).match(rel) is None
+
+
+def test_dated_demos_get_a_pattern_and_spaces_by_themselves(tmp_path):
+    spaced = [n.replace("_", " ") for n in DEMOS]
+    best = suggest(spaced)
+    assert [compile_pattern(best).match(n) for n in spaced] == [
+        {"title": "microphone verse", "date": "2018-04-17"},
+        {"title": "microphone verse lyrics @ 110", "date": "2018-05-07"},
+        {"title": "mirror image in 5 at 84 chorus", "date": "2018-10-17"}]
+    demos = tmp_path / "music" / "Demos"
+    demos.mkdir(parents=True)
+    for rel in DEMOS:
+        shutil.copy2(FIXTURES_DIR / "sample.mp3", tmp_path / "music" / rel)
+    with TestClient(create_app(Settings(music_dir=tmp_path / "music", config_dir=tmp_path / "config", auth=False))) as c:
+        d = c.post("/api/tags/from-names", json={"folder": "Demos", "keep_existing": False}).json()
+        assert d["underscores"] is True and d["matched"] == 3
+        news = {p["path"]: {ch["key"]: ch["new"] for ch in p["changes"]} for p in d["preview"]}
+        assert news[DEMOS[0]] == {"title": "microphone verse", "date": "2018-04-17"}
+        # Ordinary names keep their underscores alone, and "{track} - {title}" names still win there.
+        assert suggest(["DL/03 - Radiohead - Nude.flac"]) == "{track} - {artist} - {title}"

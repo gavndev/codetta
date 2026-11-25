@@ -375,7 +375,7 @@ class FromNamesIn(BaseModel):
     folder: str | None = Field(default=None, max_length=MAX_PATH_CHARS)  # ...or the audio files in this folder
     pattern: str = Field("", max_length=300)  # "": Codetta suggests one
     keep_existing: bool = True  # tags that already have a value stay as they are
-    underscores: bool = False  # "_" in names means a space
+    underscores: bool | None = None  # "_" in names means a space (None: Codetta decides, from the names)
     dry_run: bool = True
 
 

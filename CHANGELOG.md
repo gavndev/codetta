@@ -2,6 +2,10 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+- **Tags from file names finds dates anywhere:** {year}, {track}, {month} and {day} now only match numbers, so a pattern like `{title} {year} {month} {day} {skip}` reads a demo named `microphone_verse_2018_4_17_16_45_3` as the title "microphone verse" and the date 2018-04-17, however many words come before the date. Before, names full of underscores and numbers often didn't fit at all. Codetta suggests that pattern by itself for dated files, and ticks **Underscores are spaces** for you when a folder's names use them that way.
+
 ## 0.15.0 (2026-11-25)
 
 Your music, artist pages, albums like the one you're on, and covers at their own shape.
