@@ -4,6 +4,10 @@ All notable changes to Codetta. Versions follow [Semantic Versioning](https://se
 
 ## Unreleased
 
+## 0.15.2 (2026-11-25)
+
+Albums and Songs in Your music, and section titles in folders.
+
 - **Albums and Songs in Your music:** between your lists and your playlists, Your music now has every album and every song in your library, the newest first, with **See all** for the whole lot. Only properly tagged music shows up: an album needs an album title and an album artist (so leftover tracks and untagged folders stay out), and a song needs a title and an artist. Each has a grid, like a streaming app, and a list, handier for scanning and searching: the two buttons on the right of its title switch between them, and your choice is remembered. Tap an album to open it, or a song to play it.
 - **Section titles in folders:** a folder's folders and tracks each get a title line, like **Albums** (in an artist's folder), **Artists** (on the Library page) or **Folders**, and **Tracks**, with how many. The grid and list buttons sit on the right of that line, in their own rounded squares, the chosen one lit in Codetta's colour and the other dimmed (the same in Your music).
 
