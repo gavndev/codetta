@@ -4,7 +4,7 @@
 import { $, ask, closeDialog, h, icon, replay, setKids } from "./dom.js";
 import { api } from "./api.js";
 import { els, first, isSpecialPath, plural, state, toast } from "./state.js";
-import { folderCache, loadFolder, renderSelectionBar, toggleSelect, trackByPath } from "./browse.js";
+import { folderCache, isSearch, loadFolder, navigate, renderSelectionBar, toggleSelect, trackByPath } from "./browse.js";
 import { setBang } from "./search.js";
 import { downloadFile, downloadSelection, downloadZip, folderCovers, isPhone, makeFolder, openActions, setSelectMode } from "./tools.js";
 import { closeEditor, confirmDiscard } from "./editor.js";
@@ -19,8 +19,8 @@ import { appStarted, copyText, showAuth } from "./account.js";
 
 // ---- Context menu: right-click on a computer, a long press on a phone ---------------------------------
 //
-// One small menu for a track or a folder: Rename, Move to, Select, Actions, Get info, Find in
-// MusicBrainz / slskd, Delete. Moves and deletes go through the same safe mover as Organize
+// One small menu for a track or a folder, in groups: (from a search: Go to album), then Rename, Move to,
+// Select; the tag tools; Find in MusicBrainz / slskd; Get info, Download; Delete. Moves and deletes go through the same safe mover as Organize
 // (nothing overwritten, one undo); Delete sends things to "Recently deleted" for 30 days.
 
 const ctx = { menu: null, openedAt: 0, press: null, suppressClick: false };
@@ -34,14 +34,20 @@ function closeContextMenu() {
 function openContextMenu(x, y, items) {
   closeContextMenu();
   document.querySelector(".tools-menu")?.remove();
-  const menu = h("div", { class: "tools-menu ctx-menu", role: "menu" }, items.filter(Boolean).map((t) => t === "-"
+  // Groups are split by "-". A group left empty (its items don't apply here) leaves no double line.
+  const list = items.filter(Boolean).filter((t, i, all) => t !== "-" || (i > 0 && all[i - 1] !== "-" && i < all.length - 1));
+  const menu = h("div", { class: "tools-menu ctx-menu", role: "menu" }, list.map((t) => t === "-"
     ? h("div", { class: "ctx-sep", role: "separator" })
     : h("button", { class: `tools-item${t.danger ? " danger" : ""}`, type: "button", role: "menuitem",
       onclick: () => { closeContextMenu(); t.run(); } }, icon(t.icon), t.label)));
   document.body.append(menu);
-  // Next to the pointer, but always fully on screen.
+  // Next to the pointer, but always fully on screen, and above the phone's tab bar (never behind it).
+  // Too tall for the space: it scrolls.
+  const bar = document.getElementById("tabbar")?.getBoundingClientRect();
+  const floor = (bar && bar.height && bar.top > 0 ? Math.min(bar.top, window.innerHeight) : window.innerHeight) - 8;
+  menu.style.setProperty("max-height", `${floor - 8}px`);
   const left = Math.min(Math.max(8, x), window.innerWidth - menu.offsetWidth - 8);
-  const top = Math.min(Math.max(8, y), window.innerHeight - menu.offsetHeight - 8);
+  const top = Math.max(8, Math.min(y, floor - menu.offsetHeight));
   Object.assign(menu.style, { left: `${left}px`, top: `${top}px` });
   menu.style.transformOrigin = `${x - left}px ${y - top}px`;
   replay(menu, "opening");
@@ -87,19 +93,26 @@ function trackMenu(t) {
   const title = first(t, "title") || t.name;
   const label = many ? plural(paths.length, "selected track") : `“${title}”`;
   const artist = first(t, "artist") || first(t, "albumartist");
+  // Search results come from all over the library: offer the way to where the track lives.
+  const away = !many && isSearch() && t.path.includes("/");
   return [
+    away ? { icon: "folder", label: first(t, "album") ? "Go to album" : "Go to folder", run: () => goToTrack(t.path) } : null,
+    "-",
     many ? null : { icon: "rename", label: "Rename…", run: () => renameEntry(t.path, false) },
     { icon: "move", label: "Move to…", run: () => moveEntries(paths, label) },
     many ? null : { icon: "select", label: "Select", run: () => { if (isPhone()) setSelectMode(true); toggleSelect(t.path, true, false); } },
+    "-",
     { icon: "wand", label: "Actions…", run: () => openActions({ paths }, label) },
     { icon: "tag", label: "Tags from file names…", run: () => openFromNames({ paths }, label) },
     many ? { icon: "paste", label: "Paste a tracklist…", run: () => openTracklist({ paths }, label) } : null,
     replayGainReady() ? { icon: "volume", label: "ReplayGain…", run: () => openReplayGain({ paths }, label) } : null,
+    "-",
+    state.status?.matching ? { icon: "musicbrainz", label: "Find in MusicBrainz", run: () => openMusicBrainzFor({ body: { paths }, label }) } : null,
+    !many && skReady() ? { icon: "slskd", label: "Find in slskd", run: () => slskdFor([artist, title].filter(Boolean).join(" ")) } : null,
+    "-",
     many ? null : { icon: "info", label: "Get info", run: () => showInfo(t.path) },
     many ? { icon: "download", label: `Download ${paths.length} as .zip`, run: () => downloadSelection(paths) }
       : { icon: "download", label: "Download", run: () => downloadFile(t.path) },
-    state.status?.matching ? { icon: "musicbrainz", label: "Find in MusicBrainz", run: () => openMusicBrainzFor({ body: { paths }, label }) } : null,
-    !many && skReady() ? { icon: "slskd", label: "Find in slskd", run: () => slskdFor([artist, title].filter(Boolean).join(" ")) } : null,
     "-",
     { icon: "trash", label: "Delete…", danger: true, run: () => deleteEntries(paths, label) },
   ];
@@ -111,16 +124,39 @@ function folderMenu(path) {
   return [
     { icon: "rename", label: "Rename…", run: () => renameEntry(path, true) },
     { icon: "move", label: "Move to…", run: () => moveEntries([path], `“${name}”`) },
-    { icon: "info", label: "Get info", run: () => showInfo(path) },
-    { icon: "download", label: "Download as .zip", run: () => downloadZip(path) },
+    "-",
     { icon: "paste", label: "Paste a tracklist…", run: () => openTracklist({ folder: path }, `“${name}”`) },
     { icon: "folder", label: "Save covers as files…", run: () => openCoverExport({ folder: path }, `“${name}”`) },
     replayGainReady() ? { icon: "volume", label: "ReplayGain…", run: () => openReplayGain({ folder: path }, `“${name}”`) } : null,
+    "-",
     state.status?.matching ? { icon: "musicbrainz", label: "Find in MusicBrainz", run: () => openMusicBrainzFor({ body: { folder: path }, label: `“${name}”` }) } : null,
     skReady() ? { icon: "slskd", label: "Find in slskd", run: () => slskdFor(parts.slice(-2).join(" ").replace(/\s*[([]\d{4}[)\]]\s*/g, " ").trim()) } : null,
     "-",
+    { icon: "info", label: "Get info", run: () => showInfo(path) },
+    { icon: "download", label: "Download as .zip", run: () => downloadZip(path) },
+    "-",
     { icon: "trash", label: "Delete…", danger: true, run: () => deleteEntries([path], `“${name}”`) },
   ];
+}
+
+/** From a search result to the folder the track lives in: the search closes, the album opens, and
+ *  the track is scrolled to and lit up for a moment. */
+async function goToTrack(path) {
+  els.filter.value = "";
+  setBang(false);
+  els.filter.blur();
+  $("#search-wrap")?.classList.remove("active");
+  const folder = path.slice(0, path.lastIndexOf("/"));
+  await navigate(folder);
+  for (let i = 0; i < 100; i++) { // the folder arrives in its own time (at once when cached)
+    const row = state.path === folder && els.tracks.querySelector(`.track-row[data-path="${CSS.escape(path)}"]`);
+    if (row) {
+      row.scrollIntoView({ block: "center" });
+      replay(row, "row-flash");
+      return;
+    }
+    await new Promise((r) => setTimeout(r, 50));
+  }
 }
 
 function slskdFor(query) {
