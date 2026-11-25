@@ -25,6 +25,8 @@ CALLS = [
     ("POST", "/api/autoplay/next", {"seeds": [TRACK], "n": 5}),
     ("GET", "/api/artists/picture?name=Coda+Tester", None),
     ("GET", "/api/artists/info?folder=Coda+Tester", None),
+    ("GET", f"/api/albums/like?folder={FOLDER}", None),
+    ("GET", f"/api/albums/elsewhere?folder={FOLDER}", None),
     ("POST", "/api/harmony", {"folder": FOLDER}),
     ("PUT", "/api/listenbrainz", {"token": "l" * 36}),
     ("POST", "/api/listenbrainz/test", {}),

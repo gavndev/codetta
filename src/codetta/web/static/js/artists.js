@@ -118,9 +118,10 @@ export function artistHead(f, counts) {
     if (!d) { setKids(slot); return; }
     if (d.artists?.length > 1) { // a folder for several artists: each one's picture, overlapping; no bio of one
       const shown = d.artists.slice(0, 4);
-      const stack = h("div", { class: `artist-group n${shown.length}` }, shown.map((a) => h("button", {
+      const stack = h("div", { class: "artist-group" }, shown.map((a) => h("button", {
         class: "artist-group-item", type: "button", title: a.name, "aria-label": a.name, onclick: () => goTo(a),
       }, artistAvatar(a, 120))));
+      stack.classList.add(`n${shown.length}`); // n3, n4: smaller pictures
       pic.replaceWith(stack);
       setKids(slot);
       return;

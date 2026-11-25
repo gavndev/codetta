@@ -11,6 +11,7 @@ import {
   folderCache, index, isSearch, replaceTrack, searchQuery, trackByPath, updateRowStates,
 } from "./browse.js";
 import { folderCovers, renderTracks } from "./tools.js";
+import { forgetAlbumsLike } from "./similar.js";
 import { refreshActivity, renderActivity } from "./activity.js";
 import { canvasToBlob, decodeImage, showAuth } from "./account.js";
 
@@ -865,6 +866,7 @@ async function saveEditorNow(ed, targetPaths) {
   // old tags and covers: forget them, so going back shows what's on disk now.
   for (const key of [...folderCache.keys()]) if (key !== state.path) folderCache.delete(key);
   folderCovers.clear();
+  forgetAlbumsLike();
   if (state.editor !== ed) return; // closed meanwhile
   ed.errors = failures;
   ed.copyMode = false;

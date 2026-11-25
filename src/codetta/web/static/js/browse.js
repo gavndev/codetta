@@ -13,6 +13,7 @@ import { connectionOn } from "./setup.js";
 import { openMusicBrainz } from "./musicbrainz.js";
 import { syncSelectionTools } from "./selection.js";
 import { fetchYours, syncTabbar } from "./yours.js";
+import { renderAlbumsLike } from "./similar.js";
 
 // ---- Routing ------------------------------------------------------------------------------------
 
@@ -20,7 +21,7 @@ import { fetchYours, syncTabbar } from "./yours.js";
 // Real paths can never contain a NUL character (the server refuses them), so the
 // two can't collide. Its URL is "#?q=genre%3A%20rap".
 export const SEARCH = "\0";
-const isSearchKey = (key) => typeof key === "string" && key.startsWith(SEARCH);
+export const isSearchKey = (key) => typeof key === "string" && key.startsWith(SEARCH);
 // MusicBrainz pages (the !mb bang) are "paths" too: MBX + "search:<q>" | "artist:<id>" | "rg:<id>".
 // URLs: "#mb?q=…", "#mb/artist/<id>", "#mb/rg/<id>".
 export const MBX = "\x01";
@@ -424,6 +425,7 @@ export function mbFindButton(where) {
 // ---- Tag filter ---------------------------------------------------------------------------------------
 
 export function renderFilterChips() {
+  renderAlbumsLike(); // hidden while the tracks are filtered
   const chips = state.tagFilters.map((f, i) => h("span", { class: "filter-chip" },
     h("span", {}, h("b", {}, fieldLabel(f.key)), ": ", f.value === "" ? h("i", {}, "empty") : f.value),
     h("button", {

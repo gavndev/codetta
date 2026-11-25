@@ -3487,3 +3487,49 @@ dialog.confirm.wipe-final-step .sheet-head h2 { width: 100%; }
   body:has(.editor:not([hidden])) .selection-actions { gap: 4px; }
 }
 #yours-btn[aria-pressed="true"] { color: var(--spot); background: var(--accent-soft); }
+/* Under an album: albums like it. Covers in a row that scrolls sideways (snaps a card at a time);
+   the library's own first, then past a rule the ones it doesn't have. */
+.album-more { margin-top: 36px; display: grid; gap: 28px; }
+.album-more[hidden] { display: none; }
+.am-group { display: grid; gap: 12px; min-width: 0; }
+.am-head { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: -0.015em; }
+.am-row {
+  display: grid; grid-auto-flow: column; grid-auto-columns: 164px; gap: 18px; overflow-x: auto; overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory; scroll-padding: 0 2px; padding: 2px 2px 10px; scrollbar-width: thin;
+}
+.am-card { display: grid; grid-template-rows: auto auto auto 1fr; gap: 3px; scroll-snap-align: start; min-width: 0;
+  color: inherit; text-decoration: none; }
+.am-cover { display: grid; place-items: center; aspect-ratio: 1; border-radius: 8px; overflow: hidden; margin-bottom: 6px;
+  background: var(--hover); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 8px 20px -12px rgba(0, 0, 0, 0.4);
+  transition: transform var(--dur) ease, box-shadow var(--dur) ease; }
+.am-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.am-cover svg { width: 30%; height: 30%; color: var(--faint); }
+@media (hover: hover) {
+  a.am-card:hover .am-cover, .am-card a.am-cover:hover { transform: translateY(-3px); box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08), 0 16px 30px -12px rgba(0, 0, 0, 0.45); }
+}
+.am-card:focus-visible, .am-cover:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 8px; }
+.am-title { font-size: 14px; font-weight: 650; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.am-meta { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.am-find {
+  justify-self: start; align-self: end; margin-top: 8px; display: inline-flex; align-items: center; gap: 6px;
+  min-height: 32px; padding: 0 11px; border-radius: 9px; border: 1.5px solid color-mix(in oklab, #3b9cf3 70%, var(--rule));
+  background: var(--bg); color: var(--text); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer;
+  transition: background-color var(--dur) ease;
+}
+.am-find svg { width: 14px; height: 14px; }
+.am-find:hover { background: var(--hover); }
+.am-find:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.am-away { display: grid; gap: 28px; }
+.am-away:empty { min-height: 1px; }
+.am-rule { width: 100%; margin: 4px 0 0; border: 0; border-top: 1px solid var(--rule); }
+.am-away-label { margin: -12px 0 -12px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.am-hint { justify-self: start; display: inline-flex; gap: 6px; align-items: center; }
+.am-hint svg { width: 14px; height: 14px; }
+@media (max-width: 760px) {
+  .album-more { margin-top: 28px; gap: 24px; }
+  .am-head { font-size: 17px; }
+  .am-row { grid-auto-columns: 138px; gap: 14px; margin: 0 -16px; padding: 2px 16px 10px; scroll-padding: 0 16px; scrollbar-width: none; }
+  .am-row::-webkit-scrollbar { display: none; }
+  .am-find { min-height: 36px; }
+}
+@media (prefers-reduced-motion: reduce) { .am-cover { transition: none; } }

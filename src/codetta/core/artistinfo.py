@@ -139,6 +139,33 @@ class ArtistInfo:
                 return {"text": text, "url": url, "title": title, "lang": code}
         return None
 
+    # --- Albums on Deezer ----------------------------------------------------------------------
+
+    def albums(self, name: str, limit: int = 4) -> list[dict]:
+        """An artist's best-known albums on Deezer (most fans first, singles and EPs left out):
+        [{"id": "deezer:123", "title", "artist", "year"}], or [] when Deezer is off."""
+        if not self.enabled("deezer") or not name.strip():
+            return []
+
+        def ask() -> list[dict]:
+            found = deezer_artist(self.deezer, name, lenient=True)
+            if not found:
+                return []
+            got = self.deezer(f"{DEEZER_API}/artist/{found['id']}/albums?limit=100")
+            out = []
+            for a in (got or {}).get("data") or []:
+                if not isinstance(a, dict) or not str(a.get("id") or "").isdigit() or a.get("record_type") != "album":
+                    continue
+                out.append({"id": f"deezer:{a['id']}", "title": str(a.get("title") or ""), "artist": str(found.get("name") or name),
+                            "year": str(a.get("release_date") or "")[:4], "fans": int(a.get("fans") or 0)})
+            out.sort(key=lambda a: -a["fans"])
+            return [{k: v for k, v in a.items() if k != "fans"} for a in out[:20]]
+
+        try:
+            return list(self._cached(f"albums:{_norm(name)}", ask))[:limit]
+        except (DeezerBusy, ProviderError):
+            return []
+
     # --- Similar artists ----------------------------------------------------------------------
 
     def similar(self, name: str, limit: int = 12) -> list[str]:

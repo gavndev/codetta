@@ -128,3 +128,80 @@ def test_a_folder_for_several_artists_lists_each_of_them_and_no_bio(several):
 def test_a_duo_or_band_with_one_credit_stays_one_artist(several):
     for folder in ("Simon & Garfunkel", "Earth, Wind & Fire", "Future"):
         assert "artists" not in several.get("/api/artists/info", params={"folder": folder}).json(), folder
+
+
+# ---- Albums like the one open ----------------------------------------------------------------------
+
+class AlbumFakes(Fakes):
+    def deezer(self, url):
+        u = urllib.parse.urlparse(url)
+        if u.path == "/artist/615/albums":
+            self.urls.append(url)
+            return {"data": [
+                {"id": 1, "title": "DS2", "record_type": "album", "fans": 900, "release_date": "2015-07-17"},  # owned
+                {"id": 2, "title": "Honest", "record_type": "album", "fans": 500, "release_date": "2014-04-22"},
+                {"id": 5, "title": "DS2 (Deluxe)", "record_type": "album", "fans": 300, "release_date": "2015-07-17"},
+                {"id": 6, "title": "HNDRX", "record_type": "album", "fans": 200, "release_date": "2017-02-17"},  # a typo of one you have
+                {"id": 7, "title": "Honest (Deluxe)", "record_type": "album", "fans": 150, "release_date": "2014-04-22"},
+                {"id": 8, "title": "The Best of Future", "record_type": "album", "fans": 100, "release_date": "2020-01-01"},
+                {"id": 3, "title": "Mask Off", "record_type": "single", "fans": 999, "release_date": "2017-01-01"},
+            ]}
+        if u.path == "/search/artist" and "Young" in url:
+            self.urls.append(url)
+            return {"data": [{"id": 77, "name": "Young Thug", "nb_fan": 5}]}
+        if u.path == "/artist/77/albums":
+            self.urls.append(url)
+            return {"data": [{"id": 4, "title": "So Much Fun", "record_type": "album", "fans": 50, "release_date": "2019-08-16"}]}
+        return super().deezer(url)
+
+
+@pytest.fixture
+def shelf(tmp_path):
+    music = tmp_path / "music"
+    _make(music, "Future", "HNDRXX", {"albumartist": "Future", "genre": "Trap", "date": "2017"})
+    _make(music, "Future", "DS2", {"albumartist": "Future", "genre": "Trap", "date": "2015"})
+    _make(music, "Future/Pluto", "CD1", {"albumartist": "Future", "album": "Pluto", "date": "2012"})  # an album in disc folders
+    _make(music, "Future/HNDRXX", "CD2", {"albumartist": "Future", "album": "HNDRXX"})  # this album's other disc
+    _make(music, "Metro Boomin", "Heroes", {"albumartist": "Metro Boomin", "genre": "Hip Hop", "date": "2022"})
+    _make(music, "Migos", "Culture", {"albumartist": "Migos", "genre": "Trap", "date": "2017"})
+    _make(music, "Gucci Mane", "Trap House", {"albumartist": "Gucci Mane", "genre": "Trap", "date": "2005"})
+    _make(music, "Björk", "Vespertine", {"albumartist": "Björk", "genre": "Electronic", "date": "2001"})
+    fakes = AlbumFakes()
+    app = create_app(Settings(music_dir=music, config_dir=tmp_path / "config"), fetch_mb=fakes.mb,
+                     fetch_wiki=fakes.wiki, fetch_catalog=fakes.deezer)
+    with TestClient(app) as c:
+        c.post("/api/auth/setup", json={"username": "owner", "password": PASSWORD})
+        import time
+        for _ in range(200):
+            if app.state.index.status().ready:
+                break
+            time.sleep(0.05)
+        c.fakes = fakes
+        yield c
+
+
+def test_albums_like_this_one_come_from_the_library_first(shelf):
+    d = shelf.get("/api/albums/like", params={"folder": "Future/HNDRXX"}).json()
+    assert [a["folder"] for a in d["more"]] == ["Future/DS2", "Future/Pluto"]  # not itself; an album, not its disc
+    assert d["more"][0]["title"] == "DS2" and d["more"][0]["year"] == "2015"
+    # Deezer off: the same genre, the closest years first; nothing asked online.
+    assert [a["folder"] for a in d["like"]] == ["Migos/Culture", "Gucci Mane/Trap House"]
+    assert not shelf.fakes.urls
+    shelf.put("/api/connections", json={"enabled": {"deezer": True}})
+    d = shelf.get("/api/albums/like", params={"folder": "Future/HNDRXX"}).json()
+    assert [a["folder"] for a in d["like"]][0] == "Metro Boomin/Heroes"  # a similar artist before the genre
+
+
+def test_albums_not_in_the_library_need_deezer_and_leave_out_what_you_have(shelf):
+    assert shelf.get("/api/albums/elsewhere", params={"folder": "Future/HNDRXX"}).json() == {"albums": [], "can": False}
+    assert not shelf.fakes.urls
+    shelf.put("/api/connections", json={"enabled": {"deezer": True}})
+    d = shelf.get("/api/albums/elsewhere", params={"folder": "Future/HNDRXX"}).json()
+    got = [(a["title"], a["why"]) for a in d["albums"]]
+    assert got == [("Honest", "artist"), ("So Much Fun", "similar")]  # DS2 is owned, Mask Off is a single
+    assert d["albums"][0]["id"] == "deezer:2" and d["albums"][0]["year"] == "2014"
+
+
+def test_albums_like_only_for_folders_in_the_library(shelf):
+    assert shelf.get("/api/albums/like", params={"folder": "../etc"}).status_code == 404
+    assert shelf.get("/api/albums/elsewhere", params={"folder": "Nope"}).status_code in (200, 404)

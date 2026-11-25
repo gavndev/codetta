@@ -1,6 +1,7 @@
 """Exploring from the search bar: MusicBrainz (the !mb bang), Deezer (!dz) and iTunes (!it)."""
 from __future__ import annotations
 
+from difflib import SequenceMatcher
 from typing import Literal
 
 from fastapi import HTTPException, Query
@@ -51,6 +52,17 @@ def register(app, shared) -> None:
         if not names:
             return None
         return names.get(health_fold(title)) or names.get(health_fold(EDITION_RE.sub("", title)))
+
+    def owned_like(artist: str, title: str) -> bool:
+        """Whether the library has this album, allowing a small difference in the title
+        ("Blonde" on Deezer, "Blond" here)."""
+        if owned_folder(artist, title):
+            return True
+        names = owned_albums().get(health_fold(base_artist(artist))) or {}
+        want = health_fold(EDITION_RE.sub("", title))
+        return any(SequenceMatcher(None, want, n).ratio() >= 0.88 for n in names)
+
+    shared.share(owned_folder=owned_folder, owned_like=owned_like)
 
     def with_owned(g: dict) -> dict:
         return {**g, "in_library": owned_folder(g["artist"], g["title"]) if g["artist"] else None}
