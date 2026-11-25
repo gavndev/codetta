@@ -2,7 +2,9 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.15.1 (2026-11-25)
+
+Tags from file names finds dates wherever they are in a name.
 
 - **Tags from file names finds dates anywhere:** {year}, {track}, {month} and {day} now only match numbers, so a pattern like `{title} {year} {month} {day} {skip}` reads a demo named `microphone_verse_2018_4_17_16_45_3` as the title "microphone verse" and the date 2018-04-17, however many words come before the date. Before, names full of underscores and numbers often didn't fit at all. Codetta suggests that pattern by itself for dated files, and ticks **Underscores are spaces** for you when a folder's names use them that way.
 
