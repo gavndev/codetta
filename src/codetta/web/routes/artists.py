@@ -119,19 +119,6 @@ def register(app, shared) -> None:
         out.pop("", None)
         return out
 
-    def each_artist(tags: dict) -> list[str]:
-        """The album's artists one by one: a collaboration ("Ali Sethi & Nicolas Jaar") is asked about
-        artist by artist, since catalogues know each of them and not the pair."""
-        listed = [v for v in tags.get("albumartists") or [] if v.strip()]
-        if len(listed) > 1:
-            return listed[:4]
-        artist = first(tags, "albumartist", "artist")
-        if not artist:
-            return []
-        ids = [i for i in tags.get("musicbrainz_albumartistid") or [] if len(i) == 36]
-        found = [a["name"] for a in split_credit(artist, [], ids)]
-        return found[:4] if len(found) > 1 else [artist]
-
     @app.get("/api/albums/like")
     def albums_like(folder: str = Query(..., max_length=1000)) -> dict:
         """Albums in the library like this one: more by the same artist, then albums by similar
@@ -166,8 +153,8 @@ def register(app, shared) -> None:
                 pass
         more = take(same, "artist", 24)
         similar = []
-        likes = list(dict.fromkeys(n for who in each_artist(tags) for n in info.similar(who, limit=25)))
-        for name in likes:
+        # A collaboration is asked about as itself: albums by the pair together, or none (never each one's own).
+        for name in info.similar(artist, limit=25) if artist else []:
             similar += take(folders_where("albumartist", name) or folders_where("artist", name, limit=400), "similar", 3)
             if len(similar) >= 12:
                 break
@@ -226,11 +213,8 @@ def register(app, shared) -> None:
                 out.append({**a, "why": why})
                 n += 1
 
-        who = each_artist(tags)
-        for name in who:
-            add(info.albums(name, limit=12), "artist", 6 if len(who) == 1 else 3)
-        likes = list(dict.fromkeys(n for name in who for n in info.similar(name, limit=8)))
-        for name in likes:
+        add(info.albums(artist, limit=12), "artist", 6)  # a collaboration: only albums by the pair together
+        for name in info.similar(artist, limit=8):
             add(info.albums(name, limit=6), "similar", 2)
             if len(out) >= 18:
                 break

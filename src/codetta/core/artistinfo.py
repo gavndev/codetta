@@ -24,6 +24,7 @@ import urllib.parse
 from collections.abc import Callable, Iterable
 from pathlib import Path
 
+from codetta.core.artists import pieces
 from codetta.core.catalogs import DEEZER_API, DeezerBusy, deezer_artist
 from codetta.core.providers import ProviderError
 
@@ -157,7 +158,9 @@ class ArtistInfo:
             return []
 
         def ask() -> list[dict]:
-            found = deezer_artist(self.deezer, name, lenient=True)
+            # A collaboration ("Ali Sethi & Nicolas Jaar") must be found under that exact name: Deezer's
+            # top hit would be one of them alone, and their own albums aren't the pair's.
+            found = deezer_artist(self.deezer, name, lenient=not pieces(name)[1:])
             if not found:
                 return []
             got = self.deezer(f"{DEEZER_API}/artist/{found['id']}/albums?limit=100")

@@ -239,3 +239,31 @@ def test_one_musicbrainz_id_naming_only_one_of_the_artists_still_splits(tmp_path
         d = c.get("/api/artists/info", params={"folder": "Ali Sethi & Nicolas Jaar"}).json()
         assert [a["name"] for a in d["artists"]] == ["Ali Sethi", "Nicolas Jaar"]
         assert "artists" not in c.get("/api/artists/info", params={"folder": "Simon & Garfunkel"}).json()
+
+
+def test_a_collaboration_gets_albums_by_the_pair_or_none(tmp_path):
+    music = tmp_path / "music"
+    _make(music, "Ali Sethi & Nicolas Jaar", "Intiha", {"albumartist": "Ali Sethi & Nicolas Jaar", "genre": "Ambient",
+                                                        "musicbrainz_albumid": "33333333-3333-3333-3333-333333333333"})
+    _make(music, "Ali Sethi", "Love Language", {"albumartist": "Ali Sethi", "genre": "Pop"})
+    asked = []
+
+    def deezer(url):
+        asked.append(url)
+        u = urllib.parse.urlparse(url)
+        if u.path == "/search/artist":  # Deezer's top hit for the pair is one of them alone
+            return {"data": [{"id": 9, "name": "Ali Sethi", "nb_fan": 5}]}
+        if u.path == "/artist/9/albums":
+            return {"data": [{"id": 1, "title": "Room Jhoom", "record_type": "album", "fans": 9}]}
+        if u.path == "/artist/9/related":
+            return {"data": [{"name": "Abida Parveen"}]}
+        return None
+    app = create_app(Settings(music_dir=music, config_dir=tmp_path / "config"), fetch_catalog=deezer)
+    with TestClient(app) as c:
+        c.post("/api/auth/setup", json={"username": "owner", "password": PASSWORD})
+        c.put("/api/connections", json={"enabled": {"deezer": True}})
+        folder = {"folder": "Ali Sethi & Nicolas Jaar/Intiha"}
+        assert c.get("/api/albums/elsewhere", params=folder).json()["albums"] == []
+        like = c.get("/api/albums/like", params=folder).json()
+        assert like["more"] == [] and like["like"] == []  # not Ali Sethi's own album
+        assert not any("/artist/9/" in u for u in asked)  # nothing asked (or kept) about either one alone
