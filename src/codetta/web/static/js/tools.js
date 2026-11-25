@@ -436,13 +436,6 @@ export function renderFolderHead() {
   els.folderHead.replaceChildren(
     heading,
     h("div", { class: "folder-actions" },
-      f.folders.length ? h("div", { class: "view-toggle", role: "group", "aria-label": "Folder view" },
-        ["list", "grid"].map((v) => h("button", {
-          type: "button", class: "icon-btn", title: v === "list" ? "List" : "Grid",
-          "aria-label": v === "list" ? "Show folders as a list" : "Show folders as a grid",
-          "aria-pressed": String(folderView() === v),
-          onclick: () => setFolderView(v),
-        }, icon(v === "list" ? "rows" : "grid")))) : null,
       // Phones (and folders without a cover): first in the action row, on the left.
       canMatch ? mbFindButton(coverTrack ? "in-actions phone-only" : "in-actions") : null,
       canSoulseek ? skFindButton(coverTrack ? "in-actions phone-only" : "in-actions") : null,
@@ -488,8 +481,31 @@ export function folderView() {
 
 export function setFolderView(view) {
   try { localStorage.setItem("codetta-folder-view", view); } catch { /* ignore */ }
-  renderFolderHead();
   renderFolders();
+}
+
+/** What a folder's subfolders are: albums (they hold songs), artists (at the top, they hold albums), or folders. */
+function foldersTitle(f) {
+  const subs = f.folders;
+  if (subs.length && subs.every((s) => s.tracks > 0 && !s.folders)) return "Albums";
+  if (!f.path && subs.filter((s) => s.folders > 0).length * 2 > subs.length) return "Artists";
+  return "Folders";
+}
+
+/** A section's title line: its name and how many on the left, anything else (the grid/list buttons) on the right. */
+function sectionHead(box, title, count, ...end) {
+  box.hidden = false;
+  box.replaceChildren(h("h2", {}, title), h("span", { class: "sec-count" }, count), h("span", { class: "spacer" }), ...end);
+}
+
+function folderToggle() {
+  return h("div", { class: "view-toggle", role: "group", "aria-label": "Folder view" },
+    ["grid", "list"].map((v) => h("button", {
+      type: "button", class: "icon-btn", title: v === "list" ? "List" : "Grid",
+      "aria-label": v === "list" ? "Show folders as a list" : "Show folders as a grid",
+      "aria-pressed": String(folderView() === v),
+      onclick: () => setFolderView(v),
+    }, icon(v === "list" ? "rows" : "grid"))));
 }
 
 function folderSummary(f) {
@@ -501,6 +517,7 @@ function folderSummary(f) {
 }
 
 export function renderFolders() {
+  els.foldersHead.hidden = true;
   els.folders.classList.toggle("mbx-host", !!state.folder?.mb);
   if (state.folder?.mb) { renderMbBody(state.folder); return; }
   const overview = !!state.folder?.yours && !state.folder.yours.view;
@@ -515,6 +532,11 @@ export function renderFolders() {
   const folders = (state.folder?.folders || []).filter((f) => !q || fold(f.name).includes(q));
   const list = folderView() === "list";
   els.folders.classList.toggle("as-list", list);
+  const f = state.folder;
+  if (f && !f.search && folders.length) {
+    const title = foldersTitle(f);
+    sectionHead(els.foldersHead, title, plural(folders.length, title === "Albums" ? "album" : title === "Artists" ? "artist" : "folder"), folderToggle());
+  }
   drawInBatches(els.folders, folders, (f) => list
     ? h("a", { class: "folder", href: hashFor(f.path), title: f.name, "data-path": f.path },
       icon("folder"), h("span", { class: "folder-name", translate: "no" }, f.name),
@@ -553,11 +575,13 @@ async function loadFolderCovers(paths) {
 export function renderTracks() {
   state.rows.clear();
   const f = state.folder;
+  els.tracksHead.hidden = true;
   if (!f) return;
   if (f.mb) { els.tracks.replaceChildren(); return; }
   if (f.yours && !f.tracks.length) { els.tracks.replaceChildren(); return; } // the head says what's empty
   if (f.yours?.view === "songs" && yoursView("songs") === "grid") { els.tracks.replaceChildren(); return; } // drawn as cards
   const tracks = visibleTracks();
+  if (!f.search && !f.mb && !f.yours && tracks.length) sectionHead(els.tracksHead, "Tracks", plural(tracks.length, "track"));
 
   if (!f.tracks.length && f.search) {
     els.tracks.replaceChildren();

@@ -3402,6 +3402,15 @@ dialog.confirm.wipe-final-step .sheet-head h2 { width: 100%; }
   .artist-head > .artist-av .artist-av-ini { font-size: 30px; }
 }
 
+/* ---- Section titles above a folder's folders and tracks ("Albums", "Tracks"), grid/list on the right ---- */
+.sec-head { display: flex; align-items: center; gap: 10px; margin-top: 6px; margin-bottom: 12px; }
+.sec-head[hidden] { display: none; }
+.sec-head h2 { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+.sec-head .sec-count { color: var(--muted); font-size: 14px; }
+.sec-head .spacer { flex: 1; }
+#tracks-head { margin-top: 10px; }
+@media (max-width: 760px) { .sec-head h2 { font-size: 20px; } }
+
 /* ---- Your music ---- */
 .folders.yours-host { display: block; border-top: 0; }
 .yours-head h1 { font-size: 44px; }
