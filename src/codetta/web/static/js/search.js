@@ -470,15 +470,21 @@ export async function openSoulseek(focus = null) {
 
 async function refreshSoulseek() {
   clearTimeout(sk.timer);
+  let d;
   try {
-    sk.data = await api("GET", "/api/slskd");
+    d = await api("GET", "/api/slskd");
   } catch (err) {
     setKids($("#soulseek-body"), h("div", { class: "error-box" }, err.message));
     return;
   }
+  // Only redraw when something changed: a redraw rebuilds the list, which is jumpy while
+  // you're reading a source's files or ticking them.
+  const same = sk.data && JSON.stringify(d) === JSON.stringify(sk.data);
+  sk.data = d;
   if (!$("#soulseek-dialog").open) return;
-  renderSoulseek();
-  const busy = sk.data.jobs.some((j) => SK_ACTIVE.includes(j.status)
+  if (!same || !$("#soulseek-body .sk-search")) renderSoulseek();
+  // A job waiting for you to pick a source doesn't change by itself, so it needs no checking.
+  const busy = sk.data.jobs.some((j) => (SK_ACTIVE.includes(j.status) && j.status !== "choosing")
     || (j.status === "arrived" && (!j.inbox || ["waiting", "matching", "downloading"].includes(j.inbox.status))));
   if (busy) sk.timer = setTimeout(refreshSoulseek, 2000);
 }
