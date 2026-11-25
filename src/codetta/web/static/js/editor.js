@@ -2,7 +2,8 @@
 // Part of Codetta's page; app.js is the entry point (see the note at its top).
 
 import { t as tr } from "./i18n.js";
-import { $, ask, fitCover, h, icon, playOut, setKids } from "./dom.js";
+import { $, ask, coverRatio, h, icon, playOut, setKids } from "./dom.js";
+import { openCoverView } from "./coverview.js";
 import { api } from "./api.js";
 import {
   baseName, els, first, fmtDuration, fmtLabel, plural, relativeToFolder, state, toast,
@@ -925,23 +926,38 @@ function artEl(tracks) {
     onchange: (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) stageArt(f); },
   });
   const pick = () => fileInput.click();
+  // With a cover: a tap shows it full size (Replace, or dropping an image, changes it). Without: a tap picks one.
   const square = h("button", {
     class: "art-square", type: "button",
     "aria-label": single ? "Change album art" : `Set album art for ${tracks.length} tracks`,
-    title: "Click or drop an image", onclick: pick,
+    title: "Click or drop an image",
+    onclick: () => {
+      const img = square.querySelector("img.loaded");
+      if (square.classList.contains("has-art") && img) openCoverView(img.src, { caption: meta.textContent });
+      else pick();
+    },
   });
   const meta = h("div", { class: "art-meta" });
   const actions = h("div", { class: "art-actions" });
   const btn = (label, onclick, cls = "") => h("button", { class: `btn small ${cls}`, type: "button", onclick }, label);
   const showImage = (src, onLoaded) => {
     const img = h("img", { alt: "Album art", decoding: "async", draggable: "false" });
-    img.addEventListener("load", () => { img.classList.add("loaded"); square.classList.add("has-art"); onLoaded?.(img); });
+    img.addEventListener("load", () => {
+      // The box takes the cover's own shape (3400 × 3000 stays a little wider than tall).
+      square.style.setProperty("--ar", String(coverRatio({ width: img.naturalWidth, height: img.naturalHeight })));
+      img.classList.add("loaded"); square.classList.add("has-art");
+      square.setAttribute("aria-label", "Show the album art full size");
+      square.title = "Show full size (drop an image to replace it)";
+      onLoaded?.(img);
+    });
     img.src = src;
     square.classList.remove("cover-odd");
-    square.replaceChildren(fitCover(img));
+    square.style.removeProperty("--ar");
+    square.replaceChildren(img);
   };
   const placeholder = (label) => {
     square.classList.remove("has-art");
+    square.style.removeProperty("--ar");
     square.replaceChildren(h("span", { class: "art-empty" }, icon("plus"), h("span", {}, label)));
   };
 

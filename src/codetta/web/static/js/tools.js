@@ -21,15 +21,23 @@ import { openTracklist } from "./tracklist.js";
 import { openCoverExport } from "./coverexport.js";
 import { artistButton, artistHead } from "./artists.js";
 import { renderYoursBody, reorderGrip, yoursHead } from "./yours.js";
+import { openCoverView } from "./coverview.js";
 
-/** The album's cover at its own shape: square, taller (an obi, a cassette J-card) or wider (a long sleeve). */
-function albumCover(t) {
-  const img = h("img", { class: "album-cover", src: artUrlFor(t), alt: "", decoding: "async" });
+/** The album's cover at its own shape: square, taller (an obi, a cassette J-card) or wider (a long sleeve).
+ *  A tap shows it full size. */
+function albumCover(t, title = "") {
+  const src = artUrlFor(t);
+  const img = h("img", { class: "album-cover", src, alt: "", decoding: "async" });
   img.style.setProperty("--ar", String(coverRatio(t.art)));
+  let size = t.art?.width && t.art?.height ? `${t.art.width} × ${t.art.height}` : "";
   if (!t.art?.width) {
-    img.addEventListener("load", () => img.style.setProperty("--ar", String(coverRatio({ width: img.naturalWidth, height: img.naturalHeight }))), { once: true });
+    img.addEventListener("load", () => {
+      img.style.setProperty("--ar", String(coverRatio({ width: img.naturalWidth, height: img.naturalHeight })));
+      size = `${img.naturalWidth} × ${img.naturalHeight}`;
+    }, { once: true });
   }
-  return img;
+  return h("button", { class: "album-cover-btn", type: "button", "aria-label": "Show the album art full size", title: "Show full size",
+    onclick: () => openCoverView(src, { title, caption: size }) }, img);
 }
 
 /** A folder at the top of the library that holds albums: an artist's folder. */
@@ -409,7 +417,7 @@ export function renderFolderHead() {
   const heading = coverTrack
     // A folder of tracks with a cover reads as the album's booklet spread.
     ? h("div", { class: "album-head" },
-      albumCover(coverTrack),
+      albumCover(coverTrack, common("album") || f.name),
       h("div", {},
         h("h1", { dir: "auto" }, common("album") || f.name),
         h("p", { class: "album-meta" },
