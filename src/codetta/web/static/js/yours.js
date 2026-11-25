@@ -1,13 +1,14 @@
-// Your music: favourites, most and recently played, and playlists, shown like folders so playing,
-// selecting and editing work as everywhere else. The same stars, plays and playlists your music apps
+// Your music: favourites, most and recently played, your albums and songs (only the properly tagged
+// ones), and playlists, shown like folders so playing, selecting and editing work as everywhere else. The same stars, plays and playlists your music apps
 // see (kept by the server in listening.sqlite3); nothing here changes your files.
 // Part of Codetta's page; app.js is the entry point (see the note at its top).
 
-import { $, ask, h, icon, setKids } from "./dom.js";
+import { $, ask, drawInBatches, fitCover, h, icon, setKids } from "./dom.js";
 import { api } from "./api.js";
-import { els, plural, state, toast } from "./state.js";
-import { YOURS, folderCache, hashFor, loadFolder, navigate } from "./browse.js";
-import { openToolsMenu, renderFolderHead, renderTracks } from "./tools.js";
+import { els, first, fmtDuration, plural, state, toast } from "./state.js";
+import { YOURS, fold, folderCache, hashFor, loadFolder, navigate, visibleTracks } from "./browse.js";
+import { openToolsMenu, renderFolderHead, renderFolders, renderTracks } from "./tools.js";
+import { togglePlay } from "./player.js";
 
 export const yoursKey = (view = "", id = "") => YOURS + (view === "playlist" ? `playlist:${id}` : view);
 const parse = (key) => { const [view, id] = key.slice(1).split(":"); return { view: view || "", id: Number(id) || 0 }; };
@@ -22,8 +23,12 @@ export async function fetchYours(path) {
     return { path, name: "Your music", breadcrumbs: crumbs(), folders: [], tracks: [], skipped: 0, yours: { view: "", ...d } };
   }
   const d = await api("GET", `/api/yours?view=${encodeURIComponent(view)}${view === "playlist" ? `&id=${id}` : ""}`);
+  if (view === "albums") {
+    return { path, name: d.name, breadcrumbs: [...crumbs(), { name: d.name, path }], folders: [], tracks: [], skipped: 0,
+      yours: { view, albums: d.albums } };
+  }
   return { path, name: d.name, breadcrumbs: [...crumbs(), { name: d.name, path }], folders: [], tracks: d.tracks, skipped: 0,
-    yours: { view, id, plays: d.plays, starred: d.starred } };
+    yours: { view, id, plays: d.plays, starred: d.starred, total: d.total } };
 }
 
 export const yours = { summary: null };
@@ -49,7 +54,17 @@ export function yoursHead(f) {
   if (!y.view) {
     return h("div", { class: "yours-head" },
       h("h1", {}, "Your music"),
-      h("p", {}, "Favourites, plays and playlists, shared with your music apps."));
+      h("p", {}, "Favourites, plays, your albums and songs, and playlists, shared with your music apps."));
+  }
+  if (y.view === "albums" || y.view === "songs") {
+    const n = y.view === "albums" ? y.albums.length : f.tracks.length;
+    const line = y.view === "albums"
+      ? (n ? plural(n, "album") : NO_ALBUMS)
+      : !n ? NO_SONGS
+      : y.total > n ? `The first ${n.toLocaleString()} of ${y.total.toLocaleString()} songs. Search to find the others.` : plural(n, "song");
+    return h("div", { class: "yours-head" },
+      h("div", { class: "yours-title-row" }, h("h1", {}, f.name), n ? viewToggle(y.view) : null),
+      h("p", {}, line));
   }
   const n = f.tracks.length;
   const tools = [];
@@ -69,7 +84,105 @@ export function yoursHead(f) {
     tools.length ? h("div", { class: "yours-tools" }, tools) : null);
 }
 
-/** The overview: three lists, then every playlist with the cover of its first song. */
+// ---- Albums and songs: grid (a streaming app's shelf) or list (easier to scan and search) -------------
+
+const NO_ALBUMS = "Albums show up here once their songs have an album title and an album artist. Find in MusicBrainz fills those in.";
+const NO_SONGS = "Songs show up here once they have a title and an artist.";
+const VIEW_KEYS = { albums: "codetta-yours-albums", songs: "codetta-yours-songs" };
+
+/** "grid" or "list" for Albums or Songs (this browser remembers it). Albums start as a grid, songs as a list. */
+export function yoursView(section) {
+  try {
+    const v = localStorage.getItem(VIEW_KEYS[section]);
+    if (v === "grid" || v === "list") return v;
+  } catch { /* private mode */ }
+  return section === "albums" ? "grid" : "list";
+}
+
+function setYoursView(section, v) {
+  try { localStorage.setItem(VIEW_KEYS[section], v); } catch { /* private mode */ }
+  renderFolderHead(); renderFolders(); renderTracks();
+}
+
+const LABELS = { albums: { grid: "Show albums as a grid", list: "Show albums as a list" },
+  songs: { grid: "Show songs as a grid", list: "Show songs as a list" } };
+
+/** Two icons side by side, the chosen one lit in Codetta's colour. */
+function viewToggle(section) {
+  return h("div", { class: "view-toggle", role: "group", "aria-label": section === "albums" ? "Show albums as" : "Show songs as" },
+    ["grid", "list"].map((v) => h("button", {
+      type: "button", class: "icon-btn", title: v === "grid" ? "Grid" : "List",
+      "aria-label": LABELS[section][v],
+      "aria-pressed": String(yoursView(section) === v), onclick: () => setYoursView(section, v),
+    }, icon(v === "grid" ? "grid" : "rows"))));
+}
+
+const artImg = (path, hash) => fitCover(h("img", { src: `/api/art?path=${encodeURIComponent(path)}${hash ? `&v=${hash}` : ""}`,
+  alt: "", loading: "lazy", decoding: "async", onerror: (e) => e.currentTarget.replaceWith(icon("note")) }));
+const albumArt = (a) => (a.cover ? artImg(a.cover.path, a.cover.hash) : icon("note"));
+const songArt = (t) => (t.art ? artImg(t.path, t.art.hash) : icon("note"));
+const albumMeta = (a) => [a.artist, a.year].filter(Boolean).join(" · ");
+const songTitle = (t) => first(t, "title") || t.name;
+const songMeta = (t) => [first(t, "artist"), first(t, "album")].filter(Boolean).join(" · ");
+
+const albumCard = (a) => h("a", { class: "folder yours-card", href: hashFor(a.folder), "data-path": a.folder, title: a.name },
+  h("span", { class: "folder-cover" }, albumArt(a)),
+  h("span", { class: "folder-text" }, h("span", { class: "folder-name", dir: "auto", translate: "no" }, a.name),
+    h("span", { class: "folder-meta", dir: "auto", translate: "no" }, albumMeta(a))));
+
+const albumRow = (a) => h("a", { class: "yours-row", href: hashFor(a.folder), "data-path": a.folder },
+  h("span", { class: "yours-thumb" }, albumArt(a)),
+  h("span", { class: "yours-row-text" }, h("span", { class: "yours-row-name", dir: "auto", translate: "no" }, a.name),
+    h("span", { class: "yours-row-meta", dir: "auto", translate: "no" }, a.artist)),
+  h("span", { class: "yours-row-end" }, [a.year, plural(a.songs, "song")].filter(Boolean).join(" · ")));
+
+const songCard = (t, list) => h("button", { class: "folder yours-card yours-song", type: "button", "data-path": t.path,
+  title: songTitle(t), onclick: () => togglePlay(t, list) },
+  h("span", { class: "folder-cover" }, songArt(t), h("span", { class: "yours-play" }, icon("play"))),
+  h("span", { class: "folder-text" }, h("span", { class: "folder-name", dir: "auto", translate: "no" }, songTitle(t)),
+    h("span", { class: "folder-meta", dir: "auto", translate: "no" }, first(t, "artist"))));
+
+const songRow = (t, list) => h("button", { class: "yours-row yours-song", type: "button", "data-path": t.path, onclick: () => togglePlay(t, list) },
+  h("span", { class: "yours-thumb" }, songArt(t), h("span", { class: "yours-play" }, icon("play"))),
+  h("span", { class: "yours-row-text" }, h("span", { class: "yours-row-name", dir: "auto", translate: "no" }, songTitle(t)),
+    h("span", { class: "yours-row-meta", dir: "auto", translate: "no" }, songMeta(t))),
+  h("span", { class: "yours-row-end" }, t.duration ? fmtDuration(t.duration) : ""));
+
+/** One part of the overview: a title, how many, See all and the toggle on one line, then a few of the newest. */
+function section(kind, title, count, items, empty) {
+  const grid = yoursView(kind) === "grid";
+  const build = kind === "albums" ? (grid ? albumCard : albumRow) : (t) => (grid ? songCard : songRow)(t, items);
+  return h("section", { class: "yours-sec" },
+    h("div", { class: "yours-sec-head" },
+      h("h2", {}, title),
+      count ? h("span", { class: "yours-sec-count" }, plural(count, kind === "albums" ? "album" : "song")) : null,
+      h("span", { class: "spacer" }),
+      count ? h("a", { class: "yours-all", href: hashFor(yoursKey(kind)) }, "See all") : null,
+      count ? viewToggle(kind) : null),
+    count ? h("p", { class: "yours-sec-sub" }, "Recently added") : null,
+    count ? h("div", { class: grid ? "yours-shelf" : "yours-rows" }, items.slice(0, grid ? 12 : 6).map(build))
+      : h("p", { class: "hint yours-empty" }, empty));
+}
+
+/** Albums, or songs as cards: the "See all" pages (songs as a list are ordinary track rows). */
+export function renderYoursLibrary(f) {
+  const y = f.yours;
+  if (y.view === "albums") {
+    const q = fold(state.filter);
+    const albums = q ? y.albums.filter((a) => fold(`${a.name} ${a.artist} ${a.year || ""}`).includes(q)) : y.albums;
+    const grid = yoursView("albums") === "grid";
+    els.folders.classList.toggle("yours-grid", grid);
+    els.folders.classList.toggle("yours-list", !grid);
+    drawInBatches(els.folders, albums, grid ? albumCard : albumRow);
+    return;
+  }
+  const songs = visibleTracks();
+  els.folders.classList.add("yours-grid");
+  els.folders.classList.remove("yours-list");
+  drawInBatches(els.folders, songs, (t) => songCard(t, songs));
+}
+
+/** The overview: three lists, your albums and songs, then every playlist with the cover of its first song. */
 export function renderYoursBody(f) {
   const y = f.yours;
   const tile = (view, label, ico, sub) => h("a", { class: "yours-tile", href: hashFor(yoursKey(view)), "data-path": yoursKey(view) },
@@ -80,6 +193,8 @@ export function renderYoursBody(f) {
       tile("starred", "Favourites", "heart", plural(y.starred, "song")),
       tile("most", "Most played", "pulse", y.played ? "Your top 100" : "Nothing yet"),
       tile("recent", "Recently played", "undo", y.played ? "The last 100" : "Nothing yet")),
+    section("albums", "Albums", y.albums || 0, y.recent_albums || [], NO_ALBUMS),
+    section("songs", "Songs", y.songs || 0, y.recent_songs || [], NO_SONGS),
     h("div", { class: "yours-pl-head" }, h("h2", {}, "Playlists"),
       h("button", { class: "btn small", type: "button", onclick: () => newPlaylist([]) }, icon("plus"), "New playlist")),
     y.playlists.length ? h("div", { class: "yours-playlists" }, y.playlists.map((p) => h("a", {

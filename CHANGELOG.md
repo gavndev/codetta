@@ -2,6 +2,11 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+- **Albums and Songs in Your music:** between your lists and your playlists, Your music now has every album and every song in your library, the newest first, with **See all** for the whole lot. Only properly tagged music shows up: an album needs an album title and an album artist (so leftover tracks and untagged folders stay out), and a song needs a title and an artist. Each has a grid, like a streaming app, and a list, handier for scanning and searching: the two buttons on the right of its title switch between them, and your choice is remembered. Tap an album to open it, or a song to play it.
+- **Grid and list buttons** now sit in their own rounded squares, the chosen one lit in Codetta's colour and the other dimmed, here and in folders.
+
 ## 0.15.1 (2026-11-25)
 
 Tags from file names finds dates wherever they are in a name.

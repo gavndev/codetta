@@ -463,9 +463,13 @@ dialog.sheet.small { width: min(420px, calc(100vw - 32px)); }
 .folder-actions { align-items: center; }
 .phone-only { display: none; }
 @media (max-width: 760px) { .phone-only { display: inline-flex; } }
-.view-toggle { display: flex; gap: 2px; padding: 2px; border-radius: 9px; background: var(--hover); }
-.view-toggle .icon-btn { width: 30px; height: 28px; border-radius: 7px; }
-.view-toggle .icon-btn[aria-pressed="true"] { background: var(--surface-raised); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); }
+/* Grid / list: two icons side by side, each in its own rounded square; the chosen one is lit in
+   Codetta's colour, the other dimmed. */
+.view-toggle { display: flex; gap: 4px; flex: none; }
+.view-toggle .icon-btn { width: 32px; height: 32px; border-radius: 9px; color: var(--muted); opacity: 0.55;
+  transition: background var(--dur), color var(--dur), opacity var(--dur); }
+@media (hover: hover) { .view-toggle .icon-btn:hover { opacity: 0.9; } }
+.view-toggle .icon-btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--spot); opacity: 1; }
 
 /* ---- Track list --------------------------------------------------------------------- */
 
@@ -3423,6 +3427,48 @@ dialog.confirm.wipe-final-step .sheet-head h2 { width: 100%; }
 .yours-pl-head .btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; }
 .yours-playlists { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 24px 22px; }
 .yours-empty { margin: 0; }
+.yours-head:has(.yours-title-row) { flex: 1 1 320px; min-width: 0; }
+.yours-title-row { display: flex; align-items: center; gap: 12px; }
+.yours-title-row h1 { flex: 1; min-width: 0; }
+
+/* Albums and Songs on the overview: a title line (count, See all, grid/list), then the newest. */
+.yours-sec { margin: 0 0 30px; }
+.yours-sec-head { display: flex; align-items: center; gap: 10px; }
+.yours-sec-head h2 { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+.yours-sec-count { color: var(--muted); font-size: 14px; }
+.yours-sec-head .spacer { flex: 1; }
+.yours-all { color: var(--spot); font-size: 14px; font-weight: 600; text-decoration: none; padding: 6px 4px; }
+@media (hover: hover) { .yours-all:hover { text-decoration: underline; } }
+.yours-sec-sub { color: var(--muted); font-size: 13px; margin: 2px 0 12px; }
+/* Grid: a shelf you scroll sideways, like a streaming app's. */
+.yours-shelf { display: grid; grid-auto-flow: column; grid-auto-columns: 168px; gap: 22px; overflow-x: auto;
+  scroll-snap-type: x proximity; padding: 2px 2px 12px; margin: 0 -2px; scrollbar-width: thin; }
+.yours-shelf > * { scroll-snap-align: start; }
+/* List: rows with a small cover. */
+.yours-rows, .folders.yours-list { display: block; border-top: 1.5px solid var(--text); }
+.yours-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 6px 6px 6px 2px;
+  border: 0; border-bottom: 1px solid var(--rule); background: none; color: var(--text); font: inherit; text-align: start;
+  text-decoration: none; cursor: pointer; }
+@media (hover: hover) { .yours-row:hover { background: var(--hover); } }
+.yours-row:active { background: var(--pressed); }
+.yours-thumb { position: relative; display: grid; place-items: center; flex: none; width: 44px; height: 44px; border-radius: 4px;
+  overflow: hidden; background: var(--hover); }
+.yours-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.yours-thumb svg { width: 40%; height: 40%; color: var(--faint); }
+.yours-row-text { display: grid; gap: 1px; flex: 1; min-width: 0; }
+.yours-row-name, .yours-row-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.yours-row-name { font-weight: 600; }
+.yours-row-meta { color: var(--muted); font-size: 13px; }
+.yours-row-end { flex: none; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+/* Songs play when tapped: a play mark shows over the cover on hover. */
+button.yours-card { font: inherit; color: inherit; text-align: start; cursor: pointer; }
+.folder-cover, .yours-thumb { position: relative; }
+.yours-play { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, 0.35); color: #fff;
+  opacity: 0; transition: opacity var(--dur); }
+.yours-play svg { width: 34%; height: 34%; color: #fff; }
+.yours-thumb .yours-play svg { width: 50%; height: 50%; }
+@media (hover: hover) { .yours-song:hover .yours-play { opacity: 1; } }
+.yours-song:focus-visible .yours-play { opacity: 1; }
 
 /* ---- Phones: a pill at the bottom for Library, Your music and the inbox ---- */
 .tabbar { display: none; }
@@ -3446,6 +3492,12 @@ dialog.confirm.wipe-final-step .sheet-head h2 { width: 100%; }
   .yours-head h1 { font-size: 32px; }
   .yours-tiles { grid-template-columns: 1fr; gap: 8px; }
   .yours-playlists { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 14px; }
+  .yours-shelf { grid-auto-columns: 138px; gap: 14px; margin: 0 -16px; padding: 2px 16px 10px; scroll-padding: 0 16px; scrollbar-width: none; }
+  .yours-shelf::-webkit-scrollbar { display: none; }
+  .yours-sec-head h2 { font-size: 20px; }
+  .yours-sec-count { display: none; }
+  .yours-row-end { display: none; }
+  .view-toggle .icon-btn { width: 44px; height: 44px; }
 }
 
 /* ---- Covers of every shape ----

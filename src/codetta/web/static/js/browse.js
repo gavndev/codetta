@@ -26,7 +26,7 @@ export const isSearchKey = (key) => typeof key === "string" && key.startsWith(SE
 // URLs: "#mb?q=…", "#mb/artist/<id>", "#mb/rg/<id>".
 export const MBX = "\x01";
 const isMbKey = (key) => typeof key === "string" && key.startsWith(MBX);
-// Your music (yours.js) is a "path" too: YOURS + "" | "starred" | "most" | "recent" | "playlist:<id>".
+// Your music (yours.js) is a "path" too: YOURS + "" | "starred" | "most" | "recent" | "albums" | "songs" | "playlist:<id>".
 // URLs: "#yours", "#yours/starred", "#yours/playlist/3".
 export const YOURS = "\x02";
 export const isYoursKey = (key) => typeof key === "string" && key.startsWith(YOURS);
@@ -35,7 +35,7 @@ export const isSearch = () => isSearchKey(state.path);
 export const searchQuery = (key = state.path) => (isSearchKey(key) ? key.slice(1) : "");
 
 export function pathFromHash(hash = location.hash) {
-  const y = /^#yours(?:\/(starred|most|recent|playlist\/(\d+)))?\/?$/.exec(hash);
+  const y = /^#yours(?:\/(starred|most|recent|albums|songs|playlist\/(\d+)))?\/?$/.exec(hash);
   if (y) return y[2] ? `${YOURS}playlist:${y[2]}` : YOURS + (y[1] || "");
   if (hash.startsWith("#mb?")) {
     const q = (new URLSearchParams(hash.slice(4)).get("q") || "").trim();

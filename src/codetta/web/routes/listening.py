@@ -13,6 +13,54 @@ from codetta.core.listening import Listening, moves_in
 from codetta.web.common import VERSION, ListenBrainzIn, PlayedIn, PlaylistChangeIn, PlaylistIn, StarIn
 
 LIST_SIZE = 100  # most played / recently played
+SONGS_MAX = 10_000  # Your music → Songs lists this many at most (search finds the rest)
+PREVIEW = 12  # albums and songs on the Your music overview
+
+
+def _first(tags: dict, key: str) -> str:
+    v = tags.get(key)
+    return str((v[0] if isinstance(v, list) and v else v) or "").strip()
+
+
+def tagged_library(cat) -> dict:
+    """Your music's Albums and Songs, from the music apps' catalogue: only what's properly tagged.
+    An album needs an album title and an album artist (so leftover tracks and untagged folders
+    stay out); a song needs a title and an artist."""
+    from posixpath import commonpath, dirname
+
+    from codetta.core.subsonic import sfold
+
+    albums = []
+    for a in cat.albums.values():
+        if not (_first(a.tags, "album") and _first(a.tags, "albumartist")):
+            continue
+        paths = [cat.songs[s].path for s in a.songs]
+        # Where it opens: the album's folder (its disc folders' parent), or, when copies sit in unrelated
+        # folders, the one holding most of it.
+        counts = Counter(dirname(p) for p in paths)
+        try:
+            folder = commonpath(list(counts)) if len(counts) > 1 else next(iter(counts))
+        except ValueError:
+            folder = ""
+        if not folder or folder.count("/") < min(d.count("/") for d in counts) - 1:
+            folder = counts.most_common(1)[0][0]
+        cover = cat.songs[next((s for s in a.songs if cat.songs[s].path == a.cover), a.songs[0])].track if a.cover else None
+        albums.append({"id": a.id, "name": a.name, "artist": a.artist, "year": a.year, "folder": folder, "songs": len(a.songs),
+                       "added": int(a.created), "cover": {"path": a.cover, "hash": (cover.get("art") or {}).get("hash")} if a.cover else None,
+                       "_sort": (sfold(_first(a.tags, "albumartistsort") or a.artist), a.year or 0, sfold(a.name))})
+    albums.sort(key=lambda x: x.pop("_sort"))
+    songs = []
+    for a in sorted(cat.albums.values(), key=lambda a: (sfold(a.artist), a.year or 0, sfold(a.name))):
+        for sid in a.songs:
+            s = cat.songs[sid]
+            t = s.track.get("tags") or {}
+            if _first(t, "title") and _first(t, "artist"):
+                songs.append(s)
+    return {"albums": albums, "songs": songs}
+
+
+def song_out(s) -> dict:
+    return {**s.track, "path": s.path}
 
 
 def song_meta(tags: dict, duration: float | None) -> dict:
@@ -125,6 +173,18 @@ def register(app, shared) -> None:
             raise HTTPException(400, "Some of those files aren't in your music folder")
         return paths
 
+    memo: dict = {}
+
+    def library_now() -> dict:
+        """Albums and songs as the catalogue has them now (worked out once per catalogue)."""
+        try:
+            cat = shared.music_catalog.get()
+        except Exception:  # noqa: BLE001 - Your music still shows lists and playlists
+            return {"albums": [], "songs": []}
+        if memo.get("cat") is not cat:
+            memo["cat"], memo["lib"] = cat, tagged_library(cat)
+        return memo["lib"]
+
     def summary() -> dict:
         songs = listening.marks().get("s", {})
         lists = [{"id": pl.id, "name": pl.name, "tracks": len(pl.paths), "changed": pl.changed, "first": pl.paths[0] if pl.paths else None}
@@ -138,8 +198,19 @@ def register(app, shared) -> None:
         "most" (played), "recent" (played) or "playlist" (``id``)."""
         shared.require_library()
         songs = listening.marks().get("s", {})
-        if view == "":
-            return summary()
+        if view in ("", "albums", "songs"):
+            lib = library_now()
+            if view == "":
+                newest = sorted(lib["songs"], key=lambda s: -s.mtime)[:PREVIEW]
+                return {**summary(), "albums": len(lib["albums"]), "songs": len(lib["songs"]),
+                        "recent_albums": sorted(lib["albums"], key=lambda a: -a["added"])[:PREVIEW],
+                        "recent_songs": [song_out(s) for s in newest]}
+            if view == "albums":
+                return {"name": "Albums", "albums": lib["albums"], "tracks": []}
+            shown = lib["songs"][:SONGS_MAX]
+            return {"name": "Songs", "tracks": [song_out(s) for s in shown], "total": len(lib["songs"]),
+                    "plays": {s.path: songs[s.path].plays for s in shown if s.path in songs},
+                    "starred": [s.path for s in shown if s.path in songs and songs[s.path].starred]}
         if view == "starred":
             paths = [p for p, m in sorted(songs.items(), key=lambda kv: -(kv[1].starred or 0)) if m.starred]
             name = "Favourites"

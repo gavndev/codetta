@@ -84,6 +84,7 @@ def register(app, shared) -> None:
         listening.relink({s.path for s in cat.songs.values()}, cat.by_fp(), gone)
 
     cache = CatalogCache(lib_index.catalog_rows, lib_index.fingerprint, on_build=relink)
+    shared.share(music_catalog=cache)  # Your music's Albums and Songs come from it too
 
     def username() -> str:
         account = shared.accounts.get() if settings.auth else None

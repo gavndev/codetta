@@ -20,7 +20,7 @@ import { openFromNames } from "./fromnames.js";
 import { openTracklist } from "./tracklist.js";
 import { openCoverExport } from "./coverexport.js";
 import { artistButton, artistHead } from "./artists.js";
-import { renderYoursBody, reorderGrip, yoursHead } from "./yours.js";
+import { renderYoursBody, renderYoursLibrary, reorderGrip, yoursHead, yoursView } from "./yours.js";
 import { openCoverView } from "./coverview.js";
 
 /** The album's cover at its own shape: square, taller (an obi, a cassette J-card) or wider (a long sleeve).
@@ -506,6 +506,11 @@ export function renderFolders() {
   const overview = !!state.folder?.yours && !state.folder.yours.view;
   els.folders.classList.toggle("yours-host", overview);
   if (overview) { els.folders.classList.remove("as-list"); renderYoursBody(state.folder); return; }
+  const yv = state.folder?.yours?.view;
+  const shelf = yv === "albums" || (yv === "songs" && yoursView("songs") === "grid");
+  els.folders.classList.toggle("yours-lib", shelf);
+  if (!shelf) els.folders.classList.remove("yours-grid", "yours-list");
+  if (shelf) { els.folders.classList.remove("as-list"); renderYoursLibrary(state.folder); return; }
   const q = fold(state.filter);
   const folders = (state.folder?.folders || []).filter((f) => !q || fold(f.name).includes(q));
   const list = folderView() === "list";
@@ -551,6 +556,7 @@ export function renderTracks() {
   if (!f) return;
   if (f.mb) { els.tracks.replaceChildren(); return; }
   if (f.yours && !f.tracks.length) { els.tracks.replaceChildren(); return; } // the head says what's empty
+  if (f.yours?.view === "songs" && yoursView("songs") === "grid") { els.tracks.replaceChildren(); return; } // drawn as cards
   const tracks = visibleTracks();
 
   if (!f.tracks.length && f.search) {

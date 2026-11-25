@@ -44,8 +44,8 @@ const player = {
 const shuffled = (list) => { const a = [...list]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
 /** Play ``t`` with the rest of what's on screen queued after it (shuffled, if shuffle is on). */
-function buildQueue(t) {
-  const list = visibleTracks().filter((x) => !x.error && canPlay(x.format));
+function buildQueue(t, from = null) {
+  const list = (from || visibleTracks()).filter((x) => !x.error && canPlay(x.format));
   player.queue = list.includes(t) ? list : [t];
   const start = player.queue.indexOf(t);
   const rest = player.queue.map((_, i) => i).filter((i) => i !== start);
@@ -163,13 +163,14 @@ function reportPlay() {
   }
 }
 
-export async function togglePlay(t) {
+/** Play ``t`` (or pause it, if it's playing), with the songs on screen (or ``from``) as the queue. */
+export async function togglePlay(t, from = null) {
   const a = playerAudio();
   if (player.path === t.path) {
     if (a.paused) a.play().catch(() => {}); else a.pause();
     return;
   }
-  buildQueue(t);
+  buildQueue(t, from);
   await startTrack(t);
 }
 
