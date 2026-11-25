@@ -1,7 +1,7 @@
 // The inbox and Soulseek through slskd.
 // Part of Codetta's page; app.js is the entry point (see the note at its top).
 
-import { $, ask, closeDialog, h, icon, openDialog, setKids } from "./dom.js";
+import { $, ask, closeDialog, h, icon, openDialog, setKids, working } from "./dom.js";
 import { api } from "./api.js";
 import { plural, toast } from "./state.js";
 import { folderCache, navigate } from "./browse.js";
@@ -81,9 +81,10 @@ export async function loadInbox() {
   }
 }
 
-async function inboxAction(url, body, done) {
+async function inboxAction(url, body, done, el = null) {
   try {
-    const res = await api("POST", url, body);
+    const res = await working(el, () => api("POST", url, body));
+    if (!res) return;
     inboxState.data = res.inbox || res;
     if (done) done(res);
     renderInbox();
@@ -140,28 +141,29 @@ function renderInbox() {
     const name = g.title || g.key.split("/").pop();
     const actions = [];
     const btn = (label, onclick, primary = false) => h("button", { class: `btn small${primary ? " primary" : ""}`, type: "button", onclick }, label);
-    const accept = () => inboxAction("/api/inbox/accept", { key: g.key }, (res) =>
-      toast(res.status === "filed" ? `Filed in ${res.moved_to || "your library"}` : res.note, res.status === "filed" ? "success" : "error"));
+    const accept = (e) => inboxAction("/api/inbox/accept", { key: g.key }, (res) =>
+      toast(res.status === "filed" ? `Filed in ${res.moved_to || "your library"}` : res.note, res.status === "filed" ? "success" : "error"), e?.currentTarget);
     if (g.status === "ready") actions.push(btn("File", accept, true), btn("Review", () => reviewInboxGroup(g)));
     else if (g.status === "review") actions.push(btn("Review", () => reviewInboxGroup(g), true), btn("Use this match", accept));
     else if (g.status === "nomatch") actions.push(btn("Search", () => reviewInboxGroup(g), true), btn("Keep its own tags", accept));
     else if (g.status === "local") actions.push(btn("File", accept, true));
-    else if (g.status === "error") actions.push(btn("Try again", () => inboxAction("/api/inbox/rematch", { key: g.key })), d.online ? btn("Review", () => reviewInboxGroup(g)) : null);
-    else if (g.status === "skipped") actions.push(btn("Look again", () => inboxAction("/api/inbox/rematch", { key: g.key })));
+    else if (g.status === "error") actions.push(btn("Try again", (e) => inboxAction("/api/inbox/rematch", { key: g.key }, null, e.currentTarget)), d.online ? btn("Review", () => reviewInboxGroup(g)) : null);
+    else if (g.status === "skipped") actions.push(btn("Look again", (e) => inboxAction("/api/inbox/rematch", { key: g.key }, null, e.currentTarget)));
     else if (g.status === "filed" && g.dest) actions.push(btn("Open", () => { closeDialog($("#inbox-dialog")); navigate(g.dest); }));
     if (g.status === "filed") {
       actions.push(h("button", { class: "link-btn inbox-skip", type: "button", title: "Take it off this list (the album stays in your library)",
-        onclick: () => inboxAction("/api/inbox/dismiss", { key: g.key }) }, "Dismiss"));
+        onclick: (e) => inboxAction("/api/inbox/dismiss", { key: g.key }, null, e.currentTarget) }, "Dismiss"));
     }
     if (["ready", "review", "nomatch", "local", "error"].includes(g.status)) {
-      actions.push(h("button", { class: "link-btn inbox-skip", type: "button", onclick: () => inboxAction("/api/inbox/skip", { key: g.key }) }, "Skip"));
+      actions.push(h("button", { class: "link-btn inbox-skip", type: "button", onclick: (e) => inboxAction("/api/inbox/skip", { key: g.key }, null, e.currentTarget) }, "Skip"));
     }
     if (g.status !== "filed" && g.status !== "matching") {
-      actions.push(h("button", { class: "link-btn inbox-skip danger-text", type: "button", onclick: async () => {
+      actions.push(h("button", { class: "link-btn inbox-skip danger-text", type: "button", onclick: async (e) => {
+        const el = e.currentTarget;
         if (await ask({ title: `Remove “${name}” from the inbox?`, danger: true, confirmLabel: "Move to Recently deleted",
           message: g.files === 1 ? "Its 1 file goes to Recently deleted for 30 days. Activity can put it back."
             : `Its ${plural(g.files, "file")} go to Recently deleted for 30 days. Activity can put them back.` })) {
-          inboxAction("/api/inbox/remove", { key: g.key }, () => toast(`Removed “${name}”. Undo is in Activity.`, "success"));
+          inboxAction("/api/inbox/remove", { key: g.key }, () => toast(`Removed “${name}”. Undo is in Activity.`, "success"), el);
         }
       } }, "Remove"));
     }
@@ -209,16 +211,16 @@ function renderInbox() {
       const first = g.status === "filed" && (i === 0 || d.groups[i - 1].status !== "filed");
       return first ? [h("div", { class: "inbox-filed-head" }, h("span", {}, `Filed (${filed.length})`),
         filed.length > 1 ? h("button", { class: "link-btn", type: "button",
-          onclick: () => inboxAction("/api/inbox/dismiss-all", {}, () => toast(`Dismissed ${plural(filed.length, "filed album")}`, "success")) }, "Dismiss all") : null),
+          onclick: (e) => inboxAction("/api/inbox/dismiss-all", {}, () => toast(`Dismissed ${plural(filed.length, "filed album")}`, "success"), e.currentTarget) }, "Dismiss all") : null),
         safeItem(g)] : [safeItem(g)];
     })) : null);
   setKids($("#inbox-foot"),
-    h("button", { class: "btn", type: "button", onclick: loadInbox }, "Check again"),
+    h("button", { class: "btn", type: "button", onclick: (e) => working(e.currentTarget, loadInbox) }, "Check again"),
     h("span", { class: "spacer" }),
-    ready.length ? h("button", { class: "btn primary", type: "button", onclick: () => inboxAction("/api/inbox/accept-ready", {}, (res) =>
+    ready.length ? h("button", { class: "btn primary", type: "button", onclick: (e) => inboxAction("/api/inbox/accept-ready", {}, (res) =>
       toast(res.filed >= res.total ? `Filed ${plural(res.filed, "album")}`
         : res.total - res.filed === 1 ? `Filed ${plural(res.filed, "album")} (1 needs a look)`
-        : `Filed ${plural(res.filed, "album")} (${res.total - res.filed} need a look)`, "success")) },
+        : `Filed ${plural(res.filed, "album")} (${res.total - res.filed} need a look)`, "success"), e.currentTarget) },
       `File ${plural(ready.length, "confident match", "confident matches")}`) : h("button", { class: "btn", type: "button", "data-close": true }, "Close"));
 }
 

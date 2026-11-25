@@ -29,6 +29,22 @@ export function h(tag, attrs = {}, ...children) {
 }
 
 /** Like el.replaceChildren(...), but skips null/false (which would render as "null"). */
+/** While fn runs, show it on the button that started it: a spinner inside, and a second press does nothing.
+ *  For actions that wait on the server (or on slskd), so a tap never looks ignored. */
+export async function working(el, fn) {
+  if (!el?.classList) return fn();
+  if (el.classList.contains("working")) return undefined;
+  const spin = h("span", { class: "spinner", "aria-hidden": "true" });
+  el.classList.add("working");
+  el.setAttribute("aria-busy", "true");
+  el.prepend(spin);
+  try { return await fn(); } finally {
+    el.classList.remove("working");
+    el.removeAttribute("aria-busy");
+    spin.remove();
+  }
+}
+
 export function setKids(el, ...kids) {
   el.replaceChildren(...kids.flat(Infinity).filter((k) => k != null && k !== false));
 }
@@ -232,3 +248,6 @@ export function drawInBatches(container, items, build, { head = [], first = 120,
   };
   setTimeout(step, 0);
 }
+
+// iPhone Safari only shows :active (the pressed look) on a tap when the page listens for touches.
+document.addEventListener("touchstart", () => {}, { passive: true });
