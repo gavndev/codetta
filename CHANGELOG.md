@@ -2,8 +2,6 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
-## Unreleased
-
 ## 0.15.2 (2026-11-25)
 
 Albums and Songs in Your music, and section titles in folders.
