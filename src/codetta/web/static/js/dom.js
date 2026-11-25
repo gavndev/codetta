@@ -29,19 +29,45 @@ export function h(tag, attrs = {}, ...children) {
 }
 
 /** Like el.replaceChildren(...), but skips null/false (which would render as "null"). */
-/** While fn runs, show it on the button that started it: a spinner inside, and a second press does nothing.
- *  For actions that wait on the server (or on slskd), so a tap never looks ignored. */
-export async function working(el, fn) {
-  if (!el?.classList) return fn();
-  if (el.classList.contains("working")) return undefined;
-  const spin = h("span", { class: "spinner", "aria-hidden": "true" });
+// Actions still waiting for an answer, by the button's data-act name (such as "skip:<album>").
+const inFlight = new Set();
+
+function markWorking(el) {
+  if (el.classList.contains("working")) return;
   el.classList.add("working");
   el.setAttribute("aria-busy", "true");
-  el.prepend(spin);
+  el.prepend(h("span", { class: "spinner working-spin", "aria-hidden": "true" }));
+}
+
+function unmarkWorking(el) {
+  el.classList.remove("working");
+  el.removeAttribute("aria-busy");
+  el.querySelector(":scope > .working-spin")?.remove();
+}
+
+/** While fn runs, show it on the button that started it: a spinner inside, and a second press does nothing.
+ *  For actions that wait on the server (or on slskd), so a tap never looks ignored. A button with a
+ *  data-act name keeps its spinner when its window redraws: see restoreWorking. */
+export async function working(el, fn) {
+  if (!el?.classList) return fn();
+  const key = el.dataset.act || null;
+  if (el.classList.contains("working") || (key && inFlight.has(key))) return undefined;
+  if (key) inFlight.add(key);
+  markWorking(el);
   try { return await fn(); } finally {
-    el.classList.remove("working");
-    el.removeAttribute("aria-busy");
-    spin.remove();
+    if (key) {
+      inFlight.delete(key);
+      for (const b of document.querySelectorAll(`[data-act="${CSS.escape(key)}"]`)) unmarkWorking(b);
+    }
+    unmarkWorking(el);
+  }
+}
+
+/** After a window redraws: put the spinner back on buttons whose action is still running. */
+export function restoreWorking(...roots) {
+  if (!inFlight.size) return;
+  for (const root of roots) {
+    for (const el of root.querySelectorAll("[data-act]")) if (inFlight.has(el.dataset.act)) markWorking(el);
   }
 }
 

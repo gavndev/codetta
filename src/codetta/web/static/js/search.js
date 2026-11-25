@@ -1,7 +1,7 @@
 // The search bar: exploring MusicBrainz (!mb), bangs and rolling search ideas.
 // Part of Codetta's page; app.js is the entry point (see the note at its top).
 
-import { $, ask, closeDialog, h, icon, openDialog, playOut, replay, setKids, working } from "./dom.js";
+import { $, ask, closeDialog, h, icon, openDialog, playOut, replay, restoreWorking, setKids, working } from "./dom.js";
 import { api } from "./api.js";
 import { els, first, plural, state, toast } from "./state.js";
 import {
@@ -686,7 +686,7 @@ function skCandidates(j) {
           c.free_slot ? "free slot" : `${c.queue} queued`, choosing ? skSpeed(c.speed) : null].filter(Boolean).join(" · ")),
         choosing && c.files?.length ? skFiles(j, c) : null),
       here ? h("span", { class: "inbox-note" }, "This one")
-        : h("button", { class: "btn small", type: "button", onclick: (e) => {
+        : h("button", { class: "btn small", type: "button", "data-act": `sk-pick:${j.id}`, onclick: (e) => {
           const files = choosing ? skPicked(j, c) : null;
           skAction("POST", `/api/slskd/jobs/${j.id}/pick`, { index: c.index, ...(files ? { files } : {}) },
             () => { sk.picking = null; delete sk.sel[`${j.id}:${c.index}`]; toast(`Downloading ${c.name}…`); }, e.currentTarget);
@@ -759,8 +759,10 @@ function skItem(j) {
   const c = j.current;
   const g = j.inbox;
   const url = (p) => `/api/slskd/jobs/${j.id}/${p}`;
-  const btn = (label, onclick, primary = false) => h("button", { class: `btn small${primary ? " primary" : ""}`, type: "button", onclick }, label);
-  const link = (label, onclick) => h("button", { class: "link-btn inbox-skip", type: "button", onclick }, label);
+  const btn = (label, onclick, primary = false, act = null) => h("button", { class: `btn small${primary ? " primary" : ""}`, type: "button", onclick,
+    "data-act": act ? `sk-${act}:${j.id}` : null }, label);
+  const link = (label, onclick, act = null) => h("button", { class: "link-btn inbox-skip", type: "button", onclick,
+    "data-act": act ? `sk-${act}:${j.id}` : null }, label);
   const reviewable = j.status === "arrived" && g && ["ready", "review", "nomatch", "local", "error"].includes(g.status);
   let chip = SK_LABELS[j.status] || j.status;
   let chipClass = j.status === "arrived" ? "matching" : j.status === "imported" ? "filed" : ["nothing", "failed"].includes(j.status) ? "error" : j.status;
@@ -768,18 +770,18 @@ function skItem(j) {
   if (reviewable) {
     chip = j.upgrade ? "Ready to replace" : "Have a look";
     chipClass = "review";
-    actions.push(btn(j.upgrade ? "Replace album" : "Import", (e) => skImport(j, e.currentTarget), true),
-      btn("Blocklist & try next", (e) => skAction("POST", url("next"), { block: true }, () => toast("Blocklisted. Trying the next one…"), e.currentTarget)),
+    actions.push(btn(j.upgrade ? "Replace album" : "Import", (e) => skImport(j, e.currentTarget), true, "import"),
+      btn("Blocklist & try next", (e) => skAction("POST", url("next"), { block: true }, () => toast("Blocklisted. Trying the next one…"), e.currentTarget), false, "next"),
       btn("Check tags", () => skReviewTags(j)));
   }
-  if (SK_ACTIVE.includes(j.status)) actions.push(btn("Cancel", (e) => skAction("POST", url("cancel"), null, null, e.currentTarget)));
+  if (SK_ACTIVE.includes(j.status)) actions.push(btn("Cancel", (e) => skAction("POST", url("cancel"), null, null, e.currentTarget), false, "cancel"));
   if (["nothing", "failed", "cancelled"].includes(j.status)) actions.push(btn("Search again", () => skSearch(j.query, j.upgrade), true));
   if (j.status === "imported" && g?.dest) actions.push(btn("Open", () => { closeDialog($("#soulseek-dialog")); navigate(g.dest); }, true));
   if (j.candidates.length > 1 && ["downloading", "arrived", "failed"].includes(j.status)) {
     actions.push(link(sk.picking === j.id ? "Hide the others" : `Choose another (${j.candidates.length - 1})`,
       () => { sk.picking = sk.picking === j.id ? null : j.id; renderSoulseek(); }));
   }
-  if (["imported", "nothing", "failed", "cancelled"].includes(j.status)) actions.push(link("Remove", (e) => skAction("DELETE", `/api/slskd/jobs/${j.id}`, null, null, e.currentTarget)));
+  if (["imported", "nothing", "failed", "cancelled"].includes(j.status)) actions.push(link("Remove", (e) => skAction("DELETE", `/api/slskd/jobs/${j.id}`, null, null, e.currentTarget), "remove"));
   const bar = j.status === "downloading" && j.progress > 0 ? progressBar(j.progress, etaText(j.eta)) : null;
   return h("div", { class: `inbox-item sk-item ${j.status}`, "data-job": j.id },
     reviewable && g.release?.id && sk.data.enabled && connectionOn("musicbrainz") ? mbThumb(g.release.id)
@@ -842,6 +844,7 @@ function renderSoulseek() {
     } }, `Clear blocklist (${d.blocked})`) : null,
     h("span", { class: "spacer" }), close);
   for (const el of body.querySelectorAll("details[data-key]")) if (open.has(el.dataset.key)) el.open = true;
+  restoreWorking(body);
   body.scrollTop = scroll;
   if (focused) form.q.focus({ preventScroll: true });
   if (sk.focus) {
