@@ -61,7 +61,7 @@ def client(tmp_path):
         d = music / "Future" / album
         d.mkdir(parents=True)
         shutil.copy2(FIXTURES_DIR / "sample.flac", d / "01.flac")
-        engine.update_tags(d / "01.flac", {"album": album, "albumartist": "Future", "title": "x"})
+        engine.update_tags(d / "01.flac", {"album": album, "albumartist": "Future", "title": "x", "musicbrainz_albumid": "33333333-3333-3333-3333-333333333333"})
     (music / "Metro Boomin").mkdir()
     fakes = Fakes()
     app = create_app(Settings(music_dir=music, config_dir=tmp_path / "config"), fetch_mb=fakes.mb,
@@ -158,7 +158,8 @@ class AlbumFakes(Fakes):
 @pytest.fixture
 def shelf(tmp_path):
     music = tmp_path / "music"
-    _make(music, "Future", "HNDRXX", {"albumartist": "Future", "genre": "Trap", "date": "2017"})
+    _make(music, "Future", "HNDRXX", {"albumartist": "Future", "genre": "Trap", "date": "2017", "musicbrainz_albumid": "33333333-3333-3333-3333-333333333333"})
+    _make(music, "Future", "Mixtape", {"albumartist": "Future", "genre": "Trap"})  # nothing has identified it
     _make(music, "Future", "DS2", {"albumartist": "Future", "genre": "Trap", "date": "2015"})
     _make(music, "Future/Pluto", "CD1", {"albumartist": "Future", "album": "Pluto", "date": "2012"})  # an album in disc folders
     _make(music, "Future/HNDRXX", "CD2", {"albumartist": "Future", "album": "HNDRXX"})  # this album's other disc
@@ -182,7 +183,7 @@ def shelf(tmp_path):
 
 def test_albums_like_this_one_come_from_the_library_first(shelf):
     d = shelf.get("/api/albums/like", params={"folder": "Future/HNDRXX"}).json()
-    assert [a["folder"] for a in d["more"]] == ["Future/DS2", "Future/Pluto"]  # not itself; an album, not its disc
+    assert [a["folder"] for a in d["more"]] == ["Future/DS2", "Future/Mixtape", "Future/Pluto"]  # not itself; an album, not its disc
     assert d["more"][0]["title"] == "DS2" and d["more"][0]["year"] == "2015"
     # Deezer off: the same genre, the closest years first; nothing asked online.
     assert [a["folder"] for a in d["like"]] == ["Migos/Culture", "Gucci Mane/Trap House"]
@@ -205,3 +206,36 @@ def test_albums_not_in_the_library_need_deezer_and_leave_out_what_you_have(shelf
 def test_albums_like_only_for_folders_in_the_library(shelf):
     assert shelf.get("/api/albums/like", params={"folder": "../etc"}).status_code == 404
     assert shelf.get("/api/albums/elsewhere", params={"folder": "Nope"}).status_code in (200, 404)
+
+
+def test_an_album_nothing_has_identified_gets_no_suggestions(shelf):
+    shelf.put("/api/connections", json={"enabled": {"deezer": True}})
+    d = shelf.get("/api/albums/like", params={"folder": "Future/Mixtape"}).json()
+    assert d["identified"] is False and d["more"] == [] and d["like"] == []
+    assert shelf.get("/api/albums/elsewhere", params={"folder": "Future/Mixtape"}).json()["albums"] == []
+    assert not shelf.fakes.urls  # nothing asked about it
+
+
+def test_an_artist_with_no_identified_album_gets_no_bio_or_similar_artists(several):
+    several.put("/api/connections", json={"enabled": {"musicbrainz": True, "wikipedia": True, "deezer": True}})
+    d = several.get("/api/artists/info", params={"folder": "Future"}).json()
+    assert d["identified"] is False and d["bio"] is None and d["similar"] == []
+
+
+def test_one_musicbrainz_id_naming_only_one_of_the_artists_still_splits(tmp_path):
+    music = tmp_path / "music"
+    sethi = "9da378d4-2a00-46c7-8050-26d51dd522ac"
+    _make(music, "Ali Sethi & Nicolas Jaar", "Intiha", {"albumartist": "Ali Sethi & Nicolas Jaar", "musicbrainz_albumartistid": sethi})
+    _make(music, "Simon & Garfunkel", "Bookends", {"albumartist": "Simon & Garfunkel", "musicbrainz_albumartistid": "5d02f264-e225-41ff-83f7-d9b1f0b1874a"})
+    names = {sethi: "Ali Sethi", "5d02f264-e225-41ff-83f7-d9b1f0b1874a": "Simon & Garfunkel"}
+
+    def mb(url):
+        mbid = urllib.parse.urlparse(url).path.rsplit("/", 1)[-1]
+        return {"id": mbid, "name": names[mbid]} if mbid in names else None
+    app = create_app(Settings(music_dir=music, config_dir=tmp_path / "config"), fetch_mb=mb)
+    with TestClient(app) as c:
+        c.post("/api/auth/setup", json={"username": "owner", "password": PASSWORD})
+        c.put("/api/connections", json={"enabled": {"musicbrainz": True}})
+        d = c.get("/api/artists/info", params={"folder": "Ali Sethi & Nicolas Jaar"}).json()
+        assert [a["name"] for a in d["artists"]] == ["Ali Sethi", "Nicolas Jaar"]
+        assert "artists" not in c.get("/api/artists/info", params={"folder": "Simon & Garfunkel"}).json()

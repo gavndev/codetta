@@ -1,6 +1,6 @@
 // ---- Under an album: albums like it -------------------------------------------------------------------
 //
-// First the library's own (more by the artist, then albums by similar artists and in the same genre),
+// Only for albums MusicBrainz (or a fallback catalogue) has identified. First the library's own (more by the artist, then albums by similar artists and in the same genre),
 // then, past a divider, albums the library doesn't have (Deezer), each with Find in slskd. The second
 // part is only asked for when it scrolls into view.
 
@@ -69,8 +69,8 @@ function elsewhereCard(a) {
       title: "Look for this album on Soulseek. You can edit the search before it's sent." }, icon("slskd"), "Find in slskd") : null);
 }
 
-const row = (title, cards) => cards.length ? h("div", { class: "am-group" },
-  h("h2", { class: "am-head", dir: "auto" }, title),
+const row = (title, cards, mine = false) => cards.length ? h("div", { class: "am-group" },
+  h("h2", { class: "am-head", dir: "auto" }, title, mine ? h("span", { class: "am-tag" }, "In your library") : null),
   h("div", { class: "am-row" }, cards)) : null;
 
 /** Fill (or clear) the space under the album's tracks. */
@@ -89,10 +89,11 @@ export function renderAlbumsLike() {
   const folder = f.path;
   ask(folder, "like").then((d) => {
     if (shownFor !== folder) return;
+    if (d && d.identified === false) return; // nothing has identified this album: no suggestions from a name alone
     const away = h("div", { class: "am-away" });
     const mine = d ? [
-      row(d.artist ? `More by ${d.artist}` : "More by this artist", d.more.map(libraryCard)),
-      row("You might also like", d.like.map(libraryCard)),
+      row(d.artist ? `More by ${d.artist}` : "More by this artist", d.more.map(libraryCard), true),
+      row("You might also like", d.like.map(libraryCard), true),
     ].filter(Boolean) : [];
     setKids(box, ...mine, away);
     box.hidden = false;

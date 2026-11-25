@@ -3348,22 +3348,24 @@ dialog.confirm.wipe-final-step .sheet-head h2 { width: 100%; }
 .artist-head > .artist-av img { width: 100%; height: 100%; }
 .artist-head > .artist-av .artist-av-ini { font-size: 56px; }
 /* A folder for several artists ("Ali Sethi & Nicolas Jaar"): their pictures overlapping, in the picture's place */
+.artist-head:has(> .artist-group) { grid-template-columns: auto minmax(0, 1fr); }
 .artist-head > .artist-group { grid-row: 1 / span 2; align-self: center; justify-self: center; display: flex; align-items: center; }
 .artist-group-item { padding: 0; border: 0; background: none; border-radius: 50%; cursor: pointer; position: relative;
   transition: transform var(--dur) ease; }
-.artist-group-item + .artist-group-item { margin-left: -28px; }
+.artist-group-item + .artist-group-item { margin-left: -40px; }
 .artist-group-item:hover { transform: translateY(-3px); z-index: 1; }
 .artist-group-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; z-index: 1; }
 .artist-group .artist-av { box-shadow: 0 0 0 4px var(--bg), var(--shadow-lg); }
-.artist-group .artist-av-ini { font-size: 40px; }
-.artist-group.n3 .artist-av, .artist-group.n4 .artist-av { width: 96px; height: 96px; }
-.artist-group.n3 .artist-group-item + .artist-group-item, .artist-group.n4 .artist-group-item + .artist-group-item { margin-left: -22px; }
+.artist-group .artist-av-ini { font-size: 48px; }
+.artist-group .artist-av { width: 156px; height: 156px; }
+.artist-group.n3 .artist-av, .artist-group.n4 .artist-av { width: 116px; height: 116px; }
+.artist-group.n3 .artist-group-item + .artist-group-item, .artist-group.n4 .artist-group-item + .artist-group-item { margin-left: -32px; }
 .artist-group.n3 .artist-av-ini, .artist-group.n4 .artist-av-ini { font-size: 32px; }
 @media (max-width: 760px) {
   .artist-head > .artist-group { grid-row: 1; }
-  .artist-group .artist-av { width: 72px; height: 72px; }
+  .artist-group .artist-av { width: 84px; height: 84px; }
   .artist-group .artist-av-ini { font-size: 24px; }
-  .artist-group-item + .artist-group-item { margin-left: -16px; }
+  .artist-group-item + .artist-group-item { margin-left: -22px; }
   .artist-group.n3 .artist-av, .artist-group.n4 .artist-av { width: 56px; height: 56px; }
   .artist-group.n3 .artist-group-item + .artist-group-item, .artist-group.n4 .artist-group-item + .artist-group-item { margin-left: -13px; }
 }
@@ -3492,7 +3494,9 @@ dialog.confirm.wipe-final-step .sheet-head h2 { width: 100%; }
 .album-more { margin-top: 36px; display: grid; gap: 28px; }
 .album-more[hidden] { display: none; }
 .am-group { display: grid; gap: 12px; min-width: 0; }
-.am-head { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: -0.015em; }
+.am-head { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: -0.015em; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.am-tag { padding: 2px 9px; border-radius: 999px; background: var(--hover); color: var(--muted);
+  font-size: 12px; font-weight: 600; letter-spacing: 0; }
 .am-row {
   display: grid; grid-auto-flow: column; grid-auto-columns: 164px; gap: 18px; overflow-x: auto; overscroll-behavior-x: contain;
   scroll-snap-type: x mandatory; scroll-padding: 0 2px; padding: 2px 2px 10px; scrollbar-width: thin;

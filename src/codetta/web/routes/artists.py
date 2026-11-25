@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter
+from collections.abc import Iterable
 from difflib import SequenceMatcher
 
 from fastapi import HTTPException, Query, Response
@@ -20,6 +21,15 @@ from codetta.core.library import LibraryPathError
 # Best-ofs and the like aren't albums to look for (Deezer lists them as albums).
 COMPILATION_RE = re.compile(r"\b(?:best of|greatest hits|the essential|anthology|collection|hits|live (?:at|in|from)|remixe[sd])\b",
                             re.IGNORECASE)
+# An album MusicBrainz (or Deezer, iTunes, Discogs, which write a barcode) has identified. Albums
+# nothing has identified get no suggestions, bio or similar artists: they'd be guesses from a name.
+IDENTIFIED_KEYS = ("musicbrainz_albumid", "musicbrainz_releasegroupid", "barcode")
+
+
+def identified(tags: dict) -> bool:
+    return any(str(v).strip() for k in IDENTIFIED_KEYS for v in tags.get(k) or [])
+
+
 DISC_RE = re.compile(r"^(?:cd|dis[ck]|side)\s*[\dA-Z]{1,2}\b", re.IGNORECASE)
 
 
@@ -40,25 +50,33 @@ def register(app, shared) -> None:
         paths = lib_index.paths_where("artist", name, limit=400) | lib_index.paths_where("albumartist", name, limit=400)
         return len({p.rsplit("/", 1)[0] if "/" in p else "" for p in paths})
 
-    def several(name: str, folder: str, folders: dict[str, str], credits: list[tuple[list[str], int]]) -> list[dict]:
-        """The artists a folder named after several of them holds ("Ali Sethi & Nicolas Jaar"), or []
-        for one artist. The tags say it best: an "album artists (all)" tag naming each of them, or
-        several MusicBrainz album-artist IDs; one value or one ID there is one artist, a duo
-        ("Simon & Garfunkel"). Without either, the name is split at the usual separators the way
-        an artist credit is, except this folder doesn't count as an artist of its own. ``credits``
-        come only from files whose album artist is the folder's name (not a stray album)."""
+    def split_credit(name: str, listed: list[str], ids: list[str], own: Iterable[str] = ()) -> list[dict]:
+        """The artists a credit or folder named after several of them holds ("Ali Sethi & Nicolas
+        Jaar"), or [] for one artist. The tags say it best: an "album artists (all)" tag naming each
+        of them, or several MusicBrainz album-artist IDs; one value there is one artist, a duo
+        ("Simon & Garfunkel"), and so is one ID that MusicBrainz names the same (one that names only
+        "Ali Sethi" is one of them). Without either, the name is split at the usual separators the
+        way an artist credit is, except a folder named after the whole credit (``own``: the folder
+        itself) doesn't count as an artist of its own."""
         if not pieces(name)[1:]:
             return []
-        listed = next((names for names, _ in credits if names), None)
-        if listed is not None:
+        folders = top_folders(settings.music_dir)
+        if listed:
             return resolve(listed, known, folders) if len(listed) > 1 else []
-        if any(n > 1 for _, n in credits):
-            pass  # several IDs: split the name
-        elif any(n == 1 for _, n in credits):
-            return []
-        others = {k: v for k, v in folders.items() if v != folder}
-        found = resolve([name], known, others)
+        if len(ids) == 1:
+            called = info.mb_name(ids[0])
+            if not called or sfold(called) in {sfold(name), *map(sfold, own)}:
+                return []  # the duo's own ID (or nothing to tell it by: leave it whole)
+        skip = {sfold(name), *map(sfold, own)}
+        found = resolve([name], known, {k: v for k, v in folders.items() if k not in skip})
         return found if len(found) > 1 else []
+
+    def several(name: str, folder: str, credits: list[tuple[list[str], list[str]]]) -> list[dict]:
+        """An artist folder's artists when it's named after several (see ``split_credit``).
+        ``credits`` come only from files whose album artist is the folder's name (not a stray album)."""
+        listed = next((names for names, _ in credits if names), [])
+        ids = next((i for _, i in credits if i), [])
+        return split_credit(name, listed, ids, own=[folder])
 
     # ---- Albums like this one: from the library first, then ones it doesn't have --------------------
 
@@ -74,6 +92,11 @@ def register(app, shared) -> None:
         for f in files:
             if f in known_files:
                 return rel, known_files[f][2].get("tags") or {}
+        for f in files:  # just added: the index hasn't read it yet
+            try:
+                return rel, engine.load_metadata(library.resolve(f)).tags
+            except (MetadataError, LibraryPathError, OSError):
+                continue
         raise HTTPException(404, "Not an album folder")
 
     def first(tags: dict, *keys: str) -> str:
@@ -96,6 +119,19 @@ def register(app, shared) -> None:
         out.pop("", None)
         return out
 
+    def each_artist(tags: dict) -> list[str]:
+        """The album's artists one by one: a collaboration ("Ali Sethi & Nicolas Jaar") is asked about
+        artist by artist, since catalogues know each of them and not the pair."""
+        listed = [v for v in tags.get("albumartists") or [] if v.strip()]
+        if len(listed) > 1:
+            return listed[:4]
+        artist = first(tags, "albumartist", "artist")
+        if not artist:
+            return []
+        ids = [i for i in tags.get("musicbrainz_albumartistid") or [] if len(i) == 36]
+        found = [a["name"] for a in split_credit(artist, [], ids)]
+        return found[:4] if len(found) > 1 else [artist]
+
     @app.get("/api/albums/like")
     def albums_like(folder: str = Query(..., max_length=1000)) -> dict:
         """Albums in the library like this one: more by the same artist, then albums by similar
@@ -103,6 +139,8 @@ def register(app, shared) -> None:
         rel, tags = album_tags(folder)
         rel = album_of(rel)
         artist = first(tags, "albumartist", "artist")
+        if not identified(tags):
+            return {"artist": artist, "more": [], "like": [], "identified": False, "can": {"similar": connections.enabled("deezer")}}
         genres = [g for g in tags.get("genre") or [] if g.strip()][:3]
         year = year_of(tags)
         picked: dict[str, str] = {rel: ""}  # folder -> why
@@ -128,7 +166,8 @@ def register(app, shared) -> None:
                 pass
         more = take(same, "artist", 24)
         similar = []
-        for name in info.similar(artist, limit=25) if artist else []:
+        likes = list(dict.fromkeys(n for who in each_artist(tags) for n in info.similar(who, limit=25)))
+        for name in likes:
             similar += take(folders_where("albumartist", name) or folders_where("artist", name, limit=400), "similar", 3)
             if len(similar) >= 12:
                 break
@@ -155,7 +194,9 @@ def register(app, shared) -> None:
                             "cover": {"path": c[0], "hash": c[1]} if c else None})
             return out
 
-        return {"artist": artist, "more": describe(more), "like": describe(similar + genre),
+        this = sfold(EDITION_RE.sub("", first(tags, "album")))
+        others = [a for a in describe(more) if sfold(EDITION_RE.sub("", a["title"])) != this or not this]  # not a second copy of it
+        return {"artist": artist, "more": others, "like": describe(similar + genre),
                 "can": {"similar": connections.enabled("deezer")}}
 
     @app.get("/api/albums/elsewhere")
@@ -166,8 +207,8 @@ def register(app, shared) -> None:
             return {"albums": [], "can": False}
         rel, tags = album_tags(folder)
         artist = first(tags, "albumartist", "artist")
-        if not artist:
-            return {"albums": [], "can": True}
+        if not artist or not identified(tags):
+            return {"albums": [], "can": True, "identified": bool(artist) and identified(tags)}
         owned = shared.owned_like
         out, seen = [], set()
 
@@ -185,8 +226,11 @@ def register(app, shared) -> None:
                 out.append({**a, "why": why})
                 n += 1
 
-        add(info.albums(artist, limit=12), "artist", 6)
-        for name in info.similar(artist, limit=8):
+        who = each_artist(tags)
+        for name in who:
+            add(info.albums(name, limit=12), "artist", 6 if len(who) == 1 else 3)
+        likes = list(dict.fromkeys(n for name in who for n in info.similar(name, limit=8)))
+        for name in likes:
             add(info.albums(name, limit=6), "similar", 2)
             if len(out) >= 18:
                 break
@@ -220,7 +264,8 @@ def register(app, shared) -> None:
             raise HTTPException(404, "Not an artist folder")
         # A look at the albums: one file from each of the first few subfolders.
         names, ids, albums = Counter(), Counter(), []
-        credits = []  # per file: (album artists named one by one, how many MusicBrainz album-artist IDs)
+        credits = []  # per file: (album artists named one by one, its MusicBrainz album-artist IDs)
+        matched = False  # any album here identified
         try:
             for sub in library.list_folder(folder).folders[:12]:
                 listing = library.list_folder(sub)
@@ -235,9 +280,10 @@ def register(app, shared) -> None:
                     for i in (tags.get("musicbrainz_albumartistid") or [])[:1]:
                         ids[i] += 1
                     albums += (tags.get("album") or [])[:1]
+                    matched = matched or identified(tags)
                     if sfold((tags.get("albumartist") or tags.get("artist") or [""])[0]) == sfold(folder):
                         credits.append(([v for v in tags.get("albumartists") or [] if v.strip()],
-                                        len(tags.get("musicbrainz_albumartistid") or [])))
+                                        [i for i in tags.get("musicbrainz_albumartistid") or [] if len(i) == 36]))
         except (LibraryPathError, OSError):
             pass
         top = names.most_common(1)[0][0] if names else ""
@@ -245,9 +291,12 @@ def register(app, shared) -> None:
         name = top if same else folder  # the tags' spelling ("Beyoncé") when it's this artist
         mbid = ids.most_common(1)[0][0] if ids and same else ""
         mbid = mbid if len(mbid) == 36 else ""
-        together = several(name, folder, folders, credits)
+        together = several(name, folder, credits)
         if together:  # "Ali Sethi & Nicolas Jaar": their pictures together, no bio or similar artists of one
             return {"name": name, "albums": len(albums), "bio": None, "similar": [], "artists": together,
+                    "can": {"bio": info.bio_ready(), "similar": connections.enabled("deezer")}}
+        if not matched:  # nothing here identified: no bio or similar artists guessed from a name
+            return {"name": name, "albums": len(albums), "bio": None, "similar": [], "identified": False,
                     "can": {"bio": info.bio_ready(), "similar": connections.enabled("deezer")}}
         seen = {sfold(name), sfold(folder)}
         similar = []

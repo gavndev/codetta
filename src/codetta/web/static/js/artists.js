@@ -120,7 +120,7 @@ export function artistHead(f, counts) {
       const shown = d.artists.slice(0, 4);
       const stack = h("div", { class: "artist-group" }, shown.map((a) => h("button", {
         class: "artist-group-item", type: "button", title: a.name, "aria-label": a.name, onclick: () => goTo(a),
-      }, artistAvatar(a, 120))));
+      }, artistAvatar(a, 160))));
       stack.classList.add(`n${shown.length}`); // n3, n4: smaller pictures
       pic.replaceWith(stack);
       setKids(slot);
@@ -140,7 +140,7 @@ export function artistHead(f, counts) {
         class: `artist-chip${a.folder ? " here" : ""}`, type: "button", onclick: () => goTo(a),
         title: a.folder ? "In your library" : "Songs they're on in your library",
       }, artistAvatar(a, 24), h("span", { dir: "auto" }, a.name))))) : null;
-    const hint = !d.can?.bio && !d.can?.similar ? h("button", { class: "link-btn artist-hint", type: "button",
+    const hint = d.identified !== false && !d.can?.bio && !d.can?.similar ? h("button", { class: "link-btn artist-hint", type: "button",
       onclick: () => openSettings("connections") }, icon("spark"), "Add a bio and similar artists (Settings → Connections)") : null;
     setKids(slot, bio, similar, hint);
   };

@@ -139,6 +139,15 @@ class ArtistInfo:
                 return {"text": text, "url": url, "title": title, "lang": code}
         return None
 
+    def mb_name(self, mbid: str) -> str:
+        """The name MusicBrainz has for this artist ID, or "" (MusicBrainz off, or no answer)."""
+        if not self.enabled("musicbrainz") or not mbid:
+            return ""
+        try:
+            return str(self._cached(f"mbname:{mbid}", lambda: str(self.mb.artist(mbid).get("name") or "")))
+        except ProviderError:
+            return ""
+
     # --- Albums on Deezer ----------------------------------------------------------------------
 
     def albums(self, name: str, limit: int = 4) -> list[dict]:
