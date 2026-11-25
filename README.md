@@ -186,11 +186,10 @@ results like a folder. Start with a bang to search elsewhere from the same box: 
 **[Install & update](docs/install.md)** · **[Configuration](docs/configuration.md)** · **[Features](docs/features.md)** ·
 **[FAQ](docs/faq.md)** · **[Architecture](ARCHITECTURE.md)** · **[Privacy](PRIVACY.md)** · **[Security](SECURITY.md)**
 
-## What's new and what's next
+## What's new
 
 Every change is in the [changelog](CHANGELOG.md) and on [GitHub Releases](https://github.com/gavndev/codetta/releases);
-inside Codetta, **What's new** shows the notes for your version. What has to be true before 1.0 is on
-[the road to 1.0](docs/road-to-1.0.md).
+inside Codetta, **What's new** shows the notes for your version. Found a bug? [Open an issue](https://github.com/gavndev/codetta/issues).
 
 ## Contributing
 
