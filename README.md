@@ -13,7 +13,7 @@
 
 <p align="center">
   <img alt="Status: beta" src="https://img.shields.io/badge/status-beta-3b82f6">
-  <img alt="Version 0.14.0" src="https://img.shields.io/badge/version-0.14.0-0e7c74">
+  <img alt="Version 0.15.0" src="https://img.shields.io/badge/version-0.15.0-0e7c74">
   <a href="LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-555"></a>
   <img alt="Python 3.14" src="https://img.shields.io/badge/python-3.14-3776ab">
   <a href="https://github.com/gavndev/codetta/actions/workflows/ci.yml"><img alt="Tests" src="https://github.com/gavndev/codetta/actions/workflows/ci.yml/badge.svg"></a>
@@ -56,9 +56,9 @@ Codetta does can be **undone**, and [Navidrome](https://www.navidrome.org/)
 and other music apps pick up the changes straight away (connect your server) or on their next scan.
 
 > [!NOTE]
-> **Codetta is in beta.** The latest, 0.14, puts every setting on one searchable Settings page.
-> 0.13 completed music app support: Symfonium, Narjo, Arpeggi, Eclipse and other Subsonic apps get
-> stars, playlists, a shared play queue, smaller files on mobile data and ListenBrainz scrobbling.
+> **Codetta is in beta.** The latest, 0.15, brings Your music (favourites and playlists, shared with
+> your music apps), artist pages, albums like the one you're on, and covers at their own shape.
+> 0.14 put every setting on one searchable Settings page.
 > Everything is in the [changelog](CHANGELOG.md). Codetta is careful with your files and used daily
 > on real libraries, but keep a backup of your music, as you would with any tool that edits files.
 

@@ -2,7 +2,9 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.15.0 (2026-11-25)
+
+Your music, artist pages, albums like the one you're on, and covers at their own shape.
 
 - **A simpler first-run setup:** "Which music server do you use?" and "Listen in your music apps?" asked much the same thing twice. They're now one step, **How do you listen to your music?**: in music apps with Codetta as the server, with your own Navidrome, Jellyfin, Emby or Plex, or just in Codetta for now. The opening "Offline, unless you say so" list now has only the connections that are simply on or off; ones that need an address, a login or a key (Soulseek, Lidarr, AudioMuse-AI, your music server) are set up, and switched on, in their own steps. If you've been through either old step, you won't be asked again.
 - **Fixes from a full test of every feature:**
