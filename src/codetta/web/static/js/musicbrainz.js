@@ -9,6 +9,7 @@ import { folderCovers } from "./tools.js";
 import { confirmDiscard, folderTrackPaths } from "./editor.js";
 import { refreshActivity } from "./activity.js";
 import { connectionOn } from "./setup.js";
+import { openSettings } from "./settings.js";
 
 // ---- Match on MusicBrainz ---------------------------------------------------------------------------
 //
@@ -68,6 +69,7 @@ async function mbSearch(extra) {
   const token = ++mb.token;
   mb.busy = true;
   mb.error = null;
+  mb.needsAcoustID = false;
   mb.release = null;
   renderMbSearch();
   try {
@@ -90,6 +92,7 @@ async function mbIdentify() {
   const token = ++mb.token;
   mb.busy = "sound";
   mb.error = null;
+  mb.needsAcoustID = false;
   renderMbSearch();
   try {
     const res = await api("POST", "/api/musicbrainz/identify", mb.target.body);
@@ -100,6 +103,7 @@ async function mbIdentify() {
   } catch (err) {
     if (token !== mb.token) return;
     mb.error = err.message;
+    mb.needsAcoustID = err.status === 428; // AcoustID wants the person's own key: offer to connect
   }
   mb.busy = false;
   renderMbSearch();
@@ -185,7 +189,8 @@ function renderMbSearch() {
   let list;
   if (mb.busy === "sound") list = h("p", { class: "loading" }, "Listening to your tracks, then asking AcoustID… (a few seconds per track)");
   else if (mb.busy) list = h("p", { class: "loading" }, `Asking ${sourceName()}…`);
-  else if (mb.error) list = h("div", { class: "error-box" }, mb.error);
+  else if (mb.error) list = h("div", { class: "error-box" }, mb.error,
+    mb.needsAcoustID ? h("button", { class: "btn mb-connect", type: "button", onclick: () => openSettings("connections", "acoustid-box") }, "Connect AcoustID") : null);
   else if (res && !res.candidates.length) {
     list = h("p", { class: "mb-empty" }, res.query.album || res.query.artist
       ? (mb.source && mb.source !== "auto" ? `${SOURCE_NAMES[mb.source]} has nothing for this. Try fewer words.` : "No releases found. Try fewer words, or paste the release link from musicbrainz.org.")
@@ -310,6 +315,7 @@ function mbPick(id) {
   mb.fields = null;
   mb.openFiles = new Set();
   mb.error = null;
+  mb.needsAcoustID = false;
   mbPreview(0);
 }
 
@@ -336,6 +342,7 @@ function mbPreview(delay = 200) {
       if (token !== mb.token) return;
       mb.proposal = p;
       mb.error = null;
+      mb.needsAcoustID = false;
       if (!mb.fields) mb.fields = new Set(p.fields);
     } catch (err) {
       if (token !== mb.token) return;

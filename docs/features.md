@@ -209,7 +209,9 @@ MusicBrainz Picard writes them.
 **Listen** in the match dialog. Codetta fingerprints each track on your server
 (only that short code and the length go to [AcoustID](https://acoustid.org)),
 finds the releases holding most of them, and pairs every file with its exact
-recording, whatever its name or track number says.
+recording, whatever its name or track number says. From January 1, 2027
+AcoustID needs your own free account: **Connect AcoustID** in Settings →
+Connections links it in a minute, with nothing to copy.
 
 Running your own MusicBrainz mirror? Point `CODETTA_MUSICBRAINZ_URL` at it and
 lookups stay on your network with no rate limit.

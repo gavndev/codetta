@@ -125,7 +125,12 @@ def register(app, shared) -> None:
             sound = (connections.enabled("acoustid") and connections.enabled("musicbrainz")
                      and fingerprinter.available and len(g.paths) <= MAX_IDENTIFY)
             if sound and (not cands or cands[0]["score"] < 85):
-                heard = mb_identify(MBTarget(paths=g.paths))
+                try:
+                    heard = mb_identify(MBTarget(paths=g.paths))
+                except HTTPException as exc:
+                    if exc.status_code != 428:
+                        raise
+                    heard = {"candidates": []}  # AcoustID wants the person's key: match by tags alone
                 if heard["candidates"] and (not cands or heard["candidates"][0]["score"] >= cands[0]["score"]):
                     cands, recordings = heard["candidates"], heard["recordings"]
             if not cands:

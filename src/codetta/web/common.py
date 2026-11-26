@@ -55,6 +55,7 @@ class Settings:
     musicbrainz_url: str | None = None  # self-hosted mirror instead of musicbrainz.org
     acoustid: bool | None = None  # "Identify by sound" (fingerprints looked up on AcoustID)
     acoustid_key: str | None = None  # an own application key instead of Codetta's
+    acoustid_user_key: str | None = None  # CODETTA_ACOUSTID_USER_KEY: the person's own key (locks it)
     fpcalc: str | None = None  # Chromaprint's fpcalc; None = look on PATH
     ffmpeg: str | None = None  # ffmpeg, for ReplayGain; None = look on PATH
     discogs: bool | None = None  # the Discogs connection (CODETTA_DISCOGS)
@@ -97,6 +98,7 @@ class Settings:
             musicbrainz_url=(env("MUSICBRAINZ_URL") or "").strip() or None,
             acoustid=parse_switch(env("ACOUSTID")),
             acoustid_key=(env("ACOUSTID_KEY") or "").strip() or None,
+            acoustid_user_key=(env("ACOUSTID_USER_KEY") or "").strip() or None,
             fpcalc=(env("FPCALC") or "").strip() or None,
             ffmpeg=(env("FFMPEG") or "").strip() or None,
             discogs=parse_switch(env("DISCOGS")),
@@ -394,6 +396,14 @@ class CoverExportIn(BaseModel):
     name: Literal["cover", "folder", "front"] = "cover"  # cover.jpg, folder.jpg or front.jpg
     replace: bool = False  # replace an image file of that name that's already there
     dry_run: bool = True
+
+
+class AcoustIDKeyIn(BaseModel):
+    key: str = Field("", max_length=200)  # empty = forget it
+
+
+class AcoustIDLinkIn(BaseModel):
+    return_url: str = Field("", max_length=2000)  # where acoustid.org sends the person back to
 
 
 class DiscogsTokenIn(BaseModel):

@@ -29,12 +29,15 @@ class ProviderError(Exception):
     """The provider couldn't be reached or answered with something unusable.
 
     ``transient``: worth trying again shortly (busy, timed out, connection dropped);
-    ``retry_after``: seconds the service asked us to wait, if it said."""
+    ``retry_after``: seconds the service asked us to wait, if it said;
+    ``code``: the service's own error number, if it gave one (AcoustID's 21 = "needs the user's key")."""
 
-    def __init__(self, message: str, *, transient: bool = False, retry_after: float | None = None) -> None:
+    def __init__(self, message: str, *, transient: bool = False, retry_after: float | None = None,
+                 code: int | None = None) -> None:
         super().__init__(message)
         self.transient = transient
         self.retry_after = retry_after
+        self.code = code
 
 
 def _retry_after(exc: urllib.error.HTTPError) -> float | None:
@@ -126,13 +129,15 @@ def http_post_json(url: str, user_agent: str, form: dict[str, str], *, service: 
         with _opener.open(req, timeout=TIMEOUT * 2) as res:  # nosec B310: fixed https provider URL
             data = res.read(max_bytes + 1)
     except urllib.error.HTTPError as exc:
-        try:  # AcoustID explains errors in its JSON body ("invalid API key")
-            detail = json.loads(exc.read(10_000)).get("error", {}).get("message")
+        try:  # AcoustID explains errors in its JSON body ("invalid API key", with its own number)
+            err = json.loads(exc.read(10_000)).get("error", {})
+            detail, code = err.get("message"), err.get("code")
         except (ValueError, AttributeError, OSError):
-            detail = None
+            detail, code = None, None
         if exc.code in (429, 503):
             raise ProviderError(f"{service.capitalize()} is busy right now. Try again in a moment.") from exc
-        raise ProviderError(f"{service.capitalize()} answered with an error ({detail or exc.code})") from exc
+        raise ProviderError(f"{service.capitalize()} answered with an error ({detail or exc.code})",
+                            code=code if isinstance(code, int) else None) from exc
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
         raise ProviderError(f"Couldn't reach {service}. Is the server online?") from exc
     if len(data) > max_bytes:

@@ -13,7 +13,8 @@ import tempfile
 import threading
 from pathlib import Path
 
-STEPS = ("connections", "organize", "library", "inbox", "health", "slskd", "lidarr", "listen", "autoplay")  # in the order they're shown
+STEPS = ("connections", "organize", "library", "inbox", "health", "acoustid", "slskd", "lidarr", "listen", "autoplay")  # in the order they're shown
+# "acoustid" (connect your AcoustID account) is only shown while AcoustID is on and not connected yet.
 # "listen" (music apps or your own music server) replaced two steps that asked much the same thing.
 MERGED = {"mediaserver": "listen", "subsonic": "listen"}
 

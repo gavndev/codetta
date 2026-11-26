@@ -10,6 +10,7 @@ import { loadAudioMuse, renderAudioMuseSettings, renderAutoplayStep } from "./au
 import { renderSubsonicSettings } from "./subsonic.js";
 import { loadListenBrainz, renderListenBrainzSettings } from "./listenbrainz.js";
 import { loadDiscogs, renderDiscogsSettings } from "./discogs.js";
+import { backFromAcoustID, loadAcoustID, renderAcoustIDSettings, renderAcoustIDStep } from "./acoustid.js";
 import { loadServer, renderListenStep, renderServerSettings } from "./mediaserver.js";
 import { renderFolderHead } from "./tools.js";
 import { renderEditor } from "./editor.js";
@@ -123,6 +124,7 @@ export function renderConnections() {
   renderSubsonicSettings();
   loadListenBrainz().then(renderListenBrainzSettings);
   loadDiscogs().then(renderDiscogsSettings);
+  loadAcoustID().then(renderAcoustIDSettings);
   loadServer().then(renderServerSettings);
   // Each switch sits in its place in Settings (data-conn), right above its own setup box. One
   // without a place yet (a new connection) goes in the card at the end of Connections.
@@ -146,6 +148,7 @@ async function onSwitch(item, input) {
     if (item.id === "audiomuse") { await loadAudioMuse(); renderAudioMuseSettings(); }
     if (item.id === "listenbrainz") { await loadListenBrainz(); renderListenBrainzSettings(); }
     if (item.id === "discogs") { await loadDiscogs(); renderDiscogsSettings(); }
+    if (item.id === "acoustid") { await loadAcoustID(); renderAcoustIDSettings(); }
     if (item.id === "mediaserver") { await loadServer(); renderServerSettings(); }
     if (item.id === "updates") refreshUpdate();
   } catch (err) {
@@ -256,6 +259,9 @@ async function renderSetupStep(step) {
       try { await setHealthEnabled(true); } catch (err) { toast(err.message, "error"); return; }
       finishStep(step);
     };
+  } else if (step === "acoustid") {
+    if (!connectionOn("acoustid")) { nextSetupStep(); return; } // asked again once AcoustID is on
+    await renderAcoustIDStep(form, step);
   } else if (step === "slskd") {
     await renderSlskdStep(form, step);
   } else if (step === "lidarr") {
@@ -383,6 +389,7 @@ function afterSetup() {
   pollNotifications();
   let seen = null;
   try { seen = localStorage.getItem("codetta-seen-version"); } catch { /* private mode */ }
+  if (backFromAcoustID()) return; // just approved (or declined) Codetta on acoustid.org
   if (seen !== state.auth?.version) openNews({ latestOnly: true });
 }
 

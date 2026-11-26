@@ -50,7 +50,7 @@ export async function api(method, url, body) {
     const msg = typeof d === "string" ? d
       : Array.isArray(d) ? d.map((e) => e.msg).join("; ")
       : `Request failed (${res.status})`;
-    throw new Error(msg);
+    throw Object.assign(new Error(msg), { status: res.status });
   }
   return data;
 }

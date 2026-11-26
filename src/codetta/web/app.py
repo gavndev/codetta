@@ -21,6 +21,7 @@ Settings (environment variables):
                           (no rate limit; http is allowed for this one)
     CODETTA_ACOUSTID      "on"/"off": Identify by sound (AcoustID; needs MusicBrainz too)
     CODETTA_ACOUSTID_KEY  your own AcoustID application key instead of Codetta's
+    CODETTA_ACOUSTID_USER_KEY  your AcoustID account's key (instead of connecting in Settings)
     CODETTA_FPCALC        path to Chromaprint's fpcalc (default: found on PATH)
     CODETTA_INBOX_DIR     a downloads folder outside the music folder (e.g. slskd's) for
                           the import inbox; /inbox in the Docker image (mount it there)
@@ -61,6 +62,7 @@ from codetta.core.acoustid import (
 )
 from codetta.core.acoustid import (
     AcoustID,
+    AcoustIDAccount,
     Fingerprinter,
     find_fpcalc,
 )
@@ -130,6 +132,7 @@ from codetta.web.routes import (
     lidarr as lidarr_routes,
     mediaserver as mediaserver_routes,
     replaygain as replaygain_routes,
+    acoustid as acoustid_routes,
     discogs as discogs_routes,
     autoplay as autoplay_routes,
     artists as artists_routes,
@@ -149,19 +152,20 @@ from codetta.web.security import GuardMiddleware, SelectiveGZip
 
 # The order matters a little: an area can use what earlier areas share right away,
 # and reaches later ones through shared.later(...).
-ROUTES = (status, library, musicbrainz, tags, organize, onboarding, inbox, care, soulseek, lidarr_routes, mediaserver_routes, replaygain_routes, discogs_routes, autoplay_routes, artists_routes, listening_routes, subsonic_routes, explore, health, tools,
+ROUTES = (status, library, musicbrainz, tags, organize, onboarding, inbox, care, soulseek, lidarr_routes, mediaserver_routes, replaygain_routes, discogs_routes, acoustid_routes, autoplay_routes, artists_routes, listening_routes, subsonic_routes, explore, health, tools,
           files, support, activity, presets)
 # Also importable from here, as before the split.
 __all__ = ["ACTIVITY_VALUE_CHARS", "VERSION", "Settings", "_is_public_address", "_to_track_out", "app", "create_app"]
 
 
 def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_latest_release,
-               fetch_json=None, fetch_mb=None, fetch_art=None, post_acoustid=None, run_fpcalc=None,
+               fetch_json=None, fetch_mb=None, fetch_art=None, post_acoustid=None, acoustid_api=None, run_fpcalc=None,
                slskd_request=None, fetch_catalog=None, lidarr_request=None, fetch_discogs=None,
                server_request=None, run_ffmpeg=None, audiomuse_request=None, listenbrainz_post=None, fetch_wiki=None) -> FastAPI:
     """``fetch_*`` replace the network in tests: LRCLIB and MusicBrainz take
     (url) -> parsed JSON or None, the Cover Art Archive (url) -> bytes or None,
-    AcoustID (form) -> parsed JSON; ``run_fpcalc`` replaces running fpcalc;
+    AcoustID (form) -> parsed JSON, and ``acoustid_api`` (url, form) for linking a
+    person's AcoustID account; ``run_fpcalc`` replaces running fpcalc;
     ``slskd_request`` (method, url, headers, body) -> (status, body) stands in for slskd, and
     ``lidarr_request`` the same for Lidarr, ``server_request`` for the music server and
     ``audiomuse_request`` for AudioMuse-AI."""
@@ -219,8 +223,12 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
     fpcalc_path = find_fpcalc(settings.fpcalc) or ("fpcalc" if run_fpcalc else None)
     fingerprinter = Fingerprinter(fpcalc_path, **({"run": run_fpcalc} if run_fpcalc else {}))
     meter = Meter(find_ffmpeg(settings.ffmpeg), run=run_ffmpeg)
+    acoustid_account = AcoustIDAccount(
+        settings.config_dir / "acoustid.json",
+        acoustid_api or (lambda url, form: http_post_json(url, user_agent, form, service="AcoustID")),
+        client=settings.acoustid_key or ACOUSTID_KEY, env_key=settings.acoustid_user_key)
     acoustid = AcoustID(post_acoustid or (lambda form: http_post_json(ACOUSTID_URL, user_agent, form, service="AcoustID")),
-                        key=settings.acoustid_key or ACOUSTID_KEY)
+                        key=settings.acoustid_key or ACOUSTID_KEY, account=acoustid_account)
     download_art = fetch_art or (lambda url: http_get(url, user_agent, accept="image/*", max_bytes=MAX_ART_BYTES,
                                                  service="the Cover Art Archive"))
 
@@ -606,7 +614,7 @@ def create_app(settings: Settings | None = None, fetch_release: Fetcher = fetch_
 
     # --- The API, one area per module in codetta/web/routes ----------------------------------
     shared = Shared(
-        accounts=accounts, acoustid=acoustid, activity=activity, audiomuse_request=audiomuse_request,
+        accounts=accounts, acoustid=acoustid, acoustid_account=acoustid_account, activity=activity, audiomuse_request=audiomuse_request,
         listenbrainz_post=listenbrainz_post, art_cache=art_cache, art_info=art_info, art_store=art_store,
         catalog_fetch=catalog_fetch, connections=connections, discogs_fetch=fetch_discogs or discogs_fetch,
         discogs_token=discogs_token, download_art=download_art, editions=editions,

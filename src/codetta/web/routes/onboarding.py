@@ -19,6 +19,8 @@ def register(app, shared) -> None:
         if connections.needs_choice:
             steps.append("connections")
         steps += [s for s in STEPS if s != "connections" and s not in onboarding.done]
+        if "acoustid" in steps and (not connections.enabled("acoustid") or shared.acoustid_account.state != "none"):
+            steps.remove("acoustid")  # nothing to connect (yet): asked once AcoustID is on
         return {"steps": steps}
 
     @app.post("/api/onboarding/{step}")

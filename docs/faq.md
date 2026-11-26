@@ -59,7 +59,9 @@ itself) and asks AcoustID which recordings they are. Releases holding most of
 your tracks come first, and each file is paired with its exact recording, so
 wrong track numbers and missing titles don't matter. Tracks AcoustID doesn't
 know are listed, and fall back to pairing by title and length. AcoustID is
-free for non-commercial use.
+free for non-commercial use. From January 1, 2027 it needs your own free
+AcoustID account: press **Connect AcoustID** in Settings → Connections →
+AcoustID, sign in at acoustid.org and approve Codetta.
 
 **How do I add Codetta to my dashboard (Homepage, Homarr, Dashy…)?**
 Codetta serves its icon in three versions, without needing sign-in, so any

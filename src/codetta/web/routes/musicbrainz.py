@@ -12,7 +12,7 @@ from typing import Literal
 from fastapi import HTTPException, Query
 from fastapi.responses import Response
 
-from codetta.core.acoustid import FingerprintError, rank_releases
+from codetta.core.acoustid import FingerprintError, UserKeyNeeded, rank_releases
 from codetta.core.artwork import sniff_image_type
 from codetta.core.catalogs import Catalogs, catalog_link_id, catalog_raw_ok, is_catalog_id
 from codetta.core.editions import FORMATS as EDITION_FORMATS
@@ -394,6 +394,8 @@ def register(app, shared) -> None:
         ok = [(rel, fp) for rel, fp in zip(readable, prints) if not isinstance(fp, FingerprintError)]
         try:
             found = acoustid.lookup([fp for _, fp in ok]) if ok else []
+        except UserKeyNeeded as exc:  # 428: the page offers "Connect AcoustID"
+            raise HTTPException(428, str(exc)) from exc
         except ProviderError as exc:
             raise HTTPException(502, str(exc)) from exc
         heard = {rel: recs for (rel, _), recs in zip(ok, found)}

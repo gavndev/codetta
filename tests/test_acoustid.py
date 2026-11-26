@@ -39,6 +39,24 @@ def result(rec_ids, score=0.95, releases=(REL,)):
          "releases": [{"id": x} for x in releases]} for r in rec_ids]}]
 
 
+class FakeLink:
+    """AcoustID's linking API: request_link gives a pending key; ``states`` says what link_status answers."""
+
+    def __init__(self):
+        self.calls, self.states = [], {"PASTED-KEY-1": "approved"}
+
+    def __call__(self, url, form):
+        self.calls.append((url, form))
+        assert form["client"] and form["format"] == "json"
+        if url.endswith("/request_link"):
+            self.states.setdefault("LINKED-KEY-1", "pending")
+            return {"status": "ok", "user": {"apikey": "LINKED-KEY-1"},
+                    "link": {"code": "WT14-9E3S", "url": "https://acoustid.org/link?code=WT14-9E3S",
+                             "expires": "2999-12-01T12:15:00+00:00"}}
+        assert url.endswith("/link_status")
+        return {"status": "ok", "key": {"state": self.states.get(form["user"], "unknown")}}
+
+
 class FakeAcoustID:
     """Answers by the file name inside the fake fingerprint."""
 
@@ -158,17 +176,19 @@ HEARD = {"track_a.flac": result([REC[3]]), "track_b.mp3": result([REC[1]]), "tra
 def make_client(untagged_album, tmp_path):
     opened = []
 
-    def make(acoustid=None, enable=("musicbrainz", "acoustid"), run=fake_fpcalc, **settings):
+    def make(acoustid=None, enable=("musicbrainz", "acoustid"), run=fake_fpcalc, link=None, **settings):
         svc = acoustid or FakeAcoustID(HEARD)
+        link = link or FakeLink()
         app = create_app(Settings(music_dir=untagged_album, config_dir=tmp_path / "config", **settings),
-                         fetch_mb=FakeMB(), fetch_art=lambda url: None, post_acoustid=svc, run_fpcalc=run)
+                         fetch_mb=FakeMB(), fetch_art=lambda url: None, post_acoustid=svc, acoustid_api=link,
+                         run_fpcalc=run)
         c = TestClient(app)
         c.__enter__()
         opened.append(c)
         if c.post("/api/auth/setup", json={"username": "owner", "password": PASSWORD}).status_code != 200:
             c.post("/api/auth/login", json={"username": "owner", "password": PASSWORD})
         c.put("/api/connections", json={"enabled": {k: k in enable for k in ("musicbrainz", "acoustid")}})
-        c.svc = svc
+        c.svc, c.link = svc, link
         return c
     yield make
     for c in opened:
@@ -236,3 +256,144 @@ def test_bad_recording_ids_are_ignored(make_client):
     res = c.post("/api/musicbrainz/preview", json={"folder": FOLDER, "release": REL,
                                                    "recordings": {f"{FOLDER}/track_a.flac": ["../../etc", "x" * 50]}})
     assert res.status_code == 200
+
+
+# --- The person's own AcoustID key (needed for lookups from 2027) -----------------------------
+
+
+def account(tmp_path, link=None, **kw):
+    from codetta.core.acoustid import AcoustIDAccount
+    return AcoustIDAccount(tmp_path / "acoustid.json", link or FakeLink(), client="APP", clock=lambda: 1e6, **kw)
+
+
+def test_lookup_sends_the_user_key_only_once_it_works(tmp_path):
+    acc = account(tmp_path)
+    svc = FakeAcoustID({"a": result([REC[1]])})
+    ac = AcoustID(svc, key="APP", min_interval=0, account=acc)
+    ac.lookup([Fingerprint(1, "FP-a")])
+    assert "user" not in svc.forms[-1]
+    acc.request_link("nas")
+    ac.lookup([Fingerprint(1, "FP-a")])
+    assert "user" not in svc.forms[-1]  # still waiting: AcoustID would turn it down like a wrong key
+    acc.api.states["LINKED-KEY-1"] = "approved"
+    acc._checked = -1e9
+    assert acc.refresh() == "approved"
+    ac.lookup([Fingerprint(1, "FP-a")])
+    assert svc.forms[-1]["user"] == "LINKED-KEY-1" and svc.forms[-1]["client"] == "APP"
+
+
+def test_needs_user_key_error_says_what_to_do():
+    from codetta.core.acoustid import UserKeyNeeded
+    for answer in ({"status": "error", "error": {"code": 21, "message": "user key required"}},
+                   ProviderError("AcoustID answered with an error (user key required)", code=21)):
+        def post(form, answer=answer):
+            if isinstance(answer, Exception):
+                raise answer
+            return answer
+        with pytest.raises(UserKeyNeeded, match="Settings → Connections → AcoustID"):
+            AcoustID(post, min_interval=0).lookup([Fingerprint(1, "x")])
+
+
+def test_a_key_disconnected_on_acoustid_is_forgotten(tmp_path):
+    from codetta.core.acoustid import UserKeyNeeded
+    link = FakeLink()
+    acc = account(tmp_path, link)
+    assert acc.use_key("PASTED-KEY-1") == "approved"
+    link.states["PASTED-KEY-1"] = "revoked"
+    ac = AcoustID(lambda form: {"status": "error", "error": {"code": 4, "message": "invalid user API key"}},
+                  min_interval=0, account=acc)
+    with pytest.raises(UserKeyNeeded, match="disconnected"):
+        ac.lookup([Fingerprint(1, "x")])
+    assert acc.state == "none" and not acc.usable_key()
+
+
+def test_account_file_is_private_and_survives_a_restart(tmp_path):
+    acc = account(tmp_path)
+    acc.request_link("nas")
+    assert (tmp_path / "acoustid.json").stat().st_mode & 0o777 == 0o600
+    again = account(tmp_path)
+    assert again.state == "pending" and again.out()["link"]["code"] == "WT14-9E3S"
+
+
+def test_a_link_past_its_expiry_is_dropped(tmp_path):
+    from datetime import UTC, datetime
+    acc = account(tmp_path, now=lambda: datetime(3000, 1, 1, tzinfo=UTC))
+    acc.request_link("nas")
+    assert acc.refresh() == "none" and acc.outcome == "expired"
+
+
+def test_env_key_locks_it(tmp_path):
+    acc = account(tmp_path, env_key="ENV-KEY-123")
+    assert acc.state == "approved" and acc.usable_key() == "ENV-KEY-123" and acc.out()["locked"]
+
+
+def test_connecting_by_linking_through_the_api(make_client):
+    c = make_client()
+    assert c.get("/api/onboarding").json()["steps"].count("acoustid") == 1  # on, not connected: asked
+    assert c.get("/api/acoustid").json()["state"] == "none"
+    res = c.post("/api/acoustid/connect", json={"return_url": "http://gav-homeserver:8111/?acoustid=back"})
+    d = res.json()
+    assert res.status_code == 200 and d["state"] == "pending" and d["link"]["code"] == "WT14-9E3S"
+    url, form = c.link.calls[-1]
+    assert url.endswith("/request_link") and form["device"] == "gav-homeserver"
+    assert form["return_url"] == "http://gav-homeserver:8111/?acoustid=back"
+    assert "LINKED-KEY-1" not in res.text  # the key never goes to the page
+    c.link.states["LINKED-KEY-1"] = "approved"
+    from codetta.core import acoustid as mod
+    old = mod.STATUS_EVERY  # checked with AcoustID at most every few seconds: no wait here
+    mod.STATUS_EVERY = 0
+    try:
+        d = c.get("/api/acoustid").json()
+    finally:
+        mod.STATUS_EVERY = old
+    assert d["state"] == "approved" and "LINKED-KEY-1" not in str(d)
+    assert "acoustid" not in c.get("/api/onboarding").json()["steps"]
+    c.post("/api/musicbrainz/identify", json={"folder": FOLDER})
+    assert c.svc.forms[-1]["user"] == "LINKED-KEY-1"
+    assert c.put("/api/acoustid", json={"key": ""}).json()["state"] == "none"
+
+
+def test_declined_link_is_forgotten_and_explained(make_client):
+    from codetta.core import acoustid as mod
+    c = make_client()
+    c.post("/api/acoustid/connect", json={"return_url": ""})
+    c.link.states["LINKED-KEY-1"] = "declined"
+    old, mod.STATUS_EVERY = mod.STATUS_EVERY, 0
+    try:
+        d = c.get("/api/acoustid").json()
+    finally:
+        mod.STATUS_EVERY = old
+    assert d["state"] == "none" and d["outcome"] == "declined"
+
+
+def test_pasting_a_key(make_client):
+    c = make_client()
+    assert c.put("/api/acoustid", json={"key": "has spaces in it"}).status_code == 422
+    res = c.put("/api/acoustid", json={"key": "NOT-A-REAL-KEY"})
+    assert res.status_code == 422 and c.get("/api/acoustid").json()["state"] == "none"
+    d = c.put("/api/acoustid", json={"key": "PASTED-KEY-1"}).json()
+    assert d["state"] == "approved" and d["how"] == "pasted"
+
+
+def test_bad_return_addresses_are_refused(make_client):
+    c = make_client()
+    for url in ("javascript:alert(1)", "file:///etc/passwd", "http://"):
+        assert c.post("/api/acoustid/connect", json={"return_url": url}).status_code == 422
+    assert c.link.calls == []
+
+
+def test_identify_without_a_key_offers_to_connect(make_client):
+    c = make_client(FakeAcoustID({}, error=ProviderError("AcoustID answered with an error (user key required)", code=21)))
+    res = c.post("/api/musicbrainz/identify", json={"folder": FOLDER})
+    assert res.status_code == 428 and "Settings → Connections → AcoustID" in res.json()["detail"]
+
+
+def test_setup_step_waits_until_acoustid_is_on(make_client):
+    c = make_client(enable=("musicbrainz",))
+    assert "acoustid" not in c.get("/api/onboarding").json()["steps"]
+
+
+def test_device_name_prefers_the_address_name():
+    from codetta.web.routes.acoustid import device_name
+    assert device_name("http://gav-homeserver:8111/") == "gav-homeserver"
+    assert device_name("http://100.64.0.3:8111/") not in ("", "100.64.0.3")

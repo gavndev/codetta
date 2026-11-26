@@ -2122,6 +2122,19 @@ body:has(.now-playing:not([hidden])) .browser { padding-bottom: 120px; }
 .sk-check p { margin: 0; }
 .sk-ok { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--success); }
 .sk-ok svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; flex: none; }
+/* AcoustID: connect your account (Settings → Connections, and a setup step) */
+.acoustid-code { font-size: 15px; font-weight: 700; letter-spacing: .06em; padding: 2px 6px; border-radius: 6px; background: var(--accent-soft); color: var(--spot); user-select: all; }
+.acoustid-lead { margin: 0; font-size: 14px; }
+.acoustid-actions a.btn { text-decoration: none; }
+.acoustid-wait { margin: 0; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.acoustid-wait::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--spot); flex: none; animation: acoustid-pulse 1.4s ease-in-out infinite; }
+@keyframes acoustid-pulse { 50% { opacity: .25; transform: scale(.75); } }
+@media (prefers-reduced-motion: reduce) { .acoustid-wait::before { animation: none; } }
+.acoustid-more { margin-top: 4px; }
+.acoustid-more > summary { cursor: pointer; font-size: 13px; color: var(--muted); padding: 6px 0; min-height: 32px; }
+.acoustid-paste { display: grid; gap: 8px; margin-top: 6px; }
+.setup-box { display: grid; gap: 10px; text-align: start; margin: 4px 0 14px; }
+.error-box .mb-connect { display: flex; margin-top: 10px; }
 @media (max-width: 760px) {
   .sk-search input { font-size: 16px; }
   .sk-cands li .btn.small { height: 40px; }
