@@ -2,6 +2,10 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+- **AcoustID setup step without the repeated text:** the step no longer says the same thing twice.
+
 ## 0.15.3 (2026-11-27)
 
 **Heads-up: AcoustID is changing.** From January 1, 2027, identifying music by sound needs your own free AcoustID account. Update, then connect it once in Settings → Connections → AcoustID, or Identify by sound stops working then.

@@ -112,7 +112,8 @@ function body(redraw, { setup = false } = {}) {
   }
   return [
     d?.outcome ? h("div", { class: "error-box" }, OUTCOMES[d.outcome] || OUTCOMES.unknown) : null,
-    h("p", { class: "hint" }, "From January 1, 2027, AcoustID needs your own free AcoustID account to identify music. Connect it once: you sign in at acoustid.org and approve Codetta, nothing to copy."),
+    // The setup step already says this above the box.
+    setup ? null : h("p", { class: "hint" }, "From January 1, 2027, AcoustID needs your own free AcoustID account to identify music. Connect it once: you sign in at acoustid.org and approve Codetta, nothing to copy."),
     setup ? null : h("div", { class: "inbox-settings-actions" },
       h("button", { class: "btn primary", type: "button", onclick: () => connect(redraw) }, "Connect AcoustID")),
     pasteForm(redraw),
