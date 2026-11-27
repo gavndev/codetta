@@ -37,7 +37,7 @@
   <a href="#what-codetta-does">Features</a> ·
   <a href="#how-codetta-compares">Compare</a> ·
   <a href="#documentation">Docs</a> ·
-  <a href="#whats-new-and-whats-next">What's new</a>
+  <a href="#whats-new">What's new</a>
 </p>
 
 ---
