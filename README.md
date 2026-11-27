@@ -62,6 +62,12 @@ and other music apps pick up the changes straight away (connect your server) or 
 > Everything is in the [changelog](CHANGELOG.md). Codetta is careful with your files and used daily
 > on real libraries, but keep a backup of your music, as you would with any tool that edits files.
 
+> [!WARNING]
+> **AcoustID is changing on January 1, 2027.** From then on, identifying music by sound needs your own
+> free AcoustID account. Update to Codetta 0.15.3 or later and connect it once in Settings → Connections →
+> AcoustID (you sign in at acoustid.org and approve Codetta, nothing to copy). Until you do, Identify by
+> sound stops working and the inbox matches by tags alone. Everything else in Codetta is unaffected.
+
 > **Codetta is AI-Assisted.** I understand the controversy surrounding AI usage in software. I prioritize transparency, hence the disclaimer for those who do not favor AI. This project is assisted by Claude Opus 5.5.
 
 ## Quick start

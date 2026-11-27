@@ -124,8 +124,57 @@ export function renderAcoustIDSettings() {
   if (!box) return;
   if (!connectionOn("acoustid")) { clearTimeout(poll); box.replaceChildren(); return; }
   const draw = () => renderAcoustIDSettings();
+  if (data?.state === "approved") hideNotice();
   setKids(box, h("div", { class: "sk-settings" }, h("h3", { class: "field-label sk-head" }, "Your AcoustID account"), body(draw)));
   watch(box, draw);
+}
+
+// ---- The heads-up banner (once, at the top of the app) -------------------------------------------------
+// The close button hides it for this browser session (it stays closed through refreshes and comes back
+// next time); "Don't remind me again" hides it for good in this browser. Connecting hides it too.
+const NOTICE_NEVER = "codetta-acoustid-notice";
+const NOTICE_CLOSED = "codetta-acoustid-notice-closed";
+
+function hideNotice() {
+  const bar = $("#acoustid-notice");
+  if (bar) { bar.hidden = true; bar.replaceChildren(); }
+}
+
+function noticeDismissed() {
+  try { if (localStorage.getItem(NOTICE_NEVER) === "never") return true; } catch { /* private mode */ }
+  try { if (sessionStorage.getItem(NOTICE_CLOSED) === "1") return true; } catch { /* private mode */ }
+  return false;
+}
+
+function closeNotice({ forever = false } = {}) {
+  try { sessionStorage.setItem(NOTICE_CLOSED, "1"); } catch { /* private mode */ }
+  if (forever) { try { localStorage.setItem(NOTICE_NEVER, "never"); } catch { /* private mode */ } }
+  hideNotice();
+}
+
+/** Show the AcoustID heads-up at the top of the app, unless it's connected or was dismissed. */
+export async function showAcoustIDNotice() {
+  const bar = $("#acoustid-notice");
+  if (!bar || noticeDismissed()) return;
+  if (connectionOn("acoustid")) {
+    await loadAcoustID();
+    if (data?.state === "approved") return;
+  }
+  setKids(bar,
+    h("span", { class: "notice-icon" }, icon("alert")),
+    h("p", { class: "notice-text" },
+      h("strong", {}, "AcoustID is changing."), " ",
+      "From January 1, 2027, identifying music by sound needs your own free AcoustID account. Connect it once and it keeps working."),
+    h("div", { class: "notice-actions" },
+      h("button", { class: "btn notice-go", type: "button", onclick: () => {
+        closeNotice();
+        import("./settings.js").then((m) => m.openSettings("connections", "acoustid-box"));
+      } }, "Connect AcoustID"),
+      h("button", { class: "link-btn notice-never", type: "button", onclick: () => closeNotice({ forever: true }) }, "Don't remind me again")),
+    h("button", { class: "icon-btn notice-close", type: "button", "aria-label": "Close", title: "Close",
+      onclick: () => closeNotice() }, icon("close")));
+  bar.hidden = false;
+  bar.classList.add("opening");
 }
 
 /** First-run (or after an update): connect AcoustID while it's on and not connected yet. */
@@ -134,6 +183,7 @@ export async function renderAcoustIDStep(form, step) {
   if (!data || data.state === "approved") { finishStep(step); return; }
   const draw = () => {
     const approved = data?.state === "approved";
+    if (approved) hideNotice();
     setKids(form, setupLogo(), stepCount(),
       h("h1", {}, approved ? "AcoustID is connected" : "Connect your AcoustID account"),
       h("p", { class: "auth-sub" }, "Identify by sound asks AcoustID which songs your files are. From January 1, 2027, AcoustID needs each person's own free account for that. Connect yours once and it keeps working."),

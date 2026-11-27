@@ -5,6 +5,7 @@ All notable changes to Codetta. Versions follow [Semantic Versioning](https://se
 ## Unreleased
 
 - **Connect your AcoustID account:** from January 1, 2027, AcoustID needs each person's own free account to identify music by sound. In Settings → Connections → AcoustID, press **Connect AcoustID**, sign in at acoustid.org (with MusicBrainz, Google or just an email address) and approve Codetta: nothing to copy, and Codetta picks it up by itself. You can paste a key from acoustid.org instead, or set `CODETTA_ACOUSTID_USER_KEY`. If you use Identify by sound, Codetta asks you once. Until you connect, Listen says so with a button to connect, and the inbox matches by tags alone. Thanks to AcoustID's maintainer for the heads-up.
+- **A heads-up about AcoustID:** a yellow banner at the top of Codetta explains the change until you connect. Close it and it stays away until your next visit; **Don't remind me again** hides it for good in that browser.
 
 ## 0.15.2 (2026-11-25)
 

@@ -10,7 +10,7 @@ import { loadAudioMuse, renderAudioMuseSettings, renderAutoplayStep } from "./au
 import { renderSubsonicSettings } from "./subsonic.js";
 import { loadListenBrainz, renderListenBrainzSettings } from "./listenbrainz.js";
 import { loadDiscogs, renderDiscogsSettings } from "./discogs.js";
-import { backFromAcoustID, loadAcoustID, renderAcoustIDSettings, renderAcoustIDStep } from "./acoustid.js";
+import { backFromAcoustID, loadAcoustID, showAcoustIDNotice, renderAcoustIDSettings, renderAcoustIDStep } from "./acoustid.js";
 import { loadServer, renderListenStep, renderServerSettings } from "./mediaserver.js";
 import { renderFolderHead } from "./tools.js";
 import { renderEditor } from "./editor.js";
@@ -390,6 +390,7 @@ function afterSetup() {
   let seen = null;
   try { seen = localStorage.getItem("codetta-seen-version"); } catch { /* private mode */ }
   if (backFromAcoustID()) return; // just approved (or declined) Codetta on acoustid.org
+  showAcoustIDNotice();
   if (seen !== state.auth?.version) openNews({ latestOnly: true });
 }
 
