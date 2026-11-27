@@ -357,6 +357,8 @@ class AcoustIDAccount:
             form["return_url"] = return_url
         data = self._call(LINK_URL, form)
         user, link = data.get("user"), data.get("link")
+        if not isinstance(link, dict) and isinstance(user, dict):
+            link = user.get("link")  # the live API puts it inside "user"; its docs show it beside it
         key = user.get("apikey") if isinstance(user, dict) else None
         code = link.get("code") if isinstance(link, dict) else None
         url = link.get("url") if isinstance(link, dict) else None

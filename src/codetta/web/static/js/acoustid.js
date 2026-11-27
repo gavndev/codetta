@@ -37,17 +37,18 @@ export function backFromAcoustID() {
   return true;
 }
 
-/** Start linking: AcoustID gives a code, the person approves Codetta on acoustid.org. */
-async function connect(redraw) {
-  // Opened now, while it still counts as the click (browsers block a window opened after a wait).
-  const win = window.open("", "_blank");
+/** Start linking: AcoustID gives a code, the person approves Codetta on acoustid.org, in this same tab
+ * (acoustid.org sends them back here). A new tab hid any error on iPhone, where it jumps in front. */
+async function connect(redraw, button) {
+  if (button) button.disabled = true;
   try {
     data = await api("POST", "/api/acoustid/connect", { return_url: returnUrl() });
-    if (win) { win.opener = null; win.location.href = data.link.url; }
+    location.assign(data.link.url);
+    return;
   } catch (err) {
-    win?.close();
     toast(err.message, "error");
   }
+  if (button) button.disabled = false;
   redraw();
 }
 
@@ -105,7 +106,7 @@ function body(redraw, { setup = false } = {}) {
       h("p", { class: "acoustid-lead" }, "Approve Codetta on acoustid.org. Sign in there with MusicBrainz, Google or just an email address."),
       h("div", { class: "inbox-settings-actions acoustid-actions" },
         h("button", { class: "btn", type: "button", onclick: () => forget(redraw) }, "Cancel"),
-        h("a", { class: "btn primary", href: d.link.url, target: "_blank", rel: "noopener noreferrer" }, "Open acoustid.org")),
+        h("a", { class: "btn primary", href: d.link.url, rel: "noreferrer" }, "Open acoustid.org")),
       h("p", { class: "hint" }, "On another device? Go to acoustid.org/link and enter this code:", " ", h("code", { class: "acoustid-code" }, d.link.code)),
       h("p", { class: "acoustid-wait", role: "status" }, "Waiting for you to approve…"),
     ];
@@ -115,7 +116,7 @@ function body(redraw, { setup = false } = {}) {
     // The setup step already says this above the box.
     setup ? null : h("p", { class: "hint" }, "From January 1, 2027, AcoustID needs your own free AcoustID account to identify music. Connect it once: you sign in at acoustid.org and approve Codetta, nothing to copy."),
     setup ? null : h("div", { class: "inbox-settings-actions" },
-      h("button", { class: "btn primary", type: "button", onclick: () => connect(redraw) }, "Connect AcoustID")),
+      h("button", { class: "btn primary", type: "button", onclick: (e) => connect(redraw, e.currentTarget) }, "Connect AcoustID")),
     pasteForm(redraw),
   ];
 }
@@ -190,7 +191,7 @@ export async function renderAcoustIDStep(form, step) {
       h("p", { class: "auth-sub" }, "Identify by sound asks AcoustID which songs your files are. From January 1, 2027, AcoustID needs each person's own free account for that. Connect yours once and it keeps working."),
       h("div", { class: "setup-box" }, body(draw, { setup: true })),
       approved || data?.state === "pending" ? null
-        : h("button", { class: "btn primary auth-submit", type: "button", onclick: () => connect(draw) }, "Connect AcoustID"),
+        : h("button", { class: "btn primary auth-submit", type: "button", onclick: (e) => connect(draw, e.currentTarget) }, "Connect AcoustID"),
       approved ? h("button", { class: "btn primary auth-submit", type: "submit" }, "Continue")
         : h("button", { class: "link-btn setup-skip", type: "button", onclick: () => { clearTimeout(poll); finishStep(step); } }, "Not now"),
       h("p", { class: "auth-foot" }, "You can connect it later in Settings → Connections → AcoustID."));

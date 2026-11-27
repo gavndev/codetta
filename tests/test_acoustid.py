@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from codetta.core.acoustid import (
     BATCH,
     AcoustID,
+    AcoustIDAccount,
     Fingerprint,
     Fingerprinter,
     FingerprintError,
@@ -50,9 +51,10 @@ class FakeLink:
         assert form["client"] and form["format"] == "json"
         if url.endswith("/request_link"):
             self.states.setdefault("LINKED-KEY-1", "pending")
-            return {"status": "ok", "user": {"apikey": "LINKED-KEY-1"},
-                    "link": {"code": "WT14-9E3S", "url": "https://acoustid.org/link?code=WT14-9E3S",
-                             "expires": "2999-12-01T12:15:00+00:00"}}
+            # The shape api.acoustid.org really answers with (2026-11-27): "link" inside "user".
+            return {"status": "ok", "user": {"apikey": "LINKED-KEY-1", "link": {
+                "code": "WT14-9E3S", "url": "https://acoustid.org/link?code=WT14-9E3S",
+                "expires": "2999-12-01T12:15:00+00:00"}}}
         assert url.endswith("/link_status")
         return {"status": "ok", "key": {"state": self.states.get(form["user"], "unknown")}}
 
@@ -397,3 +399,13 @@ def test_device_name_prefers_the_address_name():
     from codetta.web.routes.acoustid import device_name
     assert device_name("http://gav-homeserver:8111/") == "gav-homeserver"
     assert device_name("http://100.64.0.3:8111/") not in ("", "100.64.0.3")
+
+
+def test_request_link_also_reads_the_documented_shape(tmp_path):
+    """AcoustID's docs put "link" beside "user" rather than inside it: both work."""
+    def api(url, form):
+        return {"status": "ok", "user": {"apikey": "DOCS-KEY-1"},
+                "link": {"code": "AB12-CD34", "url": "https://acoustid.org/link?code=AB12-CD34", "expires": ""}}
+    acc = AcoustIDAccount(tmp_path / "acoustid.json", api, client="app")
+    acc.request_link("server")
+    assert acc.state == "pending" and acc.out()["link"]["code"] == "AB12-CD34"
