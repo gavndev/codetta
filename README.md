@@ -218,6 +218,8 @@ Copyright (C) 2026 Gavin Griggs and contributors.
 To everyone who reported a bug or shaped a feature:
 
 - [BernoldM](https://github.com/BernoldM): a detailed report on iTunes matching ([#3](https://github.com/gavndev/codetta/issues/3)) whose six suggestions all made it into Codetta
+- [lalinsky](https://github.com/lalinsky), AcoustID's maintainer: the heads-up about AcoustID's user keys ([#6](https://github.com/gavndev/codetta/issues/6)) that led to connecting your own AcoustID account, before lookups need it in 2027
+- [EddieFAF](https://github.com/EddieFAF): asked for release type, label and catalog number in folder names ([#8](https://github.com/gavndev/codetta/issues/8)), which got their own buttons in 0.15.5
 
 Found a bug or have an idea? [Open an issue](https://github.com/gavndev/codetta/issues) and you could be next on this list.
 
