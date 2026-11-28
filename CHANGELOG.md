@@ -2,7 +2,9 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.15.5 (2026-11-28)
+
+Release type, label and catalog number for file and folder names.
 
 - **More tags for file and folder names:** the pattern has buttons for **Release type**, **Label** and **Catalog number**, and the hint says what was true all along: any tag works, like `{media}` or `{originalyear}`. Coming from Picard, `{albumtype}`, `{recordlabel}` and `{cataloguenumber}` work too. Thanks to EddieFAF for asking.
 
