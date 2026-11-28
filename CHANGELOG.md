@@ -2,7 +2,9 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.15.4 (2026-11-28)
+
+Connect AcoustID works now (it did nothing in 0.15.3), and the AcoustID banner and setup step are tidier.
 
 - **Connect AcoustID works:** pressing it did nothing, because AcoustID's real answer is shaped a little differently from its documentation. Codetta now reads both. It also takes you to acoustid.org in the same tab, and acoustid.org brings you back. Before, it opened a new tab, which on iPhone hid any error message behind it.
 - **The AcoustID banner sits under the search bar on phones,** above where you are (‹ Library), instead of below it.

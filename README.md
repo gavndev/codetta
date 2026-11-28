@@ -13,7 +13,7 @@
 
 <p align="center">
   <img alt="Status: beta" src="https://img.shields.io/badge/status-beta-3b82f6">
-  <img alt="Version 0.15.3" src="https://img.shields.io/badge/version-0.15.3-0e7c74">
+  <img alt="Version 0.15.4" src="https://img.shields.io/badge/version-0.15.4-0e7c74">
   <a href="LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-555"></a>
   <img alt="Python 3.14" src="https://img.shields.io/badge/python-3.14-3776ab">
   <a href="https://github.com/gavndev/codetta/actions/workflows/ci.yml"><img alt="Tests" src="https://github.com/gavndev/codetta/actions/workflows/ci.yml/badge.svg"></a>
@@ -64,7 +64,7 @@ and other music apps pick up the changes straight away (connect your server) or 
 
 > [!WARNING]
 > **AcoustID is changing on January 1, 2027.** From then on, identifying music by sound needs your own
-> free AcoustID account. Update to Codetta 0.15.3 or later and connect it once in Settings → Connections →
+> free AcoustID account. Update to Codetta 0.15.4 or later and connect it once in Settings → Connections →
 > AcoustID (you sign in at acoustid.org and approve Codetta, nothing to copy). Until you do, Identify by
 > sound stops working and the inbox matches by tags alone. Everything else in Codetta is unaffected.
 
