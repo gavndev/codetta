@@ -267,3 +267,16 @@ def test_names_never_come_from_placeholders_or_go_unknown(tmp_path):
     s = Source("in/x.flac", {"artist": ["Unknown Artist"], "title": ["X"]}, "flac")
     (m,) = plan_moves(tmp_path, [s], DEFAULT_PATTERN)
     assert m.status == "keep" and m.dst == "in/x.flac" and "Not enough tags" in m.reason
+
+
+def test_any_tag_and_picard_names_work_in_a_pattern():
+    """Release type, label and catalog number (and Picard's names for them) fill folder names."""
+    from codetta.core.organize import Source, render
+    src = Source("x/a.flac", {"albumartist": ["Radiohead"], "album": ["OK Computer"], "date": ["1997"],
+                              "releasetype": ["album"], "label": ["Parlophone"], "catalognumber": ["NODATA 02"],
+                              "tracknumber": ["1"], "title": ["Airbag"]})
+    want = "Radiohead/album/OK Computer - Parlophone NODATA 02 (1997)/01 Airbag.flac"
+    assert render("{albumartist}/{releasetype}/{album}[ - {label} {catalognumber}] ({year})/{track} {title}", src) == want
+    assert render("{albumartist}/{albumtype}/{album}[ - {recordlabel} {cataloguenumber}] ({year})/{track} {title}", src) == want
+    del src.tags["label"]
+    assert render("{albumartist}/{album}[ - {label}]/{title}", src) == "Radiohead/OK Computer/Airbag.flac"

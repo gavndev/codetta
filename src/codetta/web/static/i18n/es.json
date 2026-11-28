@@ -2201,7 +2201,7 @@
   "{stayed_untagged} without enough tags": "{stayed_untagged} sin etiquetas suficientes",
   "{sub} Every track still has to line up with the album, and anything Codetta does can be undone in Activity. {usedBy}": "{sub} Cada pista tiene que coincidir con el álbum, y todo lo que hace Codetta se puede deshacer en Actividad. {usedBy}",
   "{summary} in “{album}”. Activity can undo it.": "{summary} en “{album}”. Actividad puede deshacerlo.",
-  "{tag} inserts a tag · {a|b} uses the first that has a value · [ … ] disappears when a tag in it is empty · / starts a folder. The extension is added for you.": "{tag} inserta una etiqueta · {a|b} usa la primera que tenga valor · [ … ] desaparece cuando una etiqueta de dentro está vacía · / empieza una carpeta. La extensión se añade sola.",
+  "{tag} inserts any tag, like {label} or {catalognumber} · {a|b} uses the first that has a value · [ … ] disappears when a tag in it is empty · / starts a folder. The extension is added for you.": "{tag} inserta cualquier etiqueta, como {label} o {catalognumber} · {a|b} usa la primera que tenga valor · [ … ] desaparece si una etiqueta dentro está vacía · / empieza una carpeta. La extensión se añade sola.",
   "{title} {year} {month} {day} {skip}": "{title} {year} {month} {day} {skip}",
   "{tracks} files · {formats}": "{tracks} archivos · {formats}",
   "{tracks} tracks": "{tracks} pistas",

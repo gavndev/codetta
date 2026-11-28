@@ -422,7 +422,8 @@ function renderHealth() {
 const org = { settings: null, pattern: "", recursive: false, remember: false, preview: null, error: null, token: 0, timer: null, exTimer: null, example: null };
 const ORG_TOKENS = [
   ["Album artist", "{albumartist|artist}"], ["Artist", "{artist}"], ["Album", "{album}"], ["Year", "[ ({year})]"],
-  ["Disc-track", "{disctrack}"], ["Track", "{track}"], ["Title", "{title}"], ["Genre", "{genre}"], ["Folder", "/"],
+  ["Disc-track", "{disctrack}"], ["Track", "{track}"], ["Title", "{title}"], ["Genre", "{genre}"],
+  ["Release type", "{releasetype}"], ["Label", "{label}"], ["Catalog number", "{catalognumber}"], ["Folder", "/"],
 ];
 
 function orgTarget() {
@@ -487,7 +488,7 @@ export function patternField(value, presets, onChange = () => {}) {
     h("div", { class: "org-pattern-row" }, input, patterns),
     h("div", { class: "org-tokens", role: "group", "aria-label": "Insert" },
       ORG_TOKENS.map(([label, text]) => h("button", { type: "button", class: "chip-btn", onclick: () => insert(text) }, label))),
-    h("p", { class: "hint org-help" }, "{tag} inserts a tag · {a|b} uses the first that has a value · [ … ] disappears when a tag in it is empty · / starts a folder. The extension is added for you."),
+    h("p", { class: "hint org-help" }, "{tag} inserts any tag, like {label} or {catalognumber} · {a|b} uses the first that has a value · [ … ] disappears when a tag in it is empty · / starts a folder. The extension is added for you."),
     exBox);
   return { el, input };
 }

@@ -12,7 +12,9 @@ A *pattern* describes where a file belongs, relative to the music folder:
 
 Extras: ``{track}`` ("01"), ``{disc}`` ("2"), ``{disctrack}`` ("01", or
 "2-01" on multi-disc albums), ``{year}``, ``{ext}``/``{format}``, ``{filename}``
-(the current name, without extension).
+(the current name, without extension). Any other tag works by its name in
+``core/tagmap.py`` (``{releasetype}``, ``{label}``, ``{catalognumber}``, …), and
+a few other names people know from other taggers point to those (``ALIASES``).
 
 Nothing here touches a file until ``apply_moves``; ``plan_moves`` only works
 out where everything would go, and why something can't move. Moves never
@@ -53,6 +55,9 @@ SIDECAR_SUFFIXES = (".lrc",)  # follow their audio file when renamed
 # treats them as empty, so a file is never named "[unknown]" or filed under "Unknown".
 PLACEHOLDERS = frozenset({"[unknown]", "[untitled]", "[no artist]", "unknown", "unknown artist", "unknown album",
                           "untitled", "no title", "<unknown>", "?"})
+# Other names for a tag, as people write them coming from other taggers.
+ALIASES = {"albumtype": "releasetype", "recordlabel": "label", "cataloguenumber": "catalognumber", "catno": "catalognumber"}
+
 _TOKEN = re.compile(r"\{([^{}]*)\}")
 _OPTIONAL = re.compile(r"\[([^\[\]]*)\]")
 _UNSAFE = re.compile(r'[<>:"/\\|?*\x00-\x1f\x7f]')
@@ -123,6 +128,7 @@ class Source:
 
     def value(self, key: str, multi_disc: bool) -> str:
         key = key.strip().lower()
+        key = ALIASES.get(key, key)
         stem, ext = os.path.splitext(self.rel.rsplit("/", 1)[-1])
         if key == "track":
             n = _number(_first(self.tags, "tracknumber"))

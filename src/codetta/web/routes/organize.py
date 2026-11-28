@@ -87,7 +87,8 @@ def register(app, shared) -> None:
         sample = Source("Some Folder/track.flac", {
             "albumartist": ["Kōsei Mori"], "artist": ["Kōsei Mori"], "album": ["Northern Signal"],
             "title": ["Harbour Lights"], "tracknumber": ["3/10"], "discnumber": ["2/2"], "date": ["2021-04-09"],
-            "genre": ["Ambient"], "label": ["Low Orbit Records"],
+            "genre": ["Ambient"], "label": ["Low Orbit Records"], "releasetype": ["album"],
+            "catalognumber": ["LOR-014"],
         }, "flac")
         return {"ok": True, "single": render(body.pattern, sample, False), "multi": render(body.pattern, sample, True)}
 

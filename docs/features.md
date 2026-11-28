@@ -293,6 +293,15 @@ which gives `Kōsei Mori/Northern Signal (2021)/03 Harbour Lights.flac`
 `[ … ]` disappears when a tag in it is empty, and `/` starts a folder. Pick a
 starting pattern, tap tag buttons to build your own, and watch the live example.
 
+Any tag works in a pattern, not just the buttons: `{releasetype}` (album,
+single, ep…), `{label}`, `{catalognumber}`, `{media}`, `{originalyear}` and so
+on. Coming from Picard, `{albumtype}`, `{recordlabel}` and `{cataloguenumber}`
+work too. For example
+
+    {albumartist}/{releasetype}/{album}[ - {label} {catalognumber}] ({year})/{disctrack} {title}
+
+gives `Kōsei Mori/album/Northern Signal - Low Orbit Records LOR-014 (2021)/03 Harbour Lights.flac`.
+
 Your default pattern lives in **Settings → Library → File and folder names**.
 Organize, Tidy up (with names and folders on) and the inbox all use it.
 

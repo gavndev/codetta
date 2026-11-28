@@ -2,6 +2,10 @@
 
 All notable changes to Codetta. Versions follow [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+- **More tags for file and folder names:** the pattern has buttons for **Release type**, **Label** and **Catalog number**, and the hint says what was true all along: any tag works, like `{media}` or `{originalyear}`. Coming from Picard, `{albumtype}`, `{recordlabel}` and `{cataloguenumber}` work too. Thanks to EddieFAF for asking.
+
 ## 0.15.4 (2026-11-28)
 
 Connect AcoustID works now (it did nothing in 0.15.3), and the AcoustID banner and setup step are tidier.
